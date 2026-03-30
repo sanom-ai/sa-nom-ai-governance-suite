@@ -145,6 +145,11 @@ This does not mean:
 
 The intended model is governed document work, not uncontrolled auto-publication.
 
+## Related Guides
+
+- [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
+- [Governed Document Lifecycle](GOVERNED_DOCUMENT_LIFECYCLE.md)
+
 ## Summary
 
 The Governed Document Center is the document-governance layer that fits naturally into SA-NOM's operating model.
