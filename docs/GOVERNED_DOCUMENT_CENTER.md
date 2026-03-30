@@ -168,6 +168,17 @@ The preferred design is rule-driven numbering and metadata layered onto the same
 
 See [Governed Document Numbering And Metadata Standard](GOVERNED_DOCUMENT_NUMBERING_METADATA.md).
 
+<<<<<<< HEAD
+## Human Ask And Reporting
+
+The document layer should also support governed lookup, reporting, and meeting workflows through Human Ask.
+
+That means humans should be able to call AI to report document status, active versions, pending approvals, missing metadata, linked records, and review posture without bypassing release or authority boundaries.
+
+See [Governed Document Human Ask And Reporting](GOVERNED_DOCUMENT_HUMAN_ASK_REPORTING.md).
+
+=======
+>>>>>>> origin/main
 ## Related Guides
 
 - [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
@@ -178,4 +189,5 @@ See [Governed Document Numbering And Metadata Standard](GOVERNED_DOCUMENT_NUMBER
 The Governed Document Center is the document-governance layer that fits naturally into SA-NOM's operating model.
 
 It is designed so AI can do routine document work inside defined boundaries, while humans step in only when approval, exception handling, or higher-risk control decisions are required.
+
 
