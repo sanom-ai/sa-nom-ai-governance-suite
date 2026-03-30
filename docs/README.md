@@ -15,6 +15,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Demo Checklist](DEMO_CHECKLIST.md)
 - [Demo Checklist (TH)](DEMO_CHECKLIST_TH.md)
 - [Product Tour](PRODUCT_TOUR.md)
+- [PTAG Framework](PTAG_FRAMEWORK.md)
 - [Private Rule Position](PRIVATE_RULE_POSITION.md)
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 - [PT-OSS Core](PT_OSS_CORE.md): PT-OSS is SA-NOM's embedded structural intelligence layer and a proprietary framework developed by the creator
