@@ -2,7 +2,7 @@
 
 ## Release Focus
 
-This release prepares SA-NOM AI Governance Suite for its first public open-source baseline under AGPL-3.0-only, while keeping a clear open-core path for commercial licensing and rollout services.
+This release establishes SA-NOM AI Governance Suite as its first public open-source baseline under AGPL-3.0-only, while preserving a clear open-core path for commercial licensing and rollout services.
 
 ## Highlights
 
@@ -43,11 +43,13 @@ Validated during release preparation with:
 - direct regression execution across key tests in `_support/tests`
 - CI workflow configuration in `.github/workflows/ci.yml`
 
-## Known Gaps Before Public Push
+## Post-Release Follow-Up
 
-- This workspace still needs a real git remote and push target
-- Full `pytest` should be re-run in an environment where dev dependencies are installed
-- Final repository review should confirm `_runtime/` contains no real organization data
+Recommended next steps after `v0.1.0`:
+- run full `pytest` in an environment with dev dependencies installed
+- expand contributor onboarding and packaging metadata
+- harden the post-launch roadmap for `v0.1.1`
+- keep `_runtime/` data private and regenerate trusted registry artifacts after policy-pack changes
 
 ## Contact
 

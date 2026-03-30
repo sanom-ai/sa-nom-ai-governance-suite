@@ -1,8 +1,18 @@
 # SA-NOM AI Governance Suite
 
+[![CI](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL%203.0--only-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/sanom-ai/sa-nom-ai-governance-suite)](https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases)
+
 SA-NOM AI Governance Suite is an open-core governance and orchestration toolkit for teams that need structured policy control around AI-assisted operations.
 
 The community baseline in this repository is designed for evaluation, internal deployment, and self-managed governance experiments on your own infrastructure.
+
+## Why Teams Use SA-NOM
+
+- Keep AI-assisted operations inside explicit governance, audit, and escalation boundaries.
+- Model role authority and review flows with PTAG rather than leaving critical behavior implicit.
+- Start self-managed under AGPL, then move into commercial rollout or enterprise support only if needed.
 
 ## Community Baseline
 
@@ -24,6 +34,12 @@ This repository is published as the community baseline of SA-NOM under AGPL-3.0-
 If you run a modified networked version of this software, AGPL requires you to make the corresponding source available to users of that service. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 See [FEATURE_MATRIX.md](FEATURE_MATRIX.md) for the intended open-core boundary and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) for pricing and commercial terms.
+
+## Start Here
+
+Choose the path that matches your situation:
+- Self-managed community path: start with the quick start below, review [DEPLOYMENT.md](DEPLOYMENT.md), and use the examples in `examples/`.
+- Commercial path: review [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md), prepare [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md), and contact `sanomaiarch@gmail.com`.
 
 ## Quick Start
 
@@ -47,12 +63,12 @@ See [FEATURE_MATRIX.md](FEATURE_MATRIX.md) for the intended open-core boundary a
 3. Start the containerized runtime:
    - `docker compose up --build`
 
-## Who Should Use Which Path?
+## Current Release
 
-- Use the community baseline if you want to evaluate, self-host, extend, or operate the core system yourself under AGPL.
-- Contact us for commercial licensing if you need enterprise-only features, rollout support, compliance tailoring, air-gapped programs, or a production support relationship.
-
-Commercial contact: `sanomaiarch@gmail.com`
+- Current public release: [v0.1.0](https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases/tag/v0.1.0)
+- Release notes: [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md)
+- Next roadmap: [ROADMAP_v0.1.1.md](ROADMAP_v0.1.1.md)
+- Backlog seeds: [BACKLOG_SEEDS.md](BACKLOG_SEEDS.md)
 
 ## Public Docs
 
@@ -63,11 +79,10 @@ Commercial contact: `sanomaiarch@gmail.com`
 - [SECURITY.md](SECURITY.md): vulnerability disclosure policy
 - [TRADEMARKS.md](TRADEMARKS.md): brand and naming guidance
 - [NOTICE](NOTICE): project-specific license, trademark, and commercial notice
+- [SUPPORT.md](SUPPORT.md): community, commercial, and security contact path
 - [OPEN_SOURCE_RELEASE_CHECKLIST.md](OPEN_SOURCE_RELEASE_CHECKLIST.md): launch checklist for publishing a clean public release
 - [PUBLIC_UPLOAD_RUNBOOK.md](PUBLIC_UPLOAD_RUNBOOK.md): step-by-step upload procedure for the first public push
-- [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md): first public release summary
 - [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md): intake template for commercial inquiries
-- [SUPPORT.md](SUPPORT.md): community, commercial, and security contact path
 
 ## Repository Layout
 
