@@ -21,6 +21,14 @@ With SA-NOM, teams can:
 
 The result is not only safer AI. It is AI that can participate in operations, coordination, and managed execution without falling outside organizational control.
 
+## PTAG Governance Language
+
+SA-NOM includes PTAG as the policy and role-governance language that helps define roles, authority boundaries, constraints, and policy logic in a structured, reviewable way.
+
+PTAG is a proprietary framework developed by the creator and integrated into SA-NOM as a foundational governance layer.
+
+See [docs/PTAG_FRAMEWORK.md](docs/PTAG_FRAMEWORK.md) for the public explanation of what PTAG is and why it matters in the product.
+
 ## Private Rule Studio And Private Rule Position
 
 `Private Rule Studio` is a core platform capability, not a paid unlock.
@@ -112,7 +120,7 @@ See [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md) for the full walkthrough.
 ## Community Baseline
 
 The public repository currently includes:
-- PTAG parsing and validation
+- PTAG parsing, validation, and governance-language foundations
 - governed runtime execution and decision flow
 - audit chain and evidence-oriented execution paths
 - PT-OSS structural intelligence and posture-driven gating

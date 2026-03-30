@@ -30,6 +30,8 @@ Look at:
 
 This is the layer that turns AI from a general assistant into a governed operating role.
 
+See [PTAG_FRAMEWORK.md](PTAG_FRAMEWORK.md).
+
 ## 2. Owner And Delegated Access
 
 The runtime becomes organization-aware once an executive owner and delegated profiles are present.
