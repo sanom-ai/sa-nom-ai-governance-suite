@@ -1,0 +1,45 @@
+{
+    "pack_name": "Regulator Response Pack",
+    "template_id": "regulator_response_pack",
+    "example_name": "Regulator Response Coordination Lead",
+    "business_domain": "regulatory_response",
+    "operating_mode": "indirect",
+    "reporting_line": "COMPLIANCE",
+    "assigned_user_id": "COMPLIANCE_MANAGER_01",
+    "executive_owner_id": "EXEC_OWNER",
+    "seat_id": "OPS-REGULATOR-RESPONSE",
+    "responsibilities": [
+        "review regulator request posture",
+        "summarize evidence and disclosure gaps",
+        "flag deadline and legal exposure",
+        "prepare escalation notes for regulator-response exceptions"
+    ],
+    "allowed_actions": [
+        "review_regulator_request",
+        "summarize_disclosure_gap",
+        "prepare_regulator_response",
+        "approve_regulator_response_exception"
+    ],
+    "forbidden_actions": [
+        "release_official_regulator_response",
+        "submit_regulatory_filing",
+        "waive_regulatory_requirement"
+    ],
+    "wait_human_actions": [
+        "approve_regulator_response_exception",
+        "approve_regulatory_filing"
+    ],
+    "handled_resources": [
+        "regulator_request_packet",
+        "regulatory_evidence_packet",
+        "response_deadline_record",
+        "regulator_response_draft"
+    ],
+    "sample_scenarios": [
+        "regulator information request review",
+        "deadline-risk escalation",
+        "official response routing"
+    ],
+    "notes": "Public-safe regulator-response role-pack example. Human compliance, legal, and executive authority still own official responses, filings, and requirement-waiver decisions.",
+    "pilot_fit": "Useful for pilots that need one governed lane for regulator requests, disclosure gaps, and deadline-sensitive response review."
+}
