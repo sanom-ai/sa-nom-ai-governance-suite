@@ -177,6 +177,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md): visual walkthrough of the operator journey, runtime shape, and first demo flow
 - [docs/LEGAL_REVIEW_ROLE_PACK.md](docs/LEGAL_REVIEW_ROLE_PACK.md): pilot-ready public-safe legal role pack for contract review and escalation demos
 - [docs/HR_POLICY_ROLE_PACK.md](docs/HR_POLICY_ROLE_PACK.md): pilot-ready public-safe HR role pack for policy exceptions, employee-case routing, and human approval boundaries
+- [docs/PURCHASING_SUPPLIER_RISK_ROLE_PACK.md](docs/PURCHASING_SUPPLIER_RISK_ROLE_PACK.md): pilot-ready public-safe purchasing role pack for supplier risk, lead-time exposure, and governed exception routing
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
 - [docs/KUBERNETES.md](docs/KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md): community vs commercial boundary

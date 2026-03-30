@@ -15,6 +15,7 @@ JSON_EXAMPLES = [
     'legal_review_scenario.example.json',
     'hr_policy_role_pack.example.json',
     'hr_policy_scenario.example.json',
+    'purchasing_supplier_risk_role_pack.example.json',
 ]
 
 
@@ -89,6 +90,21 @@ def test_hr_policy_scenario_example_matches_role_pack_story() -> None:
     assert payload['review_result']['escalation_required'] is True
     assert 'approve_hr_policy_exception' in payload['review_result']['wait_human_actions']
     assert 'terminate_employee' in payload['review_result']['forbidden_actions_enforced']
+    encoded = json.dumps(payload)
+    assert 'TAWAN' not in encoded
+    assert 'D:\\' not in encoded
+
+
+
+
+def test_purchasing_supplier_risk_role_pack_example_preserves_human_procurement_boundary() -> None:
+    payload = _load('purchasing_supplier_risk_role_pack.example.json')
+
+    assert payload['template_id'] == 'purchasing_supplier_risk_pack'
+    assert payload['reporting_line'] == 'PROCUREMENT'
+    assert 'approve_procurement_exception' in payload['wait_human_actions']
+    assert 'approve_supplier_override' in payload['wait_human_actions']
+    assert 'appoint_supplier' in payload['forbidden_actions']
     encoded = json.dumps(payload)
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded

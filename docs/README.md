@@ -18,6 +18,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 - [Legal Review Role Pack](LEGAL_REVIEW_ROLE_PACK.md)
 - [HR Policy Role Pack](HR_POLICY_ROLE_PACK.md)
+- [Purchasing Supplier Risk Role Pack](PURCHASING_SUPPLIER_RISK_ROLE_PACK.md)
 - [Guided Legal Review Scenario](LEGAL_REVIEW_SCENARIO.md)
 - [Guided HR Policy Scenario](HR_POLICY_SCENARIO.md)
 

@@ -302,3 +302,50 @@ def test_role_private_studio_hr_policy_pack_preserves_human_hr_boundary():
         assert "terminate_employee" in created["generated_ptag"]
         assert "require human_override for approve_hr_policy_exception" in created["generated_ptag"]
         assert created["publish_readiness"]["gates"]["validation"] is True
+
+
+
+def test_role_private_studio_template_library_includes_purchasing_supplier_risk_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        purchasing_pack = next(item for item in library if item["template_id"] == "purchasing_supplier_risk_pack")
+
+        assert purchasing_pack["category"] == "procurement"
+        assert purchasing_pack["payload"]["role_name"] == "Purchasing Supplier Risk Lead"
+        assert "approve_procurement_exception" in purchasing_pack["payload"]["allowed_actions"]
+        assert "approve_supplier_override" in purchasing_pack["payload"]["wait_human_actions"]
+        assert "appoint_supplier" in purchasing_pack["payload"]["forbidden_actions"]
+        assert "release_funds" in purchasing_pack["payload"]["forbidden_actions"]
+
+
+def test_role_private_studio_examples_include_purchasing_supplier_risk_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        purchasing_example = next(item for item in examples if item["name"] == "Purchasing Supplier Risk Lead")
+
+        assert purchasing_example["operating_mode"] == "indirect"
+        assert purchasing_example["reporting_line"] == "PROCUREMENT"
+        assert "approve_procurement_exception" in purchasing_example["wait_human_actions"]
+        assert "supplier_packet" in purchasing_example["handled_resources"]
+        assert "lead-time disruption routing" in purchasing_example["sample_scenarios"]
+
+
+def test_role_private_studio_purchasing_pack_preserves_human_procurement_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "purchasing_supplier_risk_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "PURCHASING_SUPPLIER_RISK_LEAD"
+        assert "approve_procurement_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_supplier_override" in created["normalized_spec"]["wait_human_actions"]
+        assert "appoint_supplier" in created["generated_ptag"]
+        assert "require human_override for approve_procurement_exception" in created["generated_ptag"]
+        assert created["publish_readiness"]["gates"]["validation"] is True
