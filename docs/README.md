@@ -10,6 +10,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Provider Setup](PROVIDER_SETUP.md)
 - [Ollama Demo Environment](OLLAMA_DEMO_ENVIRONMENT.md)
 - [Discovery Demo](DISCOVERY_DEMO.md)
+- [Live Customer Walkthrough](LIVE_CUSTOMER_WALKTHROUGH.md)
 - [Product Tour](PRODUCT_TOUR.md)
 
 ## Product And Commercial
@@ -42,5 +43,3 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
-
-

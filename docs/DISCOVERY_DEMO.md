@@ -2,6 +2,8 @@
 
 Use this runbook for a short customer or stakeholder demo of the community baseline.
 
+For a sales-led live talk track using the default private Ollama lane, see [LIVE_CUSTOMER_WALKTHROUGH.md](LIVE_CUSTOMER_WALKTHROUGH.md).
+
 ## Demo Goal
 
 Show that SA-NOM can:
@@ -88,3 +90,5 @@ Archive:
 - the startup readiness report
 - the smoke-test report
 - the next-step notes for the customer or internal team
+
+
