@@ -21,6 +21,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
 - [Governed Document Lifecycle](GOVERNED_DOCUMENT_LIFECYCLE.md)
 - [Governed Document Template Model](GOVERNED_DOCUMENT_TEMPLATE_MODEL.md)
+- [Governed Document Authority And Approval Routing](GOVERNED_DOCUMENT_AUTHORITY_ROUTING.md)
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 - [PT-OSS Core](PT_OSS_CORE.md): PT-OSS is SA-NOM's embedded structural intelligence layer and a proprietary framework developed by the creator
 - [PT-OSS Metrics](PT_OSS_METRICS.md): plain-language explainer for HDI-S, HDI-D, SFS, KPIR, ASP, HOIS, and SPAI
@@ -86,9 +87,4 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
-
-
-
-
-
 

@@ -61,7 +61,9 @@ SA-NOM's Governed Document Center is a controlled system for creating, organizin
 
 It is designed so AI can do routine document work inside defined boundaries, while humans step in only when approval, exception handling, or higher-risk control decisions are required.
 
-See [docs/GOVERNED_DOCUMENT_CENTER.md](docs/GOVERNED_DOCUMENT_CENTER.md) for the concept, [docs/GOVERNED_DOCUMENT_CLASSES.md](docs/GOVERNED_DOCUMENT_CLASSES.md) for the class model, [docs/GOVERNED_DOCUMENT_LIFECYCLE.md](docs/GOVERNED_DOCUMENT_LIFECYCLE.md) for the lifecycle and authority model, and [docs/GOVERNED_DOCUMENT_TEMPLATE_MODEL.md](docs/GOVERNED_DOCUMENT_TEMPLATE_MODEL.md) for the single-template rule-driven design.
+See [docs/GOVERNED_DOCUMENT_CENTER.md](docs/GOVERNED_DOCUMENT_CENTER.md) for the concept, [docs/GOVERNED_DOCUMENT_CLASSES.md](docs/GOVERNED_DOCUMENT_CLASSES.md) for the class model, [docs/GOVERNED_DOCUMENT_LIFECYCLE.md](docs/GOVERNED_DOCUMENT_LIFECYCLE.md) for the lifecycle and authority model, [docs/GOVERNED_DOCUMENT_TEMPLATE_MODEL.md](docs/GOVERNED_DOCUMENT_TEMPLATE_MODEL.md) for the single-template rule-driven design, and [docs/GOVERNED_DOCUMENT_AUTHORITY_ROUTING.md](docs/GOVERNED_DOCUMENT_AUTHORITY_ROUTING.md) for explicit authority and approval routing.
+
+Document routing should also stay governed. The right model is explicit authority and approval routing where AI can move routine document work forward inside approved boundaries, while humans confirm approvals, exceptions, waivers, and higher-risk release decisions.
 
 ## Why Teams Use SA-NOM
 
@@ -295,24 +297,4 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
