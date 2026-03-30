@@ -40,7 +40,8 @@ See [FEATURE_MATRIX.md](FEATURE_MATRIX.md) for the intended open-core boundary a
 ## Start Here
 
 Choose the path that matches your situation:
-- Self-managed community path: start with the quick start below, review [DEPLOYMENT.md](DEPLOYMENT.md), and use the examples in `examples/`.
+- Guided evaluation path: follow [GUIDED_EVALUATION.md](GUIDED_EVALUATION.md) for the fastest first run.
+- Self-managed community path: start with the quick start below, review [DEPLOYMENT.md](DEPLOYMENT.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md), and use the examples in `examples/`.
 - Commercial path: review [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md), prepare [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md), and contact `sanomaiarch@gmail.com`.
 
 ## Quick Start
@@ -58,8 +59,11 @@ Choose the path that matches your situation:
 6. Run the smoke tests:
    - `python private_server_smoke_test.py`
    - `python provider_smoke_test.py`
+   - `provider_smoke_test.py` returning `disabled` is expected until a provider is configured
 7. Start the server:
    - `python run_private_server.py --host 127.0.0.1 --port 8080`
+
+If startup validation or smoke tests fail, go to [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 ### Docker
 
@@ -79,6 +83,9 @@ Choose the path that matches your situation:
 
 ## Public Docs
 
+- [GUIDED_EVALUATION.md](GUIDED_EVALUATION.md): fastest first-run path for evaluators
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md): recovery steps for common startup and provider issues
+- [FAQ.md](FAQ.md): AGPL, self-hosting, and commercial-boundary answers
 - [DEPLOYMENT.md](DEPLOYMENT.md): public deployment guide
 - [KUBERNETES.md](KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [FEATURE_MATRIX.md](FEATURE_MATRIX.md): community vs commercial boundary
@@ -100,7 +107,8 @@ Choose the path that matches your situation:
 
 ## Repository Layout
 
-- Root: active runtime, dashboard, policy, and deployment code
+- `sa_nom_governance/`: main Python package grouped by domain (`api`, `audit`, `compliance`, `core`, `dashboard`, `deployment`, `guards`, `human_ask`, `integrations`, `ptag`, `studio`, `utils`)
+- Root wrappers: compatibility entrypoints such as `dashboard_server.py`, `run_private_server.py`, and `provider_smoke_test.py`
 - `_support/tests/`: regression tests and fixtures
 - `_runtime/`: generated local runtime state only; do not commit real organization state
 - `examples/`: sanitized example artifacts for documentation and onboarding
