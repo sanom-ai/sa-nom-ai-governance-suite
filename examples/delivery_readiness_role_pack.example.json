@@ -1,0 +1,45 @@
+{
+    "pack_name": "Delivery Readiness Pack",
+    "template_id": "delivery_readiness_pack",
+    "example_name": "Delivery Readiness Lead",
+    "business_domain": "delivery_operations",
+    "operating_mode": "indirect",
+    "reporting_line": "DELIVERY",
+    "assigned_user_id": "DELIVERY_MANAGER_01",
+    "executive_owner_id": "EXEC_OWNER",
+    "seat_id": "OPS-DELIVERY-READINESS",
+    "responsibilities": [
+        "review shipment readiness posture",
+        "summarize FG release and dispatch exceptions",
+        "flag customer-commitment and logistics exposure",
+        "prepare escalation notes for delivery exceptions"
+    ],
+    "allowed_actions": [
+        "review_delivery_readiness",
+        "summarize_customer_commitment_risk",
+        "prepare_delivery_report",
+        "approve_dispatch_exception"
+    ],
+    "forbidden_actions": [
+        "release_shipment",
+        "change_customer_delivery_commitment",
+        "override_export_control_hold"
+    ],
+    "wait_human_actions": [
+        "approve_dispatch_exception",
+        "approve_customer_commitment_change"
+    ],
+    "handled_resources": [
+        "shipment_readiness_packet",
+        "fg_release_snapshot",
+        "dispatch_exception",
+        "customer_commitment_record"
+    ],
+    "sample_scenarios": [
+        "FG shipment readiness review",
+        "dispatch exception routing",
+        "customer commitment risk escalation"
+    ],
+    "notes": "Public-safe delivery role-pack example. Human delivery authority still owns shipment release, customer commitment changes, and export-control hold overrides.",
+    "pilot_fit": "Useful for pilots that need one governed lane from finished goods readiness into customer dispatch and commitment review."
+}

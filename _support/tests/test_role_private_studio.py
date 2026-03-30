@@ -655,3 +655,42 @@ def test_role_private_studio_quality_pack_preserves_human_quality_boundary():
         assert "release_quality_hold" in created["normalized_spec"]["forbidden_actions"]
         assert "waive_specification_requirement" in created["normalized_spec"]["forbidden_actions"]
         assert "require human_override for approve_release_exception" in created["generated_ptag"]
+
+
+def test_role_private_studio_template_library_includes_delivery_readiness_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        delivery_pack = next(item for item in library if item["template_id"] == "delivery_readiness_pack")
+
+        assert delivery_pack["category"] == "delivery"
+        assert delivery_pack["payload"]["role_name"] == "Delivery Readiness Lead"
+
+
+def test_role_private_studio_examples_include_delivery_readiness_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        delivery_example = next(item for item in examples if item["name"] == "Delivery Readiness Lead")
+
+        assert delivery_example["operating_mode"] == "indirect"
+        assert delivery_example["reporting_line"] == "DELIVERY"
+
+
+def test_role_private_studio_delivery_pack_preserves_human_delivery_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "delivery_readiness_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "DELIVERY_READINESS_LEAD"
+        assert "approve_dispatch_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_customer_commitment_change" in created["normalized_spec"]["wait_human_actions"]
+        assert "release_shipment" in created["normalized_spec"]["forbidden_actions"]
+        assert "change_customer_delivery_commitment" in created["normalized_spec"]["forbidden_actions"]
+        assert "require human_override for approve_dispatch_exception" in created["generated_ptag"]
