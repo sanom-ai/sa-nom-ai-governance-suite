@@ -65,7 +65,7 @@ def build_profiles(days_valid: int, rotate_days: int) -> tuple[list[dict[str, ob
         )
         tokens.append({'profile_id': profile_id, 'display_name': display_name, 'role_name': role_name, 'token': token})
 
-    token_bundle = {
+    token_bundle: dict[str, object] = {
         'generated_at': now.isoformat(),
         'expires_at': expires_at,
         'rotate_after': rotate_after,
@@ -113,4 +113,5 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+
 
