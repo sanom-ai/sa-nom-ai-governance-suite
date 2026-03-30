@@ -152,6 +152,14 @@ The preferred design is one governed base template shaped by rules for document 
 
 See [Governed Document Template Model](GOVERNED_DOCUMENT_TEMPLATE_MODEL.md).
 
+## Authority And Approval Routing
+
+The document system should also know who is allowed to move a document from draft to review, review to approval, and approval to release.
+
+The preferred design is explicit authority routing where AI can move routine document work inside approved boundaries, while humans confirm approvals, exceptions, waivers, and higher-risk release decisions.
+
+See [Governed Document Authority And Approval Routing](GOVERNED_DOCUMENT_AUTHORITY_ROUTING.md).
+
 ## Related Guides
 
 - [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
