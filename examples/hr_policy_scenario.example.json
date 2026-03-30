@@ -1,0 +1,37 @@
+{
+  "scenario_id": "hr-policy-accommodation-routing",
+  "selected_provider": "ollama",
+  "default_private_demo_lane": "ollama",
+  "role_pack": {
+    "template_id": "hr_policy_escalation_pack",
+    "example_name": "HR Policy Escalation Lead",
+    "reporting_line": "HR",
+    "operating_mode": "indirect"
+  },
+  "case_context": {
+    "case_type": "policy accommodation request",
+    "issue_type": "non-standard leave accommodation with compensation exception",
+    "assigned_human_owner": "HR_MANAGER_01"
+  },
+  "review_result": {
+    "summary": "The HR policy role identified a non-standard leave accommodation request with compensation impact and labor-compliance review implications.",
+    "escalation_required": true,
+    "wait_human_actions": [
+      "approve_hr_policy_exception",
+      "approve_compensation_exception"
+    ],
+    "forbidden_actions_enforced": [
+      "terminate_employee",
+      "finalize_compensation_change"
+    ],
+    "recommended_next_step": "Prepare an HR exception note and route the final decision to the human HR owner."
+  },
+  "evidence": {
+    "summary": "Evidence captures the policy-review summary, the employee-impact assessment, and the fact that final approval stayed in the human HR lane.",
+    "artifacts": [
+      "review_summary",
+      "escalation_note",
+      "policy_exception_record"
+    ]
+  }
+}
