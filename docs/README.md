@@ -17,6 +17,11 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Product Tour](PRODUCT_TOUR.md)
 - [Private Rule Position](PRIVATE_RULE_POSITION.md)
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
+- [Compliance Knowledge Baseline](COMPLIANCE_KNOWLEDGE_BASELINE.md)
+- [ISO 42001 and NIST AI RMF Crosswalk](ISO_42001_NIST_CROSSWALK.md)
+- [Thai AI Regulatory Gap Map](THAI_AI_REGULATORY_GAP_MAP.md)
+- [PDPA AI Guideline Map](PDPA_AI_GUIDELINE_MAP.md)
+- [Local Representative Readiness](LOCAL_REPRESENTATIVE_READINESS.md)
 - [Legal Review Role Pack](LEGAL_REVIEW_ROLE_PACK.md)
 - [HR Policy Role Pack](HR_POLICY_ROLE_PACK.md)
 - [Purchasing Supplier Risk Role Pack](PURCHASING_SUPPLIER_RISK_ROLE_PACK.md)
@@ -48,6 +53,8 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Planning And Release Notes
 
+- [Roadmap v0.1.7](ROADMAP_v0.1.7.md)
+- [Issue Drafts v0.1.7](ISSUE_DRAFTS_v0.1.7.md)
 - [Release Notes v0.1.6](releases/RELEASE_NOTES_v0.1.6.md)
 - [Roadmap v0.1.6](ROADMAP_v0.1.6.md)
 - [Issue Drafts v0.1.6](ISSUE_DRAFTS_v0.1.6.md)
@@ -67,4 +74,5 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
+
 

@@ -31,6 +31,14 @@ That means SA-NOM is not limited to standard titles. Teams can define flexible p
 
 See [docs/PRIVATE_RULE_POSITION.md](docs/PRIVATE_RULE_POSITION.md) for the concept and [examples/private_rule_position.example.json](examples/private_rule_position.example.json) for a public-safe example.
 
+## Compliance Knowledge Baseline
+
+SA-NOM now treats compliance-oriented content as a documented baseline, not as an automatic compliance claim.
+
+That means the repo can help organizations with internal governance, evidence, workflow discipline, and standards-oriented readiness while still being explicit that legal review and regulator-facing completion may remain outside the software itself.
+
+See [docs/COMPLIANCE_KNOWLEDGE_BASELINE.md](docs/COMPLIANCE_KNOWLEDGE_BASELINE.md), [docs/ISO_42001_NIST_CROSSWALK.md](docs/ISO_42001_NIST_CROSSWALK.md), [docs/THAI_AI_REGULATORY_GAP_MAP.md](docs/THAI_AI_REGULATORY_GAP_MAP.md), [docs/PDPA_AI_GUIDELINE_MAP.md](docs/PDPA_AI_GUIDELINE_MAP.md), and [docs/LOCAL_REPRESENTATIVE_READINESS.md](docs/LOCAL_REPRESENTATIVE_READINESS.md).
+
 ## Why Teams Use SA-NOM
 
 Organizations do not only need AI governance. They need AI that can actually operate.
@@ -217,6 +225,11 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [templates/compliance/README.md](templates/compliance/README.md): Thai banking and government compliance starter templates
 - [docs/ONE_PAGER.md](docs/ONE_PAGER.md): concise product and commercial summary aligned with the public repo
 - [docs/ONE_PAGER_TH.md](docs/ONE_PAGER_TH.md): Thai one-pager for customer-facing sales conversations
+- [docs/COMPLIANCE_KNOWLEDGE_BASELINE.md](docs/COMPLIANCE_KNOWLEDGE_BASELINE.md): source-of-truth boundary for compliance-aware positioning and future skill work
+- [docs/ISO_42001_NIST_CROSSWALK.md](docs/ISO_42001_NIST_CROSSWALK.md): starter mapping from SA-NOM governance posture into ISO/IEC 42001 and NIST AI RMF language
+- [docs/THAI_AI_REGULATORY_GAP_MAP.md](docs/THAI_AI_REGULATORY_GAP_MAP.md): public-facing gap map for Thailand-specific AI readiness questions
+- [docs/PDPA_AI_GUIDELINE_MAP.md](docs/PDPA_AI_GUIDELINE_MAP.md): privacy-facing starter map for PDPA and AI-development-use review
+- [docs/LOCAL_REPRESENTATIVE_READINESS.md](docs/LOCAL_REPRESENTATIVE_READINESS.md): readiness note for local legal accountability questions in Thailand-facing deployments
 - [docs/OPEN_SOURCE_RELEASE_CHECKLIST.md](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md): launch checklist for publishing a clean public release
 - [docs/PUBLIC_UPLOAD_RUNBOOK.md](docs/PUBLIC_UPLOAD_RUNBOOK.md): step-by-step upload procedure for the first public push
 - [docs/SALES_INTAKE_TEMPLATE.md](docs/SALES_INTAKE_TEMPLATE.md): intake template for commercial inquiries
@@ -255,6 +268,8 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
+
 
 
 
