@@ -1,4 +1,4 @@
-﻿# SA-NOM AI Governance Suite
+# SA-NOM AI Governance Suite
 
 [![CI](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL%203.0--only-blue.svg)](LICENSE)
@@ -175,6 +175,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/LIVE_CUSTOMER_WALKTHROUGH.md](docs/LIVE_CUSTOMER_WALKTHROUGH.md): sales-oriented live talk track for customer demos using the default private Ollama lane
 - [docs/LIVE_CUSTOMER_WALKTHROUGH_TH.md](docs/LIVE_CUSTOMER_WALKTHROUGH_TH.md): Thai live talk track for customer demos using the default private Ollama lane
 - [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md): visual walkthrough of the operator journey, runtime shape, and first demo flow
+- [docs/LEGAL_REVIEW_ROLE_PACK.md](docs/LEGAL_REVIEW_ROLE_PACK.md): pilot-ready public-safe legal role pack for contract review and escalation demos
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
 - [docs/KUBERNETES.md](docs/KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md): community vs commercial boundary
@@ -229,6 +230,7 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
 
 
 

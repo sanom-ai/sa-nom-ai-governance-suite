@@ -1,38 +1,84 @@
-﻿[
-  {
-    "name": "Contract Review Analyst",
-    "role_name": "Contract Review Analyst",
-    "purpose": "Review contract packets and route risky documents for human attention.",
-    "reporting_line": "LEGAL",
-    "business_domain": "legal_operations",
-    "operating_mode": "indirect",
-    "assigned_user_id": "LEGAL_MANAGER_01",
-    "executive_owner_id": "EXEC_OWNER",
-    "seat_id": "OPS-LEGAL",
-    "responsibilities": [
-      "review incoming contracts",
-      "flag risk",
-      "summarize compliance points"
-    ],
-    "allowed_actions": [
-      "review_contract",
-      "flag_risk",
-      "advise_compliance"
-    ],
-    "forbidden_actions": [
-      "sign_contract"
-    ],
-    "wait_human_actions": [],
-    "handled_resources": [
-      "contract"
-    ],
-    "financial_sensitivity": "medium",
-    "legal_sensitivity": "high",
-    "compliance_sensitivity": "high",
-    "sample_scenarios": [
-      "normal review",
-      "high-value contract escalation"
-    ],
-    "operator_notes": "Should never sign or approve contracts directly."
-  }
+[
+    {
+        "name":  "Contract Review Analyst",
+        "role_name":  "Contract Review Analyst",
+        "purpose":  "Review contract packets and route risky documents for human attention.",
+        "reporting_line":  "LEGAL",
+        "business_domain":  "legal_operations",
+        "operating_mode":  "indirect",
+        "assigned_user_id":  "LEGAL_MANAGER_01",
+        "executive_owner_id":  "EXEC_OWNER",
+        "seat_id":  "OPS-LEGAL",
+        "responsibilities":  [
+                                 "review incoming contracts",
+                                 "flag risk",
+                                 "summarize compliance points"
+                             ],
+        "allowed_actions":  [
+                                "review_contract",
+                                "flag_risk",
+                                "advise_compliance"
+                            ],
+        "forbidden_actions":  [
+                                  "sign_contract"
+                              ],
+        "wait_human_actions":  [
+
+                               ],
+        "handled_resources":  [
+                                  "contract"
+                              ],
+        "financial_sensitivity":  "medium",
+        "legal_sensitivity":  "high",
+        "compliance_sensitivity":  "high",
+        "sample_scenarios":  [
+                                 "normal review",
+                                 "high-value contract escalation"
+                             ],
+        "operator_notes":  "Should never sign or approve contracts directly."
+    },
+    {
+        "name":  "Vendor Contract Risk Counsel",
+        "role_name":  "Vendor Contract Risk Counsel",
+        "purpose":  "Review vendor contract packets, summarize legal and compliance concerns, and escalate exceptions for human approval.",
+        "reporting_line":  "LEGAL",
+        "business_domain":  "legal_operations",
+        "operating_mode":  "indirect",
+        "assigned_user_id":  "LEGAL_MANAGER_01",
+        "executive_owner_id":  "EXEC_OWNER",
+        "seat_id":  "OPS-LEGAL-ESC",
+        "responsibilities":  [
+                                 "review vendor contracts",
+                                 "summarize non-standard clauses",
+                                 "flag compliance exposure",
+                                 "prepare escalation notes"
+                             ],
+        "allowed_actions":  [
+                                "review_contract",
+                                "summarize_legal_risk",
+                                "advise_compliance",
+                                "approve_contract_exception"
+                            ],
+        "forbidden_actions":  [
+                                  "sign_contract",
+                                  "waive_regulatory_obligation"
+                              ],
+        "wait_human_actions":  [
+                                   "approve_contract_exception"
+                               ],
+        "handled_resources":  [
+                                  "contract",
+                                  "vendor_packet",
+                                  "policy_exception"
+                              ],
+        "financial_sensitivity":  "high",
+        "legal_sensitivity":  "high",
+        "compliance_sensitivity":  "high",
+        "sample_scenarios":  [
+                                 "vendor msa review",
+                                 "non-standard clause escalation",
+                                 "policy exception routing"
+                             ],
+        "operator_notes":  "This example is for governed legal review only. Human legal authority must approve exceptions and external commitments."
+    }
 ]

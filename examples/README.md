@@ -1,4 +1,4 @@
-﻿# Examples
+# Examples
 
 This folder contains sanitized example artifacts for documentation and onboarding.
 
@@ -20,7 +20,8 @@ Use them as templates and replace every placeholder before a real deployment.
 - `trusted_registry_manifest.example.json`: trusted-registry manifest shape after a refresh.
 - `guided_smoke_test.example.json`: example output from the one-command guided evaluator flow.
 - `runtime_startup_smoke.example.json`: example end-to-end smoke report written to `_runtime/runtime_startup_smoke.json`.
-- `provider_demo_flow.ollama.example.json`: sanitized example output for the default private demo lane.
+- provider_demo_flow.ollama.example.json: sanitized example output for the default private demo lane.
+- legal_review_role_pack.example.json: sanitized example payload for the pilot-ready legal review role pack.
 
 Use [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) and `python scripts/ollama_demo_environment.py` when you want a real local private-model setup path.
 
@@ -56,6 +57,8 @@ Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full fi
 - `python scripts/provider_demo_flow.py --provider openai --probe`: build a demo artifact for an OpenAI lane.
 - `python scripts/provider_demo_flow.py --provider anthropic --probe`: build a demo artifact for a Claude lane.
 - `python scripts/provider_demo_flow.py --provider ollama --probe`: build a demo artifact for a local Ollama lane.
-- `provider_demo_flow.ollama.example.json`: sanitized example output for the default private demo lane.
+- provider_demo_flow.ollama.example.json: sanitized example output for the default private demo lane.
+- legal_review_role_pack.example.json: sanitized example payload for the pilot-ready legal review role pack.
 
 See [../docs/PROVIDER_SETUP.md](../docs/PROVIDER_SETUP.md) for provider configuration details, [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) for the real private-model setup path, and [../docs/DISCOVERY_DEMO.md](../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.
+

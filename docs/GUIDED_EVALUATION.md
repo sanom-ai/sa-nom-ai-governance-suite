@@ -1,4 +1,4 @@
-﻿# Guided Evaluation
+# Guided Evaluation
 
 Use this path when you want to confirm the public community baseline quickly without wandering through every document first.
 
@@ -146,3 +146,5 @@ You are in a good evaluation state if all of the following are true:
 - For Helm and Kubernetes: [KUBERNETES.md](KUBERNETES.md)
 - For startup failures: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - For licensing and commercial questions: [FAQ.md](FAQ.md) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
+- For a pilot-ready use-case pack: [LEGAL_REVIEW_ROLE_PACK.md](LEGAL_REVIEW_ROLE_PACK.md)
+

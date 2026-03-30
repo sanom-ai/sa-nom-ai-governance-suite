@@ -210,3 +210,48 @@ def test_role_private_studio_blocks_indirect_hat_without_assigned_user():
         findings = created["validation_report"]["findings"]
         assert any(item["code"] == "INDIRECT_REQUIRES_ASSIGNED_USER" for item in findings)
         assert created["publish_readiness"]["status"] == "blocked"
+
+
+def test_role_private_studio_template_library_includes_legal_review_escalation_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        legal_pack = next(item for item in library if item["template_id"] == "legal_review_escalation_pack")
+
+        assert legal_pack["category"] == "legal"
+        assert legal_pack["payload"]["role_name"] == "Legal Review Escalation Counsel"
+        assert "approve_contract_exception" in legal_pack["payload"]["allowed_actions"]
+        assert "approve_contract_exception" in legal_pack["payload"]["wait_human_actions"]
+        assert "sign_contract" in legal_pack["payload"]["forbidden_actions"]
+        assert "waive_regulatory_obligation" in legal_pack["payload"]["forbidden_actions"]
+
+
+def test_role_private_studio_examples_include_vendor_contract_risk_counsel():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        legal_example = next(item for item in examples if item["name"] == "Vendor Contract Risk Counsel")
+
+        assert legal_example["operating_mode"] == "indirect"
+        assert legal_example["reporting_line"] == "LEGAL"
+        assert "approve_contract_exception" in legal_example["wait_human_actions"]
+        assert "vendor_packet" in legal_example["handled_resources"]
+        assert "policy exception routing" in legal_example["sample_scenarios"]
+
+
+def test_role_private_studio_legal_review_pack_preserves_human_approval_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "legal_review_escalation_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "LEGAL_REVIEW_ESCALATION_COUNSEL"
+        assert "approve_contract_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "sign_contract" in created["generated_ptag"]
+        assert "require human_override for approve_contract_exception" in created["generated_ptag"]
+        assert created["publish_readiness"]["gates"]["validation"] is True
