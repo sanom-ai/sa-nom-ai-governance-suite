@@ -459,6 +459,57 @@
                 ],
                 "operator_notes": "Use this pack for policy review and escalation only. Human HR authority must approve terminations, compensation changes, and policy exceptions."
             }
+        },
+        {
+            "template_id": "purchasing_supplier_risk_pack",
+            "category": "procurement",
+            "label": "Purchasing Supplier Risk Pack",
+            "summary": "Pilot-ready procurement review role for supplier risk, lead-time exposure, and governed exception routing.",
+            "payload": {
+                "role_name": "Purchasing Supplier Risk Lead",
+                "purpose": "Review purchase requests, summarize supplier lead-time and compliance risk, and route policy exceptions to human procurement owners.",
+                "reporting_line": "PROCUREMENT",
+                "business_domain": "purchasing_operations",
+                "operating_mode": "indirect",
+                "assigned_user_id": "PROCUREMENT_MANAGER_01",
+                "executive_owner_id": "EXEC_OWNER",
+                "seat_id": "OPS-PROCUREMENT",
+                "responsibilities": [
+                    "review purchase requests",
+                    "summarize supplier risk",
+                    "flag lead-time exposure",
+                    "prepare exception routing notes"
+                ],
+                "allowed_actions": [
+                    "review_purchase_request",
+                    "summarize_supplier_risk",
+                    "advise_compliance",
+                    "approve_procurement_exception"
+                ],
+                "forbidden_actions": [
+                    "appoint_supplier",
+                    "sign_supplier_contract",
+                    "release_funds"
+                ],
+                "wait_human_actions": [
+                    "approve_procurement_exception",
+                    "approve_supplier_override"
+                ],
+                "handled_resources": [
+                    "purchase_request",
+                    "supplier_packet",
+                    "procurement_exception"
+                ],
+                "financial_sensitivity": "high",
+                "legal_sensitivity": "high",
+                "compliance_sensitivity": "high",
+                "sample_scenarios": [
+                    "single-source exception review",
+                    "lead-time disruption routing",
+                    "approved-supplier override review"
+                ],
+                "operator_notes": "Use this pack for review and escalation only. Human procurement authority must approve supplier exceptions, contract commitments, and funding decisions."
+            }
         }
     ]
 }

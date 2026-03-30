@@ -1,0 +1,48 @@
+{
+  "pack_name": "Purchasing Supplier Risk Pack",
+  "template_id": "purchasing_supplier_risk_pack",
+  "example_name": "Purchasing Supplier Risk Lead",
+  "business_domain": "purchasing_operations",
+  "operating_mode": "indirect",
+  "reporting_line": "PROCUREMENT",
+  "assigned_user_id": "PROCUREMENT_MANAGER_01",
+  "executive_owner_id": "EXEC_OWNER",
+  "seat_id": "OPS-PROCUREMENT",
+  "responsibilities": [
+    "review purchase requests",
+    "summarize supplier risk",
+    "flag lead-time exposure",
+    "prepare exception routing notes"
+  ],
+  "allowed_actions": [
+    "review_purchase_request",
+    "summarize_supplier_risk",
+    "advise_compliance",
+    "approve_procurement_exception"
+  ],
+  "forbidden_actions": [
+    "appoint_supplier",
+    "sign_supplier_contract",
+    "release_funds"
+  ],
+  "wait_human_actions": [
+    "approve_procurement_exception",
+    "approve_supplier_override"
+  ],
+  "handled_resources": [
+    "purchase_request",
+    "supplier_packet",
+    "procurement_exception"
+  ],
+  "sample_scenarios": [
+    "single-source exception review",
+    "lead-time disruption routing",
+    "approved-supplier override review"
+  ],
+  "operator_notes": "This example is for governed procurement review only. Human procurement authority must approve supplier exceptions, contract commitments, and funding decisions.",
+  "pilot_fit": [
+    "supplier risk review",
+    "lead-time disruption escalation",
+    "procurement exception routing"
+  ]
+}
