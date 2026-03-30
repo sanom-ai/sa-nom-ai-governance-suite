@@ -279,3 +279,16 @@ def test_delivery_readiness_role_pack_example_preserves_human_delivery_boundary(
     serialized = json.dumps(payload)
     assert "TAWAN" not in serialized
     assert "D:\\" not in serialized
+
+
+def test_delivery_readiness_scenario_example_preserves_human_delivery_boundary():
+    payload = json.loads((EXAMPLES_DIR / "delivery_readiness_scenario.example.json").read_text(encoding="utf-8"))
+
+    assert payload["role_pack"] == "delivery_readiness_pack"
+    assert payload["reporting_line"] == "DELIVERY"
+    assert "approve_dispatch_exception" in payload["wait_human_actions"]
+    assert "approve_customer_commitment_change" in payload["wait_human_actions"]
+    assert "release_shipment" in payload["forbidden_actions"]
+    serialized = json.dumps(payload)
+    assert "TAWAN" not in serialized
+    assert "D:\\" not in serialized
