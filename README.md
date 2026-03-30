@@ -37,7 +37,7 @@ SA-NOM now treats compliance-oriented content as a documented baseline, not as a
 
 That means the repo can help organizations with internal governance, evidence, workflow discipline, and standards-oriented readiness while still being explicit that legal review and regulator-facing completion may remain outside the software itself.
 
-See [docs/COMPLIANCE_KNOWLEDGE_BASELINE.md](docs/COMPLIANCE_KNOWLEDGE_BASELINE.md), [docs/ISO_42001_NIST_CROSSWALK.md](docs/ISO_42001_NIST_CROSSWALK.md), [docs/THAI_AI_REGULATORY_GAP_MAP.md](docs/THAI_AI_REGULATORY_GAP_MAP.md), [docs/PDPA_AI_GUIDELINE_MAP.md](docs/PDPA_AI_GUIDELINE_MAP.md), and [docs/LOCAL_REPRESENTATIVE_READINESS.md](docs/LOCAL_REPRESENTATIVE_READINESS.md).
+See [docs/COMPLIANCE_KNOWLEDGE_BASELINE.md](docs/COMPLIANCE_KNOWLEDGE_BASELINE.md), [docs/ISO_42001_NIST_CROSSWALK.md](docs/ISO_42001_NIST_CROSSWALK.md), [docs/THAI_AI_REGULATORY_GAP_MAP.md](docs/THAI_AI_REGULATORY_GAP_MAP.md), [docs/PDPA_AI_GUIDELINE_MAP.md](docs/PDPA_AI_GUIDELINE_MAP.md), [docs/LOCAL_REPRESENTATIVE_READINESS.md](docs/LOCAL_REPRESENTATIVE_READINESS.md), and [docs/COMPLIANCE_SKILL_LAYER_CONTRACT.md](docs/COMPLIANCE_SKILL_LAYER_CONTRACT.md).
 
 ## Why Teams Use SA-NOM
 
@@ -230,6 +230,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/THAI_AI_REGULATORY_GAP_MAP.md](docs/THAI_AI_REGULATORY_GAP_MAP.md): public-facing gap map for Thailand-specific AI readiness questions
 - [docs/PDPA_AI_GUIDELINE_MAP.md](docs/PDPA_AI_GUIDELINE_MAP.md): privacy-facing starter map for PDPA and AI-development-use review
 - [docs/LOCAL_REPRESENTATIVE_READINESS.md](docs/LOCAL_REPRESENTATIVE_READINESS.md): readiness note for local legal accountability questions in Thailand-facing deployments
+- [docs/COMPLIANCE_SKILL_LAYER_CONTRACT.md](docs/COMPLIANCE_SKILL_LAYER_CONTRACT.md): operating contract for future compliance-aware AI answers grounded in the public baseline
 - [docs/OPEN_SOURCE_RELEASE_CHECKLIST.md](docs/OPEN_SOURCE_RELEASE_CHECKLIST.md): launch checklist for publishing a clean public release
 - [docs/PUBLIC_UPLOAD_RUNBOOK.md](docs/PUBLIC_UPLOAD_RUNBOOK.md): step-by-step upload procedure for the first public push
 - [docs/SALES_INTAKE_TEMPLATE.md](docs/SALES_INTAKE_TEMPLATE.md): intake template for commercial inquiries
@@ -268,6 +269,7 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
 
 
 
