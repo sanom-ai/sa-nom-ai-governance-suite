@@ -37,15 +37,18 @@ def _base_config(temp_dir: str) -> AppConfig:
     return AppConfig(base_dir=Path(temp_dir), persist_runtime=False, model_provider_timeout_seconds=7)
 
 
-def test_provider_demo_flow_reports_missing_openai_settings() -> None:
+def test_provider_demo_flow_defaults_to_ollama_when_no_provider_is_configured() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)
         report = build_provider_demo_flow(config)
 
-        openai = next(item for item in report['setup']['providers'] if item['provider_id'] == 'openai')
+        ollama = next(item for item in report['setup']['providers'] if item['provider_id'] == 'ollama')
         assert report['status'] == 'disabled'
-        assert openai['example_file'] == 'examples/.env.openai.example'
-        assert openai['missing_env_vars'] == ['SANOM_OPENAI_API_KEY', 'SANOM_OPENAI_MODEL']
+        assert report['recommended_provider'] == 'ollama'
+        assert report['selected_provider'] == 'ollama'
+        assert ollama['example_file'] == 'examples/.env.ollama.example'
+        assert ollama['missing_env_vars'] == ['SANOM_OLLAMA_MODEL']
+        assert any('SANOM_MODEL_PROVIDER_DEFAULT=ollama' in item for item in report['setup']['next_actions'])
 
 
 def test_provider_demo_flow_is_partial_when_provider_is_configured_without_default() -> None:

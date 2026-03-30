@@ -52,7 +52,7 @@ The public repository currently includes:
 - Role Private Studio authoring flows
 - Human Ask escalation-aware workflows
 - deployment readiness and operational health checks
-- provider probes and demo-readiness flows for OpenAI, Claude, and Ollama
+- provider probes and demo-readiness flows for Ollama, OpenAI, and Claude
 - Docker, Helm, Kubernetes, and local private-server deployment paths
 - security audit and Thai regulated-deployment templates
 
@@ -90,8 +90,9 @@ Choose the path that matches your situation:
    - `python private_server_smoke_test.py`
    - `python provider_smoke_test.py`
    - `provider_smoke_test.py` returning `disabled` is expected until a provider is configured
-7. Build a provider-ready demo report when you want to validate one lane deeply:
-   - `python provider_demo_flow.py --provider openai --probe`
+7. Build a provider-ready demo report when you want to validate the default private demo lane:
+   - `python provider_demo_flow.py --provider ollama --probe`
+   - OpenAI and Claude remain optional hosted evaluation lanes; see [PROVIDER_SETUP.md](PROVIDER_SETUP.md).
 8. Start the server:
    - `python run_private_server.py --host 127.0.0.1 --port 8080`
 
@@ -103,14 +104,14 @@ If startup validation or smoke tests fail, go to [TROUBLESHOOTING.md](TROUBLESHO
 2. Set the required environment variables.
 3. Start the containerized runtime:
    - `docker compose up --build`
-4. If you want a local private-model lane with Ollama:
+4. If you want the default private-model demo lane with Ollama:
    - `docker compose --profile local-llm up --build`
 
 ## Current Release
 
-- Current public release: [v0.1.0](https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases/tag/v0.1.0)
-- Release notes: [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md)
-- Next roadmap: [ROADMAP_v0.1.1.md](ROADMAP_v0.1.1.md)
+- Current public release: [v0.1.1](https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases/tag/v0.1.1)
+- Release notes: [RELEASE_NOTES_v0.1.1.md](RELEASE_NOTES_v0.1.1.md)
+- Release roadmap archive: [ROADMAP_v0.1.1.md](ROADMAP_v0.1.1.md)
 - Backlog seeds: [BACKLOG_SEEDS.md](BACKLOG_SEEDS.md)
 
 ## Public Docs
@@ -156,7 +157,7 @@ For contributor tooling:
 - `python -m pip install -r requirements-dev.txt` or `python -m pip install -e .[dev]`
 - `python -m pytest _support/tests`
 - `python provider_smoke_test.py` when validating provider wiring
-- `python provider_demo_flow.py --provider openai --probe` when validating a provider demo lane
+- `python provider_demo_flow.py --provider ollama --probe` when validating the default private demo lane
 
 GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
