@@ -189,6 +189,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/PRODUCTION_LINE_EXCEPTION_SCENARIO.md](docs/PRODUCTION_LINE_EXCEPTION_SCENARIO.md): guided production workflow story for line stoppage, recovery risk, and human-gated schedule escalation
 - [docs/QUALITY_AUDIT_READINESS_ROLE_PACK.md](docs/QUALITY_AUDIT_READINESS_ROLE_PACK.md): pilot-ready public-safe quality role pack spanning QC triage, QA release readiness, and audit-evidence escalation
 - [docs/QUALITY_AUDIT_READINESS_SCENARIO.md](docs/QUALITY_AUDIT_READINESS_SCENARIO.md): guided quality workflow story for defect posture, release readiness, and human-gated audit escalation
+- [docs/DELIVERY_READINESS_ROLE_PACK.md](docs/DELIVERY_READINESS_ROLE_PACK.md): pilot-ready public-safe delivery role pack for FG release posture, dispatch exceptions, and customer-commitment escalation
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
 - [docs/KUBERNETES.md](docs/KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md): community vs commercial boundary

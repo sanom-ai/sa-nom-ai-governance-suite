@@ -872,6 +872,58 @@
                 ],
                 "operator_notes": "Use this pack for governed quality and audit-readiness review only. Human quality authority must approve hold release, deviation waivers, and audit-finding closure decisions."
             }
+        },
+        {
+            "template_id": "delivery_readiness_pack",
+            "category": "delivery",
+            "label": "Delivery Readiness Pack",
+            "summary": "Pilot-ready delivery review role for FG shipment posture, customer-commitment risk, and governed release-escalation routing.",
+            "payload": {
+                "role_name": "Delivery Readiness Lead",
+                "purpose": "Review finished-goods shipment posture, summarize delivery-readiness and customer-commitment risk, and route high-impact release exceptions to human decision makers.",
+                "reporting_line": "DELIVERY",
+                "business_domain": "delivery_operations",
+                "operating_mode": "indirect",
+                "assigned_user_id": "DELIVERY_MANAGER_01",
+                "executive_owner_id": "EXEC_OWNER",
+                "seat_id": "OPS-DELIVERY-READINESS",
+                "responsibilities": [
+                    "review shipment readiness posture",
+                    "summarize FG release and dispatch exceptions",
+                    "flag customer-commitment and logistics exposure",
+                    "prepare escalation notes for delivery exceptions"
+                ],
+                "allowed_actions": [
+                    "review_delivery_readiness",
+                    "summarize_customer_commitment_risk",
+                    "prepare_delivery_report",
+                    "approve_dispatch_exception"
+                ],
+                "forbidden_actions": [
+                    "release_shipment",
+                    "change_customer_delivery_commitment",
+                    "override_export_control_hold"
+                ],
+                "wait_human_actions": [
+                    "approve_dispatch_exception",
+                    "approve_customer_commitment_change"
+                ],
+                "handled_resources": [
+                    "shipment_readiness_packet",
+                    "fg_release_snapshot",
+                    "dispatch_exception",
+                    "customer_commitment_record"
+                ],
+                "financial_sensitivity": "high",
+                "legal_sensitivity": "high",
+                "compliance_sensitivity": "high",
+                "sample_scenarios": [
+                    "FG shipment readiness review",
+                    "dispatch exception routing",
+                    "customer commitment risk escalation"
+                ],
+                "operator_notes": "Use this pack for governed delivery review only. Human delivery authority must approve shipment release, customer commitment changes, and export-control hold overrides."
+            }
         }
     ]
 }
