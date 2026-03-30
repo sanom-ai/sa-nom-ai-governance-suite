@@ -1,4 +1,4 @@
-﻿# Documentation
+# Documentation
 
 SA-NOM keeps product, deployment, evaluation, and release notes in this directory so the repository root stays focused on the codebase and top-level metadata.
 
@@ -46,3 +46,4 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
+
