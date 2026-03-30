@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-01-01T00:10:00+00:00",
+  "status": "disabled",
+  "default_provider": null,
+  "selected_provider": "ollama",
+  "recommended_provider": "ollama",
+  "setup": {
+    "status": "disabled",
+    "default_provider": null,
+    "recommended_provider": "ollama",
+    "providers_total": 3,
+    "configured_providers": 0,
+    "partial_providers": 0,
+    "providers": [
+      {
+        "provider_id": "ollama",
+        "provider_type": "ollama",
+        "endpoint_url": "http://localhost:11434/api/generate",
+        "model": "",
+        "timeout_seconds": 15,
+        "auth_mode": "none",
+        "configured": false,
+        "status": "partial",
+        "reason": "Configure SANOM_OLLAMA_MODEL to enable Ollama probes.",
+        "default": false,
+        "label": "Ollama",
+        "setup_status": "disabled",
+        "example_file": "examples/.env.ollama.example",
+        "recommended_for": "Recommended private default demo lane for local or semi-air-gapped inference where model traffic should stay inside your environment.",
+        "required_env_vars": [
+          "SANOM_OLLAMA_MODEL"
+        ],
+        "optional_env_vars": [
+          "SANOM_OLLAMA_BASE_URL",
+          "SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS"
+        ],
+        "missing_env_vars": [
+          "SANOM_OLLAMA_MODEL"
+        ],
+        "smoke_test_command": "python scripts/provider_smoke_test.py --provider ollama",
+        "demo_flow_command": "python scripts/provider_demo_flow.py --provider ollama --probe"
+      }
+    ],
+    "next_actions": [
+      "Start from examples/.env.ollama.example and fill SANOM_OLLAMA_MODEL.",
+      "Set SANOM_MODEL_PROVIDER_DEFAULT=ollama for the default demo lane.",
+      "Run `python scripts/provider_demo_flow.py --provider ollama --probe` when the variables are in place."
+    ]
+  },
+  "demo_path": [
+    {
+      "step": 1,
+      "title": "Load the provider template",
+      "action": "Use examples/.env.ollama.example as the starting point for environment setup."
+    },
+    {
+      "step": 2,
+      "title": "Set the runtime default",
+      "action": "Set SANOM_MODEL_PROVIDER_DEFAULT=ollama."
+    },
+    {
+      "step": 3,
+      "title": "Run the provider probe",
+      "action": "python scripts/provider_demo_flow.py --provider ollama --probe"
+    },
+    {
+      "step": 4,
+      "title": "Run the provider smoke test",
+      "action": "python scripts/provider_smoke_test.py --provider ollama"
+    }
+  ],
+  "probe": null
+}

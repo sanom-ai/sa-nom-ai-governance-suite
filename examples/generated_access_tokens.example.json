@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-01-01T00:00:00+00:00",
+  "expires_at": "2026-12-31T23:59:59+00:00",
+  "rotate_after": "2026-06-01T00:00:00+00:00",
+  "profiles": [
+    {
+      "profile_id": "enterprise-operator",
+      "display_name": "Enterprise Operator",
+      "role_name": "operator",
+      "token": "replace-with-secret-token"
+    },
+    {
+      "profile_id": "enterprise-reviewer",
+      "display_name": "Enterprise Reviewer",
+      "role_name": "reviewer",
+      "token": "replace-with-secret-token"
+    }
+  ],
+  "notes": [
+    "Store these raw tokens in a secure secret manager.",
+    "Only the token hashes belong in access_profiles.json.",
+    "Rotate tokens before rotate_after and distribute new values securely."
+  ]
+}

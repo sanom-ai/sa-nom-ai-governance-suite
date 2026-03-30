@@ -35,6 +35,7 @@ Expected result:
 - startup readiness is reported inline
 - runtime smoke completes end-to-end
 - the provider guidance defaults to Ollama as the private demo lane
+- you can compare the output with [../examples/guided_smoke_test.example.json](../examples/guided_smoke_test.example.json) and [../examples/runtime_startup_smoke.example.json](../examples/runtime_startup_smoke.example.json)
 
 If you want to inspect each step manually, use the breakdown below.
 
@@ -103,6 +104,7 @@ Recommended default private demo lane:
 Optional hosted evaluation lanes:
 - [../examples/.env.openai.example](../examples/.env.openai.example)
 - [../examples/.env.claude.example](../examples/.env.claude.example)
+- [../examples/provider_demo_flow.ollama.example.json](../examples/provider_demo_flow.ollama.example.json) shows the default private demo-lane output shape
 
 ## Step 6: Run The Runtime Smoke Test
 
