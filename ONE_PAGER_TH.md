@@ -1,5 +1,8 @@
 # SA-NOM AI Governance Suite
 
+Private AI operations for organizations that want AI in real roles, with governance built in.
+
+
 AI ที่มีตำแหน่ง มีขอบเขต และรายงานได้จริง
 
 On-Premise · Air-Gapped Ready · Audit-First · PTAG Runtime · PT-OSS Structural Intelligence

@@ -1,96 +1,86 @@
-# SA-NOM AI Governance Suite - One Pager
+# SA-NOM AI Governance Suite
 
-Private AI governance for teams that need role-based, auditable, self-hosted AI operations.
+## One-Page Overview
 
-## The Problem
+SA-NOM is a private AI operations platform for organizations that want AI in real roles, with governance built in.
 
-Organizations are adopting AI faster than their governance model can absorb it.
-Teams use AI in real work, but critical questions often remain unanswered:
-- who owns the decision
-- what the AI is allowed to do
-- when a human must step in
-- what evidence exists for audit, review, or incident response
+Most organizations do not only need a safer way to use AI. They need a way to let AI participate in real work without losing control, accountability, or traceability.
 
-Without explicit governance, organizations accumulate operational risk, compliance exposure, and executive overhead.
+SA-NOM is built for that gap.
 
-## What SA-NOM Is
+## The Real Problem
 
-SA-NOM AI Governance Suite is an open-core governance and orchestration toolkit for structured AI operations.
-It is designed for self-hosted, private-server deployment and can be prepared for air-gapped environments.
+AI in many organizations still lives in one of two extremes:
+- chat tools that can answer questions but cannot hold a role, follow reporting lines, or operate inside managed authority
+- automation tools that can move quickly but create risk because ownership, escalation, and evidence are weak
 
-The community baseline is published under AGPL-3.0-only.
-Commercial offerings remain available for organizations that need enterprise features, direct support, rollout hardening, or regulated deployment help.
+That leaves a hard gap in the middle.
 
-## Core Building Blocks
+Organizations want AI that can help operate, coordinate, summarize, escalate, and support real work. But they also need every important action to stay bounded, reviewable, and private.
 
-- PTAG Runtime: parse, validate, and enforce structured role packs instead of relying on ad-hoc prompts alone.
-- Governance Runtime: apply authority rules, escalation logic, audit chaining, and deployment-readiness checks.
-- Role Private Studio: turn governed role definitions into publishable AI operating roles.
-- Human Ask: request governed summaries, reporting, and escalation-aware interaction flows.
-- PT-OSS Structural Intelligence: evaluate structural readiness before sensitive AI roles move into broader use.
-- Trusted Registry: control signed role publication and runtime trust boundaries.
+## What SA-NOM Makes Possible
 
-## Why It Is Different
+SA-NOM lets organizations deploy AI as governed operating roles.
 
-- AI roles are governed as explicit authority models, not just prompt templates.
-- Human override, escalation, and review boundaries are first-class runtime concepts.
-- Audit and evidence generation are built into the operating model.
-- The suite is designed for private infrastructure rather than defaulting to SaaS-first assumptions.
-- Community and commercial paths are separated clearly through an open-core model.
+With SA-NOM, AI can:
+- take on a defined role with explicit responsibilities
+- operate inside authority boundaries set by the organization
+- escalate to humans when a decision exceeds its scope
+- report status, route requests, and support managed workflows
+- keep an evidence trail for important actions and outcomes
+- run in private infrastructure under the organization's control
 
-## What The Community Baseline Includes
+This makes SA-NOM more than a governance tool.
+It is an AI management and operations system with governance built in.
 
-- PTAG parsing and validation
-- governed request execution and audit chaining
-- Role Private Studio authoring flows
-- Human Ask escalation flows
-- deployment readiness and operational health checks
-- Docker and local private-server deployment paths
+## Core Value
 
-See [FEATURE_MATRIX.md](FEATURE_MATRIX.md) for the current community vs commercial boundary.
+SA-NOM helps teams move from:
+- experimental AI usage
+- disconnected chat workflows
+- unsafe automation without accountability
 
-## Good Fit For
+to:
+- role-based AI operations
+- human-aware escalation
+- auditable execution
+- private deployment
+- governance that supports execution instead of blocking it
 
-- financial services and regulated operators
-- government and sovereign environments
-- legal, compliance, and audit-sensitive teams
-- healthcare, infrastructure, and other high-accountability operations
-- organizations that need self-hosted AI governance rather than unmanaged AI usage
+## Why Organizations Buy It
 
-## Deployment Model
+Organizations adopt SA-NOM when they need one or more of the following:
+- AI that can support real business operations, not just Q&A
+- private deployment for internal or regulated environments
+- approval and escalation paths that match real authority structures
+- auditability and traceability for important decisions
+- governance that gives leadership confidence to expand AI usage
 
-- private-server friendly
-- self-managed community baseline
-- air-gapped-ready commercial path
-- audit-first operating model
+## Community And Commercial Model
 
-## Commercial Path
+SA-NOM is available as AGPL-3.0-only for the community baseline.
 
-Use the AGPL community baseline when you want to evaluate, self-host, or extend the core system yourself.
-Use the commercial path when you need one or more of the following:
-- enterprise-only features or integration packs
-- direct support or negotiated response expectations
-- rollout, migration, or air-gapped deployment help
-- compliance tailoring or sovereign delivery support
+The community baseline is suitable for evaluation, self-managed use, development, and smaller internal deployments.
 
-## Pricing Snapshot (2026)
+Commercial offerings are for organizations that need:
+- enterprise rollout support
+- tailored compliance and policy programs
+- integration and private deployment hardening
+- air-gapped delivery
+- premium support, training, and long-term operational guidance
 
-For the latest terms, treat [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) as the source of truth.
+See [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) for the current commercial model.
 
-- Community: free
-- Starter: THB 180,000 - 350,000 per year
-- Professional: THB 950,000 - 2,800,000 per year
-- Enterprise: THB 4,500,000 - 9,500,000+ per year
-- Sovereign / Gov: custom pricing
+## Best Fit
 
-## Start Here
-
-- Public repository: [README.md](README.md)
-- Deployment guide: [DEPLOYMENT.md](DEPLOYMENT.md)
-- Commercial terms: [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
-- Sales intake: [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md)
+SA-NOM is especially well suited for:
+- regulated teams
+- private infrastructure environments
+- operations-heavy organizations
+- governance-conscious leadership teams
+- institutions that want AI adoption without surrendering control
 
 ## Contact
 
-Commercial, security, and rollout contact: `sanomaiarch@gmail.com`
-
+For commercial evaluation, deployment planning, or tailored pricing:
+`sanomaiarch@gmail.com`
