@@ -1,4 +1,4 @@
-# Discovery Demo
+﻿# Discovery Demo
 
 Use this runbook for a short customer or stakeholder demo of the community baseline.
 
@@ -81,7 +81,7 @@ Explain:
 - `python scripts/provider_demo_flow.py --provider openai --probe`
 - `python scripts/provider_demo_flow.py --provider anthropic --probe`
 
-For a stronger role-based workflow story, see [LEGAL_REVIEW_SCENARIO.md](LEGAL_REVIEW_SCENARIO.md).
+For stronger role-based workflow stories, see [LEGAL_REVIEW_SCENARIO.md](LEGAL_REVIEW_SCENARIO.md), [HR_POLICY_SCENARIO.md](HR_POLICY_SCENARIO.md), [PURCHASING_SUPPLIER_RISK_SCENARIO.md](PURCHASING_SUPPLIER_RISK_SCENARIO.md), and [FINANCE_BUDGET_VARIANCE_SCENARIO.md](FINANCE_BUDGET_VARIANCE_SCENARIO.md).
 
 ## After The Demo
 
@@ -92,6 +92,7 @@ Archive:
 - the startup readiness report
 - the smoke-test report
 - the next-step notes for the customer or internal team
+
 
 
 
