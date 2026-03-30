@@ -160,6 +160,14 @@ The preferred design is explicit authority routing where AI can move routine doc
 
 See [Governed Document Authority And Approval Routing](GOVERNED_DOCUMENT_AUTHORITY_ROUTING.md).
 
+## Numbering And Metadata Standard
+
+Controlled document work also needs a stable numbering and metadata spine so the system can identify the active version, the owning authority, the approval trace, and the retention posture.
+
+The preferred design is rule-driven numbering and metadata layered onto the same governed base template.
+
+See [Governed Document Numbering And Metadata Standard](GOVERNED_DOCUMENT_NUMBERING_METADATA.md).
+
 ## Related Guides
 
 - [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
@@ -170,3 +178,4 @@ See [Governed Document Authority And Approval Routing](GOVERNED_DOCUMENT_AUTHORI
 The Governed Document Center is the document-governance layer that fits naturally into SA-NOM's operating model.
 
 It is designed so AI can do routine document work inside defined boundaries, while humans step in only when approval, exception handling, or higher-risk control decisions are required.
+
