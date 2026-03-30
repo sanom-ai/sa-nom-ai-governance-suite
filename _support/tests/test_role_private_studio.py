@@ -733,3 +733,42 @@ def test_role_private_studio_external_audit_pack_preserves_human_audit_boundary(
         assert "close_audit_finding" in created["normalized_spec"]["forbidden_actions"]
         assert "alter_audit_evidence" in created["normalized_spec"]["forbidden_actions"]
         assert "require human_override for approve_audit_response_exception" in created["generated_ptag"]
+
+
+def test_role_private_studio_template_library_includes_regulator_response_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        regulator_pack = next(item for item in library if item["template_id"] == "regulator_response_pack")
+
+        assert regulator_pack["category"] == "regulator_response"
+        assert regulator_pack["payload"]["role_name"] == "Regulator Response Coordination Lead"
+
+
+def test_role_private_studio_examples_include_regulator_response_coordination_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        regulator_example = next(item for item in examples if item["name"] == "Regulator Response Coordination Lead")
+
+        assert regulator_example["operating_mode"] == "indirect"
+        assert regulator_example["reporting_line"] == "COMPLIANCE"
+
+
+def test_role_private_studio_regulator_pack_preserves_human_regulator_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "regulator_response_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "REGULATOR_RESPONSE_COORDINATION_LEAD"
+        assert "approve_regulator_response_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_regulatory_filing" in created["normalized_spec"]["wait_human_actions"]
+        assert "release_official_regulator_response" in created["normalized_spec"]["forbidden_actions"]
+        assert "waive_regulatory_requirement" in created["normalized_spec"]["forbidden_actions"]
+        assert "require human_override for approve_regulator_response_exception" in created["generated_ptag"]
