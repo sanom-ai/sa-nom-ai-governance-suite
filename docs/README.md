@@ -15,6 +15,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 - [Feature Matrix](FEATURE_MATRIX.md)
 - [Commercial License](COMMERCIAL_LICENSE.md)
+- [Commercial Discovery Checklist](COMMERCIAL_DISCOVERY_CHECKLIST.md)
 - [One Pager](ONE_PAGER.md)
 - [One Pager (TH)](ONE_PAGER_TH.md)
 - [Support](SUPPORT.md)

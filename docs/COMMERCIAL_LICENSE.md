@@ -37,7 +37,7 @@ Commercial discussion is recommended if you need any of the following:
 ## Engagement Path
 
 1. Email `sanomaiarch@gmail.com` with your deployment size, environment type, and target go-live window.
-2. We align on fit, scope, and whether community, commercial, or a phased path makes the most sense.
+2. We align on fit, scope, and whether community, commercial, or a phased path makes the most sense, using [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md) when a structured qualification pass is needed.
 3. If needed, we define an evaluation, rollout plan, or tailored commercial quote.
 4. We finalize the license, support scope, and delivery model.
 
