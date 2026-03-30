@@ -47,7 +47,7 @@ Choose the path that matches your situation:
 
 ### Local Python runtime
 
-1. Use Python 3.12 or newer.
+1. Use Python 3.14 or newer.
 2. Create a local environment file from [`.env.production.example`](.env.production.example) or export the variables directly.
 3. Register an organization owner:
    - `python register_owner.py --registration-code DEMO-ORG`

@@ -13,7 +13,7 @@ Use this guide when you want to:
 
 ## Prerequisites
 
-- Python 3.12 or newer
+- Python 3.14 or newer
 - a writable local `_runtime/` directory
 - a secure value for `SANOM_API_TOKEN`
 - a secure value for `SANOM_TRUSTED_REGISTRY_KEY`
