@@ -140,6 +140,19 @@ You are in a good evaluation state if all of the following are true:
 - `scripts/provider_smoke_test.py` is either configured successfully or clearly reports `disabled` when you have not enabled a provider yet
 - `scripts/private_server_smoke_test.py` passes
 
+## Private Rule Studio Path
+
+If you want to evaluate how SA-NOM handles organization-specific hats instead of only standard packs, use the platform as follows:
+
+- enter `Private Rule Studio` with your own JD or operating brief
+- start from a starter JD, starter rule set, or starter hat prepared by SA-NOM when you want a faster starting point
+- adapt that material into a `Private Rule Position` that matches your own organization
+- then move that governed position into the broader role-publication flow
+
+Reference:
+- [PRIVATE_RULE_POSITION.md](PRIVATE_RULE_POSITION.md)
+- [../examples/private_rule_position.example.json](../examples/private_rule_position.example.json)
+
 ## Next Steps
 
 - For deployment details: [DEPLOYMENT.md](DEPLOYMENT.md)

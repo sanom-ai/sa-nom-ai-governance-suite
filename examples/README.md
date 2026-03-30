@@ -33,6 +33,7 @@ Use them as templates and replace every placeholder before a real deployment.
 - warehouse_material_shortage_role_pack.example.json: sanitized example payload for the pilot-ready warehouse material-shortage role pack.
 - purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
+- private_rule_position.example.json: sanitized example showing how an organization-specific hat can be created from Private Rule Studio plus starter support.
 
 Use [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) and `python scripts/ollama_demo_environment.py` when you want a real local private-model setup path.
 
@@ -81,6 +82,7 @@ Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full fi
 - warehouse_material_shortage_role_pack.example.json: sanitized example payload for the pilot-ready warehouse material-shortage role pack.
 - purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
+- private_rule_position.example.json: sanitized example showing how an organization-specific hat can be created from Private Rule Studio plus starter support.
 
 See [../docs/PROVIDER_SETUP.md](../docs/PROVIDER_SETUP.md) for provider configuration details, [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) for the real private-model setup path, and [../docs/DISCOVERY_DEMO.md](../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.
 

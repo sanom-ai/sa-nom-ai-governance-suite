@@ -21,6 +21,16 @@ With SA-NOM, teams can:
 
 The result is not only safer AI. It is AI that can participate in operations, coordination, and managed execution without falling outside organizational control.
 
+## Private Rule Studio And Private Rule Position
+
+`Private Rule Studio` is a core platform capability, not a paid unlock.
+
+Organizations can upload their own JD inputs, start from JD and rule accelerators prepared by SA-NOM, and create a `Private Rule Position` for any organization-specific hat they need.
+
+That means SA-NOM is not limited to standard titles. Teams can define flexible positions such as a cross-functional recovery lead, a regulator liaison, or an exception coordinator, then govern that position through explicit authority, escalation, and evidence boundaries.
+
+See [docs/PRIVATE_RULE_POSITION.md](docs/PRIVATE_RULE_POSITION.md) for the concept and [examples/private_rule_position.example.json](examples/private_rule_position.example.json) for a public-safe example.
+
 ## Why Teams Use SA-NOM
 
 Organizations do not only need AI governance. They need AI that can actually operate.
@@ -100,8 +110,8 @@ The public repository currently includes:
 
 This repository is published as the community baseline of SA-NOM under AGPL-3.0-only.
 
-- Community: self-managed core runtime, dashboard, PTAG tooling, audit chain, deployment checks, examples, and local ops workflows
-- Commercial: enterprise-only features, direct support, rollout hardening, compliance tailoring, custom integrations, and on-site enablement
+- Community: self-managed core runtime, dashboard, PTAG tooling, audit chain, Private Rule Studio, deployment checks, examples, and local ops workflows
+- Commercial: direct support, rollout hardening, compliance tailoring, custom integrations, starter-library tailoring, and on-site enablement
 
 If you run a modified networked version of this software, AGPL requires you to make the corresponding source available to users of that service. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 

@@ -1,0 +1,33 @@
+{
+    "position_name": "Factory Recovery Coordinator",
+    "source_type": "starter_jd_plus_org_customization",
+    "source_summary": "Based on a starter manufacturing recovery JD, then adapted for one plant's escalation and reporting model.",
+    "studio_entrypoint": "Private Rule Studio",
+    "position_type": "private_rule_position",
+    "business_domain": "manufacturing_operations",
+    "reporting_line": "OPERATIONS",
+    "authority_shape": {
+        "allowed_actions": [
+            "review_recovery_plan",
+            "summarize_cross_function_gap",
+            "prepare_recovery_escalation_note"
+        ],
+        "wait_human_actions": [
+            "approve_schedule_recovery_override",
+            "approve_customer_commitment_change"
+        ],
+        "forbidden_actions": [
+            "release_schedule_change",
+            "change_customer_commitment",
+            "waive_quality_requirement"
+        ]
+    },
+    "why_it_exists": "The organization needs a custom cross-functional hat that is not a permanent HR title but is still a real governed operating position during recovery events.",
+    "starter_support_used": [
+        "starter JD",
+        "starter rule outline",
+        "starter escalation pattern"
+    ],
+    "customization_note": "The organization can use the starter materials directly or adjust them inside Private Rule Studio before publishing the governed role.",
+    "commercial_boundary": "Rule creation is core platform capability. Commercial work focuses on tailoring, workshops, and rollout support."
+}

@@ -15,6 +15,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Demo Checklist](DEMO_CHECKLIST.md)
 - [Demo Checklist (TH)](DEMO_CHECKLIST_TH.md)
 - [Product Tour](PRODUCT_TOUR.md)
+- [Private Rule Position](PRIVATE_RULE_POSITION.md)
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 - [Legal Review Role Pack](LEGAL_REVIEW_ROLE_PACK.md)
 - [HR Policy Role Pack](HR_POLICY_ROLE_PACK.md)
