@@ -318,3 +318,16 @@ def test_external_audit_response_scenario_example_preserves_human_audit_boundary
     serialized = json.dumps(payload)
     assert "TAWAN" not in serialized
     assert "D:\\" not in serialized
+
+
+def test_regulator_response_scenario_example_preserves_human_regulator_boundary():
+    payload = json.loads((EXAMPLES_DIR / "regulator_response_scenario.example.json").read_text(encoding="utf-8"))
+
+    assert payload["role_pack"] == "regulator_response_pack"
+    assert payload["reporting_line"] == "COMPLIANCE"
+    assert "approve_regulator_response_exception" in payload["wait_human_actions"]
+    assert "approve_regulatory_filing" in payload["wait_human_actions"]
+    assert "release_official_regulator_response" in payload["forbidden_actions"]
+    serialized = json.dumps(payload)
+    assert "TAWAN" not in serialized
+    assert "D:\\" not in serialized
