@@ -149,6 +149,7 @@ You are in a good evaluation state if all of the following are true:
 - For a pilot-ready use-case pack: [LEGAL_REVIEW_ROLE_PACK.md](LEGAL_REVIEW_ROLE_PACK.md)
 - For a second pilot-ready use-case pack: [HR_POLICY_ROLE_PACK.md](HR_POLICY_ROLE_PACK.md)
 - For a procurement-focused pilot-ready pack: [PURCHASING_SUPPLIER_RISK_ROLE_PACK.md](PURCHASING_SUPPLIER_RISK_ROLE_PACK.md)
+- For a procurement workflow story: [PURCHASING_SUPPLIER_RISK_SCENARIO.md](PURCHASING_SUPPLIER_RISK_SCENARIO.md)
 - For a first role-based scenario: [LEGAL_REVIEW_SCENARIO.md](LEGAL_REVIEW_SCENARIO.md)
 - For an HR policy workflow story: [HR_POLICY_SCENARIO.md](HR_POLICY_SCENARIO.md)
 

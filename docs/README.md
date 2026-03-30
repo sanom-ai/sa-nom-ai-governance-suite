@@ -21,6 +21,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Purchasing Supplier Risk Role Pack](PURCHASING_SUPPLIER_RISK_ROLE_PACK.md)
 - [Guided Legal Review Scenario](LEGAL_REVIEW_SCENARIO.md)
 - [Guided HR Policy Scenario](HR_POLICY_SCENARIO.md)
+- [Guided Purchasing Supplier-Risk Scenario](PURCHASING_SUPPLIER_RISK_SCENARIO.md)
 
 ## Product And Commercial
 
