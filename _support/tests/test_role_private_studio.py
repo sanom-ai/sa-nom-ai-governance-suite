@@ -578,3 +578,41 @@ def test_role_private_studio_warehouse_pack_preserves_human_warehouse_boundary()
         assert "issue_material_to_line" in created["generated_ptag"]
         assert "require human_override for approve_allocation_exception" in created["generated_ptag"]
         assert created["publish_readiness"]["gates"]["validation"] is True
+
+def test_role_private_studio_template_library_includes_production_line_exception_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        production_pack = next(item for item in library if item["template_id"] == "production_line_exception_pack")
+
+        assert production_pack["category"] == "production"
+        assert production_pack["payload"]["role_name"] == "Production Line Exception Lead"
+
+
+def test_role_private_studio_examples_include_production_line_exception_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        production_example = next(item for item in examples if item["name"] == "Production Line Exception Lead")
+
+        assert production_example["operating_mode"] == "indirect"
+        assert production_example["reporting_line"] == "PRODUCTION"
+
+
+def test_role_private_studio_production_pack_preserves_human_production_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "production_line_exception_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "PRODUCTION_LINE_EXCEPTION_LEAD"
+        assert "approve_recovery_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_schedule_override" in created["normalized_spec"]["wait_human_actions"]
+        assert "release_production_schedule_change" in created["normalized_spec"]["forbidden_actions"]
+        assert "override_quality_hold" in created["normalized_spec"]["forbidden_actions"]
+        assert "require human_override for approve_recovery_exception" in created["generated_ptag"]

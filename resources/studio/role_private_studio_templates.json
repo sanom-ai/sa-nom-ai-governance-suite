@@ -768,6 +768,58 @@
                 ],
                 "operator_notes": "Use this pack for governed warehouse review only. Human warehouse authority must approve material issue overrides, inventory adjustments, and allocation exceptions."
             }
+        },
+        {
+            "template_id": "production_line_exception_pack",
+            "category": "production",
+            "label": "Production Line Exception Pack",
+            "summary": "Pilot-ready production review role for line stoppage, schedule-recovery posture, and governed manufacturing exception routing.",
+            "payload": {
+                "role_name": "Production Line Exception Lead",
+                "purpose": "Review production-line exception posture, summarize stoppage and schedule-recovery risks, and route high-impact manufacturing exceptions to human decision makers.",
+                "reporting_line": "PRODUCTION",
+                "business_domain": "manufacturing_operations",
+                "operating_mode": "indirect",
+                "assigned_user_id": "PRODUCTION_MANAGER_01",
+                "executive_owner_id": "EXEC_OWNER",
+                "seat_id": "OPS-PROD-EXCEPTION",
+                "responsibilities": [
+                    "review line-exception posture",
+                    "summarize stoppage and recovery exceptions",
+                    "flag throughput and customer-commitment exposure",
+                    "prepare escalation notes for production exceptions"
+                ],
+                "allowed_actions": [
+                    "review_line_exception",
+                    "summarize_schedule_recovery_risk",
+                    "prepare_production_report",
+                    "approve_recovery_exception"
+                ],
+                "forbidden_actions": [
+                    "release_production_schedule_change",
+                    "override_quality_hold",
+                    "change_customer_commitment"
+                ],
+                "wait_human_actions": [
+                    "approve_recovery_exception",
+                    "approve_schedule_override"
+                ],
+                "handled_resources": [
+                    "line_exception_packet",
+                    "stoppage_report",
+                    "recovery_plan",
+                    "production_exception"
+                ],
+                "financial_sensitivity": "high",
+                "legal_sensitivity": "medium",
+                "compliance_sensitivity": "high",
+                "sample_scenarios": [
+                    "line stoppage escalation review",
+                    "schedule recovery routing",
+                    "customer-commitment risk escalation"
+                ],
+                "operator_notes": "Use this pack for governed production review only. Human production authority must approve schedule overrides, quality-hold bypasses, and customer-commitment changes."
+            }
         }
     ]
 }
