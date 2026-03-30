@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+.env
+.env.local
+.env.*.local
+_review/
+_runtime/
+_support/
+Open Source SA-NOM AI Governance Suite .txt

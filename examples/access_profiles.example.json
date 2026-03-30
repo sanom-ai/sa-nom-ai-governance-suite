@@ -1,0 +1,30 @@
+[
+  {
+    "profile_id": "community-operator",
+    "display_name": "Community Operator",
+    "role_name": "operator",
+    "token_hash": "replace-with-sha256-hash",
+    "permissions": [
+      "dashboard.read",
+      "requests.read",
+      "request.create",
+      "studio.read",
+      "studio.create",
+      "human_ask.read",
+      "human_ask.create",
+      "session.manage",
+      "retention.manage",
+      "audit.manage",
+      "ops.manage",
+      "studio.publish"
+    ],
+    "rotate_after": "2026-06-01T00:00:00+00:00",
+    "expires_at": "2026-12-31T23:59:59+00:00"
+  },
+  {
+    "profile_id": "community-reviewer",
+    "display_name": "Community Reviewer",
+    "role_name": "reviewer",
+    "token_hash": "replace-with-sha256-hash"
+  }
+]

@@ -1,0 +1,38 @@
+﻿[
+  {
+    "name": "Contract Review Analyst",
+    "role_name": "Contract Review Analyst",
+    "purpose": "Review contract packets and route risky documents for human attention.",
+    "reporting_line": "LEGAL",
+    "business_domain": "legal_operations",
+    "operating_mode": "indirect",
+    "assigned_user_id": "LEGAL_MANAGER_01",
+    "executive_owner_id": "EXEC_OWNER",
+    "seat_id": "OPS-LEGAL",
+    "responsibilities": [
+      "review incoming contracts",
+      "flag risk",
+      "summarize compliance points"
+    ],
+    "allowed_actions": [
+      "review_contract",
+      "flag_risk",
+      "advise_compliance"
+    ],
+    "forbidden_actions": [
+      "sign_contract"
+    ],
+    "wait_human_actions": [],
+    "handled_resources": [
+      "contract"
+    ],
+    "financial_sensitivity": "medium",
+    "legal_sensitivity": "high",
+    "compliance_sensitivity": "high",
+    "sample_scenarios": [
+      "normal review",
+      "high-value contract escalation"
+    ],
+    "operator_notes": "Should never sign or approve contracts directly."
+  }
+]

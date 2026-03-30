@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+.env
+.env.local
+.env.*.local
+_runtime/*
+!_runtime/.gitkeep
+!_runtime/README.md
+_review/*
+!_review/.gitkeep
+_support/snapshots/
+_support/legacy_ai_director_dev_locked/
+_support/tmp_pt_oss_studio/
+_support/tmp_studio_verify/
+Open Source SA-NOM AI Governance Suite .txt

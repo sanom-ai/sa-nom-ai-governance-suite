@@ -1,0 +1,2 @@
+# The open-source SA-NOM baseline currently uses the Python standard library only.
+# Add runtime dependencies here if the public distribution introduces them later.

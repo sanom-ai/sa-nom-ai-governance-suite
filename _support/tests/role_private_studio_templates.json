@@ -1,0 +1,142 @@
+﻿{
+  "template_name": "SA-NOM Role Private Studio JD Template",
+  "description": "Structured authoring template for governed role creation.",
+  "language_identity": "Phasa Tawan / PTAG",
+  "stages": [
+    "create",
+    "normalize",
+    "generate",
+    "validate",
+    "simulate",
+    "review",
+    "publish"
+  ],
+  "fields": [
+    {"id": "role_name", "label": "Role name", "type": "text", "required": true},
+    {"id": "purpose", "label": "Purpose", "type": "textarea", "required": true},
+    {"id": "reporting_line", "label": "Reporting line", "type": "text", "required": true},
+    {"id": "business_domain", "label": "Business domain", "type": "text", "required": true},
+    {"id": "responsibilities", "label": "Responsibilities", "type": "list", "required": true},
+    {"id": "allowed_actions", "label": "Allowed actions", "type": "list", "required": true},
+    {"id": "forbidden_actions", "label": "Forbidden actions", "type": "list", "required": false},
+    {"id": "wait_human_actions", "label": "Wait-human actions", "type": "list", "required": false},
+    {"id": "handled_resources", "label": "Handled resources", "type": "list", "required": false},
+    {"id": "financial_sensitivity", "label": "Financial sensitivity", "type": "enum", "options": ["low", "medium", "high", "critical"]},
+    {"id": "legal_sensitivity", "label": "Legal sensitivity", "type": "enum", "options": ["low", "medium", "high", "critical"]},
+    {"id": "compliance_sensitivity", "label": "Compliance sensitivity", "type": "enum", "options": ["low", "medium", "high", "critical"]},
+    {"id": "sample_scenarios", "label": "Sample scenarios", "type": "list", "required": false},
+    {"id": "operator_notes", "label": "Operator notes", "type": "textarea", "required": false}
+  ],
+  "library": [
+    {
+      "template_id": "governance_guardian",
+      "category": "governance",
+      "label": "Governance Guardian",
+      "summary": "Governed review role for policy, escalation, and approval routing.",
+      "payload": {
+        "role_name": "Governance Guardian",
+        "purpose": "Review sensitive policy and escalation requests before they enter privileged execution.",
+        "reporting_line": "TAWAN",
+        "business_domain": "governance",
+        "responsibilities": ["review high-risk policy requests", "route escalations", "confirm override boundaries"],
+        "allowed_actions": ["review_policy", "approve_policy", "escalate_policy"],
+        "forbidden_actions": ["delete_runtime_data"],
+        "wait_human_actions": ["approve_policy"],
+        "handled_resources": ["policy", "runtime"],
+        "financial_sensitivity": "medium",
+        "legal_sensitivity": "medium",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": ["policy review", "escalation routing"],
+        "operator_notes": "Keeps governance boundaries explicit and review-first."
+      }
+    },
+    {
+      "template_id": "legal_operator",
+      "category": "legal",
+      "label": "Legal Operator",
+      "summary": "Contract and compliance review role with strict approval boundaries.",
+      "payload": {
+        "role_name": "Legal Operator",
+        "purpose": "Review contract and compliance work without granting signing authority.",
+        "reporting_line": "LEGAL",
+        "business_domain": "legal_operations",
+        "responsibilities": ["review contracts", "flag compliance risk", "summarize legal concerns"],
+        "allowed_actions": ["review_contract", "flag_risk", "advise_compliance"],
+        "forbidden_actions": ["sign_contract"],
+        "wait_human_actions": ["approve_contract_exception"],
+        "handled_resources": ["contract"],
+        "financial_sensitivity": "medium",
+        "legal_sensitivity": "high",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": ["contract review", "high-value escalation"],
+        "operator_notes": "Must never sign or finalize contracts."
+      }
+    },
+    {
+      "template_id": "finance_steward",
+      "category": "finance",
+      "label": "Finance Steward",
+      "summary": "Budget and spend governance role with strong human-review discipline.",
+      "payload": {
+        "role_name": "Finance Steward",
+        "purpose": "Review budgets and spending requests while escalating sensitive approvals.",
+        "reporting_line": "GOV",
+        "business_domain": "finance_operations",
+        "responsibilities": ["review spend requests", "prepare budget summaries", "flag anomalies"],
+        "allowed_actions": ["review_budget", "prepare_finance_report", "flag_finance_risk"],
+        "forbidden_actions": ["release_funds"],
+        "wait_human_actions": ["approve_budget"],
+        "handled_resources": ["budget", "invoice"],
+        "financial_sensitivity": "high",
+        "legal_sensitivity": "medium",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": ["monthly budget review", "high-risk budget escalation"],
+        "operator_notes": "Approvals must stay governed by human finance authority."
+      }
+    },
+    {
+      "template_id": "ops_coordinator",
+      "category": "operations",
+      "label": "Operations Coordinator",
+      "summary": "Operational routing role for workflow health, tickets, and controlled execution.",
+      "payload": {
+        "role_name": "Operations Coordinator",
+        "purpose": "Coordinate daily operations and route risky actions for human attention.",
+        "reporting_line": "GOV",
+        "business_domain": "operations",
+        "responsibilities": ["route operational work", "track service health", "coordinate tickets"],
+        "allowed_actions": ["review_runbook", "coordinate_operation", "escalate_incident"],
+        "forbidden_actions": ["terminate_service"],
+        "wait_human_actions": ["emergency_stop"],
+        "handled_resources": ["service", "runbook", "ticket"],
+        "financial_sensitivity": "low",
+        "legal_sensitivity": "medium",
+        "compliance_sensitivity": "medium",
+        "sample_scenarios": ["incident routing", "runbook review"],
+        "operator_notes": "May coordinate but should not directly terminate production services."
+      }
+    },
+    {
+      "template_id": "safety_officer",
+      "category": "safety",
+      "label": "Safety Officer",
+      "summary": "Safety-focused role with immediate escalation discipline for high-risk actions.",
+      "payload": {
+        "role_name": "Safety Officer",
+        "purpose": "Monitor safety-sensitive domains and force escalation on risky operations.",
+        "reporting_line": "GOV",
+        "business_domain": "product_safety",
+        "responsibilities": ["inspect safety posture", "escalate risk", "document safety findings"],
+        "allowed_actions": ["review_safety", "escalate_safety_case", "advise_compliance"],
+        "forbidden_actions": ["suppress_safety_alert"],
+        "wait_human_actions": ["approve_safety_exception", "emergency_stop"],
+        "handled_resources": ["safety_case", "incident"],
+        "financial_sensitivity": "low",
+        "legal_sensitivity": "high",
+        "compliance_sensitivity": "critical",
+        "sample_scenarios": ["safety review", "critical escalation"],
+        "operator_notes": "Safety exceptions should always remain review-heavy."
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "registry_name": "SA-NOM Trusted PTAG Cache",
+  "generated_at": "2026-03-29T20:57:46.060623+00:00",
+  "entries": {
+    "GOV": {
+      "file_name": "GOV.ptn",
+      "sha256": "c00e5ca54ee9407706fa24f0ae30bf152aa6a38a843437f5050efc9480ff424c",
+      "source": "language \"PTAG\"\nmodule \"GOV_CORE\"\nversion \"1.0.0\"\nowner \"TAWAN\"\ncontext \"SA-NOM AI Director\"\n\nrole GOV {\n  title: \"GovAI-1\"\n  stratum: 0\n  reports_to: NONE\n  escalation_to: TAWAN\n  safety_owner: TAWAN\n  purpose: \"Govern, approve, supervise, and stop the system when necessary.\"\n  business_domain: \"governance\"\n  handled_resources: [engine, role_card, audit]\n}\n\nauthority GOV {\n  allow: approve_policy, suspend_role, emergency_stop, review_audit\n  deny: bypass_ethics\n  require human_override for approve_group_policy\n}\n\nconstraint GOV_BOUNDARY {\n  forbid GOV to bypass_ethics\n  require human_override for approve_group_policy\n}\n\npolicy GOV_REVIEW_AUDIT {\n  when action == review_audit\n  and risk_score <= 0.60\n  then approve\n  else escalate\n}\n\npolicy GOV_APPROVE_POLICY {\n  when action == approve_policy\n  and requester == TAWAN\n  then approve\n  else wait_human\n}\n\npolicy GOV_SUSPEND_ROLE {\n  when action == suspend_role\n  and resource == role_card\n  then wait_human\n  else escalate\n}\n\npolicy GOV_EMERGENCY_STOP {\n  when action == emergency_stop\n  and resource == engine\n  and requester == TAWAN\n  then approve\n  else wait_human\n}\n\npolicy GOV_GROUP_POLICY {\n  when action == approve_group_policy\n  then wait_human\n}\n",
+      "captured_at": "2026-03-29T20:57:46.060597+00:00"
+    }
+  }
+}

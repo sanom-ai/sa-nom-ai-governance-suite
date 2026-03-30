@@ -1,0 +1,21 @@
+{
+  "registry_name": "SA-NOM Trusted PTAG Registry",
+  "generated_at": "2026-03-29T15:25:05.979024+00:00",
+  "roles": {
+    "GOV": {
+      "file_name": "GOV.ptn",
+      "sha256": "c00e5ca54ee9407706fa24f0ae30bf152aa6a38a843437f5050efc9480ff424c",
+      "trust_status": "trusted",
+      "signed_by": "TAWAN",
+      "signature_mode": "sha256_manifest_hmac",
+      "registered_at": "2026-03-29T15:25:05.979009+00:00"
+    }
+  },
+  "signature": {
+    "algorithm": "hmac_sha256",
+    "key_id": "SANOM_DEV_REGISTRY",
+    "signed_by": "TAWAN",
+    "signed_at": "2026-03-29T15:25:05.979026+00:00",
+    "value": "cd5cb7dede4fb8d9ac2aafe353003eaec10d6521f1f696548b9d21cbe5d33bf5"
+  }
+}

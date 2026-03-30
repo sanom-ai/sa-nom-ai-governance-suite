@@ -1,0 +1,60 @@
+services:
+  sanom-ai-director:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sanom-ai-director
+    restart: unless-stopped
+    ports:
+      - "${SANOM_SERVER_PORT:-8080}:8080"
+    environment:
+      SANOM_ENV: "${SANOM_ENV:-production}"
+      SANOM_API_TOKEN: "${SANOM_API_TOKEN:-replace-with-secure-owner-token}"
+      SANOM_SERVER_HOST: "0.0.0.0"
+      SANOM_SERVER_PORT: "8080"
+      SANOM_SERVER_PUBLIC_BASE_URL: "${SANOM_SERVER_PUBLIC_BASE_URL:-http://localhost:8080}"
+      SANOM_STRICT_STARTUP_VALIDATION: "${SANOM_STRICT_STARTUP_VALIDATION:-true}"
+      SANOM_ACCESS_PROFILES_REQUIRE_HASHES: "${SANOM_ACCESS_PROFILES_REQUIRE_HASHES:-true}"
+      SANOM_SESSION_TTL_MINUTES: "${SANOM_SESSION_TTL_MINUTES:-720}"
+      SANOM_SESSION_IDLE_TIMEOUT_MINUTES: "${SANOM_SESSION_IDLE_TIMEOUT_MINUTES:-60}"
+      SANOM_TRUSTED_REGISTRY_KEY: "${SANOM_TRUSTED_REGISTRY_KEY:-replace-with-secure-registry-key}"
+      SANOM_TRUSTED_REGISTRY_KEY_ID: "${SANOM_TRUSTED_REGISTRY_KEY_ID:-SANOM_PROD_REGISTRY}"
+      SANOM_TRUSTED_REGISTRY_SIGNED_BY: "${SANOM_TRUSTED_REGISTRY_SIGNED_BY:-EXEC_OWNER}"
+      SANOM_TRUSTED_REGISTRY_REQUIRE_SIGNATURE: "${SANOM_TRUSTED_REGISTRY_REQUIRE_SIGNATURE:-true}"
+      SANOM_RETENTION_AUDIT_DAYS: "${SANOM_RETENTION_AUDIT_DAYS:-2555}"
+      SANOM_RETENTION_OVERRIDE_DAYS: "${SANOM_RETENTION_OVERRIDE_DAYS:-2555}"
+      SANOM_RETENTION_LOCK_DAYS: "${SANOM_RETENTION_LOCK_DAYS:-30}"
+      SANOM_RETENTION_CONSISTENCY_DAYS: "${SANOM_RETENTION_CONSISTENCY_DAYS:-365}"
+      SANOM_RETENTION_SESSION_DAYS: "${SANOM_RETENTION_SESSION_DAYS:-90}"
+      SANOM_RETENTION_ROLE_PRIVATE_STUDIO_DAYS: "${SANOM_RETENTION_ROLE_PRIVATE_STUDIO_DAYS:-2555}"
+      SANOM_RETENTION_ARCHIVE_DIR: "${SANOM_RETENTION_ARCHIVE_DIR:-/app/_runtime/runtime_archive}"
+    volumes:
+      - sanom_runtime:/app/_runtime
+    healthcheck:
+      test: ["CMD", "python", "dashboard_server.py", "--check-only"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["enterprise-target"]
+    environment:
+      POSTGRES_DB: "${SANOM_POSTGRES_DB:-sanom}"
+      POSTGRES_USER: "${SANOM_POSTGRES_USER:-sanom}"
+      POSTGRES_PASSWORD: "${SANOM_POSTGRES_PASSWORD:-sanom-change-me}"
+    volumes:
+      - sanom_postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["enterprise-target"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - sanom_redis:/data
+
+volumes:
+  sanom_runtime:
+  sanom_postgres:
+  sanom_redis:

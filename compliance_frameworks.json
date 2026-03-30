@@ -1,0 +1,112 @@
+﻿{
+  "frameworks": [
+    {
+      "framework_id": "ISO_27001_BASELINE",
+      "name": "ISO/IEC 27001 Alignment Baseline",
+      "version": "internal-baseline",
+      "controls": [
+        {
+          "control_id": "ACCESS_BOUNDARY",
+          "title": "Role boundaries and least privilege",
+          "capabilities": ["authority_boundaries", "role_transition_governance"]
+        },
+        {
+          "control_id": "CHANGE_GOVERNANCE",
+          "title": "Trusted publication and change governance",
+          "capabilities": ["trusted_publication", "audit_chain"]
+        },
+        {
+          "control_id": "AUDIT_EVIDENCE",
+          "title": "Tamper-evident auditability and evidence export",
+          "capabilities": ["audit_chain", "evidence_export"]
+        },
+        {
+          "control_id": "RETENTION_LIFECYCLE",
+          "title": "Retention and disposition lifecycle",
+          "capabilities": ["retention_lifecycle"]
+        }
+      ]
+    },
+    {
+      "framework_id": "NIST_CSF_BASELINE",
+      "name": "NIST Cybersecurity Framework Alignment Baseline",
+      "version": "internal-baseline",
+      "controls": [
+        {
+          "control_id": "GOVERNED_ROLE_ACTIVATION",
+          "title": "Governed role activation and switching",
+          "capabilities": ["role_transition_governance", "human_oversight"]
+        },
+        {
+          "control_id": "EVENT_LOGGING",
+          "title": "Detectable and explainable event logging",
+          "capabilities": ["audit_chain", "evidence_export"]
+        },
+        {
+          "control_id": "SESSION_SECURITY",
+          "title": "Session and access-token hardening",
+          "capabilities": ["session_security"]
+        },
+        {
+          "control_id": "RECOVERY_CONTINUITY",
+          "title": "Recovery readiness and backup continuity",
+          "capabilities": ["recovery_continuity"]
+        }
+      ]
+    },
+    {
+      "framework_id": "SOC2_BASELINE",
+      "name": "SOC 2 Controls Alignment Baseline",
+      "version": "internal-baseline",
+      "controls": [
+        {
+          "control_id": "LOGICAL_ACCESS",
+          "title": "Logical access and segregation of duties",
+          "capabilities": ["authority_boundaries", "session_security"]
+        },
+        {
+          "control_id": "CHANGE_MANAGEMENT",
+          "title": "Controlled role publication and trusted changes",
+          "capabilities": ["trusted_publication", "role_transition_governance"]
+        },
+        {
+          "control_id": "MONITORING_AND_AUDIT",
+          "title": "Monitoring, auditability, and evidence retention",
+          "capabilities": ["audit_chain", "evidence_export", "retention_lifecycle"]
+        },
+        {
+          "control_id": "OVERSIGHT",
+          "title": "Human oversight over sensitive outcomes",
+          "capabilities": ["human_oversight"]
+        }
+      ]
+    },
+    {
+      "framework_id": "PDPA_BASELINE",
+      "name": "PDPA Governance Baseline",
+      "version": "internal-baseline",
+      "controls": [
+        {
+          "control_id": "PURPOSE_BOUNDARY",
+          "title": "Purpose-bound role scope and governed access",
+          "capabilities": ["authority_boundaries", "role_transition_governance"]
+        },
+        {
+          "control_id": "SENSITIVE_REVIEW",
+          "title": "Human review for sensitive or safety-oriented contexts",
+          "capabilities": ["human_oversight"]
+        },
+        {
+          "control_id": "RETENTION_AND_HOLD",
+          "title": "Retention, legal hold, and lifecycle governance",
+          "capabilities": ["retention_lifecycle"]
+        },
+        {
+          "control_id": "AUDITABLE_PROCESSING",
+          "title": "Auditable processing and evidence export",
+          "capabilities": ["audit_chain", "evidence_export"]
+        }
+      ]
+    }
+  ]
+}

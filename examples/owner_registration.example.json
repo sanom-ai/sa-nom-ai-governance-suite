@@ -1,0 +1,11 @@
+{
+  "registration_code": "DEMO-ORG",
+  "deployment_mode": "private",
+  "organization_name": "Demo Organization",
+  "organization_id": "DEMO_ORG",
+  "owner_name": "Executive Owner",
+  "owner_display_name": "Executive Owner",
+  "executive_owner_id": "EXEC_OWNER",
+  "trusted_registry_signed_by": "EXEC_OWNER",
+  "registered_at": "2026-01-01T00:00:00+00:00"
+}

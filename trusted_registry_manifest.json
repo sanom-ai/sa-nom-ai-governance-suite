@@ -1,0 +1,29 @@
+{
+  "registry_name": "SA-NOM Trusted PTAG Registry",
+  "generated_at": "2026-03-30T06:59:05.406147+00:00",
+  "roles": {
+    "GOV": {
+      "file_name": "GOV.ptn",
+      "sha256": "ea27f952353d2ca2ec6f8218510f8a6252d9fd91683424a1463cc2aee3e9575b",
+      "trust_status": "trusted",
+      "signed_by": "EXEC_OWNER",
+      "signature_mode": "sha256_manifest_hmac",
+      "registered_at": "2026-03-30T06:59:05.405765+00:00"
+    },
+    "LEGAL": {
+      "file_name": "LEGAL.ptn",
+      "sha256": "502ee752f927b6fbc719f9d6eeb342acfc553887e21ec66b296bfca2072e3a8b",
+      "trust_status": "trusted",
+      "signed_by": "EXEC_OWNER",
+      "signature_mode": "sha256_manifest_hmac",
+      "registered_at": "2026-03-30T06:59:05.406122+00:00"
+    }
+  },
+  "signature": {
+    "algorithm": "hmac_sha256",
+    "key_id": "SANOM_DEV_REGISTRY",
+    "signed_by": "EXEC_OWNER",
+    "signed_at": "2026-03-30T06:59:05.406154+00:00",
+    "value": "2a57af107b0210e1e7894753003942a7682e685ffb605b694acb26500b685148"
+  }
+}

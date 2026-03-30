@@ -1,0 +1,503 @@
+{
+  "identity": {
+    "standard_id": "PT-OSS",
+    "abbreviation_expansion": "POLICY TRACEABILITY OPEN STRUCTURAL STANDARD",
+    "full_name": "Policy Traceability Open Structural Standard",
+    "product_position": "PT-OSS Structural Intelligence Layer",
+    "status": "foundation",
+    "design_intent": "Machine-readable structural intelligence foundation for SA-NOM AI Governance Suite."
+  },
+  "architecture_position": {
+    "embedded_in": "SA-NOM AI Governance Suite",
+    "layer_name": "Structural Intelligence Layer",
+    "does_not_replace": [
+      "PTAG governance runtime",
+      "Core execution runtime",
+      "human override lifecycle",
+      "audit logging",
+      "evidence export"
+    ],
+    "primary_outputs": [
+      "structural risk signal",
+      "dependency posture",
+      "escalation recommendation",
+      "organizational fragility warning",
+      "evidence enrichment"
+    ]
+  },
+  "principles": [
+    "structural_first",
+    "human_governed",
+    "measurable_and_auditable",
+    "fail_closed_when_structurally_unsafe",
+    "public_sector_adaptation_ready"
+  ],
+  "modes": [
+    {
+      "mode_id": "PT_OSS_LITE",
+      "name": "PT-OSS Lite",
+      "intended_for": "Small organizations or constrained assessment environments",
+      "minimum_focus": [
+        "HDI-S",
+        "Kill Switch Test"
+      ]
+    },
+    {
+      "mode_id": "PT_OSS_FULL",
+      "name": "PT-OSS Full",
+      "intended_for": "Organizations with enough structure for full sequential evaluation",
+      "minimum_focus": [
+        "HDI-S",
+        "HDI-D",
+        "SFS",
+        "KPIR",
+        "ASP",
+        "HOIS"
+      ]
+    },
+    {
+      "mode_id": "PT_OSS_FULL_CAL_TH",
+      "name": "PT-OSS Full + CAL-TH",
+      "intended_for": "Thai public-sector or Thai cultural environments",
+      "minimum_focus": [
+        "SPAI",
+        "CAL-TH"
+      ]
+    },
+    {
+      "mode_id": "PT_OSS_FULL_CAL_WE",
+      "name": "PT-OSS Full + CAL-WE",
+      "intended_for": "Western or mixed governance environments",
+      "minimum_focus": [
+        "CAL-WE"
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "metric_id": "HDI_S",
+      "name": "Human Dependency Index - Structural",
+      "category": "dependency",
+      "description": "Measures how much the system depends on human-specific structural knowledge or manual intervention.",
+      "unit": "percent",
+      "desired_direction": "lower_is_better",
+      "formula_status": "foundation_defined_formula_encoding_pending",
+      "inputs": [
+        "structural constraints",
+        "manual steps",
+        "single-point human approvals",
+        "fallback coverage"
+      ],
+      "thresholds": [
+        {
+          "min": 0,
+          "max": 39,
+          "label": "healthy",
+          "risk_level": "low",
+          "default_action": "continue"
+        },
+        {
+          "min": 40,
+          "max": 79,
+          "label": "watch",
+          "risk_level": "medium",
+          "default_action": "review"
+        },
+        {
+          "min": 80,
+          "max": 100,
+          "label": "rebuild",
+          "risk_level": "critical",
+          "default_action": "stop_and_rebuild"
+        }
+      ]
+    },
+    {
+      "metric_id": "HDI_D",
+      "name": "Human Dependency Index - Decision",
+      "category": "dependency",
+      "description": "Measures how much key decisions rely on specific humans instead of governed structure.",
+      "unit": "percent",
+      "desired_direction": "lower_is_better",
+      "formula_status": "foundation_defined_formula_encoding_pending",
+      "inputs": [
+        "decision rights",
+        "authority concentration",
+        "override concentration",
+        "appeal availability"
+      ],
+      "thresholds": [
+        {
+          "min": 0,
+          "max": 39,
+          "label": "healthy",
+          "risk_level": "low",
+          "default_action": "continue"
+        },
+        {
+          "min": 40,
+          "max": 79,
+          "label": "watch",
+          "risk_level": "medium",
+          "default_action": "review"
+        },
+        {
+          "min": 80,
+          "max": 100,
+          "label": "rebuild",
+          "risk_level": "critical",
+          "default_action": "stop_and_rebuild"
+        }
+      ]
+    },
+    {
+      "metric_id": "SFS",
+      "name": "Structural Fragility Score",
+      "category": "fragility",
+      "description": "Predicts how likely the system is to degrade when context, personnel, or force conditions change.",
+      "unit": "score",
+      "desired_direction": "lower_is_better",
+      "formula_status": "foundation_defined_formula_encoding_pending",
+      "inputs": [
+        "force map",
+        "dependency concentration",
+        "process bottlenecks",
+        "choice path resilience"
+      ],
+      "thresholds": [
+        {
+          "min": 0,
+          "max": 49,
+          "label": "stable",
+          "risk_level": "low",
+          "default_action": "continue"
+        },
+        {
+          "min": 50,
+          "max": 74,
+          "label": "watch",
+          "risk_level": "medium",
+          "default_action": "review"
+        },
+        {
+          "min": 75,
+          "max": 100,
+          "label": "redesign",
+          "risk_level": "high",
+          "default_action": "stop_and_redesign"
+        }
+      ]
+    },
+    {
+      "metric_id": "KPIR",
+      "name": "Key Person Impact Rating",
+      "category": "dependency",
+      "description": "Measures how much of the system would be disrupted if a key person disappears.",
+      "unit": "percent",
+      "desired_direction": "lower_is_better",
+      "formula_status": "foundation_defined_formula_encoding_pending",
+      "inputs": [
+        "person-role concentration",
+        "fallback ownership",
+        "handoff coverage",
+        "kill switch verification"
+      ],
+      "thresholds": [
+        {
+          "min": 0,
+          "max": 29,
+          "label": "resilient",
+          "risk_level": "low",
+          "default_action": "continue"
+        },
+        {
+          "min": 30,
+          "max": 59,
+          "label": "watch",
+          "risk_level": "medium",
+          "default_action": "review"
+        },
+        {
+          "min": 60,
+          "max": 100,
+          "label": "fragile",
+          "risk_level": "critical",
+          "default_action": "restructure"
+        }
+      ]
+    },
+    {
+      "metric_id": "ASP",
+      "name": "Architectural Stability Protocol Score",
+      "category": "stability",
+      "description": "Measures whether the architecture passes the required stability tests.",
+      "unit": "score_0_to_6",
+      "desired_direction": "higher_is_better",
+      "formula_status": "foundation_defined_formula_encoding_pending",
+      "inputs": [
+        "stability tests",
+        "redundancy tests",
+        "kill switch test",
+        "time resilience"
+      ],
+      "thresholds": [
+        {
+          "min": 0,
+          "max": 3,
+          "label": "unstable",
+          "risk_level": "high",
+          "default_action": "redesign"
+        },
+        {
+          "min": 4,
+          "max": 4,
+          "label": "borderline",
+          "risk_level": "medium",
+          "default_action": "review"
+        },
+        {
+          "min": 5,
+          "max": 6,
+          "label": "qualified",
+          "risk_level": "low",
+          "default_action": "continue"
+        }
+      ]
+    },
+    {
+      "metric_id": "HOIS",
+      "name": "Human Override Integrity Score",
+      "category": "governance",
+      "description": "Measures whether human override remains real, meaningful, and structurally protected.",
+      "unit": "percent",
+      "desired_direction": "higher_is_better",
+      "formula_status": "foundation_defined_formula_encoding_pending",
+      "inputs": [
+        "override ownership",
+        "override traceability",
+        "override appeal",
+        "override concentration"
+      ],
+      "thresholds": [
+        {
+          "min": 0,
+          "max": 49,
+          "label": "weak",
+          "risk_level": "high",
+          "default_action": "strengthen_override"
+        },
+        {
+          "min": 50,
+          "max": 69,
+          "label": "watch",
+          "risk_level": "medium",
+          "default_action": "review"
+        },
+        {
+          "min": 70,
+          "max": 100,
+          "label": "strong",
+          "risk_level": "low",
+          "default_action": "continue"
+        }
+      ]
+    },
+    {
+      "metric_id": "SPAI",
+      "name": "Structural Power Asymmetry Index",
+      "category": "public_sector",
+      "description": "Measures how unfairly power is embedded into the structure, especially in public-sector contexts.",
+      "unit": "percent",
+      "desired_direction": "lower_is_better",
+      "formula_status": "foundation_defined_formula_encoding_pending",
+      "inputs": [
+        "position veto patterns",
+        "approval chain ambiguity",
+        "information asymmetry",
+        "rotation punishment patterns",
+        "appeal realism"
+      ],
+      "thresholds": [
+        {
+          "min": 0,
+          "max": 20,
+          "label": "fair_baseline",
+          "risk_level": "low",
+          "default_action": "continue"
+        },
+        {
+          "min": 21,
+          "max": 40,
+          "label": "watch",
+          "risk_level": "medium",
+          "default_action": "counter_mechanism"
+        },
+        {
+          "min": 41,
+          "max": 60,
+          "label": "redesign_required",
+          "risk_level": "high",
+          "default_action": "redesign_and_external_audit"
+        },
+        {
+          "min": 61,
+          "max": 100,
+          "label": "systemic_reform",
+          "risk_level": "critical",
+          "default_action": "stop_and_reform"
+        }
+      ]
+    }
+  ],
+  "protocols": [
+    {
+      "protocol_id": "CONSTRAINT_ARCHITECTURE_AUDIT",
+      "sequence": 1,
+      "name": "Constraint Architecture Audit",
+      "produces": [
+        "HDI_S",
+        "HDI_D"
+      ],
+      "gate": "If dependency metrics are structurally unsafe, stop and rebuild."
+    },
+    {
+      "protocol_id": "CAUSAL_FORCE_MAPPING",
+      "sequence": 2,
+      "name": "Causal Force Mapping",
+      "produces": [
+        "SFS"
+      ],
+      "gate": "If fragility is too high, stop and redesign the flow."
+    },
+    {
+      "protocol_id": "REAL_LEVERAGE_POINT_IDENTIFICATION",
+      "sequence": 3,
+      "name": "Real Leverage Point Identification",
+      "produces": [
+        "KPIR"
+      ],
+      "gate": "Verify key-person risk and kill-switch exposure before continuing."
+    },
+    {
+      "protocol_id": "ARCHITECTURAL_STABILITY_PROTOCOL",
+      "sequence": 4,
+      "name": "Architectural Stability Protocol",
+      "produces": [
+        "ASP"
+      ],
+      "gate": "The architecture must pass stability requirements before promotion."
+    },
+    {
+      "protocol_id": "CHOICE_PATH_DESIGN_STANDARD",
+      "sequence": 5,
+      "name": "Choice Path Design Standard",
+      "produces": [
+        "structural_path_recommendation"
+      ],
+      "gate": "Correct paths should become easier than wrong paths."
+    },
+    {
+      "protocol_id": "GOVERNANCE_AUDIT_CYCLE",
+      "sequence": 6,
+      "name": "Governance and Audit Cycle",
+      "produces": [
+        "HOIS"
+      ],
+      "gate": "Override integrity and audit continuity must stay protected."
+    }
+  ],
+  "public_sector_extensions": {
+    "spa_protocol": {
+      "protocol_id": "STRUCTURAL_POWER_AUDIT",
+      "produces": [
+        "SPAI"
+      ],
+      "focus": [
+        "unfair power concentration",
+        "position veto power",
+        "approval ambiguity",
+        "information asymmetry"
+      ]
+    },
+    "cal_modules": [
+      {
+        "module_id": "CAL_TH",
+        "name": "Cultural Adaptation Layer - Thai",
+        "focus": [
+          "bun-khun patterns",
+          "hierarchy pressure",
+          "silence norm enforcement",
+          "gratitude lock"
+        ]
+      },
+      {
+        "module_id": "CAL_WE",
+        "name": "Cultural Adaptation Layer - Western",
+        "focus": [
+          "guilt accountability",
+          "rule-based enforcement",
+          "formal appeal expectation"
+        ]
+      }
+    ]
+  },
+  "integration_surfaces": [
+    {
+      "surface_id": "CORE_RUNTIME",
+      "name": "Core Runtime",
+      "outputs": [
+        "structural_risk_signal",
+        "escalation_recommendation",
+        "fragility_warning",
+        "human_override_strength_signal"
+      ]
+    },
+    {
+      "surface_id": "ROLE_PRIVATE_STUDIO",
+      "name": "Role Private Studio",
+      "outputs": [
+        "role_structural_readiness",
+        "dependency_warning",
+        "escalation_fit",
+        "structural_publish_blockers"
+      ]
+    },
+    {
+      "surface_id": "HUMAN_ASK",
+      "name": "Human Ask",
+      "outputs": [
+        "record_automation_posture",
+        "confidence_floor_adjustment",
+        "meeting_escalation_recommendation",
+        "evidence_enrichment"
+      ]
+    },
+    {
+      "surface_id": "DASHBOARD_AND_EVIDENCE",
+      "name": "Dashboard and Evidence",
+      "outputs": [
+        "structural_scorecard",
+        "trend_snapshot",
+        "blocker_summary",
+        "public_sector_warning_report"
+      ]
+    }
+  ],
+  "runtime_contract": {
+    "assessment_inputs": [
+      "organization_profile",
+      "role_pack_snapshot",
+      "authority_and_escalation_map",
+      "human_override_topology",
+      "public_sector_context",
+      "cultural_context"
+    ],
+    "assessment_outputs": [
+      "metrics",
+      "banded_status",
+      "recommendations",
+      "publish_blockers",
+      "audit_annotations"
+    ]
+  }
+}

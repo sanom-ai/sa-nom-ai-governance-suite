@@ -1,0 +1,9 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Commercial licensing and rollout
+    url: mailto:sanomaiarch@gmail.com
+    about: Contact SA-NOM directly for pricing, enterprise features, rollout work, or tailored deployment support.
+  - name: Security disclosure
+    url: mailto:sanomaiarch@gmail.com
+    about: Please report security issues privately by email instead of opening a public issue.
+

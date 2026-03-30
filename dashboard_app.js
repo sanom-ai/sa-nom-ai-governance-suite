@@ -1,0 +1,3033 @@
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js';
+
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js';
+
+const state = {
+  view: 'overview',
+  snapshot: null,
+  session: null,
+  token: window.localStorage.getItem('sanom_api_token') || '',
+  sessionToken: window.localStorage.getItem('sanom_session_token') || '',
+  authRequired: false,
+  lastError: '',
+  studioEditingRequestId: null,
+  studioEditorDraft: null,
+  studioGovernanceRequestId: null,
+  studioGovernanceNotes: {},
+  studioRevisionSelections: {},
+  studioPtagDrafts: {},
+  studioPtagHistory: {},
+};
+
+const root = document.getElementById('dashboard-root');
+const navList = document.getElementById('nav-list');
+const viewTitle = document.getElementById('view-title');
+const viewDescription = document.getElementById('view-description');
+const environmentLabel = document.getElementById('environment-label');
+const generatedAt = document.getElementById('generated-at');
+const refreshButton = document.getElementById('refresh-button');
+const logoutButton = document.getElementById('logout-button');
+const sessionLabel = document.getElementById('session-label');
+const sidebarViewTitle = document.getElementById('sidebar-view-title');
+const sidebarViewDescription = document.getElementById('sidebar-view-description');
+const sidebarOperatorLabel = document.getElementById('sidebar-operator-label');
+const sidebarRuntimeLabel = document.getElementById('sidebar-runtime-label');
+const sidebarGeneratedLabel = document.getElementById('sidebar-generated-label');
+const topbarFocusLabel = document.getElementById('topbar-focus-label');
+const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
+
+const VIEW_TITLES = {
+  overview: 'Overview',
+  requests: 'Requests',
+  overrides: 'Overrides',
+  conflicts: 'Conflicts & Locks',
+  audit: 'Audit Trail',
+  studio: 'Role Private Studio',
+  human_ask: 'Human Ask',
+  sessions: 'Sessions',
+  policies: 'Roles & Policies',
+  health: 'Runtime Health',
+};
+
+const VIEW_DESCRIPTIONS = {
+  overview: 'Executive runtime posture across governance, structural intelligence, and live operational readiness.',
+  requests: 'Trace governed execution intake, current outcomes, and the next controlled movement through the Director.',
+  overrides: 'Inspect only the boundaries where human intervention altered or halted the governed runtime path.',
+  conflicts: 'See active locks, consistency pressure, and the runtime contention surfaces that shape safe execution.',
+  audit: 'Review immutable chain activity, integrity posture, and evidence-oriented runtime history.',
+  studio: 'Author, validate, simulate, and publish Director hats through a governed private studio workflow.',
+  human_ask: 'Request report records or open meeting records without turning the operator into a manual workflow engine.',
+  sessions: 'Monitor session issuance, authentication continuity, expiry, and revocation across the private runtime.',
+  policies: 'Inspect PTAG-backed role packs, active hats, and the policy boundaries controlling the Director.',
+  health: 'Track deployment readiness, persistence, integrations, and infrastructure posture of the private server.',
+};
+
+const VIEW_INTELLIGENCE = {
+  overview: {
+    eyebrow: 'Executive Radar',
+    title: 'Stewardship posture across the Director',
+    narrative: 'This surface compresses trust, runtime movement, and structural signal into one executive scan so leaders can judge whether the Director is calm, pressured, or ready to scale.',
+    emphasis: 'executive posture',
+  },
+  requests: {
+    eyebrow: 'Runtime Intake',
+    title: 'Governed flow through active demand',
+    narrative: 'Requests is the intake chamber of the AI Director core. It should read like controlled movement, not queue chaos, with clear evidence of where policy, overrides, and escalation start shaping execution.',
+    emphasis: 'flow control',
+  },
+  overrides: {
+    eyebrow: 'Boundary Changes',
+    title: 'Human intervention only where autonomy ended',
+    narrative: 'Overrides should stay rare and explainable. This view is strongest when each entry clearly shows why human intervention changed or halted the governed runtime path.',
+    emphasis: 'human boundary',
+  },
+  conflicts: {
+    eyebrow: 'Contention Map',
+    title: 'Where safe execution is under pressure',
+    narrative: 'Conflicts and locks reveal where orchestration would become unsafe without discipline. The goal is not speed alone, but contention awareness with clean recovery paths.',
+    emphasis: 'contention pressure',
+  },
+  audit: {
+    eyebrow: 'Evidence Ledger',
+    title: 'Immutable history with trust posture visible',
+    narrative: 'Audit should feel like a sealed ledger, not a raw log dump. This view works best when integrity, maintenance readiness, and transition evidence are legible at a glance.',
+    emphasis: 'integrity chain',
+  },
+  studio: {
+    eyebrow: 'Hat Factory',
+    title: 'Role creation with structural and governance discipline',
+    narrative: 'Role Private Studio is where hats become publishable assets. Validation, simulation, PT-OSS, revision control, and trusted publication should read like one coherent promotion system.',
+    emphasis: 'publication lane',
+  },
+  human_ask: {
+    eyebrow: 'Record Surface',
+    title: 'Human request, AI report, governed record',
+    narrative: 'Human Ask stays narrow by design: one human requests a report or opens a meeting record, while the Director preserves transcript, scope boundary, and structural posture without creating manual operator work.',
+    emphasis: 'record discipline',
+  },
+  sessions: {
+    eyebrow: 'Access Discipline',
+    title: 'Short-lived runtime identity under control',
+    narrative: 'Sessions should feel operationally sharp: issuance, expiry, and revocation are visible so runtime access never drifts into ambiguity.',
+    emphasis: 'session control',
+  },
+  policies: {
+    eyebrow: 'PTAG Library',
+    title: 'Trusted hats and their authority graph',
+    narrative: 'Roles and Policies is the living policy library of the Director. It should show the shape of authority, safety ownership, and trusted manifest posture without forcing the operator to inspect raw PTAG first.',
+    emphasis: 'policy library',
+  },
+  health: {
+    eyebrow: 'Production Posture',
+    title: 'Deployment readiness as an operating signal',
+    narrative: 'Health is not a checkbox list. It should answer whether this private server can be trusted to operate now, recover cleanly, and expose the right control surfaces beyond the owner account.',
+    emphasis: 'production hardening',
+  },
+};
+
+const VIEW_PERMISSIONS = {
+  overview: 'dashboard.read',
+  requests: 'requests.read',
+  overrides: 'overrides.read',
+  conflicts: 'locks.read',
+  audit: 'audit.read',
+  studio: 'studio.read',
+  human_ask: 'human_ask.read',
+  sessions: 'sessions.read',
+  policies: 'roles.read',
+  health: 'health.read',
+};
+
+navList.addEventListener('click', (event) => {
+  const target = event.target.closest('.nav-item');
+  if (!target) return;
+  state.view = target.dataset.view;
+  updateNav();
+  render();
+});
+
+refreshButton.addEventListener('click', () => loadDashboard());
+logoutButton.addEventListener('click', async () => {
+  if (state.sessionToken) {
+    try {
+      await apiFetch('/api/session/logout', { method: 'POST' }, { useSession: true });
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+  state.token = '';
+  state.sessionToken = '';
+  state.snapshot = null;
+  state.session = null;
+  state.authRequired = true;
+  state.studioEditingRequestId = null;
+  state.studioEditorDraft = null;
+  state.studioGovernanceRequestId = null;
+  state.studioGovernanceNotes = {};
+  state.studioRevisionSelections = {};
+  state.studioPtagDrafts = {};
+  state.studioPtagHistory = {};
+  window.localStorage.removeItem('sanom_api_token');
+  window.localStorage.removeItem('sanom_session_token');
+  render();
+});
+
+root.addEventListener('submit', async (event) => {
+  if (event.target.id === 'token-form') {
+    event.preventDefault();
+    const token = document.getElementById('token-input').value.trim();
+    if (!token) return;
+    state.token = token;
+    state.authRequired = false;
+    state.lastError = '';
+    window.localStorage.setItem('sanom_api_token', token);
+    await loadDashboard();
+    return;
+  }
+
+  if (event.target.id === 'request-form') {
+    event.preventDefault();
+    try {
+      await apiFetch('/api/request', {
+        method: 'POST',
+        body: JSON.stringify({
+          requester: document.getElementById('request-requester').value.trim(),
+          role_id: document.getElementById('request-role').value.trim(),
+          action: document.getElementById('request-action').value.trim(),
+          payload: parseJsonField('request-payload'),
+          metadata: parseJsonField('request-metadata'),
+        }),
+      });
+      state.lastError = '';
+      state.view = 'requests';
+      updateNav();
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  if (event.target.id === 'studio-form') {
+    event.preventDefault();
+    try {
+      const payload = studioPayloadFromForm();
+      const editingRequestId = state.studioEditingRequestId;
+      if (state.studioEditingRequestId) {
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(state.studioEditingRequestId)}/update`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        state.lastError = `Role Private Studio request ${state.studioEditingRequestId} updated.`;
+      } else {
+        await apiFetch('/api/role-private-studio/requests', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        state.lastError = 'Role Private Studio request created.';
+      }
+      if (editingRequestId) delete state.studioPtagDrafts[editingRequestId];
+      clearStudioEditor();
+      state.view = 'studio';
+      updateNav();
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+  }
+
+  if (event.target.id === 'human-ask-form') {
+    event.preventDefault();
+    try {
+      const payload = buildHumanAskPayload(document);
+      const response = await apiFetch('/api/human-ask/sessions', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      state.lastError = buildHumanAskOutcomeMessage(response.item || response, 'Human Ask record created.');
+      state.view = 'human_ask';
+      updateNav();
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  if (event.target.id === 'owner-registration-form') {
+    event.preventDefault();
+    try {
+      const payload = buildOwnerRegistrationPayload(document);
+      const response = await apiFetch('/api/owner-registration', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const item = response.item || {};
+      state.lastError = `Registration code ${item.registration_code || 'saved'} is active for ${item.organization_name || 'the current organization'} in ${item.deployment_mode || 'private'} mode.`;
+      state.view = 'health';
+      updateNav();
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+});
+
+root.addEventListener('input', (event) => {
+  if (event.target.id === 'studio-governance-note' && state.studioGovernanceRequestId) {
+    state.studioGovernanceNotes[state.studioGovernanceRequestId] = event.target.value;
+  }
+  if (event.target.id === 'studio-ptag-editor' && state.studioGovernanceRequestId) {
+    const previousValue = state.studioPtagDrafts[state.studioGovernanceRequestId] || '';
+    recordStudioPtagUndo(state.studioGovernanceRequestId, previousValue, event.target.value);
+    state.studioPtagDrafts[state.studioGovernanceRequestId] = event.target.value;
+    refreshStudioEditorAssist(state.studioGovernanceRequestId, event.target.value);
+  }
+});
+
+root.addEventListener('scroll', (event) => {
+  if (event.target.id === 'studio-ptag-editor') {
+    const gutter = document.getElementById('studio-ptag-gutter');
+    if (gutter) gutter.scrollTop = event.target.scrollTop;
+  }
+}, true);
+
+root.addEventListener('change', (event) => {
+  const compareSelect = event.target.closest('[data-studio-compare-select]');
+  if (!compareSelect) return;
+  const requestId = compareSelect.dataset.requestId || state.studioGovernanceRequestId;
+  const item = getStudioRequestById(requestId);
+  if (!item) return;
+  const selection = ensureStudioRevisionSelection(item);
+  const nextValue = Number.parseInt(compareSelect.value, 10) || 0;
+  if (compareSelect.dataset.compareSide === 'current') selection.current_revision_number = nextValue;
+  if (compareSelect.dataset.compareSide === 'previous') selection.previous_revision_number = nextValue;
+  normalizeStudioRevisionSelection(item, selection, compareSelect.dataset.compareSide || '');
+  state.studioRevisionSelections[requestId] = selection;
+  render();
+});
+
+root.addEventListener('click', async (event) => {
+  const viewJumpButton = event.target.closest('[data-view-jump]');
+  if (viewJumpButton) {
+    state.view = viewJumpButton.dataset.viewJump || state.view;
+    updateNav();
+    render();
+    return;
+  }
+
+  const clearButton = event.target.closest('[data-studio-clear]');
+  if (clearButton) {
+    clearStudioEditor();
+    render();
+    return;
+  }
+
+  const overrideButton = event.target.closest('[data-override-action]');
+  if (overrideButton) {
+    const requestId = overrideButton.dataset.requestId;
+    const action = overrideButton.dataset.overrideAction;
+    const note = window.prompt(`${action === 'approve' ? 'Approve' : 'Veto'} override ${requestId} note`, action === 'approve' ? 'Approved from dashboard.' : 'Rejected from dashboard.');
+    if (note === null) return;
+    try {
+      await apiFetch(`/api/overrides/${encodeURIComponent(requestId)}/${action}`, { method: 'POST', body: JSON.stringify({ note }) });
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  const sessionButton = event.target.closest('[data-session-revoke]');
+  if (sessionButton) {
+    const sessionId = sessionButton.dataset.sessionId;
+    const reason = window.prompt(`Revoke session ${sessionId} reason`, 'Revoked from dashboard.');
+    if (reason === null) return;
+    try {
+      await apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/revoke`, { method: 'POST', body: JSON.stringify({ reason }) });
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  const auditButton = event.target.closest('[data-audit-action]');
+  if (auditButton) {
+    const action = auditButton.dataset.auditAction;
+    if (action === 'reseal') {
+      const confirmed = window.confirm('Reseal legacy audit entries and rebuild the active audit chain?');
+      if (!confirmed) return;
+      try {
+        const response = await apiFetch('/api/audit/reseal', { method: 'POST', body: JSON.stringify({}) });
+        const result = response.result || {};
+        state.lastError = result.status === 'resealed'
+          ? 'Audit log resealed. The maintenance event was added to the active chain.'
+          : result.status === 'noop'
+            ? 'Audit log is already fully sealed.'
+            : `Audit reseal blocked: ${result.reason || 'unknown'}`;
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
+    return;
+  }
+
+  const opsButton = event.target.closest('[data-ops-action]');
+  if (opsButton) {
+    const action = opsButton.dataset.opsAction;
+    if (action === 'backup') {
+      const confirmed = window.confirm('Create a runtime operations backup bundle now?');
+      if (!confirmed) return;
+      try {
+        const response = await apiFetch('/api/operations/backup', { method: 'POST', body: JSON.stringify({}) });
+        const result = response.result || {};
+        state.lastError = result.backup_id
+          ? `Runtime backup created: ${result.backup_id}`
+          : 'Runtime backup request completed.';
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
+    return;
+  }
+
+  const integrationButton = event.target.closest('[data-integration-action]');
+  if (integrationButton) {
+    const action = integrationButton.dataset.integrationAction;
+    if (action === 'test-event') {
+      try {
+        const response = await apiFetch('/api/integrations/test-event', { method: 'POST', body: JSON.stringify({}) });
+        const result = response.result || {};
+        state.lastError = result.event_id
+          ? `Integration test event dispatched: ${result.event_id}`
+          : 'Integration test event completed.';
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
+    return;
+  }
+
+  const humanAskButton = event.target.closest('[data-human-ask-action]');
+  if (humanAskButton) {
+    try {
+      const handled = await handleHumanAskAction({
+        button: humanAskButton,
+        apiFetch,
+        setMessage: (message) => { state.lastError = message; },
+        setHumanAskView: () => {
+          state.view = 'human_ask';
+          updateNav();
+        },
+        loadDashboard,
+        windowRef: window,
+      });
+      if (handled) return;
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  const governanceSelectButton = event.target.closest('[data-studio-governance-select]');
+  if (governanceSelectButton) {
+    state.studioGovernanceRequestId = governanceSelectButton.dataset.requestId || null;
+    const item = getStudioRequestById(state.studioGovernanceRequestId);
+    if (item) {
+      ensureStudioGovernanceNote(item);
+      ensureStudioRevisionSelection(item);
+      ensureStudioPtagDraft(item);
+    }
+    render();
+    focusStudioGovernancePanel();
+    return;
+  }
+
+  const templateButton = event.target.closest('[data-studio-template-apply]');
+  if (templateButton) {
+    const templateId = templateButton.dataset.templateId;
+    const studio = state.snapshot?.role_private_studio || {};
+    const library = Array.isArray(studio.template?.library) ? studio.template.library : [];
+    const template = library.find((item) => item.template_id === templateId);
+    if (!template || !template.payload) return;
+    state.studioEditingRequestId = null;
+    state.studioEditorDraft = template.payload;
+    fillStudioForm(template.payload);
+    state.lastError = `Applied template ${template.label || template.template_id} to the Studio form.`;
+    render();
+    return;
+  }
+
+  const studioPanelButton = event.target.closest('[data-studio-panel-action]');
+  if (studioPanelButton) {
+    const requestId = studioPanelButton.dataset.requestId;
+    const action = studioPanelButton.dataset.studioPanelAction;
+    const noteField = document.getElementById('studio-governance-note');
+    const note = noteField ? noteField.value.trim() : (state.studioGovernanceNotes[requestId] || '').trim();
+    if (noteField) state.studioGovernanceNotes[requestId] = noteField.value;
+    const ptagField = document.getElementById('studio-ptag-editor');
+    const ptagSource = ptagField ? ptagField.value : (state.studioPtagDrafts[requestId] || '');
+    if (ptagField) state.studioPtagDrafts[requestId] = ptagField.value;
+    const item = getStudioRequestById(requestId);
+    const revisionSelection = item ? ensureStudioRevisionSelection(item) : { current_revision_number: 0 };
+    try {
+      if (action === 'load') {
+        await loadStudioRequestIntoEditor(requestId);
+        state.lastError = `Loaded ${requestId} into the Studio editor.`;
+        state.view = 'studio';
+        updateNav();
+        render();
+        return;
+      }
+      if (action === 'refresh') {
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/refresh`, { method: 'POST', body: JSON.stringify({}) });
+        delete state.studioPtagDrafts[requestId];
+        state.lastError = `Studio draft ${requestId} refreshed from the governance panel.`;
+      }
+      if (action === 'save_ptag') {
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/ptag`, { method: 'POST', body: JSON.stringify({ ptag_source: ptagSource }) });
+        state.lastError = `PTAG draft for ${requestId} updated from the live editor.`;
+      }
+      if (action === 'reset_ptag') {
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/ptag-reset`, { method: 'POST', body: JSON.stringify({}) });
+        delete state.studioPtagDrafts[requestId];
+        resetStudioPtagHistory(requestId);
+        state.lastError = `PTAG editor for ${requestId} reverted to generated mode.`;
+      }
+      if (action === 'undo_ptag') {
+        const nextValue = undoStudioPtagDraft(requestId);
+        if (typeof nextValue === 'string') {
+          if (ptagField) ptagField.value = nextValue;
+          state.studioPtagDrafts[requestId] = nextValue;
+          refreshStudioEditorAssist(requestId, nextValue);
+          state.lastError = `PTAG editor for ${requestId} moved one step backward.`;
+        }
+        render();
+        return;
+      }
+      if (action === 'redo_ptag') {
+        const nextValue = redoStudioPtagDraft(requestId);
+        if (typeof nextValue === 'string') {
+          if (ptagField) ptagField.value = nextValue;
+          state.studioPtagDrafts[requestId] = nextValue;
+          refreshStudioEditorAssist(requestId, nextValue);
+          state.lastError = `PTAG editor for ${requestId} moved one step forward.`;
+        }
+        render();
+        return;
+      }
+      if (action === 'restore_revision') {
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/restore-revision`, {
+          method: 'POST',
+          body: JSON.stringify({ revision_number: revisionSelection.current_revision_number }),
+        });
+        delete state.studioPtagDrafts[requestId];
+        resetStudioPtagHistory(requestId);
+        state.lastError = `Studio draft ${requestId} restored from revision ${revisionSelection.current_revision_number}.`;
+      }
+      if (action === 'approve') {
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/review`, { method: 'POST', body: JSON.stringify({ decision: 'approve', note: note || 'Approved for publish from the live governance panel.' }) });
+        delete state.studioGovernanceNotes[requestId];
+        state.lastError = `Studio draft ${requestId} approved.`;
+      }
+      if (action === 'request_changes') {
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/review`, { method: 'POST', body: JSON.stringify({ decision: 'request_changes', note: note || 'Please refine the role draft and resimulate it.' }) });
+        delete state.studioGovernanceNotes[requestId];
+        state.lastError = `Change request recorded for ${requestId}.`;
+      }
+      if (action === 'publish') {
+        const confirmed = window.confirm(`Publish Role Private Studio request ${requestId} into the trusted registry?`);
+        if (!confirmed) return;
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/publish`, { method: 'POST', body: JSON.stringify({}) });
+        delete state.studioGovernanceNotes[requestId];
+        state.lastError = `Studio draft ${requestId} published into the trusted registry.`;
+      }
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  const studioButton = event.target.closest('[data-studio-action]');
+  if (studioButton) {
+    const requestId = studioButton.dataset.requestId;
+    const action = studioButton.dataset.studioAction;
+    try {
+      if (action === 'load') {
+        await loadStudioRequestIntoEditor(requestId);
+        state.lastError = `Loaded ${requestId} into the Studio editor.`;
+        state.view = 'studio';
+        updateNav();
+        render();
+        return;
+      }
+      if (action === 'refresh') {
+        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/refresh`, { method: 'POST', body: JSON.stringify({}) });
+        delete state.studioPtagDrafts[requestId];
+        state.lastError = `Studio draft ${requestId} refreshed.`;
+      }
+      if (['approve', 'request_changes', 'publish'].includes(action)) {
+        const item = getStudioRequestById(requestId);
+        state.studioGovernanceRequestId = requestId;
+        if (item) {
+          ensureStudioRevisionSelection(item);
+          ensureStudioGovernanceNote(item, defaultStudioGovernanceActionNote(item, action));
+        }
+        state.lastError = action === 'publish'
+          ? `Publish confirmation is ready in the governance panel for ${requestId}.`
+          : `Review action is ready in the governance panel for ${requestId}.`;
+        render();
+        focusStudioGovernancePanel();
+        return;
+      }
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+  }
+});
+
+loadDashboard();
+
+async function loadDashboard() {
+  if (!state.sessionToken && !state.token) {
+    state.authRequired = true;
+    render();
+    return;
+  }
+  try {
+    if (!state.sessionToken && state.token) {
+      await loginWithAccessToken();
+    }
+    const snapshot = await apiFetch('/api/dashboard', {}, { useSession: Boolean(state.sessionToken) });
+    state.snapshot = snapshot;
+    state.session = snapshot.session || null;
+    state.authRequired = false;
+    render();
+  } catch (error) {
+    const message = String(error.message || error);
+    if (message.includes('401')) {
+      state.authRequired = true;
+      state.session = null;
+      state.snapshot = null;
+      state.sessionToken = '';
+      window.localStorage.removeItem('sanom_session_token');
+    }
+    state.lastError = message;
+    render();
+  }
+}
+
+async function loginWithAccessToken() {
+  if (!state.token) return;
+  const response = await apiFetch('/api/session/login', { method: 'POST' }, { useAccessToken: true });
+  state.sessionToken = response.session_token || '';
+  if (state.sessionToken) window.localStorage.setItem('sanom_session_token', state.sessionToken);
+}
+
+async function apiFetch(path, options = {}, auth = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (auth.useSession && state.sessionToken) headers['X-SA-NOM-Session'] = state.sessionToken;
+  else if (auth.useAccessToken && state.token) headers['X-SA-NOM-Token'] = state.token;
+  else if (state.sessionToken) headers['X-SA-NOM-Session'] = state.sessionToken;
+  else if (state.token) headers['X-SA-NOM-Token'] = state.token;
+  const response = await fetch(path, { ...options, headers });
+  if (!response.ok) throw new Error(`API ${response.status}: ${await response.text()}`);
+  return response.json();
+}
+
+async function loadStudioRequestIntoEditor(requestId) {
+  const response = await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}`);
+  const item = response.item || null;
+  if (!item) throw new Error(`Role Private Studio request not found: ${requestId}`);
+  state.studioEditingRequestId = item.request_id;
+  state.studioEditorDraft = item.structured_jd || {};
+  fillStudioForm(item.structured_jd || {});
+}
+
+function render() {
+  viewTitle.textContent = VIEW_TITLES[state.view];
+  viewDescription.textContent = VIEW_DESCRIPTIONS[state.view];
+  sidebarViewTitle.textContent = VIEW_TITLES[state.view];
+  sidebarViewDescription.textContent = VIEW_DESCRIPTIONS[state.view];
+  topbarFocusLabel.textContent = VIEW_TITLES[state.view];
+  document.body.dataset.view = state.view;
+  if (state.authRequired || !state.snapshot) {
+    sessionLabel.textContent = 'disconnected';
+    environmentLabel.textContent = 'token required';
+    generatedAt.textContent = state.lastError ? `Last error: ${state.lastError}` : 'Enter API token to access live runtime data.';
+    sidebarOperatorLabel.textContent = 'Disconnected';
+    sidebarRuntimeLabel.textContent = 'Token required';
+    sidebarGeneratedLabel.textContent = generatedAt.textContent;
+    topbarRuntimeLabel.textContent = 'Awaiting session';
+    root.innerHTML = renderAuthCard();
+    updateNav();
+    return;
+  }
+
+  const snapshot = state.snapshot;
+  sessionLabel.textContent = state.session ? `${state.session.display_name} | ${state.session.role_name}` : 'connected';
+  environmentLabel.textContent = `${snapshot.environment} environment`;
+  generatedAt.textContent = `Live data: ${formatDateTime(snapshot.generated_at)}`;
+  sidebarOperatorLabel.textContent = state.session ? state.session.display_name : 'Connected';
+  sidebarRuntimeLabel.textContent = `${snapshot.environment} runtime`;
+  sidebarGeneratedLabel.textContent = generatedAt.textContent;
+  topbarRuntimeLabel.textContent = state.session ? state.session.role_name : `${snapshot.environment} runtime`;
+
+  const requiredPermission = VIEW_PERMISSIONS[state.view];
+  if (requiredPermission && !can(requiredPermission)) {
+    root.innerHTML = renderPermissionNotice(requiredPermission);
+    updateNav();
+    return;
+  }
+
+  let viewContent = '';
+  if (state.view === 'overview') viewContent = renderOverview(snapshot);
+  if (state.view === 'requests') viewContent = renderRequests(snapshot);
+  if (state.view === 'overrides') viewContent = wrapTableCard('Overrides', overrideTable(snapshot.overrides || []), 'Human approvals and vetoes that gate governed execution before it may resume.');
+  if (state.view === 'conflicts') viewContent = renderConflicts(snapshot);
+  if (state.view === 'audit') viewContent = renderAudit(snapshot);
+  if (state.view === 'studio') {
+    viewContent = renderStudio(snapshot.role_private_studio || { summary: {}, requests: [], examples: [] });
+    if (state.studioEditorDraft) fillStudioForm(state.studioEditorDraft);
+  }
+  if (state.view === 'human_ask') viewContent = renderHumanAsk(
+    snapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
+    {
+      can,
+      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase },
+    },
+  );
+  if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
+  if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
+  if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null);
+  root.innerHTML = `${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${viewContent}`;
+  updateNav();
+}
+
+function renderAlertRail(snapshot) {
+  const alerts = buildRuntimeAlerts(snapshot);
+  if (!alerts.length) return '';
+  return `
+    <section class="alert-rail">
+      ${alerts.map((alert) => `
+        <article class="card notice-card notice-${escapeHtml(alert.tone || 'warning')} stack runtime-alert-card">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">${escapeHtml(alert.eyebrow || 'Runtime alert')}</div>
+              <h3 class="card-title">${escapeHtml(alert.title)}</h3>
+              <p class="card-subtitle">${escapeHtml(alert.message)}</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(alert.badge || alert.tone || 'warning')}</div>
+          </div>
+          ${alert.details?.length ? keyValue(alert.details) : ''}
+          ${alert.view ? `<div class="inline-actions"><button class="action-button" data-view-jump="${escapeHtml(alert.view)}">${escapeHtml(alert.actionLabel || 'Open view')}</button></div>` : ''}
+        </article>
+      `).join('')}
+    </section>
+  `;
+}
+
+function buildRuntimeAlerts(snapshot) {
+  if (Array.isArray(snapshot.runtime_alerts) && snapshot.runtime_alerts.length) {
+    return snapshot.runtime_alerts.map((alert) => ({
+      eyebrow: alert.eyebrow || 'Runtime alert',
+      title: alert.title || 'Runtime attention needed',
+      message: alert.message || 'A governed runtime condition needs attention.',
+      tone: alert.tone || 'warning',
+      badge: alert.badge || alert.tone || 'warning',
+      view: alert.view || '',
+      actionLabel: alert.action_label || 'Open view',
+      details: Object.entries(alert.details || {}).map(([key, value]) => [titleCase(key), String(value)]),
+    }));
+  }
+  const alerts = [];
+  const humanAsk = snapshot.human_ask || {};
+  const sessions = Array.isArray(humanAsk.sessions) ? humanAsk.sessions : [];
+  const summary = humanAsk.summary || {};
+  const outOfScopeSessions = sessions.filter((session) => (session.decision_summary?.metadata?.scope_status || '') === 'out_of_scope');
+  const boundarySessions = sessions.filter((session) => {
+    const scopeStatus = session.decision_summary?.metadata?.scope_status || '';
+    return session.status === 'waiting_human' || scopeStatus === 'human_only_boundary';
+  });
+  const blockedSessions = sessions.filter((session) => session.status === 'blocked');
+  if (outOfScopeSessions.length) {
+    alerts.push({
+      eyebrow: 'Scope boundary',
+      title: 'AI stopped because some requests moved outside the loaded JD scope',
+      message: 'These records need a real human decision. The Director correctly refused to keep automating beyond the approved role boundary.',
+      tone: 'danger',
+      badge: `${outOfScopeSessions.length} out of scope`,
+      view: 'human_ask',
+      actionLabel: 'Open Human Ask',
+      details: [
+        ['Out-of-scope records', String(outOfScopeSessions.length)],
+        ['Waiting human', String(summary.waiting_human_total || boundarySessions.length)],
+        ['Latest participant', outOfScopeSessions[0]?.participant?.display_name || outOfScopeSessions[0]?.summary?.participant || '-'],
+      ],
+    });
+  } else if (boundarySessions.length || blockedSessions.length) {
+    alerts.push({
+      eyebrow: 'Human boundary',
+      title: 'AI paused at a reserved human or structural boundary',
+      message: 'Automation stopped at the correct handoff line. These records are waiting because the request crossed a human-only action, sensitive boundary, or blocked callable lane.',
+      tone: blockedSessions.length ? 'danger' : 'warning',
+      badge: `${Math.max(boundarySessions.length, blockedSessions.length)} attention`,
+      view: 'human_ask',
+      actionLabel: 'Review records',
+      details: [
+        ['Waiting human', String(summary.waiting_human_total || boundarySessions.length)],
+        ['Blocked records', String(blockedSessions.length)],
+        ['Latest participant', (boundarySessions[0] || blockedSessions[0])?.participant?.display_name || (boundarySessions[0] || blockedSessions[0])?.summary?.participant || '-'],
+      ],
+    });
+  }
+  return alerts;
+}
+
+function renderViewPrelude(snapshot) {
+  const cues = buildViewCues(snapshot);
+  if (!cues.length) return '';
+  const profile = VIEW_INTELLIGENCE[state.view] || {
+    eyebrow: 'View Intelligence',
+    title: `${VIEW_TITLES[state.view]} focus`,
+    narrative: VIEW_DESCRIPTIONS[state.view],
+    emphasis: 'runtime posture',
+  };
+  return `
+    <section class="view-prelude card view-prelude-${escapeHtml(state.view)}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(profile.eyebrow)}</div>
+          <h3 class="card-title">${escapeHtml(profile.title)}</h3>
+          <p class="card-subtitle">${escapeHtml(profile.narrative)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(profile.emphasis)}${statusBadge(snapshot.environment || 'runtime')}</div>
+      </div>
+      <div class="view-prelude-grid">
+        ${cues.map((cue) => `
+          <article class="view-prelude-card${cue.tone ? ` view-prelude-card-${escapeHtml(cue.tone)}` : ''}">
+            <span class="view-prelude-label">${escapeHtml(cue.label)}</span>
+            <strong>${escapeHtml(String(cue.value))}</strong>
+            <p class="muted">${escapeHtml(cue.note)}</p>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function buildViewCues(snapshot) {
+  const summary = snapshot.summary || {};
+  const studio = snapshot.role_private_studio?.summary || {};
+  const humanAsk = snapshot.human_ask?.summary || {};
+  const runtimeHealth = snapshot.runtime_health || {};
+  const integrations = snapshot.integrations?.summary || {};
+  const goLive = snapshot.go_live_readiness || runtimeHealth.go_live_readiness || {};
+  const access = runtimeHealth.access_control || {};
+  const audit = runtimeHealth.audit_integrity || {};
+  const privilegedOperations = goLive.privileged_operations || runtimeHealth.privileged_operations || {};
+  const studioStructural = goLive.studio_structural || runtimeHealth.studio_structural || {};
+  const requests = snapshot.requests || [];
+  const conflicts = requests.filter((item) => item.outcome === 'conflicted').length;
+  const pendingOverrides = (snapshot.overrides || []).filter((item) => item.status === 'pending').length;
+
+  if (state.view === 'overview') {
+    return [
+      { label: 'Go-live', value: goLive.status || 'blocked', note: 'Combined trust, smoke, delegated privilege coverage, and evidence gate across the runtime.', tone: goLive.status === 'ready' ? 'success' : goLive.status === 'guarded' ? 'warning' : 'danger' },
+      { label: 'Studio ready', value: studio.ready_to_publish_total || 0, note: 'Draft hats that can move toward trusted publication now.', tone: 'success' },
+      { label: 'Runtime alerts', value: summary.runtime_alert_total || 0, note: 'Boundary and readiness events where the Director paused or the runtime remains guarded.', tone: (summary.runtime_alert_critical_total || 0) ? 'danger' : (summary.runtime_alert_total || 0) ? 'warning' : 'success' },
+    ];
+  }
+  if (state.view === 'requests') {
+    return [
+      { label: 'Queue volume', value: summary.requests_total || requests.length, note: 'Visible governed submissions currently flowing through runtime intake.', tone: 'accent' },
+      { label: 'Pending overrides', value: pendingOverrides, note: 'Requests that crossed a human boundary and still need resolution.', tone: pendingOverrides ? 'warning' : 'success' },
+      { label: 'Conflict exposure', value: conflicts, note: 'Requests currently colliding with resource locks or consistency pressure.', tone: conflicts ? 'warning' : 'success' },
+    ];
+  }
+  if (state.view === 'conflicts') {
+    return [
+      { label: 'Active locks', value: summary.active_locks || (snapshot.locks || []).length, note: 'Resources under live protection against conflicting execution.', tone: 'warning' },
+      { label: 'Conflicted requests', value: conflicts, note: 'Requests already blocked by contention or ordering pressure.', tone: conflicts ? 'warning' : 'success' },
+      { label: 'Escalated lanes', value: summary.escalated_total || 0, note: 'Execution lanes already diverted into governed review paths.', tone: 'accent' },
+    ];
+  }
+  if (state.view === 'audit') {
+    return [
+      { label: 'Integrity', value: audit.status || 'unknown', note: 'Current audit-chain trust posture.', tone: audit.status === 'verified' ? 'success' : 'warning' },
+      { label: 'Hash mismatches', value: audit.hash_mismatches || 0, note: 'Any non-zero value should immediately elevate operator attention.', tone: (audit.hash_mismatches || 0) ? 'danger' : 'success' },
+      { label: 'Legacy entries', value: audit.legacy_unsealed_entries || 0, note: 'Historic entries that still require sealing maintenance if present.', tone: (audit.legacy_unsealed_entries || 0) ? 'warning' : 'default' },
+    ];
+  }
+  if (state.view === 'studio') {
+    return [
+      { label: 'Ready to publish', value: studio.ready_to_publish_total || 0, note: 'Studio drafts that already satisfy governance and structural gates.', tone: 'success' },
+      { label: 'Structural review', value: studio.structural_guarded_total || 0, note: 'Drafts in guarded PT-OSS review before they can enter the publish lane.', tone: (studio.structural_guarded_total || 0) ? 'warning' : 'default' },
+      { label: 'Revision load', value: studio.revisions_total || 0, note: 'Total revision volume currently inside the governed authoring loop.', tone: 'accent' },
+    ];
+  }
+  if (state.view === 'human_ask') {
+    return [
+      { label: 'Recorded sessions', value: humanAsk.recorded_total || 0, note: 'Report and meeting records preserved by the Director surface.', tone: 'accent' },
+      { label: 'Human boundary', value: humanAsk.waiting_human_total || 0, note: 'Sessions only waiting because they crossed scope or reserved decision boundaries.', tone: (humanAsk.waiting_human_total || 0) ? 'warning' : 'success' },
+      { label: 'Callable hats', value: humanAsk.callable_total || 0, note: 'Roles or drafts that the Director can currently use for records.', tone: 'success' },
+    ];
+  }
+  if (state.view === 'sessions') {
+    return [
+      { label: 'Profiles', value: summary.requests_total ? access.profiles_total || 0 : access.profiles_total || 0, note: 'Configured access profiles visible to the private server.', tone: 'accent' },
+      { label: 'Active sessions', value: access.sessions_active || 0, note: 'Short-lived sessions currently valid in the runtime.', tone: 'success' },
+      { label: 'Revoked sessions', value: access.sessions_revoked || 0, note: 'Revocation count visible in session control history.', tone: (access.sessions_revoked || 0) ? 'warning' : 'default' },
+    ];
+  }
+  if (state.view === 'policies') {
+    return [
+      { label: 'Role packs', value: (snapshot.roles || []).length, note: 'Trusted hats currently available to the Director.', tone: 'accent' },
+      { label: 'Manifest trust', value: runtimeHealth.trusted_registry?.signature_status || 'unknown', note: 'Registry signature posture for the live PTAG library.', tone: runtimeHealth.trusted_registry?.signature_status === 'verified' ? 'success' : 'warning' },
+      { label: 'Hierarchy map', value: runtimeHealth.role_hierarchy?.roles_total || 0, note: 'Roles currently visible in the runtime authority graph.', tone: 'default' },
+    ];
+  }
+  if (state.view === 'health') {
+    return [
+      { label: 'Go-live', value: goLive.status || 'blocked', note: 'Production readiness status of the private server right now.', tone: goLive.status === 'ready' ? 'success' : goLive.status === 'guarded' ? 'warning' : 'danger' },
+      { label: 'Plain file tokens', value: access.plain_file_tokens || 0, note: 'This should trend to zero in hardened deployments.', tone: (access.plain_file_tokens || 0) ? 'danger' : 'success' },
+      { label: 'Privileged ops', value: privilegedOperations.status || 'unknown', note: 'Whether non-owner profiles can operate privileged runtime surfaces.', tone: privilegedOperations.status === 'ok' ? 'success' : privilegedOperations.status === 'warning' ? 'warning' : 'danger' },
+    ];
+  }
+  return [];
+}
+
+function studioReadinessTone(readiness) {
+  const status = String(readiness?.status || 'blocked');
+  if (status === 'published' || status === 'ready') return 'success';
+  if (status === 'guarded') return 'warning';
+  return 'danger';
+}
+
+function updateNav() {
+  for (const item of navList.querySelectorAll('.nav-item')) {
+    const isActive = item.dataset.view === state.view;
+    item.classList.toggle('is-active', isActive);
+    item.setAttribute('aria-current', isActive ? 'page' : 'false');
+  }
+}
+
+function renderAuthCard() {
+  return `
+    <article class="card auth-card stack">
+      <div>
+        <div class="eyebrow muted">Private API Access</div>
+        <h3 class="card-title">Enter the server token</h3>
+        <p class="card-subtitle">This dashboard reads live AI Director core data from the private server API. A valid access token will be exchanged for a short-lived session.</p>
+      </div>
+      <form id="token-form" class="auth-form">
+        <input id="token-input" type="password" placeholder="SA-NOM API token" value="${escapeHtml(state.token)}" autofocus />
+        <div class="inline-actions"><button class="action-button" type="submit">Connect</button></div>
+      </form>
+      <div class="trace-box"><strong>Development tokens</strong><p class="muted">Owner: sanom-dev-token, Operator: sanom-operator-token, Reviewer: sanom-reviewer-token, Auditor: sanom-auditor-token, Viewer: sanom-viewer-token</p></div>
+      ${state.lastError ? `<div class="trace-box"><strong>Access error</strong><p class="muted">${escapeHtml(state.lastError)}</p></div>` : ''}
+    </article>
+  `;
+}
+
+function renderPermissionNotice(permission) {
+  return `
+    <article class="card notice-card notice-warning stack">
+      <div>
+        <div class="eyebrow muted">Access restricted</div>
+        <h3 class="card-title">Current profile cannot open this view</h3>
+        <p class="card-subtitle">The active session is missing the required permission.</p>
+      </div>
+      ${keyValue([
+        ['Required permission', permission],
+        ['Current profile', state.session ? state.session.display_name : 'unknown'],
+        ['Role', state.session ? state.session.role_name : 'unknown'],
+      ])}
+    </article>
+  `;
+}
+
+function renderOverview(snapshot) {
+  const readiness = snapshot.go_live_readiness || {};
+  const latestBackup = snapshot.operations?.summary?.latest_backup || null;
+  const runtimeHealth = snapshot.runtime_health || {};
+  const auditIntegrity = runtimeHealth.audit_integrity || {};
+  const integrations = snapshot.integrations || {};
+  const integrationSummary = integrations.summary || {};
+  const runtimeAlerts = Array.isArray(snapshot.runtime_alerts) ? snapshot.runtime_alerts.slice(0, 4) : [];
+  const backupLabel = latestBackup ? `${latestBackup.backup_id} | ${shortTime(latestBackup.created_at)}` : 'No runtime backup recorded yet.';
+  const focusNote = state.lastError || 'All executive actions route through a governed runtime with policy oversight.';
+  return `
+    ${state.lastError ? `<article class="card notice-card stack"><strong>Last action result</strong><p class="muted">${escapeHtml(state.lastError)}</p></article>` : ''}
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow">Private Governance Runtime</div>
+            <h3 class="hero-title">Executive command surface for governed AI operations.</h3>
+            <p class="hero-subtitle">Live oversight across runtime integrity, human approvals, role authoring, and operational continuity for SA-NOM AI Governance Suite.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(readiness.status || snapshot.summary.go_live_status || 'blocked')}
+            <span class="pill">PTAG governed</span>
+          </div>
+        </div>
+        <div class="hero-split">
+          <div class="hero-note">
+            <strong>Executive note</strong>
+            <p>${escapeHtml(focusNote)}</p>
+          </div>
+          ${keyValue([
+            ['Go-live', String(Boolean(readiness.ready))],
+            ['Audit integrity', auditIntegrity.status || 'unknown'],
+            ['PTAG role packs', String((snapshot.roles || []).length)],
+            ['Active sessions', String((snapshot.sessions || []).length)],
+          ])}
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Operational posture</div>
+          <h3 class="card-title">Priority focus</h3>
+          <p class="card-subtitle">Backup continuity, runtime pressure points, and publish readiness for the next governed role.</p>
+        </div>
+        ${keyValue([
+          ['Pending overrides', String(snapshot.summary.pending_overrides)],
+          ['Active locks', String(snapshot.summary.active_locks)],
+          ['Studio ready', String(snapshot.summary.studio_ready_to_publish_total || 0)],
+          ['Backups total', String(snapshot.summary.backups_total || 0)],
+          ['Integration targets', String(integrationSummary.targets_total || 0)],
+        ])}
+        <div class="trace-box"><strong>Latest backup</strong><p class="muted">${escapeHtml(backupLabel)}</p></div>
+      </article>
+    </section>
+      <section class="metrics-grid metrics-grid-luxury">
+        ${metricCard('Requests', snapshot.summary.requests_total, 'default', 'Governed runtime submissions in the current live view.')}
+        ${metricCard('Runtime alerts', snapshot.summary.runtime_alert_total || runtimeAlerts.length, (snapshot.summary.runtime_alert_critical_total || 0) ? 'danger' : (snapshot.summary.runtime_alert_total || runtimeAlerts.length) ? 'warning' : 'success', 'Conditions where the Director paused or governance pressure is still active.')}
+        ${metricCard('Pending overrides', snapshot.summary.pending_overrides, 'warning', 'Human approvals waiting in the executive queue.')}
+        ${metricCard('Active locks', snapshot.summary.active_locks, 'accent', 'Resources currently protected from conflicting execution.')}
+        ${metricCard('Conflicts', snapshot.summary.conflicts_total, 'danger', 'Requests blocked by concurrency or governance contention.')}
+        ${metricCard('Studio requests', snapshot.summary.studio_requests_total || 0, 'default', 'Role Private Studio drafts under review.')}
+        ${metricCard('Studio ready', snapshot.summary.studio_ready_to_publish_total || 0, 'success', 'Role drafts ready for trusted publication.')}
+        ${metricCard('Go-live', readiness.status || snapshot.summary.go_live_status || 'blocked', 'accent', 'Combined deployment gate across trust, smoke, and audit.')}
+        ${metricCard('Backups', snapshot.summary.backups_total || 0, 'default', 'Operational recovery bundles captured from the private runtime.')}
+        ${metricCard('Integrations', snapshot.summary.integration_targets_total || 0, 'accent', 'Configured outbound targets across webhook, SIEM, and ticketing lanes.')}
+        ${metricCard('Outbound deliveries', snapshot.summary.integration_deliveries_total || 0, snapshot.summary.integration_failures_total ? 'warning' : 'success', 'Outbound integration delivery records currently visible in the runtime ledger.')}
+      </section>
+      ${renderNotificationCenter(runtimeAlerts)}
+      <section class="split-grid">
+        ${wrapTableCard('Recent Requests', requestTable((snapshot.requests || []).slice(0, 8)), 'Live governed requests with policy basis and consistency trace.') }
+        <article class="card stack">
+        <div><div class="eyebrow muted">Executive cadence</div><h3 class="card-title">Operator focus</h3><p class="card-subtitle">A concise view of the queues and assurances that matter before any privileged action is taken.</p></div>
+        ${keyValue([
+          ['Runtime backups', String(snapshot.summary.backups_total || 0)],
+          ['Audit entries', String(snapshot.summary.audit_events || 0)],
+          ['Review pack status', readiness.gates?.review_pack_present ? 'present' : 'missing'],
+          ['Startup smoke', readiness.smoke_report?.status || '-'],
+        ])}
+      </article>
+    </section>
+      ${renderOwnerRegistrationPanel(snapshot.owner_registration || {}, { compact: true })}
+      ${renderIntegrationSection(integrations)}
+    `;
+  }
+
+function renderNotificationCenter(alerts) {
+  if (!alerts.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Notification Center</div>
+          <h3 class="card-title">AI boundary and readiness alerts</h3>
+          <p class="card-subtitle">A compact runtime history of where automation stopped, where PT-OSS is still applying pressure, and where production posture remains guarded.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${alerts.length} alerts`)}</div>
+      </div>
+      <div class="stack">
+        ${alerts.map((alert) => `
+          <article class="trace-box compact-trace notice-card notice-${escapeHtml(alert.tone || 'warning')}">
+            <div class="hero-heading">
+              <div>
+                <strong>${escapeHtml(alert.title || 'Runtime alert')}</strong>
+                <p class="muted">${escapeHtml(`${alert.eyebrow || 'Runtime alert'} | ${alert.timestamp ? shortTime(alert.timestamp) : 'Current runtime'}`)}</p>
+              </div>
+              <div class="hero-chip-row">${statusBadge(alert.badge || alert.tone || 'warning')}</div>
+            </div>
+            <p class="muted">${escapeHtml(alert.message || 'Runtime attention is required.')}</p>
+            ${alert.details ? keyValue(Object.entries(alert.details).map(([key, value]) => [titleCase(key), String(value)])) : ''}
+            ${alert.view ? `<div class="inline-actions"><button class="action-button action-button-muted" data-view-jump="${escapeHtml(alert.view)}">${escapeHtml(alert.action_label || 'Open view')}</button></div>` : ''}
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderRequests(snapshot) {
+  const requests = snapshot.requests || [];
+  const overrides = snapshot.overrides || [];
+  const pendingOverrides = overrides.filter((item) => item.status === 'pending');
+  const conflicts = requests.filter((item) => item.outcome === 'conflicted');
+  const uniqueRoles = new Set(requests.map((item) => item.active_role).filter(Boolean)).size;
+  const routedRequests = requests.filter((item) => item.activation_source && item.activation_source !== 'requested_role').length;
+  const switchedRequests = requests.filter((item) => item.previous_role && item.active_role && item.previous_role !== item.active_role).length;
+  const escalatedTransitions = requests.filter((item) => item.escalated_to).length;
+  const latestRequestLabel = requests.length
+    ? `${requests[0].request_id} | ${shortTime(requests[0].timestamp)}`
+    : 'No governed request has been recorded yet.';
+  const composer = can('request.create')
+    ? renderRequestComposer(snapshot.roles || [])
+    : `<article class="card notice-card stack"><strong>Request composer</strong><p class="permission-note">This profile does not have request.create permission.</p></article>`;
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Runtime Intake Command</div>
+            <h2 class="hero-title">Governed requests enter a disciplined execution corridor.</h2>
+            <p class="hero-subtitle">Every submission is checked for role authority, policy coverage, consistency posture, role flow, and audit trace before any privileged work is allowed to continue.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(conflicts.length ? 'heightened watch' : 'stable queue')}
+            ${statusBadge(pendingOverrides.length ? 'human review active' : 'clear override lane')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Requests in view', String(requests.length)],
+            ['Roles represented', String(uniqueRoles)],
+            ['Context routed', String(routedRequests)],
+            ['Role switches', String(switchedRequests)],
+            ['Pending overrides', String(pendingOverrides.length)],
+            ['Escalations', String(escalatedTransitions)],
+          ])}
+          <div class="hero-note">
+            <strong>Operator standard</strong>
+            <p>Use runtime intake for actions that belong inside the governed server boundary. Context-aware routing, switch reasoning, and escalation lanes are now visible directly in the request ledger.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Submission posture</div>
+          <h3 class="card-title">Queue discipline</h3>
+          <p class="card-subtitle">The request surface is tuned for live operations, approval routing, and post-decision traceability.</p>
+        </div>
+        ${keyValue([
+          ['Latest request', latestRequestLabel],
+          ['Override queue', pendingOverrides.length ? 'active' : 'clear'],
+          ['Conflict exposure', conflicts.length ? 'present' : 'none'],
+          ['Execution model', 'Governed private runtime'],
+          ['Activation surface', routedRequests ? 'context-aware live' : 'explicit or stable'],
+        ])}
+        <div class="trace-box"><strong>Submission note</strong><p class="muted">When metadata includes idempotency keys and event ordering, replay and out-of-order protection remain explicit in the runtime ledger alongside role transitions and escalation evidence.</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Requests', requests.length, 'default', 'Governed submissions visible in the current runtime ledger.')}
+      ${metricCard('Pending overrides', pendingOverrides.length, 'warning', 'Requests paused until a human review resolves the decision.')}
+      ${metricCard('Conflicts', conflicts.length, 'danger', 'Requests blocked by resource contention or concurrency governance.')}
+      ${metricCard('Context routed', routedRequests, 'accent', 'Requests that activated or switched hats through the live context router.')}
+      ${metricCard('Role switches', switchedRequests, 'default', 'Requests that moved from one hat to another before execution.')}
+      ${metricCard('Escalated to human', escalatedTransitions, 'warning', 'Requests that entered a governed escalation lane with an explicit target.')}
+    </section>
+    <section class="split-grid">
+      ${composer}
+      <article class="card stack">
+        <div><div class="eyebrow muted">Submission protocol</div><h3 class="card-title">What strong requests look like</h3><p class="card-subtitle">Use this surface as the premium operator lane for runtime work that must remain reviewable after execution.</p></div>
+        ${keyValue([
+          ['Payload quality', 'Structured JSON with explicit resource context'],
+          ['Consistency discipline', 'Idempotency key plus event ordering metadata'],
+          ['Role targeting', 'Choose a trusted role or leave it blank for context-aware routing'],
+          ['Review posture', pendingOverrides.length ? 'Monitor the human override queue after submit' : 'No active review bottleneck detected'],
+        ])}
+        <div class="trace-box"><strong>Recommended metadata</strong><p class="muted">Pair each governed request with an idempotency key, event stream, and event sequence whenever the action touches mutable records or recurring workflows.</p></div>
+      </article>
+    </section>
+    ${wrapTableCard('Runtime Requests', requestTable(requests), 'Live governed requests with role flow, activation source, escalation target, consistency posture, and policy basis.')}
+    ${wrapTableCard('Human Override Queue', overrideTable(overrides), 'Pending and resolved human reviews that control whether execution may continue.')}
+  `;
+}
+
+function renderRequestComposer(roles) {
+  const roleOptions = ['<option value="">AUTO_ROUTE | Context-aware role activation</option>', ...roles.map((role) => `<option value="${escapeHtml(role.role_id)}">${escapeHtml(role.role_id)} | ${escapeHtml(role.title || role.role_id)}</option>`)].join('');
+  return `
+    <article class="card stack">
+      <div><div class="eyebrow muted">Operator Action</div><h3 class="card-title">Create runtime request</h3><p class="card-subtitle">Submit a governed request directly into the private server runtime, with optional context-aware role routing.</p></div>
+      <form id="request-form" class="composer-grid">
+        <div><label class="permission-note" for="request-requester">Requester</label><input id="request-requester" value="${escapeHtml(state.session?.display_name || '')}" /></div>
+        <div><label class="permission-note" for="request-role">Role</label><select id="request-role">${roleOptions}</select></div>
+        <div><label class="permission-note" for="request-action">Action</label><input id="request-action" placeholder="review_audit" /></div>
+        <div><label class="permission-note" for="request-payload">Payload JSON</label><textarea id="request-payload" class="span-2" placeholder='{"resource":"contract","resource_id":"C-100","amount":3000000}'></textarea></div>
+        <div><label class="permission-note" for="request-metadata">Metadata JSON</label><textarea id="request-metadata" class="span-2" placeholder='{"idempotency_key":"REQ-1001","event_stream":"contract:C-100","event_sequence":1}'></textarea></div>
+        <div class="span-2 inline-actions"><button class="action-button" type="submit">Submit Request</button></div>
+      </form>
+    </article>
+  `;
+}
+
+function renderConflicts(snapshot) {
+  const locks = snapshot.locks || [];
+  const conflicts = (snapshot.requests || []).filter((item) => item.outcome === 'conflicted');
+  const resources = new Set([...locks.map((item) => item.resource).filter(Boolean), ...conflicts.map((item) => item.resource).filter(Boolean)]).size;
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Conflict Command</div>
+            <h2 class="hero-title">Resource protection stays visible when concurrency pressure rises.</h2>
+            <p class="hero-subtitle">Locks and conflicted requests are surfaced together so operators can distinguish intentional protection from unresolved operational friction.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(conflicts.length ? 'attention required' : 'contention clear')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Active locks', String(locks.length)],
+            ['Conflicted requests', String(conflicts.length)],
+            ['Affected resources', String(resources)],
+            ['Resolution posture', conflicts.length ? 'review required' : 'monitoring only'],
+          ])}
+          <div class="hero-note">
+            <strong>Concurrency stance</strong>
+            <p>SA-NOM holds the resource boundary first. Conflicted requests are a safety signal, not a failure of the runtime, and should be reviewed before manual retries are attempted.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Lock narrative</div>
+          <h3 class="card-title">Operational interpretation</h3>
+          <p class="card-subtitle">This view helps distinguish active work, approval-held reservations, and requests that need another scheduling path.</p>
+        </div>
+        ${keyValue([
+          ['Protected boundary', locks.length ? 'engaged' : 'idle'],
+          ['Retry guidance', conflicts.length ? 'wait for release or review policy' : 'no retry pressure'],
+          ['Human review overlap', snapshot.overrides?.some((item) => item.status === 'pending') ? 'possible' : 'none detected'],
+          ['Runtime mode', 'fail closed on resource contention'],
+        ])}
+        <div class="trace-box"><strong>Operator note</strong><p class="muted">If a lock is held by a pending override, resolve the human decision before retrying downstream work on the same protected resource.</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Locks', locks.length, 'accent', 'Resources actively reserved to prevent conflicting execution.')}
+      ${metricCard('Conflicts', conflicts.length, 'danger', 'Requests rejected from the active path because the resource was protected.')}
+      ${metricCard('Resources', resources, 'default', 'Distinct governed resources touched by the current contention set.')}
+      ${metricCard('Override overlap', snapshot.overrides?.filter((item) => item.status === 'pending').length || 0, 'warning', 'Pending human reviews that may be extending lock duration.')}
+    </section>
+    <section class="split-grid">
+      ${wrapTableCard('Active Locks', lockTable(locks), 'Resources currently reserved to prevent concurrent mutation across the governed runtime.')}
+      ${wrapTableCard('Conflicted Requests', requestTable(conflicts), 'Requests withheld until lock release, policy changes, or manual review resolves the path.')}
+    </section>
+  `;
+}
+
+function renderAudit(snapshot) {
+  const integrity = snapshot.runtime_health?.audit_integrity || {};
+  const auditRows = snapshot.audit || [];
+  const roleTransitionEvents = auditRows.filter((row) => ['role_activation', 'role_switch', 'role_escalation'].includes(row.action));
+  const canReseal = can('audit.manage');
+  const maintenanceAction = canReseal && integrity.status === 'legacy_verified'
+    ? `<div class="inline-actions"><button class="action-button" data-audit-action="reseal">Reseal Legacy Entries</button></div>`
+    : '';
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Audit Command</div>
+            <h2 class="hero-title">The audit chain remains a first-class control surface.</h2>
+            <p class="hero-subtitle">Integrity state, sealing posture, maintenance readiness, and role-transition trace are visible in one place before anyone touches privileged audit operations.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(integrity.status || 'unknown')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Integrity status', integrity.status || 'unknown'],
+            ['Sealed entries', String(integrity.sealed_entries || 0)],
+            ['Role transition events', String(roleTransitionEvents.length)],
+            ['Last hash', integrity.last_hash ? integrity.last_hash.slice(0, 12) : '-'],
+          ])}
+          <div class="hero-note">
+            <strong>Ledger posture</strong>
+            <p>The audit surface now shows not only what happened, but how hats were activated, switched, and escalated before runtime decisions were allowed to land.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Transition evidence</div>
+          <h3 class="card-title">Role movement stays explainable</h3>
+          <p class="card-subtitle">Review the exact path from previous role to active role, how activation was sourced, and where the escalation lane now points.</p>
+        </div>
+        ${keyValue([
+          ['Role activation events', String(auditRows.filter((row) => row.action === 'role_activation').length)],
+          ['Role switch events', String(auditRows.filter((row) => row.action === 'role_switch').length)],
+          ['Role escalation events', String(auditRows.filter((row) => row.action === 'role_escalation').length)],
+          ['Maintenance action', canReseal ? 'Available when integrity is legacy_verified' : 'Read only'],
+        ])}
+        ${maintenanceAction}
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Audit events', auditRows.length, 'default', 'Current ledger window returned by the private runtime.')}
+      ${metricCard('Role transitions', roleTransitionEvents.length, 'accent', 'Activation, switch, and escalation records visible in the ledger.')}
+      ${metricCard('Hash mismatches', integrity.hash_mismatches || 0, 'danger', 'Any mismatch should stop trust immediately.')}
+      ${metricCard('Sequence drift', integrity.sequence_mismatches || 0, 'warning', 'Ordering defects visible across the chained audit sequence.')}
+    </section>
+    ${wrapTableCard('Audit Trail', auditTable(auditRows), 'Tamper-evident runtime ledger across requests, role transitions, overrides, sessions, backups, and governance maintenance.')}
+  `;
+}
+
+function renderStudio(studio) {
+  const editing = Boolean(state.studioEditingRequestId);
+  const templateFieldCount = Array.isArray(studio.template?.fields) ? studio.template.fields.length : 0;
+  const templateLibrary = Array.isArray(studio.template?.library) ? studio.template.library : [];
+  const examples = studio.examples || [];
+  const requests = studio.requests || [];
+  const summary = studio.summary || {};
+  const focusedRequest = requests.find((item) => item.request_id === state.studioGovernanceRequestId)
+    || requests.find((item) => (item.publish_readiness?.status === 'ready') || item.status === 'approved')
+    || requests[0]
+    || null;
+  state.studioGovernanceRequestId = focusedRequest ? focusedRequest.request_id : null;
+  if (focusedRequest) {
+    ensureStudioGovernanceNote(focusedRequest);
+    ensureStudioRevisionSelection(focusedRequest);
+    ensureStudioPtagDraft(focusedRequest);
+  }
+  const form = can('studio.create') ? `
+    <article class="card stack">
+      <div>
+        <div class="eyebrow muted">Governed Role Authoring</div>
+        <h3 class="card-title">${editing ? 'Revise an existing Role Private Studio request' : 'Create a Role Private Studio request'}</h3>
+        <p class="card-subtitle">${editing ? 'You are editing the current structured job definition for an existing draft. A new revision will be generated after submit.' : 'Enter the structured job definition. The system will normalize it, generate PTAG, validate it, simulate it, and route it for review.'}</p>
+      </div>
+      <div class="trace-box"><strong>Studio context</strong><p class="muted">${editing ? `Editing request ${escapeHtml(state.studioEditingRequestId)}` : `Template fields: ${templateFieldCount} | Library templates: ${templateLibrary.length}`}</p></div>
+      <form id="studio-form" class="composer-grid">
+        <div><label class="permission-note" for="studio-role-name">Role name</label><input id="studio-role-name" placeholder="Contract Review Analyst" /></div>
+        <div><label class="permission-note" for="studio-reporting-line">Reporting line</label><input id="studio-reporting-line" value="GOV" /></div>
+        <div class="span-2"><label class="permission-note" for="studio-purpose">Purpose</label><textarea id="studio-purpose" placeholder="Review contract packets and route risky documents for human attention."></textarea></div>
+        <div><label class="permission-note" for="studio-business-domain">Business domain</label><input id="studio-business-domain" placeholder="legal_operations" /></div>
+        <div><label class="permission-note" for="studio-operating-mode">Operating mode</label><select id="studio-operating-mode"><option value="direct">direct</option><option value="indirect">indirect</option></select></div>
+        <div><label class="permission-note" for="studio-seat-id">Seat id</label><input id="studio-seat-id" placeholder="OPS-LEGAL" /></div>
+        <div><label class="permission-note" for="studio-assigned-user-id">Assigned user id</label><input id="studio-assigned-user-id" placeholder="LEGAL_MANAGER_01" /></div>
+        <div><label class="permission-note" for="studio-executive-owner-id">Executive owner id</label><input id="studio-executive-owner-id" value="${escapeHtml(studioExecutiveOwnerId())}" /></div>
+        <div><label class="permission-note" for="studio-handled-resources">Handled resources</label><textarea id="studio-handled-resources" placeholder="contract"></textarea></div>
+        <div><label class="permission-note" for="studio-allowed-actions">Allowed actions</label><textarea id="studio-allowed-actions" placeholder="review_contract
+flag_risk
+advise_compliance"></textarea></div>
+        <div><label class="permission-note" for="studio-forbidden-actions">Forbidden actions</label><textarea id="studio-forbidden-actions" placeholder="sign_contract"></textarea></div>
+        <div><label class="permission-note" for="studio-wait-human-actions">Wait-human actions</label><textarea id="studio-wait-human-actions" placeholder="approve_budget"></textarea></div>
+        <div><label class="permission-note" for="studio-responsibilities">Responsibilities</label><textarea id="studio-responsibilities" placeholder="review incoming contracts
+flag risk"></textarea></div>
+        <div><label class="permission-note" for="studio-sample-scenarios">Sample scenarios</label><textarea id="studio-sample-scenarios" placeholder="normal review
+high-value escalation"></textarea></div>
+        <div><label class="permission-note" for="studio-financial-sensitivity">Financial sensitivity</label>${selectField('studio-financial-sensitivity')}</div>
+        <div><label class="permission-note" for="studio-legal-sensitivity">Legal sensitivity</label>${selectField('studio-legal-sensitivity')}</div>
+        <div><label class="permission-note" for="studio-compliance-sensitivity">Compliance sensitivity</label>${selectField('studio-compliance-sensitivity')}</div>
+        <div class="span-2"><label class="permission-note" for="studio-operator-notes">Operator notes</label><textarea id="studio-operator-notes" placeholder="Should never sign or approve contracts directly."></textarea></div>
+        <div class="span-2 inline-actions">
+          <button class="action-button" type="submit">${editing ? 'Update Draft Revision' : 'Create Role Request'}</button>
+          ${editing ? '<button class="action-button action-button-muted" type="button" data-studio-clear="true">Clear Editor</button>' : ''}
+        </div>
+      </form>
+      ${examples.length ? `<div class="trace-box"><strong>Example</strong><p class="muted">${escapeHtml(`${examples[0].role_name}: ${examples[0].purpose}`)}</p></div>` : ''}
+    </article>` : `<article class="card notice-card stack"><strong>Role request form</strong><p class="permission-note">This profile does not have studio.create permission.</p></article>`;
+
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Role Private Studio</div>
+            <h2 class="hero-title">Author new hats as governed role packs, not informal prompts.</h2>
+            <p class="hero-subtitle">Structured job definitions become reviewable PTAG drafts with validation, simulation, revision history, and publish governance before they ever enter the trusted registry.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(editing ? 'editing draft' : 'authoring ready')}
+            ${statusBadge((summary.ready_to_publish_total || 0) ? 'publish candidates' : 'review in motion')}
+          </div>
+        </div>
+        <div class="hero-split">
+        ${keyValue([
+          ['Requests total', String(summary.requests_total || 0)],
+          ['Ready to publish', String(summary.ready_to_publish_total || 0)],
+          ['Published', String(summary.published_total || 0)],
+          ['Revision volume', String(summary.revisions_total || 0)],
+          ])}
+          <div class="hero-note">
+            <strong>Authoring principle</strong>
+            <p>Every hat is treated as governed infrastructure. Role Private Studio is where authority, constraints, and operational sensitivity are shaped into a publishable role pack with traceable review history.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Studio control</div>
+          <h3 class="card-title">Editorial posture</h3>
+          <p class="card-subtitle">Use this surface to maintain disciplined role creation even when the company runs lean and every AI sibling carries meaningful operational weight.</p>
+        </div>
+        ${keyValue([
+          ['Template fields', String(templateFieldCount)],
+          ['Template library', String(templateLibrary.length)],
+          ['Examples loaded', String(examples.length)],
+          ['Changes requested', String(summary.changes_requested_total || 0)],
+          ['Current mode', editing ? 'revision editing' : 'new draft authoring'],
+        ])}
+        <div class="trace-box"><strong>Studio note</strong><p class="muted">${escapeHtml(examples.length ? `${examples[0].role_name}: ${examples[0].purpose}` : 'No example loaded. Build the next governed hat from the structured form at left.')}</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Studio requests', summary.requests_total || 0, 'default', 'Structured job definitions currently tracked by the studio.')}
+      ${metricCard('Ready to publish', summary.ready_to_publish_total || 0, 'success', 'Drafts that cleared validation, simulation, and review gates.')}
+      ${metricCard('Blocked', summary.blocked_total || 0, 'danger', 'Drafts that still have blockers before publication can proceed.')}
+      ${metricCard('Published', summary.published_total || 0, 'accent', 'Role hats already promoted into the trusted registry.')}
+      ${metricCard('Revisions', summary.revisions_total || 0, 'default', 'Total revision count across all tracked studio drafts.')}
+      ${metricCard('Changes requested', summary.changes_requested_total || 0, 'warning', 'Drafts pushed back for another governed revision cycle.')}
+      ${metricCard('Templates', templateLibrary.length, 'accent', 'Reusable governed starting points for faster role creation.')}
+    </section>
+    <section class="split-grid">
+      ${form}
+      <article class="card stack">
+        <div><div class="eyebrow muted">Publish discipline</div><h3 class="card-title">What makes a hat production worthy</h3><p class="card-subtitle">A Role Private Studio draft is not finished when it looks plausible. It is ready only when governance gates, simulation posture, and review history say it can be trusted.</p></div>
+        ${keyValue([
+          ['Authoring path', 'Structured JD -> PTAG -> validation -> simulation -> approval -> publish'],
+          ['Registry destination', 'Trusted role registry with manifest verification'],
+          ['Review expectation', (summary.ready_to_publish_total || 0) ? 'Candidates available for governed publish review' : 'No publish-ready drafts yet'],
+          ['Operational stance', 'No direct publish without review evidence'],
+        ])}
+        <div class="trace-box"><strong>Operator note</strong><p class="muted">Use responsibilities, sensitivities, and handled resources to shape the hat. Those details influence authority boundaries, simulation quality, and publish readiness.</p></div>
+      </article>
+    </section>
+    ${renderTemplateLibrary(templateLibrary)}
+    ${renderStudioGovernanceScreen(requests)}
+    ${renderStudioGovernancePanel(focusedRequest)}
+    <section class="card-grid">${requests.length ? requests.map(renderStudioRequestCard).join('') : `<div class="empty-state">No Role Private Studio requests yet.</div>`}</section>
+  `;
+}
+
+function renderStudioGovernanceScreen(requests) {
+  const structuralReview = requests.filter((item) => item.publish_readiness?.status === 'guarded');
+  const publishReady = requests.filter((item) => (item.publish_readiness?.status === 'ready') || item.status === 'approved');
+  const reviewQueue = requests.filter(
+    (item) => item.status !== 'published' && !publishReady.includes(item) && !structuralReview.includes(item),
+  );
+  const published = requests.filter((item) => item.status === 'published');
+  return `
+    <section class="split-grid">
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Publish Governance</div>
+          <h3 class="card-title">Promotion into the trusted registry happens through a visible governance lane.</h3>
+          <p class="card-subtitle">This screen separates publish-ready hats, PT-OSS structural review, editorial review, and already published hats so the Studio reads like a disciplined promotion pipeline instead of a pile of drafts.</p>
+        </div>
+        ${keyValue([
+          ['Ready lane', String(publishReady.length)],
+          ['Structural lane', String(structuralReview.length)],
+          ['Review lane', String(reviewQueue.length)],
+          ['Published lane', String(published.length)],
+          ['Registry mode', 'Human-governed publication'],
+        ])}
+        <div class="trace-box"><strong>Governance note</strong><p class="muted">Publish only from the ready lane. Drafts in structural review should resolve PT-OSS pressure before they become trusted hats, while drafts outside those lanes should receive clearer review or revision.</p></div>
+      </article>
+      <article class="card stack">
+        <div><div class="eyebrow muted">Promotion rules</div><h3 class="card-title">What this screen is for</h3><p class="card-subtitle">A focused area for reviewers and publishers to decide what advances, what returns for revision, and what already counts as a trusted operational hat.</p></div>
+        ${keyValue([
+          ['Ready signal', 'Approved status or readiness gate marked ready'],
+          ['Structural signal', 'PT-OSS marked the draft guarded before publication'],
+          ['Review signal', 'Anything not published and not yet structurally or promotion ready'],
+          ['Published signal', 'Role pack already promoted into the trusted registry'],
+          ['Decision style', 'Structure first, review second, publish only from clear readiness'],
+        ])}
+      </article>
+    </section>
+    <section class="studio-governance-grid">
+      ${renderStudioGovernanceLane('Ready for Publish', 'Trusted promotion lane', 'Drafts that cleared review and can be published into the registry.', publishReady, 'ready', 'success')}
+      ${renderStudioGovernanceLane('Structural Review', 'PT-OSS mitigation lane', 'Drafts that need structural mitigation or stronger resilience posture before publication.', structuralReview, 'structural', 'warning')}
+      ${renderStudioGovernanceLane('Needs Review', 'Editorial and governance lane', 'Drafts that still need approval, changes, or another revision before promotion.', reviewQueue, 'review', 'accent')}
+      ${renderStudioGovernanceLane('Published Hats', 'Registry confirmation lane', 'Drafts already promoted into trusted operational use.', published, 'published', 'default')}
+    </section>
+  `;
+}
+
+function renderTemplateLibrary(library) {
+  if (!library.length) return '';
+  return `
+    <section class="split-grid">
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Template Library</div>
+          <h3 class="card-title">Start from governed patterns instead of rebuilding every hat from zero.</h3>
+          <p class="card-subtitle">Templates accelerate authoring while keeping sensitivity, escalation, and operational shape inside a disciplined baseline.</p>
+        </div>
+        ${keyValue([
+          ['Template count', String(library.length)],
+          ['Categories', Array.from(new Set(library.map((item) => item.category).filter(Boolean))).join(', ') || '-'],
+          ['Workflow', 'Preview -> Apply -> Refine -> Validate -> Simulate -> Review'],
+          ['Purpose', 'Reusable but still fully governed'],
+        ])}
+      </article>
+      <article class="card stack">
+        <div><div class="eyebrow muted">Apply flow</div><h3 class="card-title">Preview then apply</h3><p class="card-subtitle">Applying a template fills the Studio authoring form. It does not bypass validation, simulation, or review.</p></div>
+        <div class="trace-box"><strong>Template note</strong><p class="muted">Templates are accelerators, not shortcuts. Every applied template still becomes a normal governed draft and must pass the full Role Private Studio flow.</p></div>
+      </article>
+    </section>
+    <section class="card-grid">
+      ${library.map((item) => `
+        <article class="card stack template-card">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">${escapeHtml(item.category || 'template')}</div>
+              <h3 class="card-title">${escapeHtml(item.label || item.template_id || 'Template')}</h3>
+              <p class="card-subtitle">${escapeHtml(item.summary || 'Governed role template.')}</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(item.category || 'template')}</div>
+          </div>
+          ${keyValue([
+            ['Role name', item.payload?.role_name || '-'],
+            ['Reports to', item.payload?.reporting_line || '-'],
+            ['Domain', item.payload?.business_domain || '-'],
+            ['Mode', item.payload?.operating_mode || 'direct'],
+            ['Allowed actions', String((item.payload?.allowed_actions || []).length)],
+          ])}
+          <div class="trace-box compact-trace"><strong>Template preview</strong><p class="muted">${escapeHtml((item.payload?.responsibilities || []).join(' | ') || 'No responsibilities listed.')}</p></div>
+          ${can('studio.create') ? `<div class="inline-actions"><button class="action-button" data-studio-template-apply="true" data-template-id="${escapeHtml(item.template_id || '')}">Apply Template</button></div>` : '<div class="trace-box compact-trace"><p class="muted">Read only</p></div>'}
+        </article>
+      `).join('')}
+    </section>
+  `;
+}
+
+function renderStudioGovernanceLane(title, eyebrow, subtitle, items, lane, tone = 'default') {
+  return `
+    <article class="card stack studio-governance-lane studio-governance-lane-${escapeHtml(tone)}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(eyebrow)}</div>
+          <h3 class="card-title">${escapeHtml(title)}</h3>
+          <p class="card-subtitle">${escapeHtml(subtitle)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${items.length} items`)}${statusBadge(title)}</div>
+      </div>
+      ${items.length ? `<div class="stack">${items.slice(0, 4).map((item) => renderStudioGovernanceItem(item, lane)).join('')}</div>` : `<div class="empty-state">No items in this lane.</div>`}
+    </article>
+  `;
+}
+
+function renderStudioGovernanceItem(item, lane) {
+  const readiness = item.publish_readiness || { status: 'blocked', blockers: [] };
+  const summary = item.summary || {};
+  const validation = item.validation_report || {};
+  const simulation = item.simulation_report || {};
+  const canApprove = can('studio.review') && !['published', 'approved'].includes(item.status);
+  const canRequestChanges = can('studio.review') && item.status !== 'published';
+  const canPublish = can('studio.publish') && item.status === 'approved';
+  const canEdit = can('studio.create') && item.status !== 'published';
+  const isSelected = state.studioGovernanceRequestId === item.request_id;
+  const laneNote = lane === 'ready'
+    ? 'Ready for trusted publication.'
+    : lane === 'structural'
+      ? (readiness.structural_gate_reason || (readiness.advisories || []).join(' | ') || 'Awaiting PT-OSS structural mitigation before it can return to the publish lane.')
+    : lane === 'published'
+      ? (item.publish_artifact ? `${item.publish_artifact.role_path}` : 'Published into the trusted registry.')
+      : readiness.status === 'guarded'
+        ? (readiness.structural_gate_reason || (readiness.advisories || []).join(' | ') || 'Awaiting PT-OSS structural mitigation.')
+        : (readiness.blockers?.length ? readiness.blockers.join(' | ') : 'Awaiting review movement.');
+  return `
+    <div class="trace-box stack governance-lane-item${isSelected ? ' is-selected' : ''}">
+      <div class="hero-heading">
+        <div>
+          <strong>${escapeHtml(item.structured_jd?.role_name || item.request_id)}</strong>
+          <p class="muted">${escapeHtml(`${summary.role_id || item.request_id} | Revision ${summary.current_revision || 0}`)}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(item.status)}
+          ${statusBadge(readiness.status || 'blocked')}
+        </div>
+      </div>
+      ${keyValue([
+        ['Requested by', item.requested_by],
+        ['Simulation', simulation.status || 'not_run'],
+        ['Validation blocked', String(validation.blocked_publish ?? true)],
+        ['Blockers', String((readiness.blockers || []).length)],
+        ['Structural gate', readiness.structural_state || 'blocked'],
+      ])}
+      <p class="muted">${escapeHtml(laneNote)}</p>
+      <div class="governance-mini-grid">
+        <div class="trace-box compact-trace"><strong>Change scope</strong><p class="muted">${escapeHtml(renderLatestDiff(summary.latest_diff || {}))}</p></div>
+        <div class="trace-box compact-trace"><strong>Review signal</strong><p class="muted">${escapeHtml(renderPublishDecisionSummary(item, readiness, validation, simulation))}</p></div>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button ${isSelected ? '' : 'action-button-muted'}" data-studio-governance-select="true" data-request-id="${escapeHtml(item.request_id)}">${isSelected ? 'Selected' : 'Open Panel'}</button>
+        ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Request Report</button>` : ''}
+        ${canEdit ? `<button class="action-button action-button-muted" data-studio-action="load" data-request-id="${escapeHtml(item.request_id)}">Load</button>` : ''}
+        ${canApprove ? `<button class="action-button action-button-muted" data-studio-action="approve" data-request-id="${escapeHtml(item.request_id)}">Approve</button>` : ''}
+        ${canRequestChanges ? `<button class="action-button action-button-muted" data-studio-action="request_changes" data-request-id="${escapeHtml(item.request_id)}">Changes</button>` : ''}
+        ${canPublish ? `<button class="action-button" data-studio-action="publish" data-request-id="${escapeHtml(item.request_id)}">Publish</button>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderStudioGovernancePanel(item) {
+  if (!item) {
+    return '<article class="card stack"><div><div class="eyebrow muted">Governance panel</div><h3 class="card-title">No draft selected</h3><p class="card-subtitle">Select a Role Private Studio draft from the governance lanes to review or publish it here.</p></div></article>';
+  }
+  const readiness = item.publish_readiness || { status: 'blocked', blockers: [], gates: {} };
+  const validation = item.validation_report || {};
+  const simulation = item.simulation_report || {};
+  const summary = item.summary || {};
+  const workflow = item.publication_workflow || {};
+  const coverage = item.coverage_summary || {};
+  const ptOss = item.pt_oss_assessment || {};
+  const noteValue = ensureStudioGovernanceNote(item);
+  const revisionCompare = buildStudioRevisionCompare(item, true);
+  const ptagDraft = ensureStudioPtagDraft(item);
+   const editorCompare = summary.editor_compare || readiness.editor_compare || {};
+   const reviewTimeline = summary.review_timeline || workflow.review_timeline || [];
+   const simulationHistory = summary.simulation_history || [];
+   const selectedRevision = ensureStudioRevisionSelection(item);
+  const canApprove = can('studio.review') && !['published', 'approved'].includes(item.status);
+  const canRequestChanges = can('studio.review') && item.status !== 'published';
+  const canPublish = can('studio.publish') && item.status === 'approved';
+  const canRefresh = can('studio.create') && item.status !== 'published';
+  const canLoad = can('studio.create') && item.status !== 'published';
+  const canEditPtag = can('studio.create') && item.status !== 'published';
+  const canRestore = can('studio.create') && item.status !== 'published' && (selectedRevision.current_revision_number || 0) > 0;
+  const diagnostics = buildStudioPtagDiagnostics(item, ptagDraft);
+  return `
+    <section class="split-grid" id="studio-governance-panel-anchor">
+      <article class="card hero-card hero-card-secondary studio-governance-panel">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Live publish approval panel</div>
+            <h3 class="card-title">${escapeHtml(item.structured_jd?.role_name || item.request_id)}</h3>
+            <p class="card-subtitle">Use this panel to review, request changes, refresh, or publish the selected hat without leaving the governance screen.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(item.status)}
+            ${statusBadge(readiness.status || 'blocked')}
+          </div>
+        </div>
+        ${keyValue([
+          ['Request', item.request_id],
+          ['Role id', summary.role_id || '-'],
+          ['Mode', summary.operating_mode || item.structured_jd?.operating_mode || 'direct'],
+          ['Assigned user', summary.assigned_user_id || item.structured_jd?.assigned_user_id || '-'],
+          ['Executive owner', summary.executive_owner_id || item.structured_jd?.executive_owner_id || studioExecutiveOwnerId()],
+          ['Seat', summary.seat_id || item.structured_jd?.seat_id || '-'],
+          ['Revision', String(summary.current_revision || 0)],
+          ['Requested by', item.requested_by],
+          ['Latest review', summary.latest_review_decision || 'none'],
+          ['Simulation', simulation.status || 'not_run'],
+          ['PT-OSS posture', summary.pt_oss_posture || ptOss.posture || 'unknown'],
+          ['Structural gate', readiness.structural_state || 'blocked'],
+          ['PTAG mode', summary.ptag_source_mode || 'generated'],
+        ])}
+        <div class="trace-box"><strong>Decision guidance</strong><p class="muted">${escapeHtml(renderPublishDecisionSummary(item, readiness, validation, simulation))}</p></div>
+        ${readiness.structural_gate_reason ? `<div class="trace-box compact-trace"><strong>Structural gate note</strong><p class="muted">${escapeHtml(readiness.structural_gate_reason)}</p></div>` : ''}
+        ${renderPublicationWorkflow(workflow)}
+      </article>
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">Governance note</div><h3 class="card-title">Reviewer and publisher actions</h3><p class="card-subtitle">Record the note that should travel with the decision, then take the action from here.</p></div>
+        <textarea id="studio-governance-note" class="studio-governance-note" placeholder="Approved for publish because validation passed, simulation passed, and authority boundaries are appropriate.">${escapeHtml(noteValue)}</textarea>
+        ${renderGateSummary(readiness.gates || {})}
+        <div class="inline-actions">
+          ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Request Report</button>` : ''}
+          ${canLoad ? `<button class="action-button action-button-muted" data-studio-panel-action="load" data-request-id="${escapeHtml(item.request_id)}">Load into Editor</button>` : ''}
+          ${canRefresh ? `<button class="action-button action-button-muted" data-studio-panel-action="refresh" data-request-id="${escapeHtml(item.request_id)}">Refresh Draft</button>` : ''}
+          ${canRestore ? `<button class="action-button action-button-muted" data-studio-panel-action="restore_revision" data-request-id="${escapeHtml(item.request_id)}">Restore Review Revision</button>` : ''}
+          ${canApprove ? `<button class="action-button" data-studio-panel-action="approve" data-request-id="${escapeHtml(item.request_id)}">Approve</button>` : ''}
+          ${canRequestChanges ? `<button class="action-button action-button-muted" data-studio-panel-action="request_changes" data-request-id="${escapeHtml(item.request_id)}">Request Changes</button>` : ''}
+          ${canPublish ? `<button class="action-button" data-studio-panel-action="publish" data-request-id="${escapeHtml(item.request_id)}">Publish Now</button>` : ''}
+        </div>
+        ${renderReadinessSummary(readiness, coverage)}
+      </article>
+    </section>
+    <section class="studio-governance-grid">
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">Readiness reporting</div><h3 class="card-title">Publish posture at a glance</h3><p class="card-subtitle">Coverage, blockers, and readiness score are grouped here so reviewers can judge the hat quickly without scanning every raw report first.</p></div>
+        ${renderCoverageSummary(coverage)}
+      </article>
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">PT-OSS structural intelligence</div><h3 class="card-title">Structural readiness and fragility posture</h3><p class="card-subtitle">Use PT-OSS to judge whether the hat is structurally safe, resilient, and governed strongly enough before publication.</p></div>
+        ${renderPtOssAssessment(ptOss)}
+      </article>
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">Review timeline</div><h3 class="card-title">Decision history</h3><p class="card-subtitle">Every approval and change request remains visible as a reviewer-facing audit trail.</p></div>
+        ${renderReviewTimeline(reviewTimeline)}
+      </article>
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">Simulation history</div><h3 class="card-title">Simulation runs across revisions</h3><p class="card-subtitle">See whether the hat is getting safer or drifting before you publish it.</p></div>
+        ${renderSimulationHistory(simulationHistory)}
+      </article>
+    </section>
+    <section class="split-grid">
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">PTAG live editor</div><h3 class="card-title">Refine the role pack directly before publication</h3><p class="card-subtitle">Edit the PTAG source for the selected hat, keep it inside governance, then revalidate and resimulate through the Studio runtime.</p></div>
+        <div class="trace-box compact-trace"><strong>Editing mode</strong><p class="muted">${escapeHtml(summary.ptag_override_present ? 'Manual PTAG override is active for this revision.' : 'Generated PTAG is currently active. Save a draft here to switch the revision into manual PTAG mode.')}</p></div>
+        <div class="studio-editor-shell">
+          <pre id="studio-ptag-gutter" class="studio-ptag-gutter">${escapeHtml(renderLineNumbers(ptagDraft))}</pre>
+          <textarea id="studio-ptag-editor" class="studio-ptag-editor" placeholder="role NEW_ROLE { ... }">${escapeHtml(ptagDraft)}</textarea>
+        </div>
+        <div class="inline-actions">
+          ${canEditPtag ? `<button class="action-button" data-studio-panel-action="save_ptag" data-request-id="${escapeHtml(item.request_id)}">Save PTAG Draft</button>` : ''}
+          ${canEditPtag ? `<button class="action-button action-button-muted" data-studio-panel-action="reset_ptag" data-request-id="${escapeHtml(item.request_id)}">Reset to Generated</button>` : ''}
+          ${canEditPtag ? `<button class="action-button action-button-muted" data-studio-panel-action="undo_ptag" data-request-id="${escapeHtml(item.request_id)}">Undo</button>` : ''}
+          ${canEditPtag ? `<button class="action-button action-button-muted" data-studio-panel-action="redo_ptag" data-request-id="${escapeHtml(item.request_id)}">Redo</button>` : ''}
+        </div>
+        <div id="studio-ptag-diagnostics">${renderPtagDiagnostics(diagnostics)}</div>
+      </article>
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">Publication workflow</div><h3 class="card-title">Role publication approval path</h3><p class="card-subtitle">Use this path to verify where the hat sits now: authored, validated, simulated, approved, or already promoted into the trusted registry.</p></div>
+        ${renderPublicationWorkflow(workflow, true)}
+        ${renderBlockerGroups(readiness)}
+      </article>
+    </section>
+    <section class="split-grid">
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">Generated versus manual</div><h3 class="card-title">Baseline compare</h3><p class="card-subtitle">Judge the edited PTAG against the generator baseline before you approve or publish it.</p></div>
+        ${renderEditorCompare(editorCompare, item.system_generated_ptag || '', ptagDraft)}
+      </article>
+      <article class="card stack studio-governance-panel">
+        <div><div class="eyebrow muted">Approval summary</div><h3 class="card-title">Publisher-ready summary cards</h3><p class="card-subtitle">This condensed view keeps the final publish decision anchored to evidence, not memory.</p></div>
+        ${renderApprovalSummaryCards(readiness, validation, simulation, workflow)}
+      </article>
+    </section>
+    <article class="card stack studio-governance-panel">
+      <div><div class="eyebrow muted">Revision control</div><h3 class="card-title">Compare any governed revision pair before the publish decision</h3><p class="card-subtitle">Choose the revision under review and the revision it should be judged against. This keeps review grounded in evidence instead of memory.</p></div>
+      ${renderStudioRevisionCompare(revisionCompare, { requestId: item.request_id, selectable: true, currentLabel: 'Review revision', previousLabel: 'Compare against' })}
+    </article>
+  `;
+}
+
+function defaultStudioGovernanceNote(item) {
+  if (item.status === 'approved') return 'Approved for publish from the live governance panel.';
+  if (item.status === 'published') return 'Already published into the trusted registry.';
+  return 'Reviewed from the live governance panel.';
+}
+
+function defaultStudioGovernanceActionNote(item, action) {
+  if (action === 'approve') return 'Approved for publish from the live governance panel.';
+  if (action === 'request_changes') return 'Please refine the role draft, regenerate the PTAG pack, and resimulate before returning it to the publish lane.';
+  if (action === 'publish') {
+    return item?.publish_artifact
+      ? 'Already published into the trusted registry.'
+      : 'Publishing into the trusted registry from the live governance panel.';
+  }
+  return defaultStudioGovernanceNote(item || { status: '' });
+}
+
+function getStudioRequestById(requestId) {
+  const requests = state.snapshot?.role_private_studio?.requests || [];
+  return requests.find((item) => item.request_id === requestId) || null;
+}
+
+function ensureStudioGovernanceNote(item, forcedNote = null) {
+  if (!item) return '';
+  if (typeof forcedNote === 'string') {
+    state.studioGovernanceNotes[item.request_id] = forcedNote;
+    return forcedNote;
+  }
+  if (Object.prototype.hasOwnProperty.call(state.studioGovernanceNotes, item.request_id)) {
+    return state.studioGovernanceNotes[item.request_id];
+  }
+  const note = defaultStudioGovernanceNote(item);
+  state.studioGovernanceNotes[item.request_id] = note;
+  return note;
+}
+
+function ensureStudioPtagDraft(item, forcedSource = null) {
+  if (!item) return '';
+  if (typeof forcedSource === 'string') {
+    state.studioPtagDrafts[item.request_id] = forcedSource;
+    ensureStudioPtagHistory(item.request_id, forcedSource);
+    return forcedSource;
+  }
+  if (Object.prototype.hasOwnProperty.call(state.studioPtagDrafts, item.request_id)) {
+    return state.studioPtagDrafts[item.request_id];
+  }
+  const source = item.generated_ptag || '';
+  state.studioPtagDrafts[item.request_id] = source;
+  ensureStudioPtagHistory(item.request_id, source);
+  return source;
+}
+
+function ensureStudioPtagHistory(requestId, source = '') {
+  if (!requestId) return null;
+  if (!state.studioPtagHistory[requestId]) {
+    state.studioPtagHistory[requestId] = { undo: [], redo: [], current: source };
+  }
+  if (typeof source === 'string' && !state.studioPtagHistory[requestId].current) {
+    state.studioPtagHistory[requestId].current = source;
+  }
+  return state.studioPtagHistory[requestId];
+}
+
+function recordStudioPtagUndo(requestId, previousValue, nextValue) {
+  if (!requestId || previousValue === nextValue) return;
+  const history = ensureStudioPtagHistory(requestId, previousValue);
+  if (!history) return;
+  if (!history.undo.length || history.undo[history.undo.length - 1] !== previousValue) {
+    history.undo.push(previousValue);
+    if (history.undo.length > 60) history.undo.shift();
+  }
+  history.current = nextValue;
+  history.redo = [];
+}
+
+function resetStudioPtagHistory(requestId) {
+  if (!requestId) return;
+  delete state.studioPtagHistory[requestId];
+}
+
+function undoStudioPtagDraft(requestId) {
+  const history = ensureStudioPtagHistory(requestId);
+  if (!history || !history.undo.length) return null;
+  const previousValue = history.undo.pop();
+  history.redo.push(history.current || '');
+  history.current = previousValue;
+  return previousValue;
+}
+
+function redoStudioPtagDraft(requestId) {
+  const history = ensureStudioPtagHistory(requestId);
+  if (!history || !history.redo.length) return null;
+  const nextValue = history.redo.pop();
+  history.undo.push(history.current || '');
+  history.current = nextValue;
+  return nextValue;
+}
+
+function renderPublicationWorkflow(workflow, expanded = false) {
+  const stages = Array.isArray(workflow?.stages) ? workflow.stages : [];
+  if (!stages.length) return '<div class="trace-box"><strong>Workflow</strong><p class="muted">No publication workflow is available for this draft yet.</p></div>';
+  const rows = stages.map((stage) => `
+    <div class="workflow-stage">
+      <div>
+        <strong>${escapeHtml(stage.label || stage.id || 'Stage')}</strong>
+        ${expanded ? `<p class="muted">${escapeHtml(renderWorkflowStageExplanation(stage))}</p>` : ''}
+      </div>
+      ${statusBadge(stage.status || 'pending')}
+    </div>
+  `).join('');
+  const meta = [];
+  if (workflow.latest_reviewer) meta.push(['Latest reviewer', workflow.latest_reviewer]);
+  if (workflow.latest_review_decision) meta.push(['Latest decision', workflow.latest_review_decision]);
+  if (workflow.published_by) meta.push(['Published by', workflow.published_by]);
+  if (workflow.published_at) meta.push(['Published at', shortTime(workflow.published_at)]);
+  return `
+    <div class="workflow-shell">
+      <div class="workflow-stage-list">${rows}</div>
+      ${meta.length ? `<div class="trace-box compact-trace">${keyValue(meta)}</div>` : ''}
+      ${expanded && workflow.latest_review_note ? `<div class="trace-box compact-trace"><strong>Latest review note</strong><p class="muted">${escapeHtml(workflow.latest_review_note)}</p></div>` : ''}
+    </div>
+  `;
+}
+
+function renderReadinessSummary(readiness, coverage) {
+  const score = Number(readiness.readiness_score || 0);
+  return `
+    <section class="publish-gate-grid">
+      ${metricCard('Readiness score', score, score >= 80 ? 'success' : score >= 55 ? 'warning' : 'danger', 'Overall publish posture across validation, simulation, review, and coverage.')}
+      ${metricCard('Blockers', (readiness.blockers || []).length, (readiness.blockers || []).length ? 'danger' : 'success', 'Current blockers attached to the active revision.')}
+      ${metricCard('Structural gate', readiness.structural_state || 'blocked', studioReadinessTone(readiness), 'PT-OSS gate applied to the active revision before publication.')}
+      ${metricCard('Structural advisories', (readiness.advisories || []).length, (readiness.advisories || []).length ? 'warning' : 'success', 'PT-OSS advisories that still shape publication movement even without hard blockers.')}
+      ${metricCard('Policy coverage', `${coverage.policy?.covered_actions || 0}/${coverage.policy?.total_actions || 0}`, coverage.policy?.status === 'ready' ? 'success' : 'warning', 'Allowed actions currently covered by policy validation.')}
+      ${metricCard('Simulation', coverage.simulation?.status || 'not_run', coverage.simulation?.status === 'passed' ? 'success' : coverage.simulation?.status === 'failed' ? 'danger' : 'warning', 'Latest simulation posture for the active revision.')}
+    </section>
+  `;
+}
+
+function renderCoverageSummary(coverage) {
+  return `
+    <section class="governance-mini-grid">
+      <article class="trace-box compact-trace">
+        <strong>Policy coverage</strong>
+        ${keyValue([
+          ['Status', coverage.policy?.status || 'unknown'],
+          ['Covered actions', `${coverage.policy?.covered_actions || 0}/${coverage.policy?.total_actions || 0}`],
+          ['Gaps', (coverage.policy?.gaps || []).length ? coverage.policy.gaps.join(' | ') : 'None'],
+        ])}
+      </article>
+      <article class="trace-box compact-trace">
+        <strong>Hierarchy coverage</strong>
+        ${keyValue([
+          ['Status', coverage.hierarchy?.status || 'unknown'],
+          ['Reports to', coverage.hierarchy?.reports_to || '-'],
+          ['Escalation field', coverage.hierarchy?.escalation_defined ? 'present' : 'missing'],
+          ['Safety owner', coverage.hierarchy?.safety_owner_defined ? 'present' : 'missing'],
+        ])}
+      </article>
+      <article class="trace-box compact-trace">
+        <strong>Escalation and safety</strong>
+        ${keyValue([
+          ['Status', coverage.escalation?.status || 'unknown'],
+          ['Wait-human actions', (coverage.escalation?.wait_human_actions || []).join(', ') || '-'],
+          ['Auto safety upgrades', (coverage.escalation?.auto_wait_human_actions || []).join(', ') || '-'],
+        ])}
+      </article>
+      <article class="trace-box compact-trace">
+        <strong>Simulation posture</strong>
+        ${keyValue([
+          ['Status', coverage.simulation?.status || 'not_run'],
+          ['Scenarios', String(coverage.simulation?.scenario_count || 0)],
+          ['Failed', String(coverage.simulation?.failed_count || 0)],
+          ['Categories', (coverage.simulation?.categories || []).join(', ') || '-'],
+        ])}
+      </article>
+    </section>
+  `;
+}
+
+function renderPtOssAssessment(assessment) {
+  if (!assessment || !assessment.metrics) {
+    return '<div class="trace-box"><strong>Structural assessment</strong><p class="muted">PT-OSS assessment is not available for this draft yet.</p></div>';
+  }
+  const metrics = Array.isArray(assessment.metrics) ? assessment.metrics : [];
+  const blockers = Array.isArray(assessment.blockers) ? assessment.blockers : [];
+  const recommendations = Array.isArray(assessment.recommendations) ? assessment.recommendations : [];
+  return `
+    <section class="publish-gate-grid">
+      ${metricCard('Structural score', assessment.readiness_score || 0, (assessment.readiness_score || 0) >= 80 ? 'success' : (assessment.readiness_score || 0) >= 55 ? 'warning' : 'danger', 'PT-OSS structural readiness for the active draft.')}
+      ${metricCard('Posture', assessment.posture || 'unknown', assessment.posture === 'healthy' ? 'success' : assessment.posture === 'watch' ? 'warning' : 'danger', 'Overall PT-OSS structural posture.')}
+      ${metricCard('Blocking issues', assessment.blocking_issue_count || blockers.filter((item) => item.blocks_publish).length, (assessment.blocking_issue_count || blockers.filter((item) => item.blocks_publish).length) ? 'danger' : 'success', 'Structural blockers that should stop publish.')}
+      ${metricCard('Mode', assessment.mode || 'PT_OSS_FULL', 'accent', 'PT-OSS mode selected for this draft.')}
+    </section>
+    <section class="governance-mini-grid">
+      ${metrics.map((item) => `
+        <article class="trace-box compact-trace">
+          <strong>${escapeHtml(item.metric_id || item.name || 'Metric')}</strong>
+          ${keyValue([
+            ['Value', `${item.value ?? '-'} ${item.unit || ''}`.trim()],
+            ['Band', item.label || 'unknown'],
+            ['Risk', item.risk_level || 'unknown'],
+            ['Action', item.default_action ? titleCase(String(item.default_action).replace(/_/g, ' ')) : '-'],
+          ])}
+          <p class="muted">${escapeHtml(item.rationale || 'No rationale recorded.')}</p>
+        </article>
+      `).join('')}
+    </section>
+    <section class="split-grid">
+      <article class="trace-box compact-trace">
+        <strong>Structural blockers</strong>
+        <p class="muted">${escapeHtml(blockers.length ? blockers.map((item) => `${item.category}: ${item.message}`).join(' | ') : 'No PT-OSS structural blockers are active for this draft.')}</p>
+      </article>
+      <article class="trace-box compact-trace">
+        <strong>Recommendations</strong>
+        <p class="muted">${escapeHtml(recommendations.length ? recommendations.join(' | ') : 'No PT-OSS recommendations were generated.')}</p>
+      </article>
+    </section>
+  `;
+}
+
+function renderReviewTimeline(timeline) {
+  if (!timeline.length) return '<p class="muted">No reviewer decisions recorded yet.</p>';
+  return timeline.map((item) => `
+    <div class="trace-box compact-trace timeline-card">
+      <div class="hero-heading">
+        <div>
+          <strong>${escapeHtml(titleCase(item.decision || 'review'))}</strong>
+          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} � ${item.reviewer || '-'}`)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(item.decision || 'review')}</div>
+      </div>
+      <p class="muted">${escapeHtml(item.note || 'No reviewer note recorded.')}</p>
+      <p class="muted">${escapeHtml(shortTime(item.created_at))}</p>
+    </div>
+  `).join('');
+}
+
+function renderSimulationHistory(history) {
+  if (!history.length) return '<p class="muted">No simulation history recorded yet.</p>';
+  return history.map((item) => `
+    <div class="trace-box compact-trace timeline-card">
+      <div class="hero-heading">
+        <div>
+          <strong>${escapeHtml(`Revision ${item.revision_number || 0}`)}</strong>
+          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} � ${shortTime(item.generated_at)}`)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(item.status || 'not_run')}</div>
+      </div>
+      ${keyValue([
+        ['Scenarios', String(item.scenario_count || 0)],
+        ['Passed', String(item.passed_count || 0)],
+        ['Failed', String(item.failed_count || 0)],
+        ['Waiting human', String(item.waiting_human_count || 0)],
+      ])}
+    </div>
+  `).join('');
+}
+
+function renderEditorCompare(compare, generatedBaseline, currentDraft) {
+  const baselinePreview = renderPtagPreview(generatedBaseline || 'No generated PTAG baseline recorded.');
+  const currentPreview = renderPtagPreview(currentDraft || 'No PTAG draft available.');
+  return `
+    <section class="revision-compare-grid">
+      <article class="trace-box compact-trace compare-panel">
+        <strong>Generated baseline</strong>
+        ${keyValue([
+          ['Mode', compare.manual_override_active ? 'generated baseline' : compare.mode || 'generated'],
+          ['Lines', String(compare.generated_line_count || 0)],
+        ])}
+        <pre class="code-preview">${escapeHtml(baselinePreview)}</pre>
+      </article>
+      <article class="trace-box compact-trace compare-panel">
+        <strong>Current draft</strong>
+        ${keyValue([
+          ['Mode', compare.mode || 'generated'],
+          ['Lines', String(compare.current_line_count || 0)],
+          ['Delta', `+${compare.added_lines || 0} / -${compare.removed_lines || 0}`],
+        ])}
+        <pre class="code-preview">${escapeHtml(currentPreview)}</pre>
+      </article>
+    </section>
+  `;
+}
+
+function renderApprovalSummaryCards(readiness, validation, simulation, workflow) {
+  const reviewTimeline = workflow.review_timeline || [];
+  return `
+    <section class="governance-mini-grid">
+      ${metricCard('Stage status', workflow.status || 'blocked', workflow.status === 'published' ? 'success' : workflow.status === 'publisher_ready' ? 'accent' : workflow.status === 'structural_review' ? 'warning' : 'warning', 'Current publication stage outcome.')}
+      ${metricCard('Structural gate', readiness.structural_state || 'blocked', studioReadinessTone(readiness), 'PT-OSS decision posture applied to the active revision.')}
+      ${metricCard('Critical findings', (validation.critical_findings || []).length, (validation.critical_findings || []).length ? 'danger' : 'success', 'Critical validation issues still attached to the draft.')}
+      ${metricCard('Simulation failed', simulation.failed_count || 0, (simulation.failed_count || 0) ? 'danger' : 'success', 'Failure cases from the latest simulation report.')}
+      ${metricCard('Reviewer history', reviewTimeline.length, reviewTimeline.length ? 'accent' : 'default', 'Review decisions recorded against this draft.')}
+    </section>
+  `;
+}
+
+function renderBlockerGroups(readiness) {
+  const groups = readiness.blocker_groups || {};
+  const advisoryGroups = readiness.advisory_groups || {};
+  const categories = Object.keys(groups);
+  const advisoryCategories = Object.keys(advisoryGroups);
+  if (!categories.length && !advisoryCategories.length) return '<div class="trace-box"><strong>Publish blockers</strong><p class="muted">No publish blockers or structural advisories for the current revision.</p></div>';
+  return `
+    <div class="stack">
+      ${categories.map((category) => `
+        <article class="trace-box compact-trace">
+          <div class="hero-heading">
+            <div>
+              <strong>${escapeHtml(titleCase(category))}</strong>
+              <p class="muted">${escapeHtml(`${groups[category].length} blocker(s)`)} </p>
+            </div>
+            <div class="hero-chip-row">${groups[category].map((entry) => statusBadge(entry.severity || 'warning')).join('')}</div>
+          </div>
+          <p class="muted">${escapeHtml(groups[category].map((entry) => entry.message).join(' | '))}</p>
+        </article>
+      `).join('')}
+      ${advisoryCategories.map((category) => `
+        <article class="trace-box compact-trace">
+          <div class="hero-heading">
+            <div>
+              <strong>${escapeHtml(`${titleCase(category)} advisory`)}</strong>
+              <p class="muted">${escapeHtml(`${advisoryGroups[category].length} advisory note(s)`)}</p>
+            </div>
+            <div class="hero-chip-row">${advisoryGroups[category].map((entry) => statusBadge(entry.severity || 'warning')).join('')}</div>
+          </div>
+          <p class="muted">${escapeHtml(advisoryGroups[category].map((entry) => entry.message).join(' | '))}</p>
+        </article>
+      `).join('')}
+    </div>
+  `;
+}
+
+function buildStudioPtagDiagnostics(item, source) {
+  const currentSource = String(source || '');
+  const lines = currentSource.split(/\r?\n/);
+  const openBraces = (currentSource.match(/\{/g) || []).length;
+  const closeBraces = (currentSource.match(/\}/g) || []).length;
+  const missingBlocks = ['role', 'authority', 'constraint', 'policy'].filter((keyword) => !new RegExp(`\\b${keyword}\\b`).test(currentSource));
+  const generatedBaseline = item?.system_generated_ptag || '';
+  const compare = item?.summary?.editor_compare || {};
+  const warnings = [];
+  if (openBraces !== closeBraces) warnings.push('Brace balance looks off.');
+  if (missingBlocks.length) warnings.push(`Missing PTAG blocks: ${missingBlocks.join(', ')}.`);
+  if (item?.ptag_source_mode === 'manual' && !generatedBaseline.trim()) warnings.push('Manual mode is active without a recorded generated baseline.');
+  if (!lines.some((line) => line.includes('language "PTAG"'))) warnings.push('Language header is missing.');
+  return {
+    line_count: lines.length,
+    open_braces: openBraces,
+    close_braces: closeBraces,
+    missing_blocks: missingBlocks,
+    warnings,
+    compare,
+  };
+}
+
+function renderPtagDiagnostics(diagnostics) {
+  return `
+    <section class="diff-grid">
+      <article class="trace-box compact-trace">
+        <strong>Editor diagnostics</strong>
+        ${keyValue([
+          ['Lines', String(diagnostics.line_count || 0)],
+          ['Brace balance', `${diagnostics.open_braces || 0}/${diagnostics.close_braces || 0}`],
+          ['Missing blocks', diagnostics.missing_blocks?.length ? diagnostics.missing_blocks.join(', ') : 'None'],
+        ])}
+      </article>
+      <article class="trace-box compact-trace">
+        <strong>Generated vs manual</strong>
+        ${keyValue([
+          ['Mode', diagnostics.compare?.mode || 'generated'],
+          ['Added lines', String(diagnostics.compare?.added_lines || 0)],
+          ['Removed lines', String(diagnostics.compare?.removed_lines || 0)],
+        ])}
+      </article>
+    </section>
+    <div class="trace-box compact-trace">
+      <strong>Validation hints</strong>
+      <p class="muted">${escapeHtml(diagnostics.warnings.length ? diagnostics.warnings.join(' | ') : 'No immediate editor hints. Save PTAG Draft to run full validation and simulation again.')}</p>
+    </div>
+  `;
+}
+
+function renderLineNumbers(source) {
+  const total = Math.max(1, String(source || '').split(/\r?\n/).length);
+  return Array.from({ length: total }, (_item, index) => index + 1).join('\n');
+}
+
+function refreshStudioEditorAssist(requestId, source) {
+  const item = getStudioRequestById(requestId);
+  if (!item) return;
+  const gutter = document.getElementById('studio-ptag-gutter');
+  if (gutter) gutter.textContent = renderLineNumbers(source);
+  const diagnostics = document.getElementById('studio-ptag-diagnostics');
+  if (diagnostics) diagnostics.innerHTML = renderPtagDiagnostics(buildStudioPtagDiagnostics(item, source));
+}
+
+function renderWorkflowStageExplanation(stage) {
+  const explanations = {
+    authoring: 'Structured JD is present and the hat exists as an authored draft.',
+    validation: 'PTAG syntax and semantic checks passed for the selected revision.',
+    simulation: 'Scenario simulation produced a safe enough outcome to continue.',
+    structural: 'PT-OSS structural intelligence decided whether this draft is blocked, guarded, or ready for publication.',
+    review: 'A reviewer has either approved the current revision or returned it for changes.',
+    publication: 'The role pack is either ready for a publisher, blocked, or already promoted into the registry.',
+  };
+  return explanations[stage.id] || 'Governed publication stage.';
+}
+
+function renderPolicies(roles) {
+  if (!roles.length) return '<div class="card empty-state">No PTAG role packs available.</div>';
+  const verifiedTotal = roles.filter((role) => role.trusted_manifest_signature_status === 'verified').length;
+  const validationIssueTotal = roles.reduce((sum, role) => sum + ((role.validation_issues || []).length), 0);
+  const allowTotal = roles.reduce((sum, role) => sum + ((role.allow || []).length), 0);
+  const denyTotal = roles.reduce((sum, role) => sum + ((role.deny || []).length), 0);
+  const hierarchyReadyTotal = roles.filter((role) => role.stratum || role.reports_to || role.escalation_to).length;
+  const safetyOwners = new Set(roles.map((role) => role.safety_owner).filter(Boolean)).size;
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Policy Library</div>
+            <h2 class="hero-title">Trusted hats read like an enterprise operating constitution.</h2>
+            <p class="hero-subtitle">Each published role pack carries authority, constraints, hierarchy, escalation posture, policies, and registry trust metadata so operators can inspect both power and provenance before activating work.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(verifiedTotal === roles.length ? 'registry verified' : 'verification watch')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Role packs', String(roles.length)],
+            ['Verified manifests', String(verifiedTotal)],
+            ['Validation issues', String(validationIssueTotal)],
+            ['Hierarchy ready', String(hierarchyReadyTotal)],
+            ['Safety owners', String(safetyOwners)],
+          ])}
+          <div class="hero-note">
+            <strong>Governance posture</strong>
+            <p>The policy library is more than a catalog. It is the visible contract between each AI hat, the private runtime, and the human authority that stands above it, including where each hat escalates when pressure rises.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Registry posture</div>
+          <h3 class="card-title">Trust and boundaries</h3>
+          <p class="card-subtitle">Inspect manifest integrity, validation posture, role hierarchy, and the balance between allowed and forbidden action surfaces.</p>
+        </div>
+        ${keyValue([
+          ['Allowed actions', String(allowTotal)],
+          ['Denied actions', String(denyTotal)],
+          ['Registry coverage', `${verifiedTotal}/${roles.length} verified`],
+          ['Warning posture', validationIssueTotal ? 'review advised' : 'clean view'],
+          ['Role source', 'Trusted private registry'],
+          ['Escalation map', hierarchyReadyTotal ? 'live in policy cards' : 'incomplete'],
+        ])}
+        <div class="trace-box"><strong>Library note</strong><p class="muted">Role packs shown here are the live hats the runtime can load. Review provenance, hierarchy, and escalation posture before expanding authority or publishing new hats.</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Roles', roles.length, 'default', 'Published role hats currently available in the runtime library.')}
+      ${metricCard('Verified', verifiedTotal, 'success', 'Role packs with verified trusted-manifest signatures.')}
+      ${metricCard('Validation issues', validationIssueTotal, 'warning', 'Non-fatal findings still visible across the current role library.')}
+      ${metricCard('Hierarchy ready', hierarchyReadyTotal, 'accent', 'Roles that expose stratum, reporting line, or escalation data to the runtime.')}
+      ${metricCard('Safety owners', safetyOwners, 'warning', 'Distinct escalation owners visible across the current live hat library.')}
+    </section>
+    <section class="card-grid">${roles.map((role) => `
+      <article class="card stack">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">${escapeHtml(role.role_id)}</div>
+            <h3 class="card-title">${escapeHtml(role.title || role.role_id)}</h3>
+            <p class="card-subtitle">${escapeHtml(role.purpose || 'No purpose provided.')}</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(role.trusted_manifest_signature_status || 'unknown')}</div>
+        </div>
+        ${renderRoleHierarchyLane(role)}
+        ${keyValue([
+          ['Policies', String(role.policies.length)],
+          ['Constraints', String(role.constraints.length)],
+          ['Stratum', role.stratum || '-'],
+          ['Reports to', role.reports_to || '-'],
+          ['Escalates to', role.escalation_to || '-'],
+          ['Safety owner', role.safety_owner || '-'],
+          ['Business domain', role.business_domain || '-'],
+          ['Source', role.trusted_source_origin || 'unknown'],
+          ['Manifest', role.trusted_manifest_signature_status || 'unknown'],
+          ['Registry key', role.trusted_manifest_key_id || '-'],
+          ['Allow', role.allow.join(', ') || '-'],
+          ['Deny', role.deny.join(', ') || '-'],
+          ['Handled resources', Array.isArray(role.handled_resources) && role.handled_resources.length ? role.handled_resources.join(', ') : '-'],
+        ])}
+        <div class="trace-box"><strong>Validation issues</strong><p class="muted">${role.validation_issues.length ? escapeHtml(role.validation_issues.map((issue) => issue.code).join(', ')) : 'No validation warnings.'}</p></div>
+      </article>`).join('')}</section>
+  `;
+}
+
+function renderHealth(runtimeHealth, availableProfiles, retentionReport, operations, integrations) {
+  const goLive = runtimeHealth.go_live_readiness || null;
+  const backupSummary = operations?.summary || runtimeHealth.runtime_backups || {};
+  const integrationSummary = integrations?.summary || runtimeHealth.integration_deliveries || {};
+  const trustedRegistry = runtimeHealth.trusted_registry || {};
+  const accessControl = runtimeHealth.access_control || {};
+  const sessionStore = runtimeHealth.session_store || {};
+  const requestConsistency = runtimeHealth.request_consistency || {};
+  const privilegedOperations = runtimeHealth.privileged_operations || goLive?.privileged_operations || {};
+  const studioStructural = runtimeHealth.studio_structural || goLive?.studio_structural || {};
+  const ownerRegistration = runtimeHealth.owner_registration || currentOwnerRegistration();
+  const cards = Object.entries(runtimeHealth)
+    .filter(([key]) => !['go_live_readiness', 'runtime_backups', 'privileged_operations', 'studio_structural', 'owner_registration'].includes(key))
+    .map(([key, value]) => typeof value === 'object' && value !== null
+        ? `<article class="card stack"><div><div class="eyebrow muted">Runtime domain</div><h3 class="card-title">${titleCase(key)}</h3><p class="card-subtitle">Live operational posture for ${escapeHtml(titleCase(key).toLowerCase())}.</p></div>${keyValue(Object.entries(value).map(([entryKey, entryValue]) => [titleCase(entryKey), typeof entryValue === 'object' && entryValue !== null ? JSON.stringify(entryValue) : String(entryValue)]))}</article>`
+        : metricCard(titleCase(key), String(value), 'default', 'Scalar runtime posture signal.'))
+    .join('');
+  const profileRows = availableProfiles.map((profile) => [profile.display_name, `${profile.role_name} | ${profile.permissions.length} permissions`]);
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Runtime Health</div>
+            <h2 class="hero-title">Enterprise readiness is visible as an operating posture, not a hidden checklist.</h2>
+            <p class="hero-subtitle">Health brings together go-live status, trust, access hardening, session posture, retention signals, and operational recovery evidence in one executive control surface.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(goLive?.status || 'blocked')}
+          </div>
+        </div>
+        <div class="hero-split">
+            ${keyValue([
+              ['Go-live status', goLive?.status || 'blocked'],
+              ['Trusted registry', trustedRegistry.signature_status || '-'],
+              ['Active profiles', String(availableProfiles.length)],
+              ['Backups total', String(backupSummary.backups_total || 0)],
+              ['Privileged ops', privilegedOperations.delegated ? 'delegated' : (privilegedOperations.status || '-')],
+              ['Integration targets', String(integrations?.summary?.targets_total || runtimeHealth.integration_registry?.targets_total || 0)],
+            ])}
+          <div class="hero-note">
+            <strong>Executive reading</strong>
+            <p>This view should answer one question quickly: can the private server be trusted to operate, recover, and explain itself right now. Every other card exists to support that answer.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Operational posture</div>
+          <h3 class="card-title">Readiness indicators</h3>
+          <p class="card-subtitle">A concise signal across access control, session discipline, consistency handling, and recovery continuity.</p>
+        </div>
+          ${keyValue([
+            ['Access posture', accessControl.plain_file_tokens_zero ? 'hardened' : 'review required'],
+            ['Session status', sessionStore.status || '-'],
+            ['Consistency store', requestConsistency.status || '-'],
+            ['Studio structural', studioStructural.status || 'clear'],
+            ['Latest backup', backupSummary.latest_backup?.backup_id || '-'],
+            ['Delivery log', integrationSummary.status || '-'],
+          ])}
+          <div class="trace-box"><strong>Retention note</strong><p class="muted">${escapeHtml(retentionReport?.next_expiry_at ? `Next scheduled expiry at ${retentionReport.next_expiry_at}.` : 'No retention expiry is currently queued in the visible report.')}</p></div>
+        </article>
+    </section>
+      <section class="metrics-grid metrics-grid-luxury">
+        ${metricCard('Go-live', goLive?.status || 'blocked', goLive?.status === 'ready' ? 'success' : goLive?.status === 'guarded' ? 'warning' : 'danger', 'Combined deployment gate across trust, smoke, delegated privilege coverage, and operational evidence.')}
+        ${metricCard('Deployment mode', ownerRegistration.deployment_mode || 'private', ownerRegistration.deployment_mode === 'multi' ? 'accent' : 'success', 'Identity posture of this runtime: single-organization private or multi-org governance surface.')}
+        ${metricCard('Profiles', availableProfiles.length, 'default', 'Configured private-server access profiles visible to the operator surface.')}
+        ${metricCard('Privileged ops', privilegedOperations.delegated ? 'delegated' : (privilegedOperations.status || 'unknown'), privilegedOperations.delegated ? 'success' : privilegedOperations.status === 'warning' ? 'warning' : 'danger', 'Whether privileged runtime surfaces can be operated beyond the owner token.')}
+        ${metricCard('Studio structural', studioStructural.status || 'clear', studioStructural.status === 'clear' ? 'success' : studioStructural.status === 'guarded' ? 'warning' : 'danger', 'Current PT-OSS publication posture across Studio drafts.')}
+        ${metricCard('Backups', backupSummary.backups_total || 0, 'success', 'Operational recovery bundles currently retained in the runtime backup store.')}
+        ${metricCard('Retention datasets', retentionReport?.datasets?.length || 0, 'warning', 'Datasets currently tracked by the retention and legal-hold engine.')}
+        ${metricCard('Outbound deliveries', integrationSummary.deliveries_total || 0, integrationSummary.failed_total ? 'warning' : 'success', 'Integration dispatch records across the current runtime window.')}
+      </section>
+    ${renderOwnerRegistrationPanel(ownerRegistration)}
+    <section class="health-grid">${goLive ? renderGoLiveReadinessCard(goLive) : ''}${cards}</section>
+    ${renderOperationsSection(operations || { summary: runtimeHealth.runtime_backups || {}, backups: [] })}
+    ${renderIntegrationSection(integrations || { summary: runtimeHealth.integration_deliveries || {}, targets: [], deliveries: [] })}
+    ${renderRetentionSection(retentionReport)}
+    <article class="card stack"><div><div class="eyebrow muted">Access Profiles</div><h3 class="card-title">Configured private-server profiles</h3><p class="card-subtitle">Profiles available to enter the governed private runtime surface.</p></div>${keyValue(profileRows.length ? profileRows : [['Profiles', 'No access profiles available.']])}</article>
+  `;
+}
+
+function renderOwnerRegistrationPanel(ownerRegistration, options = {}) {
+  const compact = Boolean(options.compact);
+  const registration = ownerRegistration || {};
+  const registered = Boolean(registration.registered);
+  const editable = isOwnerSession();
+  const registrationCode = registration.registration_code || '';
+  const deploymentMode = registration.deployment_mode || 'private';
+  const ownerName = registration.owner_name || '';
+  const ownerDisplayName = registration.owner_display_name || ownerName;
+  const organizationName = registration.organization_name || '';
+  const organizationId = registration.organization_id || '';
+  const executiveOwnerId = registration.executive_owner_id || studioExecutiveOwnerId();
+  const trustedRegistrySignedBy = registration.trusted_registry_signed_by || ownerName || '';
+  const summaryRows = [
+    ['Registered', registered ? 'yes' : 'no'],
+    ['Registration code', registrationCode || '-'],
+    ['Deployment mode', deploymentMode],
+    ['Organization', organizationName || '-'],
+    ['Organization id', organizationId || '-'],
+    ['Owner', ownerDisplayName || '-'],
+    ['Executive owner id', executiveOwnerId || '-'],
+    ['Registry signer', trustedRegistrySignedBy || '-'],
+  ];
+  const intro = compact
+    ? 'One code anchors the runtime before delegated profiles enter.'
+    : 'Register once with a simple code. The suite derives organization and executive-owner identity automatically so onboarding stays lightweight.';
+  const form = editable ? `
+      <form id="owner-registration-form" class="composer-grid owner-registration-form">
+        <div>
+          <label class="permission-note" for="owner-registration-registration-code">Registration code</label>
+          <input id="owner-registration-registration-code" value="${escapeHtml(registrationCode)}" placeholder="TWN-HQ-001" />
+        </div>
+        <div>
+          <label class="permission-note" for="owner-registration-deployment-mode">Deployment mode</label>
+          <select id="owner-registration-deployment-mode">
+            <option value="private"${deploymentMode === 'private' ? ' selected' : ''}>private</option>
+            <option value="multi"${deploymentMode === 'multi' ? ' selected' : ''}>multi</option>
+          </select>
+        </div>
+        <div class="span-2 inline-actions">
+          <button class="action-button" type="submit">${registered ? 'Update Registration Code' : 'Register Runtime Code'}</button>
+        </div>
+      </form>
+      <div class="trace-box compact-trace">
+        <strong>Derived automatically</strong>
+        <p class="muted">Organization id, executive owner id, display name, and trusted-registry signer are derived from the registration code unless you later change them through governed internal tooling.</p>
+      </div>
+    ` : `
+      <div class="trace-box compact-trace">
+        <strong>Owner-only change surface</strong>
+        <p class="muted">Only the owner session may update runtime registration. Delegated profiles can inspect the registration posture but cannot change it.</p>
+      </div>
+    `;
+  return `
+    <section class="card stack owner-registration-panel${compact ? ' owner-registration-panel-compact' : ''}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${compact ? 'Deployment identity' : 'Registration Code'}</div>
+          <h3 class="card-title">${registered ? 'Runtime registration is active' : 'Runtime registration still needs attention'}</h3>
+          <p class="card-subtitle">${escapeHtml(intro)}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(registered ? 'registered' : 'missing')}
+          ${statusBadge(deploymentMode)}
+        </div>
+      </div>
+      ${keyValue(summaryRows)}
+      ${registration.path ? `<div class="trace-box compact-trace"><strong>Registration file</strong><p class="muted">${escapeHtml(registration.path)}</p></div>` : ''}
+      ${form}
+    </section>
+  `;
+}
+
+function renderGoLiveReadinessCard(item) {
+  const blockers = Array.isArray(item.blockers) && item.blockers.length ? item.blockers.join(' | ') : 'No blockers.';
+  const advisories = Array.isArray(item.advisories) && item.advisories.length ? item.advisories.join(' | ') : 'No advisories.';
+  const gates = item.gates || {};
+  const smoke = item.smoke_report || {};
+  const reviewPack = item.review_pack || {};
+  const privilegedOperations = item.privileged_operations || {};
+  const studioStructural = item.studio_structural || {};
+  return `<article class="card stack"><div><div class="eyebrow muted">Go-Live Gate</div><h3 class="card-title">${escapeHtml(item.status || 'blocked')}</h3><p class="card-subtitle">Combined enterprise deployment posture.</p></div>${keyValue([['Ready', String(Boolean(item.ready))], ['Deployment', String(Boolean(gates.deployment_ready))], ['Trusted registry', String(Boolean(gates.trusted_registry_verified))], ['Audit integrity', String(Boolean(gates.audit_integrity_verified))], ['Plain tokens zero', String(Boolean(gates.plain_file_tokens_zero))], ['Privileged ops delegated', String(Boolean(gates.delegated_privileged_operations))], ['Studio structural clear', String(Boolean(gates.studio_structural_clear))], ['Startup smoke', String(Boolean(gates.startup_smoke_passed))], ['Review pack', String(Boolean(gates.review_pack_present))], ['Smoke report', smoke.status || '-'], ['Review pack generated', reviewPack.generated_at || '-']])}<section class="governance-mini-grid"><article class="trace-box compact-trace"><strong>Privileged runtime operations</strong>${keyValue([['Status', privilegedOperations.status || 'unknown'], ['Delegated', privilegedOperations.delegated ? 'yes' : 'no']])}<p class="muted">${escapeHtml(privilegedOperations.message || 'Delegated privileged-operation coverage is unavailable.')}</p></article><article class="trace-box compact-trace"><strong>Studio structural posture</strong>${keyValue([['Status', studioStructural.status || 'clear'], ['Guarded drafts', String(studioStructural.guarded_total || 0)], ['Blocked drafts', String(studioStructural.blocked_total || 0)], ['Ready drafts', String(studioStructural.ready_total || 0)]])}<p class="muted">PT-OSS structural pressure from Role Private Studio is surfaced here so go-live never hides publication fragility.</p></article></section><div class="trace-box"><strong>Blockers</strong><p class="muted">${escapeHtml(blockers)}</p></div><div class="trace-box"><strong>Advisories</strong><p class="muted">${escapeHtml(advisories)}</p></div></article>`;
+}
+
+function renderRetentionSection(retentionReport) {
+  if (!retentionReport || !Array.isArray(retentionReport.datasets) || !retentionReport.datasets.length) return '';
+  return `<article class="table-card"><h3 class="table-title">Retention & Legal Hold</h3><div class="trace-box"><strong>Summary</strong><p class="muted">Expired candidates: ${escapeHtml(String(retentionReport.expired_candidate_total || 0))}, Hold-blocked: ${escapeHtml(String(retentionReport.hold_blocked_total || 0))}, Next expiry: ${escapeHtml(retentionReport.next_expiry_at || '-')}</p></div><div class="table-wrapper">${retentionTable(retentionReport.datasets)}</div></article>`;
+}
+
+function renderOperationsSection(operations) {
+  if (!operations) return '';
+  const summary = operations.summary || {};
+  const backups = Array.isArray(operations.backups) ? operations.backups : [];
+  const action = can('ops.manage')
+    ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button></div>`
+    : '';
+  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
+}
+
+function renderIntegrationSection(integrations) {
+  if (!integrations) return '';
+  const summary = integrations.summary || {};
+  const targets = Array.isArray(integrations.targets) ? integrations.targets : [];
+  const outbox = Array.isArray(integrations.outbox) ? integrations.outbox : [];
+  const deliveries = Array.isArray(integrations.deliveries) ? integrations.deliveries : [];
+  const deadLetters = Array.isArray(integrations.dead_letters) ? integrations.dead_letters : [];
+  const testAction = can('integration.manage')
+    ? `<div class="inline-actions"><button class="action-button" data-integration-action="test-event">Send Test Event</button></div>`
+    : '';
+  return `<article class="table-card"><h3 class="table-title">Integration Foundation</h3>${testAction}<div class="trace-box"><strong>Summary</strong><p class="muted">Targets: ${escapeHtml(String(summary.targets_total || 0))}, Active: ${escapeHtml(String(summary.active_targets || 0))}, Deliveries: ${escapeHtml(String(summary.deliveries_total || 0))}, Retries: ${escapeHtml(String(summary.retry_records_total || 0))}, Dead letters: ${escapeHtml(String(summary.dead_letters_total || 0))}, Outbox jobs: ${escapeHtml(String(summary.outbox_total || 0))}, Coordination: ${escapeHtml(String(summary.coordination_backend || '-'))} (${escapeHtml(String(summary.coordination_mode || '-'))}), Signed targets: ${escapeHtml(String(summary.signed_targets || 0))}, HTTP enabled: ${escapeHtml(String(Boolean(summary.http_enabled)))}</p></div><div class="table-wrapper">${integrationTargetTable(targets)}</div><div class="table-wrapper">${integrationOutboxTable(outbox)}</div><div class="table-wrapper">${integrationDeliveryTable(deliveries)}</div><div class="table-wrapper">${integrationDeadLetterTable(deadLetters)}</div></article>`;
+}
+
+function renderStudioRequestCard(item) {
+  const validation = item.validation_report || {};
+  const simulation = item.simulation_report || {};
+  const summary = item.summary || {};
+  const readiness = item.publish_readiness || { status: 'blocked', blockers: [], gates: {} };
+  const workflow = item.publication_workflow || {};
+  const ptOss = item.pt_oss_assessment || {};
+  const latestDiff = summary.latest_diff || {};
+  const latestChanges = summary.latest_change_summary || [];
+  const revisionCompare = buildStudioRevisionCompare(item);
+  const revisions = item.revisions || [];
+  const canReview = can('studio.review');
+  const canPublish = can('studio.publish');
+  const canEdit = can('studio.create') && item.status !== 'published';
+  const structuralTone = studioReadinessTone(readiness);
+  const structuralNote = readiness.status === 'guarded'
+    ? (readiness.structural_gate_reason || 'PT-OSS is holding this hat in structural review before publication.')
+    : readiness.status === 'ready'
+      ? 'Structural posture is clear enough for trusted publication.'
+      : (readiness.blockers?.[0] || 'This draft still needs validation, simulation, or review movement before publication.');
+  return `
+    <article class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(summary.role_id || item.request_id)}</div>
+          <h3 class="card-title">${escapeHtml(item.structured_jd.role_name || item.request_id)}</h3>
+          <p class="card-subtitle">${escapeHtml(item.structured_jd.purpose || 'No purpose provided.')}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(item.status)}
+          ${statusBadge(readiness.status || 'blocked')}
+        </div>
+      </div>
+      <section class="governance-mini-grid">
+        ${metricCard('Structural gate', readiness.structural_state || 'blocked', structuralTone, 'PT-OSS publication posture for the active revision.')}
+        ${metricCard('Workflow', workflow.status || 'blocked', workflow.status === 'published' ? 'success' : workflow.status === 'publisher_ready' ? 'accent' : workflow.status === 'structural_review' ? 'warning' : 'default', 'Current publication workflow stage for this hat.')}
+        ${metricCard('PT-OSS score', ptOss.readiness_score || 0, (ptOss.readiness_score || 0) >= 80 ? 'success' : (ptOss.readiness_score || 0) >= 68 ? 'warning' : 'danger', 'Structural readiness score carried by the active draft.')}
+      </section>
+      ${keyValue([
+          ['Status', item.status],
+          ['Requested by', item.requested_by],
+          ['Revision', String(summary.current_revision || 0)],
+          ['Publish readiness', readiness.status || 'blocked'],
+        ['Blockers', String((readiness.blockers || []).length)],
+        ['Validation blocked', String(validation.blocked_publish ?? true)],
+        ['Simulation status', simulation.status || 'not_run'],
+          ['Reviews', String(summary.review_count || 0)],
+          ['PTAG mode', summary.ptag_source_mode || 'generated'],
+      ])}
+      <div class="trace-box studio-signal-strip">
+        <strong>Structural reading</strong>
+        <p class="muted">${escapeHtml(structuralNote)}</p>
+      </div>
+      <div class="inline-actions">
+        ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Request Report</button>` : ''}
+        ${canEdit ? `<button class="action-button action-button-muted" data-studio-action="load" data-request-id="${escapeHtml(item.request_id)}">Load into Editor</button>` : ''}
+        ${canEdit ? `<button class="action-button action-button-muted" data-studio-action="refresh" data-request-id="${escapeHtml(item.request_id)}">Refresh</button>` : ''}
+        ${canReview && item.status !== 'published' ? `<button class="action-button" data-studio-action="approve" data-request-id="${escapeHtml(item.request_id)}">Approve</button>` : ''}
+        ${canReview && item.status !== 'published' ? `<button class="action-button action-button-muted" data-studio-action="request_changes" data-request-id="${escapeHtml(item.request_id)}">Request Changes</button>` : ''}
+        ${canPublish && item.status === 'approved' ? `<button class="action-button" data-studio-action="publish" data-request-id="${escapeHtml(item.request_id)}">Publish</button>` : ''}
+      </div>
+      <section class="diff-grid">
+        <article class="trace-box stack compact-trace">
+          <strong>Latest change summary</strong>
+          <p class="muted">${latestChanges.length ? escapeHtml(latestChanges.join(' | ')) : 'No change summary yet.'}</p>
+        </article>
+        <article class="trace-box stack compact-trace">
+          <strong>Diff overview</strong>
+          <p class="muted">${escapeHtml(renderLatestDiff(latestDiff))}</p>
+          ${renderDiffFactList(latestDiff)}
+        </article>
+      </section>
+      <section class="publish-gate-grid">
+        <article class="trace-box stack compact-trace">
+          <strong>Publish decision</strong>
+          <p class="muted">${escapeHtml(renderPublishDecisionSummary(item, readiness, validation, simulation))}</p>
+          ${renderGateSummary(readiness.gates || {})}
+        </article>
+        <article class="trace-box stack compact-trace">
+          <strong>Validation and simulation</strong>
+          <p class="muted">${validation.findings?.length ? escapeHtml(validation.findings.map((finding) => `${finding.severity}:${finding.code}`).join(', ')) : 'No validation findings.'}</p>
+          <p class="muted">${escapeHtml(`Scenarios: ${simulation.scenario_count || 0}, Passed: ${simulation.passed_count || 0}, Failed: ${simulation.failed_count || 0}`)}</p>
+        </article>
+      </section>
+      ${renderPublicationWorkflow(workflow)}
+      ${renderStudioRevisionCompare(revisionCompare)}
+      <div class="trace-box"><strong>Publish blockers</strong><p class="muted">${readiness.blockers?.length ? escapeHtml(readiness.blockers.join(' | ')) : 'No publish blockers for the current revision.'}</p></div>
+      ${item.publish_artifact ? `<div class="trace-box"><strong>Published</strong><p class="muted">${escapeHtml(`${item.publish_artifact.role_path} | ${item.publish_artifact.trusted_sha256}`)}</p></div>` : ''}
+      <details class="trace-box"><summary><strong>Revision history</strong></summary>${renderStudioRevisionHistory(revisions)}</details>
+      <details class="trace-box"><summary><strong>PTAG preview</strong></summary><pre>${escapeHtml(item.generated_ptag || 'No PTAG draft generated yet.')}</pre></details>
+    </article>
+  `;
+}
+
+function renderStudioRevisionHistory(revisions) {
+  if (!revisions.length) return '<p class="muted">No revisions recorded yet.</p>';
+  const items = [...revisions].reverse().map((revision) => {
+    const changes = (revision.change_summary || []).join(' | ');
+    return `<div class="trace-box"><strong>Revision ${escapeHtml(String(revision.revision_number || 0))}</strong><p class="muted">${escapeHtml(`${revision.trigger || 'refresh'} | ${shortTime(revision.generated_at)}`)}</p><p class="muted">${escapeHtml(changes || 'No change summary recorded.')}</p></div>`;
+  }).join('');
+  return items;
+}
+
+function renderLatestDiff(diff) {
+  const ptag = diff.ptag || {};
+  const structured = diff.structured_jd || {};
+  const changedFields = Array.isArray(structured.changed_fields) && structured.changed_fields.length ? structured.changed_fields.join(', ') : 'none';
+  return `Fields: ${changedFields}; PTAG +${ptag.added_lines || 0} / -${ptag.removed_lines || 0}`;
+}
+function renderDiffFactList(diff) {
+  const ptag = diff.ptag || {};
+  const structured = diff.structured_jd || {};
+  const changedFields = Array.isArray(structured.changed_fields) && structured.changed_fields.length
+    ? structured.changed_fields.join(', ')
+    : 'none';
+  return keyValue([
+    ['Changed fields', changedFields],
+    ['PTAG added', String(ptag.added_lines || 0)],
+    ['PTAG removed', String(ptag.removed_lines || 0)],
+  ]);
+}
+
+function renderGateSummary(gates) {
+  const entries = Object.entries(gates || {});
+  if (!entries.length) return '<p class="muted">No publish gates reported.</p>';
+  return `<div class="key-value">${entries.map(([key, value]) => `<div class="key-value-row"><span class="muted">${escapeHtml(titleCase(key))}</span>${statusBadge(value ? 'ready' : 'blocked')}</div>`).join('')}</div>`;
+}
+
+function renderPublishDecisionSummary(item, readiness, validation, simulation) {
+  if (item.status === 'published') return 'This hat has already been promoted into the trusted registry.';
+  if (readiness.status === 'guarded') return readiness.structural_gate_reason || 'PT-OSS is keeping this draft in guarded structural review before publication.';
+  if (readiness.status === 'ready' || item.status === 'approved') return 'This draft has enough evidence to move through publication once the publisher confirms the promotion.';
+  if (validation.blocked_publish) return 'Validation is still blocking publication and the draft should not advance yet.';
+  if ((simulation.failed_count || 0) > 0) return 'Simulation still shows failure cases that should be resolved before promotion.';
+  if ((readiness.pt_oss_summary?.blocking_issue_count || 0) > 0) return 'PT-OSS structural blockers are still preventing trusted publication.';
+  if ((readiness.blockers || []).length) return 'There are active publish blockers that still need reviewer attention.';
+  return 'This draft is still moving through the governed review path.';
+}
+
+function renderStudioRevisionCompare(compare, options = {}) {
+  if (!compare || !compare.current_revision_number) return '';
+  const currentLabel = options.currentLabel || 'Current revision';
+  const previousLabel = options.previousLabel || 'Previous revision';
+  const hasPrevious = Boolean(compare.previous_revision_number);
+  const selector = options.selectable
+    ? renderStudioRevisionSelector(options.requestId || '', compare.available_revisions || [], compare.current_revision_number, compare.previous_revision_number)
+    : '';
+  return `
+    <section class="revision-compare-shell stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Revision compare</div>
+          <h3 class="card-title">Side-by-side revision reading</h3>
+          <p class="card-subtitle">Compare the latest governed revision against the previous one before sending the hat forward.</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(`r${compare.current_revision_number}`)}
+          ${hasPrevious ? statusBadge(`vs r${compare.previous_revision_number}`) : statusBadge('first revision')}
+        </div>
+      </div>
+      ${selector}
+      ${hasPrevious
+        ? `<section class="revision-compare-grid">${renderStudioRevisionPanel(currentLabel, compare.current_revision_number, compare.current_generated_at, compare.current_trigger, compare.current_structured_jd, compare.current_generated_ptag, compare.current_change_summary || [])}${renderStudioRevisionPanel(previousLabel, compare.previous_revision_number, compare.previous_generated_at, compare.previous_trigger, compare.previous_structured_jd, compare.previous_generated_ptag, compare.previous_change_summary || [])}</section>`
+        : `<div class="trace-box"><strong>First revision</strong><p class="muted">There is no earlier revision to compare yet. Once the draft is regenerated, this section will show a full side-by-side comparison.</p></div>`}
+    </section>
+  `;
+}
+
+function renderStudioRevisionSelector(requestId, availableRevisions, currentRevisionNumber, previousRevisionNumber) {
+  if (!availableRevisions.length) return '';
+  const buildOptions = (selectedRevisionNumber) => availableRevisions.map((revision) => {
+    const revisionNumber = revision.revision_number || 0;
+    const label = `Revision ${revisionNumber} � ${revision.trigger || 'refresh'} � ${shortTime(revision.generated_at)}`;
+    const selected = revisionNumber === selectedRevisionNumber ? ' selected' : '';
+    return `<option value="${escapeHtml(String(revisionNumber))}"${selected}>${escapeHtml(label)}</option>`;
+  }).join('');
+  return `
+    <section class="revision-selector-grid">
+      <article class="trace-box compact-trace stack revision-selector-card">
+        <strong>Review revision</strong>
+        <p class="muted">The revision you are evaluating right now.</p>
+        <select data-studio-compare-select="true" data-request-id="${escapeHtml(requestId)}" data-compare-side="current">${buildOptions(currentRevisionNumber)}</select>
+      </article>
+      <article class="trace-box compact-trace stack revision-selector-card">
+        <strong>Compare against</strong>
+        <p class="muted">The revision that gives the clearest baseline for change.</p>
+        <select data-studio-compare-select="true" data-request-id="${escapeHtml(requestId)}" data-compare-side="previous">${buildOptions(previousRevisionNumber)}</select>
+      </article>
+    </section>
+    <div class="trace-box compact-trace revision-selector-note">
+      <strong>Revision discipline</strong>
+      <p class="muted">Choose any two governed revisions to inspect how the hat changed before you approve, request changes, or publish it.</p>
+    </div>
+  `;
+}
+
+function renderStudioRevisionPanel(label, revisionNumber, generatedAt, trigger, structuredJd, generatedPtag, changeSummary) {
+  return `
+    <article class="trace-box stack compare-panel">
+      <div class="hero-heading">
+        <div>
+          <strong>${escapeHtml(label)}</strong>
+          <p class="muted">${escapeHtml(`Revision ${revisionNumber || 0} | ${trigger || 'refresh'}`)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(generatedAt ? shortTime(generatedAt) : 'pending')}</div>
+      </div>
+      ${renderStructuredJDSummary(structuredJd)}
+      <div class="trace-box compact-trace">
+        <strong>Change summary</strong>
+        <p class="muted">${changeSummary.length ? escapeHtml(changeSummary.join(' | ')) : 'No change summary recorded for this revision.'}</p>
+      </div>
+      <div class="trace-box compact-trace">
+        <strong>PTAG preview</strong>
+        <pre class="code-preview">${escapeHtml(renderPtagPreview(generatedPtag))}</pre>
+      </div>
+    </article>
+  `;
+}
+
+function ensureStudioRevisionSelection(item) {
+  const revisions = Array.isArray(item?.revisions) ? item.revisions : [];
+  const ordered = revisions
+    .map((revision) => Number.parseInt(revision.revision_number, 10) || 0)
+    .filter(Boolean)
+    .sort((left, right) => left - right);
+  const latest = ordered[ordered.length - 1] || 0;
+  const previous = ordered.length > 1 ? ordered[ordered.length - 2] : latest;
+  const existing = state.studioRevisionSelections[item.request_id] || {};
+  const selection = {
+    current_revision_number: ordered.includes(existing.current_revision_number) ? existing.current_revision_number : latest,
+    previous_revision_number: ordered.includes(existing.previous_revision_number) ? existing.previous_revision_number : previous,
+  };
+  normalizeStudioRevisionSelection(item, selection);
+  state.studioRevisionSelections[item.request_id] = selection;
+  return selection;
+}
+
+function normalizeStudioRevisionSelection(item, selection, changedSide = '') {
+  const revisions = Array.isArray(item?.revisions) ? item.revisions : [];
+  const ordered = revisions
+    .map((revision) => Number.parseInt(revision.revision_number, 10) || 0)
+    .filter(Boolean)
+    .sort((left, right) => left - right);
+  if (!ordered.length) {
+    selection.current_revision_number = 0;
+    selection.previous_revision_number = 0;
+    return selection;
+  }
+  if (!ordered.includes(selection.current_revision_number)) selection.current_revision_number = ordered[ordered.length - 1];
+  if (!ordered.includes(selection.previous_revision_number)) selection.previous_revision_number = ordered.length > 1 ? ordered[ordered.length - 2] : selection.current_revision_number;
+  if (ordered.length > 1 && selection.current_revision_number === selection.previous_revision_number) {
+    if (changedSide === 'current') {
+      selection.previous_revision_number = ordered.slice().reverse().find((revisionNumber) => revisionNumber !== selection.current_revision_number) || ordered[0];
+    } else {
+      selection.current_revision_number = ordered.slice().reverse().find((revisionNumber) => revisionNumber !== selection.previous_revision_number) || ordered[ordered.length - 1];
+    }
+  }
+  return selection;
+}
+
+function buildStudioRevisionCompare(item, selectable = false) {
+  if (!item) return null;
+  const revisions = Array.isArray(item.revisions) ? item.revisions : [];
+  if (!revisions.length) return item.summary?.revision_compare || null;
+  const selection = selectable ? ensureStudioRevisionSelection(item) : null;
+  const currentRevisionNumber = selection?.current_revision_number || revisions[revisions.length - 1]?.revision_number || 0;
+  const previousRevisionNumber = selection?.previous_revision_number
+    || (revisions.length > 1 ? revisions[revisions.length - 2]?.revision_number || 0 : 0);
+  const currentRevision = findStudioRevision(revisions, currentRevisionNumber) || revisions[revisions.length - 1];
+  const previousRevision = findStudioRevision(revisions, previousRevisionNumber);
+  return {
+    current_revision_number: currentRevision?.revision_number || 0,
+    previous_revision_number: previousRevision?.revision_number || 0,
+    current_trigger: currentRevision?.trigger || null,
+    previous_trigger: previousRevision?.trigger || null,
+    current_generated_at: currentRevision?.generated_at || null,
+    previous_generated_at: previousRevision?.generated_at || null,
+    current_structured_jd: currentRevision?.structured_jd_snapshot || null,
+    previous_structured_jd: previousRevision?.structured_jd_snapshot || null,
+    current_generated_ptag: currentRevision?.generated_ptag || '',
+    previous_generated_ptag: previousRevision?.generated_ptag || '',
+    current_change_summary: currentRevision?.change_summary || [],
+    previous_change_summary: previousRevision?.change_summary || [],
+    available_revisions: [...revisions]
+      .sort((left, right) => (right.revision_number || 0) - (left.revision_number || 0))
+      .map((revision) => ({
+        revision_number: revision.revision_number || 0,
+        generated_at: revision.generated_at || null,
+        trigger: revision.trigger || 'refresh',
+      })),
+  };
+}
+
+function findStudioRevision(revisions, revisionNumber) {
+  return revisions.find((revision) => Number.parseInt(revision.revision_number, 10) === Number.parseInt(revisionNumber, 10)) || null;
+}
+
+function renderStructuredJDSummary(jd) {
+  if (!jd) return '<p class="muted">No structured job definition snapshot.</p>';
+  return keyValue([
+    ['Role name', jd.role_name || '-'],
+    ['Reporting line', jd.reporting_line || '-'],
+    ['Business domain', jd.business_domain || '-'],
+    ['Operating mode', jd.operating_mode || 'direct'],
+    ['Assigned user', jd.assigned_user_id || '-'],
+    ['Executive owner', jd.executive_owner_id || studioExecutiveOwnerId()],
+    ['Seat id', jd.seat_id || '-'],
+    ['Allowed actions', Array.isArray(jd.allowed_actions) && jd.allowed_actions.length ? jd.allowed_actions.join(', ') : '-'],
+    ['Forbidden actions', Array.isArray(jd.forbidden_actions) && jd.forbidden_actions.length ? jd.forbidden_actions.join(', ') : '-'],
+    ['Wait-human', Array.isArray(jd.wait_human_actions) && jd.wait_human_actions.length ? jd.wait_human_actions.join(', ') : '-'],
+    ['Handled resources', Array.isArray(jd.handled_resources) && jd.handled_resources.length ? jd.handled_resources.join(', ') : '-'],
+  ]);
+}
+
+function renderPtagPreview(source, maxLines = 18) {
+  if (!source) return 'No PTAG source available.';
+  const lines = String(source).split(/\r?\n/);
+  const preview = lines.slice(0, maxLines).join('\n');
+  return lines.length > maxLines ? `${preview}\n...` : preview;
+}
+
+function requestTable(rows) {
+  if (!rows.length) return emptyState('No request records available.');
+  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`).join('')}</tbody></table>`;
+}
+
+function overrideTable(rows) {
+  if (!rows.length) return emptyState('No overrides available.');
+  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function lockTable(rows) {
+  if (!rows.length) return emptyState('No active locks.');
+  return `<table class="data-table"><thead><tr><th>Resource</th><th>Request owner</th><th>Role</th><th>Action</th><th>Status</th><th>Updated</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.resource_key)}</strong></td><td>${escapeHtml(row.owner_request_id)}</td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(shortTime(row.updated_at))}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function sessionTable(rows) {
+  if (!rows.length) return emptyState('No session records available.');
+  return `<table class="data-table"><thead><tr><th>Session</th><th>Profile</th><th>Role</th><th>Status</th><th>Auth</th><th>Last Seen</th><th>Expiry</th><th>Control</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.session_id)}</strong></td><td>${escapeHtml(row.display_name)}<div class="muted">${escapeHtml(row.profile_id)}</div></td><td>${escapeHtml(row.role_name)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.auth_method || '-')}</td><td>${escapeHtml(shortTime(row.last_seen_at))}</td><td>${escapeHtml(shortTime(row.expires_at))}</td><td>${row.status === 'active' && can('session.manage') ? `<button class="action-button action-button-muted" data-session-revoke="true" data-session-id="${escapeHtml(row.session_id)}">Revoke</button>` : '<span class="muted">Read only</span>'}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function auditTable(rows) {
+  if (!rows.length) return emptyState('No audit events available.');
+  return `<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Role Flow</th><th>Outcome</th><th>Activation & Escalation</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(titleCase(row.action || '-'))}</strong><div class="muted">${escapeHtml(row.request_id || row.metadata?.request_id || '-')}</div></td><td>${renderRoleFlowCell(row)}</td><td>${statusBadge(row.outcome)}</td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.reason || '-')}</div><div class="muted">${escapeHtml(row.requester || row.metadata?.requester || '-')}</div></td></tr>`).join('')}</tbody></table>`;
+}
+
+function retentionTable(rows) {
+  if (!rows.length) return emptyState('No retention datasets available.');
+  return `<table class="data-table"><thead><tr><th>Dataset</th><th>Records</th><th>Retention</th><th>Expired</th><th>Legal hold</th><th>Next expiry</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.dataset)}</strong><div class="muted">${escapeHtml(row.file_path || '-')}</div></td><td>${escapeHtml(String(row.records))}</td><td>${escapeHtml(String(row.retention_days))} days</td><td>${escapeHtml(String(row.expired_candidates))}</td><td>${row.legal_hold_active ? statusBadge('active') : statusBadge('clear')}</td><td>${escapeHtml(row.next_expiry_at || '-')}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function backupTable(rows) {
+  if (!rows.length) return emptyState('No runtime backups created yet.');
+  return `<table class="data-table"><thead><tr><th>Backup</th><th>Created</th><th>Requested by</th><th>Files</th><th>Bytes</th><th>Path</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.backup_id)}</strong></td><td>${escapeHtml(shortTime(row.created_at))}</td><td>${escapeHtml(row.requested_by || '-')}</td><td>${escapeHtml(`${row.files_present || 0}/${row.files_total || 0}`)}</td><td>${escapeHtml(String(row.bytes_total || 0))}</td><td class="muted">${escapeHtml(row.backup_path || '-')}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function integrationTargetTable(rows) {
+  if (!rows.length) return emptyState('No integration targets configured.');
+  return `<table class="data-table"><thead><tr><th>Target</th><th>Category</th><th>Status</th><th>Mode</th><th>Retry</th><th>Signing</th><th>Subscriptions</th><th>Destination</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.name || row.target_id)}</strong><div class="muted">${escapeHtml(row.target_id || '-')}</div></td><td>${escapeHtml(row.category || '-')}</td><td>${statusBadge(row.status || 'unknown')}</td><td>${escapeHtml(row.delivery_mode || '-')}</td><td><strong>${escapeHtml(String(row.max_attempts || 1))}</strong><div class="muted">${escapeHtml(String(row.retry_backoff_ms || 0))} ms</div></td><td>${escapeHtml(row.signing_policy || 'none')}</td><td>${escapeHtml(Array.isArray(row.subscribed_events) && row.subscribed_events.length ? row.subscribed_events.join(', ') : '-')}</td><td class="muted">${escapeHtml(row.endpoint_url || '-')}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function integrationDeliveryTable(rows) {
+  if (!rows.length) return emptyState('No integration deliveries recorded yet.');
+  return `<table class="data-table"><thead><tr><th>Event</th><th>Target</th><th>Status</th><th>Attempt</th><th>Signing</th><th>Attempted</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.event_type || '-')}</strong><div class="muted">${escapeHtml(row.event_id || '-')}</div></td><td>${escapeHtml(row.target_name || row.target_id || '-')}</td><td>${statusBadge(row.status || 'unknown')}</td><td><strong>${escapeHtml(String(row.attempt_number || 1))}</strong><div class="muted">of ${escapeHtml(String(row.max_attempts || 1))}</div></td><td>${escapeHtml(row.signing_policy || 'none')}</td><td>${escapeHtml(shortTime(row.attempted_at))}</td><td class="muted">${escapeHtml(row.reason || '-')}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function integrationOutboxTable(rows) {
+  if (!rows.length) return emptyState('No integration outbox jobs recorded yet.');
+  return `<table class="data-table"><thead><tr><th>Job</th><th>Channel</th><th>Status</th><th>Attempts</th><th>Updated</th><th>Worker</th><th>Error</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.job_id || '-')}</strong><div class="muted">${escapeHtml(row.payload?.event_type || '-')}</div></td><td>${escapeHtml(row.channel || '-')}</td><td>${statusBadge(row.status || 'unknown')}</td><td>${escapeHtml(String(row.attempts || 0))}</td><td>${escapeHtml(shortTime(row.updated_at || row.created_at))}</td><td>${escapeHtml(row.worker_id || '-')}</td><td class="muted">${escapeHtml(row.last_error || '-')}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function integrationDeadLetterTable(rows) {
+  if (!rows.length) return emptyState('No integration dead letters recorded.');
+  return `<table class="data-table"><thead><tr><th>Event</th><th>Target</th><th>Final Status</th><th>Attempts</th><th>Signing</th><th>Dead-lettered</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.event_type || '-')}</strong><div class="muted">${escapeHtml(row.event_id || '-')}</div></td><td>${escapeHtml(row.target_name || row.target_id || '-')}</td><td>${statusBadge(row.final_status || 'failed')}</td><td><strong>${escapeHtml(String(row.attempts_used || 1))}</strong><div class="muted">of ${escapeHtml(String(row.max_attempts || 1))}</div></td><td>${escapeHtml(row.signing_policy || 'none')}</td><td>${escapeHtml(shortTime(row.dead_lettered_at))}</td><td class="muted">${escapeHtml(row.reason || '-')}</td></tr>`).join('')}</tbody></table>`;
+}
+
+function wrapTableCard(title, tableHtml, subtitle = '') {
+  return `<article class="table-card"><div class="table-card-head"><div><div class="eyebrow muted">Runtime Table</div><h3 class="table-title">${escapeHtml(title)}</h3>${subtitle ? `<p class="card-subtitle">${escapeHtml(subtitle)}</p>` : ''}</div></div><div class="table-wrapper">${tableHtml}</div></article>`;
+}
+
+function keyValue(rows) {
+  return `<div class="key-value">${rows.map(([key, value]) => `<div class="key-value-row"><span class="muted">${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div>`;
+}
+
+function metricCard(label, value, tone = 'default', caption = '') {
+  return `<article class="card metric-card metric-card-${escapeHtml(String(tone))}"><span class="metric-label">${escapeHtml(label)}</span><span class="metric-value">${escapeHtml(String(value))}</span>${caption ? `<span class="metric-caption">${escapeHtml(caption)}</span>` : ''}</article>`;
+}
+
+function emptyState(message) {
+  return `<div class="empty-state">${escapeHtml(message)}</div>`;
+}
+
+function statusBadge(value) {
+  const css = `status-badge status-${String(value).replace(/[^a-z0-9_]+/gi, '_').toLowerCase()}`;
+  return `<span class="${css}">${escapeHtml(String(value))}</span>`;
+}
+
+function extractRoleTransition(row) {
+  const transition = row.role_transition || row.transition || row.metadata?.transition || {};
+  return {
+    previous_role: row.previous_role ?? transition.previous_role ?? null,
+    new_role: row.new_role ?? transition.new_role ?? row.active_role ?? null,
+    requested_role: row.requested_role ?? transition.requested_role ?? null,
+    activation_source: row.activation_source ?? transition.activation_source ?? null,
+    switch_reason: row.switch_reason ?? transition.switch_reason ?? null,
+    business_domain: row.business_domain ?? transition.business_domain ?? null,
+  };
+}
+
+function extractHierarchyEscalation(row) {
+  const escalation = row.hierarchy_escalation || row.metadata?.hierarchy_escalation || row.role_hierarchy_escalation || {};
+  return {
+    escalated_to: row.escalated_to ?? escalation.escalated_to ?? null,
+    rule_id: escalation.rule_id ?? null,
+    reason: escalation.reason ?? null,
+  };
+}
+
+function renderRoleFlowCell(row) {
+  const transition = extractRoleTransition(row);
+  const previousRole = transition.previous_role;
+  const newRole = transition.new_role || row.active_role || '-';
+  const requestedRole = transition.requested_role || row.requested_role || '-';
+  const changed = previousRole && previousRole !== newRole;
+  const requestChip = requestedRole && requestedRole !== '-' ? `<span class="status-chip">Requested ${escapeHtml(requestedRole)}</span>` : '';
+  const flow = changed
+    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(previousRole)}</span><span class="transition-arrow">?</span><span class="transition-node transition-node-active">${escapeHtml(newRole)}</span></div>`
+    : `<div class="transition-route"><span class="transition-node transition-node-active">${escapeHtml(newRole)}</span></div>`;
+  const meta = transition.switch_reason || transition.business_domain || row.reason || '-';
+  return `<div class="transition-stack">${flow}<div class="transition-chip-row">${requestChip}${changed ? statusBadge('switched') : statusBadge('steady')}</div><div class="transition-meta">${escapeHtml(meta)}</div></div>`;
+}
+
+function renderActivationCell(row) {
+  const transition = extractRoleTransition(row);
+  const escalation = extractHierarchyEscalation(row);
+  const chips = [
+    statusBadge(transition.activation_source || 'direct'),
+    escalation.escalated_to ? statusBadge(`to ${escalation.escalated_to}`) : '',
+  ].filter(Boolean).join('');
+  const lines = [
+    ['Activation', transition.activation_source || '-'],
+    ['Escalated to', escalation.escalated_to || '-'],
+    ['Rule', escalation.rule_id || '-'],
+  ];
+  const detail = transition.switch_reason || escalation.reason || row.reason || '-';
+  return `<div class="transition-panel"><div class="transition-chip-row">${chips}</div>${keyValue(lines)}<div class="transition-meta">${escapeHtml(detail)}</div></div>`;
+}
+
+function renderRoleHierarchyLane(role) {
+  const chips = [
+    role.stratum ? statusBadge(role.stratum) : '',
+    role.business_domain ? statusBadge(role.business_domain) : '',
+    role.safety_owner ? statusBadge(`safety ${role.safety_owner}`) : '',
+  ].filter(Boolean).join('');
+  const route = role.reports_to
+    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(role.role_id)}</span><span class="transition-arrow">?</span><span class="transition-node">${escapeHtml(role.reports_to)}</span><span class="transition-arrow">?</span><span class="transition-node transition-node-active">${escapeHtml(role.escalation_to || role.reports_to)}</span></div>`
+    : `<div class="transition-route"><span class="transition-node transition-node-active">${escapeHtml(role.role_id)}</span></div>`;
+  return `<section class="transition-panel role-hierarchy-panel"><div class="transition-chip-row">${chips}</div>${route}<div class="transition-meta">Reports to ${escapeHtml(role.reports_to || '-')} | Escalates to ${escapeHtml(role.escalation_to || '-')} | Safety owner ${escapeHtml(role.safety_owner || '-')}</div></section>`;
+}
+
+function selectField(id) {
+  return `<select id="${id}"><option value="low">low</option><option value="medium" selected>medium</option><option value="high">high</option><option value="critical">critical</option></select>`;
+}
+
+function currentOwnerRegistration() {
+  return state.snapshot?.owner_registration || state.snapshot?.runtime_health?.owner_registration || {};
+}
+
+function isOwnerSession() {
+  return state.session?.role_name === 'owner';
+}
+
+function buildOwnerRegistrationPayload(documentRef) {
+  return {
+    registration_code: documentRef.getElementById('owner-registration-registration-code')?.value.trim() || '',
+    deployment_mode: documentRef.getElementById('owner-registration-deployment-mode')?.value.trim() || 'private',
+  };
+}
+
+function studioExecutiveOwnerId() {
+  return state.snapshot?.owner_registration?.executive_owner_id || state.snapshot?.runtime_health?.owner_registration?.executive_owner_id || 'EXEC_OWNER';
+}
+
+function studioPayloadFromForm() {
+  return {
+    role_name: valueOf('studio-role-name'),
+    purpose: valueOf('studio-purpose'),
+    reporting_line: valueOf('studio-reporting-line') || 'GOV',
+    business_domain: valueOf('studio-business-domain'),
+    operating_mode: valueOf('studio-operating-mode') || 'direct',
+    assigned_user_id: valueOf('studio-assigned-user-id'),
+    executive_owner_id: valueOf('studio-executive-owner-id') || studioExecutiveOwnerId(),
+    seat_id: valueOf('studio-seat-id'),
+    responsibilities: parseListField('studio-responsibilities'),
+    allowed_actions: parseListField('studio-allowed-actions'),
+    forbidden_actions: parseListField('studio-forbidden-actions'),
+    wait_human_actions: parseListField('studio-wait-human-actions'),
+    handled_resources: parseListField('studio-handled-resources'),
+    financial_sensitivity: valueOf('studio-financial-sensitivity') || 'medium',
+    legal_sensitivity: valueOf('studio-legal-sensitivity') || 'medium',
+    compliance_sensitivity: valueOf('studio-compliance-sensitivity') || 'medium',
+    sample_scenarios: parseListField('studio-sample-scenarios'),
+    operator_notes: valueOf('studio-operator-notes'),
+  };
+}
+
+function clearStudioEditor() {
+  state.studioEditingRequestId = null;
+  state.studioEditorDraft = null;
+  fillStudioForm({
+    role_name: '',
+    purpose: '',
+    reporting_line: 'GOV',
+    business_domain: '',
+    operating_mode: 'direct',
+    assigned_user_id: '',
+    executive_owner_id: studioExecutiveOwnerId(),
+    seat_id: '',
+    responsibilities: [],
+    allowed_actions: [],
+    forbidden_actions: [],
+    wait_human_actions: [],
+    handled_resources: [],
+    financial_sensitivity: 'medium',
+    legal_sensitivity: 'medium',
+    compliance_sensitivity: 'medium',
+    sample_scenarios: [],
+    operator_notes: '',
+  });
+}
+
+function fillStudioForm(jd) {
+  setFieldValue('studio-role-name', jd.role_name || '');
+  setFieldValue('studio-purpose', jd.purpose || '');
+  setFieldValue('studio-reporting-line', jd.reporting_line || 'GOV');
+  setFieldValue('studio-business-domain', jd.business_domain || '');
+  setSelectValue('studio-operating-mode', jd.operating_mode || 'direct');
+  setFieldValue('studio-assigned-user-id', jd.assigned_user_id || '');
+  setFieldValue('studio-executive-owner-id', jd.executive_owner_id || studioExecutiveOwnerId());
+  setFieldValue('studio-seat-id', jd.seat_id || '');
+  setFieldValue('studio-responsibilities', (jd.responsibilities || []).join('\n'));
+  setFieldValue('studio-allowed-actions', (jd.allowed_actions || []).join('\n'));
+  setFieldValue('studio-forbidden-actions', (jd.forbidden_actions || []).join('\n'));
+  setFieldValue('studio-wait-human-actions', (jd.wait_human_actions || []).join('\n'));
+  setFieldValue('studio-handled-resources', (jd.handled_resources || []).join('\n'));
+  setFieldValue('studio-sample-scenarios', (jd.sample_scenarios || []).join('\n'));
+  setFieldValue('studio-operator-notes', jd.operator_notes || '');
+  setSelectValue('studio-financial-sensitivity', jd.financial_sensitivity || 'medium');
+  setSelectValue('studio-legal-sensitivity', jd.legal_sensitivity || 'medium');
+  setSelectValue('studio-compliance-sensitivity', jd.compliance_sensitivity || 'medium');
+}
+function setFieldValue(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.value = value;
+}
+
+function setSelectValue(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.value = value;
+}
+
+function parseJsonField(id) {
+  const raw = document.getElementById(id).value.trim();
+  return raw ? JSON.parse(raw) : {};
+}
+
+function parseListField(id) {
+  return document.getElementById(id).value.split(/\n|,/).map((item) => item.trim()).filter(Boolean);
+}
+
+function valueOf(id) {
+  return document.getElementById(id).value.trim();
+}
+
+function can(permission) {
+  return Boolean(state.session && Array.isArray(state.session.permissions) && (state.session.permissions.includes('*') || state.session.permissions.includes(permission)));
+}
+
+function shortTime(value) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function focusStudioGovernancePanel() {
+  window.requestAnimationFrame(() => {
+    const anchor = document.getElementById('studio-governance-panel-anchor');
+    if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const note = document.getElementById('studio-governance-note');
+    if (note) note.focus({ preventScroll: true });
+  });
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString([], { dateStyle: 'full', timeStyle: 'medium' });
+}
+
+function titleCase(value) {
+  return String(value).replace(/_/g, ' ').split(' ').filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+}
+
+function formatHumanAskModeLabel(value) {
+  const mode = String(value || 'report');
+  if (mode === 'report') return 'Report';
+  return titleCase(mode);
+}
+
+function escapeHtml(value) {
+  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+}
+
+
