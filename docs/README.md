@@ -30,6 +30,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Planning And Release Notes
 
+- [Release Notes v0.1.3](releases/RELEASE_NOTES_v0.1.3.md)
 - [Release Notes v0.1.2](releases/RELEASE_NOTES_v0.1.2.md)
 - [Roadmap v0.1.1](ROADMAP_v0.1.1.md)
 - [Backlog Seeds](BACKLOG_SEEDS.md)
@@ -41,3 +42,5 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
+
+
