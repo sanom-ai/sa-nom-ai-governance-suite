@@ -246,7 +246,7 @@ def _inspect_owner_registration(config: AppConfig) -> list[DeploymentCheck]:
             _check(
                 'OWNER_REGISTRATION_MISSING',
                 'error' if is_production else 'warning',
-                'Owner registration is missing. Run register_owner.py before enterprise use so the organization and executive owner are defined.',
+                'Owner registration is missing. Run scripts/register_owner.py before enterprise use so the organization and executive owner are defined.',
             )
         )
         return checks

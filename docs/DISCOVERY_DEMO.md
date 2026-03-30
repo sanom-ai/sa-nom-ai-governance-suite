@@ -16,15 +16,15 @@ Prepare:
 - owner registration in `_runtime/owner_registration.json`
 - delegated access profiles in `_runtime/access_profiles.json`
 - one configured provider lane, preferably Ollama for the default private demo story
-- a passing provider report from `python provider_demo_flow.py --provider <provider-id> --probe`
-- a passing runtime smoke result from `python private_server_smoke_test.py`
+- a passing provider report from `python scripts/provider_demo_flow.py --provider <provider-id> --probe`
+- a passing runtime smoke result from `python scripts/private_server_smoke_test.py`
 
 ## Suggested 10-Minute Flow
 
 ### 1. Show deployment posture
 
 Run:
-- `python dashboard_server.py --check-only`
+- `python scripts/dashboard_server.py --check-only`
 
 Explain:
 - SA-NOM does not treat production posture as implicit
@@ -33,7 +33,7 @@ Explain:
 ### 2. Show provider readiness
 
 Run:
-- `python provider_demo_flow.py --provider <provider-id> --probe`
+- `python scripts/provider_demo_flow.py --provider <provider-id> --probe`
 
 Explain:
 - which provider lane is active
@@ -44,7 +44,7 @@ Explain:
 ### 3. Show end-to-end runtime validation
 
 Run:
-- `python private_server_smoke_test.py`
+- `python scripts/private_server_smoke_test.py`
 
 Explain:
 - the runtime path covers login, dashboard, health, evidence, integrations, and provider surfaces
@@ -52,7 +52,7 @@ Explain:
 ### 4. Show the dashboard or API
 
 Run:
-- `python run_private_server.py --host 127.0.0.1 --port 8080`
+- `python scripts/run_private_server.py --host 127.0.0.1 --port 8080`
 
 Explain:
 - the runtime is self-managed
@@ -71,9 +71,9 @@ Explain:
 
 ## Recommended Demo Commands
 
-- `python provider_demo_flow.py --provider ollama --probe`
-- `python provider_demo_flow.py --provider openai --probe`
-- `python provider_demo_flow.py --provider anthropic --probe`
+- `python scripts/provider_demo_flow.py --provider ollama --probe`
+- `python scripts/provider_demo_flow.py --provider openai --probe`
+- `python scripts/provider_demo_flow.py --provider anthropic --probe`
 
 ## After The Demo
 

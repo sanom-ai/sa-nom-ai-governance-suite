@@ -28,7 +28,7 @@ This release establishes SA-NOM AI Governance Suite as its first public open-sou
 
 Commercial offerings remain separate from the AGPL community baseline and may include enterprise-only features, direct support, rollout hardening, compliance tailoring, air-gapped delivery, and custom integrations.
 
-See [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) for the current commercial positioning.
+See [../COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md) for the current commercial positioning.
 
 ## Upgrade Notes
 

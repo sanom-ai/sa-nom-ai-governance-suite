@@ -211,10 +211,16 @@ class RolePrivateStudioService:
         self.validator = RolePrivateStudioValidator()
         self.simulator = RolePrivateStudioSimulator(config.trusted_registry_signing_key or 'role-private-studio-sim-key')
         bundled_dir = Path(__file__).resolve().parents[2]
-        foundation_path = config.base_dir / 'pt_oss_foundation.json'
-        self.pt_oss_engine = PTOSSEngine(foundation_path if foundation_path.exists() else bundled_dir / 'pt_oss_foundation.json')
-        self.template_path = config.base_dir / 'role_private_studio_templates.json'
-        self.examples_path = config.base_dir / 'role_private_studio_examples.json'
+        foundation_path = config.pt_oss_foundation_path or (config.base_dir / 'resources' / 'pt_oss' / 'pt_oss_foundation.json')
+        legacy_foundation_path = config.base_dir / 'pt_oss_foundation.json'
+        effective_foundation_path = foundation_path if foundation_path.exists() else legacy_foundation_path
+        self.pt_oss_engine = PTOSSEngine(effective_foundation_path if effective_foundation_path.exists() else bundled_dir / 'resources' / 'pt_oss' / 'pt_oss_foundation.json')
+        self.template_path = config.role_private_studio_template_path or (config.base_dir / 'resources' / 'studio' / 'role_private_studio_templates.json')
+        self.examples_path = config.role_private_studio_examples_path or (config.base_dir / 'resources' / 'studio' / 'role_private_studio_examples.json')
+        if not self.template_path.exists():
+            self.template_path = config.base_dir / 'role_private_studio_templates.json'
+        if not self.examples_path.exists():
+            self.examples_path = config.base_dir / 'role_private_studio_examples.json'
 
     def studio_snapshot(self, limit: int = 50) -> dict[str, object]:
         requests = [item.to_dict(compact=True) for item in self.store.list_requests()[:limit]]

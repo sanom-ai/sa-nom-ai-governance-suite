@@ -231,8 +231,8 @@ class ModelProviderRegistry:
             'required_env_vars': list(guidance['required_env_vars']),
             'optional_env_vars': list(guidance['optional_env_vars']),
             'missing_env_vars': self._provider_missing_env_vars(provider.provider_id),
-            'smoke_test_command': f'python provider_smoke_test.py --provider {provider.provider_id}',
-            'demo_flow_command': f'python provider_demo_flow.py --provider {provider.provider_id} --probe',
+            'smoke_test_command': f'python scripts/provider_smoke_test.py --provider {provider.provider_id}',
+            'demo_flow_command': f'python scripts/provider_demo_flow.py --provider {provider.provider_id} --probe',
         }
 
     def _provider_missing_env_vars(self, provider_id: str) -> list[str]:
@@ -286,7 +286,7 @@ class ModelProviderRegistry:
             else:
                 actions.append('Start with examples/.env.ollama.example for the default private demo lane, or choose a hosted evaluation lane only if you need one.')
                 actions.append('Set SANOM_MODEL_PROVIDER_DEFAULT=ollama for the default private demo lane.')
-                actions.append('Run `python provider_demo_flow.py --provider <provider-id> --probe` after configuration.')
+                actions.append('Run `python scripts/provider_demo_flow.py --provider <provider-id> --probe` after configuration.')
             return actions
 
         if not default_provider and recommended_provider:
@@ -295,7 +295,7 @@ class ModelProviderRegistry:
         if selected is not None:
             if selected['configured']:
                 actions.append(f"Run `{selected['smoke_test_command']}` to confirm provider reachability.")
-                actions.append('Run `python private_server_smoke_test.py` to validate the end-to-end runtime path.')
+                actions.append('Run `python scripts/private_server_smoke_test.py` to validate the end-to-end runtime path.')
                 actions.append('Archive the provider probe result with the release or demo record.')
             else:
                 actions.append(f"Complete the missing variables for {selected['provider_id']}: {', '.join(selected['missing_env_vars'])}.")
@@ -304,8 +304,8 @@ class ModelProviderRegistry:
 
         if recommended_provider:
             actions.append(f'Use `{recommended_provider}` as the first demo lane because it is already configured.')
-            actions.append(f'Run `python provider_demo_flow.py --provider {recommended_provider} --probe` for a customer-facing readiness check.')
-            actions.append('Run `python private_server_smoke_test.py` after the provider probe passes.')
+            actions.append(f'Run `python scripts/provider_demo_flow.py --provider {recommended_provider} --probe` for a customer-facing readiness check.')
+            actions.append('Run `python scripts/private_server_smoke_test.py` after the provider probe passes.')
         else:
             actions.append('Review the partially configured provider entries and finish the missing environment variables before demoing the runtime.')
         return actions

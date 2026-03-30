@@ -16,6 +16,10 @@ class AppConfig:
     app_name: str = "SA-NOM AI Governance Suite"
     environment: str = field(default_factory=lambda: os.getenv("SANOM_ENV", "development"))
     base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parents[2])
+    resources_dir: Path = field(init=False)
+    config_resources_dir: Path = field(init=False)
+    pt_oss_resources_dir: Path = field(init=False)
+    studio_resources_dir: Path = field(init=False)
     persist_runtime: bool = True
     api_token: str | None = field(default_factory=lambda: os.getenv("SANOM_API_TOKEN"))
     server_host: str = field(default_factory=lambda: os.getenv("SANOM_SERVER_HOST", "127.0.0.1"))
@@ -66,6 +70,9 @@ class AppConfig:
     support_dir: Path = field(init=False)
     review_dir: Path = field(init=False)
     owner_registration_path: Path | None = field(init=False, default=None)
+    pt_oss_foundation_path: Path | None = field(init=False, default=None)
+    role_private_studio_template_path: Path | None = field(init=False, default=None)
+    role_private_studio_examples_path: Path | None = field(init=False, default=None)
     access_profiles_path: Path | None = field(init=False, default=None)
     trusted_registry_manifest_path: Path | None = field(init=False, default=None)
     trusted_registry_cache_path: Path | None = field(init=False, default=None)
@@ -93,21 +100,33 @@ class AppConfig:
     _owner_registration_loaded: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
-        self.roles_dir = self.base_dir
-        self.dictionaries_dir = self.base_dir
+        self.resources_dir = self.base_dir / "resources"
+        self.config_resources_dir = self.resources_dir / "config"
+        self.pt_oss_resources_dir = self.resources_dir / "pt_oss"
+        self.studio_resources_dir = self.resources_dir / "studio"
+        self.roles_dir = self.resources_dir / "roles"
+        self.dictionaries_dir = self.roles_dir
         self.runtime_dir = self.base_dir / "_runtime"
         self.support_dir = self.base_dir / "_support"
         self.review_dir = self.base_dir / "_review"
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+        self.config_resources_dir.mkdir(parents=True, exist_ok=True)
+        self.pt_oss_resources_dir.mkdir(parents=True, exist_ok=True)
+        self.studio_resources_dir.mkdir(parents=True, exist_ok=True)
+        self.roles_dir.mkdir(parents=True, exist_ok=True)
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.support_dir.mkdir(parents=True, exist_ok=True)
         self.review_dir.mkdir(parents=True, exist_ok=True)
         self.owner_registration_path = self.runtime_dir / "owner_registration.json"
         self.access_profiles_path = self.runtime_dir / "access_profiles.json"
-        self.trusted_registry_manifest_path = self.base_dir / "trusted_registry_manifest.json"
+        self.pt_oss_foundation_path = self.pt_oss_resources_dir / "pt_oss_foundation.json"
+        self.role_private_studio_template_path = self.studio_resources_dir / "role_private_studio_templates.json"
+        self.role_private_studio_examples_path = self.studio_resources_dir / "role_private_studio_examples.json"
+        self.trusted_registry_manifest_path = self.config_resources_dir / "trusted_registry_manifest.json"
         self.trusted_registry_cache_path = self.runtime_dir / "trusted_registry_cache.json"
-        self.role_transition_matrix_path = self.base_dir / "role_transition_matrix.json"
-        self.compliance_frameworks_path = self.base_dir / "compliance_frameworks.json"
-        self.integration_targets_path = self.base_dir / "integration_targets.json"
+        self.role_transition_matrix_path = self.config_resources_dir / "role_transition_matrix.json"
+        self.compliance_frameworks_path = self.config_resources_dir / "compliance_frameworks.json"
+        self.integration_targets_path = self.config_resources_dir / "integration_targets.json"
         self.legal_hold_path = self.runtime_dir / "runtime_legal_holds.json"
 
         archive_dir = os.getenv("SANOM_RETENTION_ARCHIVE_DIR")

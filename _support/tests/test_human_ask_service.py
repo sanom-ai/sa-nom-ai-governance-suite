@@ -68,8 +68,10 @@ def workspace_temp_dir():
 
 def build_service(temp_path: Path) -> HumanAskService:
     source_base = Path(__file__).resolve().parents[2]
-    (temp_path / "pt_oss_foundation.json").write_text(
-        (source_base / "pt_oss_foundation.json").read_text(encoding="utf-8"),
+    foundation_dir = temp_path / "resources" / "pt_oss"
+    foundation_dir.mkdir(parents=True, exist_ok=True)
+    (foundation_dir / "pt_oss_foundation.json").write_text(
+        (source_base / "resources" / "pt_oss" / "pt_oss_foundation.json").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     audit_logger = FakeAuditLogger()

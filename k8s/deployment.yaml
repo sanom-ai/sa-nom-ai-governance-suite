@@ -19,7 +19,7 @@ spec:
         - name: sanom-ai-governance-suite
           image: ghcr.io/sanom-ai/sa-nom-ai-governance-suite:v0.1.0
           imagePullPolicy: IfNotPresent
-          command: ["python", "run_private_server.py", "--host", "0.0.0.0", "--port", "8080"]
+          command: ["python", "../scripts/run_private_server.py", "--host", "0.0.0.0", "--port", "8080"]
           securityContext:
             runAsNonRoot: true
             runAsUser: 10001
@@ -44,7 +44,7 @@ spec:
             periodSeconds: 20
           readinessProbe:
             exec:
-              command: ["python", "dashboard_server.py", "--check-only"]
+              command: ["python", "../scripts/dashboard_server.py", "--check-only"]
             initialDelaySeconds: 10
             periodSeconds: 20
       volumes:

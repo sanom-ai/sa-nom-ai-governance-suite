@@ -56,7 +56,7 @@
     volumes:
       - sanom_runtime:/app/_runtime
     healthcheck:
-      test: ["CMD", "python", "dashboard_server.py", "--check-only"]
+      test: ["CMD", "python", "scripts/dashboard_server.py", "--check-only"]
       interval: 30s
       timeout: 10s
       retries: 5

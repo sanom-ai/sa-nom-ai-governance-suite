@@ -22,7 +22,7 @@ By the end you should have:
 
 Run:
 
-- `python register_owner.py --registration-code DEMO-ORG`
+- `python scripts/register_owner.py --registration-code DEMO-ORG`
 
 Expected result:
 - `_runtime/owner_registration.json` is created
@@ -35,7 +35,7 @@ Reference example:
 
 Run:
 
-- `python bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json`
+- `python scripts/bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json`
 
 Expected result:
 - `_runtime/access_profiles.json` contains hashed profile entries
@@ -48,7 +48,7 @@ Reference example:
 
 Run:
 
-- `python trusted_registry_refresh.py`
+- `python scripts/trusted_registry_refresh.py`
 
 Expected result:
 - trusted registry manifest and cache are regenerated from the current PTAG role packs
@@ -60,7 +60,7 @@ Reference example:
 
 Run:
 
-- `python dashboard_server.py --check-only`
+- `python scripts/dashboard_server.py --check-only`
 
 Expected result:
 - a JSON deployment-readiness report with `ready: true`
@@ -71,7 +71,7 @@ If this step fails, go directly to [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 Run:
 
-- `python provider_smoke_test.py`
+- `python scripts/provider_smoke_test.py`
 
 Expected results:
 - `status: disabled` if no provider has been configured yet
@@ -88,7 +88,7 @@ Optional hosted evaluation lanes:
 
 Run:
 
-- `python private_server_smoke_test.py`
+- `python scripts/private_server_smoke_test.py`
 
 Expected result:
 - the runtime path passes end-to-end
@@ -98,18 +98,18 @@ Expected result:
 
 Run:
 
-- `python run_private_server.py --host 127.0.0.1 --port 8080`
+- `python scripts/run_private_server.py --host 127.0.0.1 --port 8080`
 
 At this point the community baseline is operational for local evaluation.
 
 ## Success Checklist
 
 You are in a good evaluation state if all of the following are true:
-- `register_owner.py` created the owner registration file
-- `bootstrap_access_profiles.py` created hashed profiles successfully
-- `dashboard_server.py --check-only` reports `ready: true`
-- `provider_smoke_test.py` is either configured successfully or clearly reports `disabled` when you have not enabled a provider yet
-- `private_server_smoke_test.py` passes
+- `scripts/register_owner.py` created the owner registration file
+- `scripts/bootstrap_access_profiles.py` created hashed profiles successfully
+- `scripts/dashboard_server.py --check-only` reports `ready: true`
+- `scripts/provider_smoke_test.py` is either configured successfully or clearly reports `disabled` when you have not enabled a provider yet
+- `scripts/private_server_smoke_test.py` passes
 
 ## Next Steps
 

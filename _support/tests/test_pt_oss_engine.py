@@ -5,7 +5,7 @@ from sa_nom_governance.studio.role_private_studio_models import NormalizedRoleSp
 
 
 def test_pt_oss_engine_assesses_role_draft() -> None:
-    engine = PTOSSEngine(Path(__file__).resolve().parents[2] / "pt_oss_foundation.json")
+    engine = PTOSSEngine(Path(__file__).resolve().parents[2] / "resources" / "pt_oss" / "pt_oss_foundation.json")
     structured_jd = StructuredJD(
         role_name="Safety Analyst",
         purpose="Review safety-sensitive operational changes.",

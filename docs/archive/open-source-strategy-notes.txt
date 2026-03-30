@@ -1,0 +1,51 @@
+อยาก เปิด Open Source SA-NOM AI Governance Suite (ทั้ง codebase ที่มี PTAG, Role Private Studio, PT-OSS, Human Ask ฯลฯ)
+ผมจะบอก วิธีทำแบบเป็นขั้นตอนชัดเจน (ทำตามได้เลย ไม่ซับซ้อน)
+1. ตัดสินใจก่อนเปิด (สำคัญมาก)
+ก่อนกด “เปิด repo” ให้ตอบตัวเอง 3 คำถามนี้:
+คำถาม	ตัวเลือกแนะนำสำหรับ SA-NOM	เหตุผล
+เปิดทั้งหมด หรือ Open Core?	Open Core (แนะนำ)	เปิดโค้ดหลัก (PTAG Parser, Core Engine, Role Studio, Audit Chain) แต่เก็บฟีเจอร์พรีเมียม (PT-OSS_FULL_CAL_TH, Trusted Registry Enterprise, SSO/SCIM, Private API Option 2) ไว้ขาย
+License อะไร?	AGPL-3.0 หรือ Apache 2.0 + Commons Clause	AGPL ป้องกันคนเอาไปทำ SaaS ขายแข่งได้ดี
+ยังขายต่อได้ไหม?	ใช่ (Dual License)	เปิดฟรีสำหรับใช้ส่วนตัว/ชุมชน แต่ขาย Enterprise License + Support + CAL-TH
+คำแนะนำจากผม: ใช้ Open Core + AGPL-3.0 จะดีที่สุด เพราะยังขาย Enterprise/Sovereign ได้เหมือนเดิม
+2. ขั้นตอนปฏิบัติ (ทำตามลำดับ)
+ขั้นที่ 1: เตรียมโค้ด (1-2 วัน)
+•	ลบไฟล์ที่มีความลับ: .env.production.example, API keys, credential ใด ๆ
+•	ลบคอมเมนต์ที่เป็นความลับหรือแผนการขาย
+•	แยกโฟลเดอร์ชัดเจน:
+o	/open-source/ → โค้ดที่เปิด (core_engine.py, ptag_parser.py, role_private_studio_generator.py ฯลฯ)
+o	/enterprise/ → โค้ดที่เก็บไว้ขาย (PT-OSS_FULL_CAL_TH, Private API, SSO)
+•	อัพเดททุกไฟล์ให้มี license header (AGPL-3.0)
+ขั้นที่ 2: สร้าง GitHub Repository
+1.	สร้าง repo ใหม่ชื่อ sa-nom-ai-governance (หรือ sanom)
+2.	ใส่ไฟล์สำคัญ:
+o	LICENSE (AGPL-3.0)
+o	README.md (อัพเดทใหม่ให้สวย + มี Demo + Installation)
+o	PRIVATE_SERVER_../DEPLOYMENT.md (เปลี่ยนชื่อเป็น ../DEPLOYMENT.md)
+o	CONTRIBUTING.md
+o	CODE_OF_CONDUCT.md
+o	docker-compose.yml (เวอร์ชัน open)
+o	requirements.txt / pyproject.toml
+ขั้นที่ 3: เขียน README ให้ปัง ตัวอย่างหัวข้อที่ต้องมี:
+•	What is SA-NOM?
+•	Why Open Source?
+•	Quick Start (Docker)
+•	Feature Matrix (ฟรี vs Enterprise)
+•	Roadmap
+•	How to contribute
+•	Commercial License & Support (ใส่ลิงก์ไปที่เว็บขาย)
+ขั้นที่ 4: เปิดตัวอย่างเป็นทางการ
+•	ทำ Release v1.0.0 บน GitHub
+•	เขียน Announcement บน X / LinkedIn / Facebook Group (ไทย + English)
+•	เปิด Discord / Line OA สำหรับ community
+ขั้นที่ 5: รักษาการขาย Enterprise
+•	ใส่ใน README ชัดเจน:
+"SA-NOM is Open Source under AGPL-3.0 สำหรับองค์กรที่ต้องการ Enterprise features (PT-OSS CAL-TH, Private API, Dedicated Support, Custom SLA) กรุณาติดต่อ sanomaiarch@gmail.com"
+3. ราคาและธุรกิจหลังเปิด Open Source
+•	Community / Startup → ใช้ฟรีได้เลย
+•	SME → ขาย Starter + Option 2 (Private API)
+•	Enterprise / Gov → ขายเหมือนเดิม (5M+)
+ผลดีที่จะได้:
+•	คนไทยและ dev ทั่วโลกช่วยพัฒนา PTAG Parser
+•	ได้ Case Study ฟรีจาก community
+•	ภาพลักษณ์ “โปร่งใส” ดีมากสำหรับหน่วยงานรัฐ
+

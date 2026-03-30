@@ -21,24 +21,24 @@ Use them as templates and replace every placeholder before a real deployment.
 ## Suggested Evaluation Order
 
 1. Register an owner:
-   - `python register_owner.py --registration-code DEMO-ORG`
+   - `python scripts/register_owner.py --registration-code DEMO-ORG`
 2. Generate delegated access:
-   - `python bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json`
+   - `python scripts/bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json`
 3. Refresh the trusted registry:
-   - `python trusted_registry_refresh.py`
+   - `python scripts/trusted_registry_refresh.py`
 4. Validate startup:
-   - `python dashboard_server.py --check-only`
+   - `python scripts/dashboard_server.py --check-only`
 5. Probe providers:
-   - `python provider_smoke_test.py`
+   - `python scripts/provider_smoke_test.py`
 6. Run the end-to-end smoke test:
-   - `python private_server_smoke_test.py`
+   - `python scripts/private_server_smoke_test.py`
 
-Use [GUIDED_EVALUATION.md](../GUIDED_EVALUATION.md) for the full first-run path and [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) if any validation step fails.
+Use [../docs/GUIDED_EVALUATION.md](../../docs/GUIDED_EVALUATION.md) for the full first-run path and [../docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md) if any validation step fails.
 
 ## Provider Demo Commands
 
-- `python provider_demo_flow.py --provider openai --probe`: build a demo artifact for an OpenAI lane.
-- `python provider_demo_flow.py --provider anthropic --probe`: build a demo artifact for a Claude lane.
-- `python provider_demo_flow.py --provider ollama --probe`: build a demo artifact for a local Ollama lane.
+- `python scripts/provider_demo_flow.py --provider openai --probe`: build a demo artifact for an OpenAI lane.
+- `python scripts/provider_demo_flow.py --provider anthropic --probe`: build a demo artifact for a Claude lane.
+- `python scripts/provider_demo_flow.py --provider ollama --probe`: build a demo artifact for a local Ollama lane.
 
-See [PROVIDER_SETUP.md](../PROVIDER_SETUP.md) for provider configuration details and [DISCOVERY_DEMO.md](../DISCOVERY_DEMO.md) for a short customer-demo flow.
+See [../docs/PROVIDER_SETUP.md](../../docs/PROVIDER_SETUP.md) for provider configuration details and [../docs/DISCOVERY_DEMO.md](../../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.

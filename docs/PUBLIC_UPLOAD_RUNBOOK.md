@@ -7,7 +7,7 @@ Use this runbook right before pushing the repository to a public Git host.
 PowerShell:
 
 ```powershell
-C:\Python314\python.exe public_release_preflight.py
+C:\Python314\python.exe scripts/public_release_preflight.py
 ```
 
 Interpretation:
@@ -81,7 +81,7 @@ git push origin v0.1.0
 ## 8. Publish Release Metadata
 
 After push:
-- use `RELEASE_NOTES_v0.1.0.md` as the first release description
+- use `releases/RELEASE_NOTES_v0.1.0.md` as the first release description
 - verify README rendering on the hosted repository
 - verify issue templates and PR template appear correctly
 - verify contact email and commercial links are visible

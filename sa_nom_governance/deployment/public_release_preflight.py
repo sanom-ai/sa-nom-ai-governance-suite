@@ -86,7 +86,7 @@ def main() -> int:
         )
     )
 
-    release_notes = ROOT / "RELEASE_NOTES_v0.1.0.md"
+    release_notes = ROOT / "../../docs/releases/RELEASE_NOTES_v0.1.0.md"
     checks.append(
         _check(
             "release_notes_present",

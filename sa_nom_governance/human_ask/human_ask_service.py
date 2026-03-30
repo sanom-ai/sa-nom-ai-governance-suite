@@ -78,8 +78,10 @@ class HumanAskService:
         self.audit_logger = audit_logger or engine.audit_logger
         self.store = HumanAskStore(config, config.human_ask_store_path)
         bundled_dir = Path(__file__).resolve().parents[2]
-        foundation_path = config.base_dir / "pt_oss_foundation.json"
-        self.pt_oss_engine = PTOSSEngine(foundation_path if foundation_path.exists() else bundled_dir / "pt_oss_foundation.json")
+        foundation_path = config.pt_oss_foundation_path or (config.base_dir / "resources" / "pt_oss" / "pt_oss_foundation.json")
+        legacy_foundation_path = config.base_dir / "pt_oss_foundation.json"
+        effective_foundation_path = foundation_path if foundation_path.exists() else legacy_foundation_path
+        self.pt_oss_engine = PTOSSEngine(effective_foundation_path if effective_foundation_path.exists() else bundled_dir / "resources" / "pt_oss" / "pt_oss_foundation.json")
         self.confidence_threshold = config.human_ask_confidence_threshold
 
     def human_ask_snapshot(self, limit: int = 50) -> dict[str, object]:

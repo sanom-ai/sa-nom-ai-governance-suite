@@ -30,7 +30,7 @@ helm upgrade --install sanom helm/sa-nom-ai-governance-suite   --namespace sanom
 ## Probes
 
 - Liveness probe: HTTP `GET /dashboard_index.html`
-- Readiness probe: `python dashboard_server.py --check-only`
+- Readiness probe: `python scripts/dashboard_server.py --check-only`
 
 ## Notes
 
