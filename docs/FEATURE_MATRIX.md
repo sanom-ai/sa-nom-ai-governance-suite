@@ -1,4 +1,4 @@
-﻿# Feature Matrix
+# Feature Matrix
 
 This matrix shows the current public boundary between the self-managed community baseline and the guided / commercial path for SA-NOM.
 
@@ -17,7 +17,7 @@ It is a product-positioning guide, not a binding commercial contract. Final comm
 | PTAG parsing and validation | Included in the public baseline. Role packs can be parsed, validated, and checked before deployment. | Tailored policy modeling support, assisted role design, and organization-specific PTAG authoring patterns. | Gives teams a structured way to define governed AI roles instead of relying on prompt-only behavior. |
 | Role Private Studio | Included in the public baseline with role-authoring workflows, history, and publication flow. | Assisted template design, publication workflow extensions, and guided operating models for enterprise teams. | Helps teams move from job descriptions and role intent into governed AI roles faster. |
 | Governed runtime execution | Included in the public baseline. The runtime enforces role behavior, policy boundaries, and evidence-oriented execution paths. | Rollout hardening, organization-specific runtime design, and deployment support for production programs. | This is the core of SA-NOM as an AI operations platform rather than a loose assistant layer. |
-| Human Ask | Included in the public baseline, including escalation-aware operator workflows. | Enterprise routing design, meeting-driven operating patterns, and program-specific enablement. | Keeps humans in the loop when AI needs review, confidence gating, or escalation. |
+| Human Ask | Included in the public baseline as human-initiated reporting and meeting workflows. Operators can call one or more AI roles to report status, summarize work, or answer scoped questions on demand. | Enterprise meeting patterns, role-based reporting design, and program-specific operating enablement. | Lets humans pull governed reports from AI roles without confusing reporting with escalation or approval paths. |
 | Authority Guard | Included in the public baseline. Allow, deny, and human-override checks are enforced inside runtime behavior. | Tailored authority modeling and operating-boundary design during rollout. | Prevents AI from drifting outside explicit organizational boundaries. |
 | Resource Lock | Included in the public baseline. Runtime coordination prevents conflicting access to the same resource path. | Rollout tuning for higher-volume or more complex operational environments. | Important when multiple requests or roles may touch the same governed asset or workflow. |
 | Human alert and escalation notification | Included in the public baseline through runtime alerts, dashboard visibility, and webhook-oriented notification paths. | Managed escalation directories, enterprise routing, and stakeholder-specific notification patterns. | Makes blocked or high-risk decisions visible before they become silent runtime failures. |
@@ -89,3 +89,4 @@ A prospect is usually a strong `guided / commercial` fit when:
 - [PRODUCT_TOUR.md](PRODUCT_TOUR.md)
 - [LIVE_CUSTOMER_WALKTHROUGH.md](LIVE_CUSTOMER_WALKTHROUGH.md)
 - [LIVE_CUSTOMER_WALKTHROUGH_TH.md](LIVE_CUSTOMER_WALKTHROUGH_TH.md)
+

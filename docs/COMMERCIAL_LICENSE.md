@@ -1,4 +1,4 @@
-﻿# Commercial License & Pricing
+# Commercial License & Pricing
 
 SA-NOM AI Governance Suite is open source under AGPL-3.0-only.
 The community baseline may be used at no cost for evaluation, development, testing, and self-managed small internal deployments.
@@ -19,9 +19,9 @@ All installations remain private-server deployments controlled by the customer o
 
 | Tier | Target | Price (THB / year) | In addition to Open Source | API Integration | Support | Best fit |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Community** | Startup, developer, small SME | **Free** | Full core baseline (PTAG, Role Private Studio, Human Ask, Audit Chain) | Option 1: Webhook only | Community support path | Evaluation / small use |
+| **Community** | Startup, developer, small SME | **Free** | Full core baseline (PTAG, Role Private Studio, Human Ask reporting/meeting layer, Audit Chain) | Option 1: Webhook only | Community support path | Evaluation / small use |
 | **Starter** | Mid-size SME | 180,000 - 350,000 | PT-OSS Lite, Trusted Registry, Resource Lock, Retention Manager | Option 1 or Option 2 (+15%) | Email + phone | First production rollout |
-| **Professional** | Mid-size company | 950,000 - 2,800,000 | PT-OSS Full, Human Ask Meeting, Go-Live Gate, CAL-TH | Option 1 or Option 2 (+15%) | Priority support + quarterly review | Most common production tier |
+| **Professional** | Mid-size company | 950,000 - 2,800,000 | PT-OSS Full, Human Ask reporting/meeting patterns, Go-Live Gate, CAL-TH | Option 1 or Option 2 (+15%) | Priority support + quarterly review | Most common production tier |
 | **Enterprise** | Large organization | 4,500,000 - 9,500,000+ | SSO/SCIM, custom integration, dedicated instance, full private API | Option 1 or Option 2 (+15%) | Dedicated account manager + SLA | Scale-up deployments |
 | **Sovereign / Gov** | Government and sovereign environments | Custom (starts around 6M - 28M+) | Air-gapped full stack, PT-OSS_FULL_CAL_TH, on-site training, custom compliance | Option 1 or Option 2 (+15%) | Dedicated + on-site | Government use |
 
@@ -60,5 +60,6 @@ Start locally with:
 - `docker compose up`
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the installation guide.
+
 
 

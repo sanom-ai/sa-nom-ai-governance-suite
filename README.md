@@ -6,7 +6,7 @@
 
 SA-NOM is a private AI operations platform for organizations that want AI in real roles, with governance built in.
 
-Instead of treating AI as a loose chatbot or an unsafe automation layer, SA-NOM lets teams define governed AI roles, route work through authority boundaries, keep human escalation paths, and retain evidence for every important decision.
+Instead of treating AI as a loose chatbot or an unsafe automation layer, SA-NOM lets teams define governed AI roles, route work through authority boundaries, let humans pull reports and meetings through Human Ask, keep escalation and override paths explicit, and retain evidence for every important decision.
 
 ## What SA-NOM Actually Does
 
@@ -90,7 +90,7 @@ The public repository currently includes:
 - governed runtime execution and decision flow
 - audit chain and evidence-oriented execution paths
 - Role Private Studio authoring flows
-- Human Ask escalation-aware workflows
+- Human Ask reporting and meeting workflows
 - deployment readiness and operational health checks
 - provider probes and demo-readiness flows for Ollama, OpenAI, and Claude
 - Docker, Helm, Kubernetes, and local private-server deployment paths
@@ -230,6 +230,7 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
 
 
 
