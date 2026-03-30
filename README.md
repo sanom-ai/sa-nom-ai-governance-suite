@@ -182,6 +182,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md): pricing, support tiers, and buying path
 - [docs/COMMERCIAL_DISCOVERY_CHECKLIST.md](docs/COMMERCIAL_DISCOVERY_CHECKLIST.md): qualification checklist for the first serious commercial conversation
 - [docs/DEMO_CHECKLIST.md](docs/DEMO_CHECKLIST.md): one-page checklist for running a live customer demo without losing the story
+- [docs/DEMO_CHECKLIST_TH.md](docs/DEMO_CHECKLIST_TH.md): one-page Thai demo checklist for live customer calls
 - [docs/ROI_ONE_PAGER.md](docs/ROI_ONE_PAGER.md): executive-facing business-value framing for pilots, rollouts, and budget conversations
 - [CONTRIBUTING.md](CONTRIBUTING.md): development workflow and contribution rules
 - [SECURITY.md](SECURITY.md): vulnerability disclosure policy
@@ -230,6 +231,7 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
 
 
 

@@ -178,3 +178,7 @@
 สำหรับ runbook เดโมสั้น ดู [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md)
 สำหรับเอกสาร setup ฝั่ง operator ดู [OLLAMA_DEMO_ENVIRONMENT.md](OLLAMA_DEMO_ENVIRONMENT.md)
 
+
+
+สำหรับเช็กลิสต์ 1 หน้า ดู [DEMO_CHECKLIST_TH.md](DEMO_CHECKLIST_TH.md)
+
