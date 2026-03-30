@@ -10,7 +10,7 @@ Thanks for helping improve SA-NOM AI Governance Suite.
 
 ## Development Setup
 
-1. Use Python 3.12 or newer.
+1. Use Python 3.14 or newer.
 2. Install development tooling:
    - `python -m pip install -r requirements-dev.txt`
 3. Run the test suite:

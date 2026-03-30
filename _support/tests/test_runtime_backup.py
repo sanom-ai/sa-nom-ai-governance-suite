@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from config import AppConfig
-from runtime_backup_manager import RuntimeBackupManager
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.deployment.runtime_backup_manager import RuntimeBackupManager
 
 
 def test_runtime_backup_copies_runtime_files_and_role_packs() -> None:

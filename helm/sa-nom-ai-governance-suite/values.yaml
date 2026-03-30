@@ -1,0 +1,81 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/sanom-ai/sa-nom-ai-governance-suite
+  tag: v0.1.0
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+persistence:
+  enabled: true
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+  storageClassName: ""
+
+resources: {}
+
+podSecurityContext:
+  fsGroup: 10001
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+
+env:
+  SANOM_ENV: production
+  SANOM_SERVER_HOST: 0.0.0.0
+  SANOM_SERVER_PORT: "8080"
+  SANOM_SERVER_PUBLIC_BASE_URL: https://sanom.example.internal
+  SANOM_STRICT_STARTUP_VALIDATION: "true"
+  SANOM_ACCESS_PROFILES_REQUIRE_HASHES: "true"
+  SANOM_SESSION_TTL_MINUTES: "720"
+  SANOM_SESSION_IDLE_TIMEOUT_MINUTES: "60"
+  SANOM_TRUSTED_REGISTRY_KEY_ID: SANOM_PROD_REGISTRY
+  SANOM_TRUSTED_REGISTRY_SIGNED_BY: EXEC_OWNER
+  SANOM_TRUSTED_REGISTRY_REQUIRE_SIGNATURE: "true"
+  SANOM_RETENTION_AUDIT_DAYS: "2555"
+  SANOM_RETENTION_OVERRIDE_DAYS: "2555"
+  SANOM_RETENTION_LOCK_DAYS: "30"
+  SANOM_RETENTION_CONSISTENCY_DAYS: "365"
+  SANOM_RETENTION_SESSION_DAYS: "90"
+  SANOM_RETENTION_ROLE_PRIVATE_STUDIO_DAYS: "2555"
+  SANOM_RETENTION_ARCHIVE_DIR: /app/_runtime/runtime_archive
+  SANOM_PERSISTENCE_BACKEND: file
+  SANOM_COORDINATION_BACKEND: file
+  SANOM_OUTBOUND_HTTP_INTEGRATIONS_ENABLED: "false"
+  SANOM_INTEGRATION_DELIVERY_TIMEOUT_SECONDS: "5"
+  SANOM_INTEGRATION_DEFAULT_MAX_ATTEMPTS: "3"
+  SANOM_INTEGRATION_RETRY_BACKOFF_MS: "250"
+  SANOM_MODEL_PROVIDER_DEFAULT: ""
+  SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS: "15"
+  SANOM_OPENAI_BASE_URL: https://api.openai.com/v1
+  SANOM_OPENAI_MODEL: ""
+  SANOM_ANTHROPIC_BASE_URL: https://api.anthropic.com
+  SANOM_ANTHROPIC_VERSION: 2023-06-01
+  SANOM_ANTHROPIC_MODEL: ""
+  SANOM_OLLAMA_BASE_URL: http://ollama:11434
+  SANOM_OLLAMA_MODEL: ""
+
+secretEnv:
+  SANOM_API_TOKEN: replace-with-secure-owner-token
+  SANOM_TRUSTED_REGISTRY_KEY: replace-with-secure-registry-key
+  SANOM_OPENAI_API_KEY: ""
+  SANOM_ANTHROPIC_API_KEY: ""
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: sanom.example.internal
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

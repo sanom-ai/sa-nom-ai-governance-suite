@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from integration_registry import IntegrationRegistry
+from sa_nom_governance.integrations.integration_registry import IntegrationRegistry
 
 
 def test_integration_registry_matches_wildcard_and_exact_patterns():

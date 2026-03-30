@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sanom-ai-governance-suite
+  namespace: sanom
+spec:
+  selector:
+    app: sanom-ai-governance-suite
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+  type: ClusterIP

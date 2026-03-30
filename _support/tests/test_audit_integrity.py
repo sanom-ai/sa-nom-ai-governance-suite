@@ -1,8 +1,8 @@
-﻿import json
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from audit_logger import AuditLogger
+from sa_nom_governance.audit.audit_logger import AuditLogger
 
 
 def test_audit_log_seals_and_verifies_chain() -> None:

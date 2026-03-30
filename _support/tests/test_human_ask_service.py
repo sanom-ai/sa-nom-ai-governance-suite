@@ -3,10 +3,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from config import AppConfig
-from hierarchy_registry import HierarchyEntry
-from human_ask_service import HumanAskService
-from role_private_studio_models import PTOSSAssessment, PTOSSIssue
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.core.hierarchy_registry import HierarchyEntry
+from sa_nom_governance.human_ask.human_ask_service import HumanAskService
+from sa_nom_governance.studio.role_private_studio_models import PTOSSAssessment, PTOSSIssue
 
 
 class FakeAuditLogger:

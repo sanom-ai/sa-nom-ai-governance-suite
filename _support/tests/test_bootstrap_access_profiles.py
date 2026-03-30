@@ -1,4 +1,4 @@
-from bootstrap_access_profiles import build_profiles
+from sa_nom_governance.guards.bootstrap_access_profiles import build_profiles
 
 
 def test_bootstrap_access_profiles_delegate_privileged_operator_permissions() -> None:

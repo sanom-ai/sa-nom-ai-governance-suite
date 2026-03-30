@@ -22,7 +22,9 @@ The public repository currently includes:
 - Role Private Studio authoring flows
 - Human Ask escalation flows
 - deployment readiness and operational health checks
-- Docker and local private-server deployment paths
+- provider probes for OpenAI, Claude, and Ollama
+- Docker, Helm, Kubernetes, and local private-server deployment paths
+- security audit and Thai regulated-deployment templates
 
 ## Open-Core Model
 
@@ -45,7 +47,7 @@ Choose the path that matches your situation:
 
 ### Local Python runtime
 
-1. Use Python 3.12 or newer.
+1. Use Python 3.14 or newer.
 2. Create a local environment file from [`.env.production.example`](.env.production.example) or export the variables directly.
 3. Register an organization owner:
    - `python register_owner.py --registration-code DEMO-ORG`
@@ -53,15 +55,20 @@ Choose the path that matches your situation:
    - `python bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json`
 5. Run a startup validation:
    - `python dashboard_server.py --check-only`
-6. Start the server:
+6. Run the smoke tests:
+   - `python private_server_smoke_test.py`
+   - `python provider_smoke_test.py`
+7. Start the server:
    - `python run_private_server.py --host 127.0.0.1 --port 8080`
 
 ### Docker
 
-1. Review [DEPLOYMENT.md](DEPLOYMENT.md).
+1. Review [DEPLOYMENT.md](DEPLOYMENT.md) and [KUBERNETES.md](KUBERNETES.md).
 2. Set the required environment variables.
 3. Start the containerized runtime:
    - `docker compose up --build`
+4. If you want a local private-model lane with Ollama:
+   - `docker compose --profile local-llm up --build`
 
 ## Current Release
 
@@ -73,13 +80,16 @@ Choose the path that matches your situation:
 ## Public Docs
 
 - [DEPLOYMENT.md](DEPLOYMENT.md): public deployment guide
+- [KUBERNETES.md](KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [FEATURE_MATRIX.md](FEATURE_MATRIX.md): community vs commercial boundary
 - [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md): pricing, support tiers, and buying path
 - [CONTRIBUTING.md](CONTRIBUTING.md): development workflow and contribution rules
 - [SECURITY.md](SECURITY.md): vulnerability disclosure policy
+- [SECURITY_AUDIT_CHECKLIST.md](SECURITY_AUDIT_CHECKLIST.md): production security and release checklist
 - [TRADEMARKS.md](TRADEMARKS.md): brand and naming guidance
 - [NOTICE](NOTICE): project-specific license, trademark, and commercial notice
 - [SUPPORT.md](SUPPORT.md): community, commercial, and security contact path
+- [templates/compliance/README.md](templates/compliance/README.md): Thai banking and government compliance starter templates
 - [ONE_PAGER.md](ONE_PAGER.md): concise product and commercial summary aligned with the public repo
 - [ONE_PAGER_TH.md](ONE_PAGER_TH.md): Thai one-pager for customer-facing sales conversations
 - [OPEN_SOURCE_RELEASE_CHECKLIST.md](OPEN_SOURCE_RELEASE_CHECKLIST.md): launch checklist for publishing a clean public release
@@ -101,8 +111,9 @@ Choose the path that matches your situation:
 The open-source baseline currently runs on the Python standard library.
 
 For contributor tooling:
-- `python -m pip install -r requirements-dev.txt`
+- `python -m pip install -r requirements-dev.txt` or `python -m pip install -e .[dev]`
 - `python -m pytest _support/tests`
+- `python provider_smoke_test.py` when validating provider wiring
 
 GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 

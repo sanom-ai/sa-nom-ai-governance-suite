@@ -2,8 +2,8 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from access_control import AccessControl, hash_token
-from config import AppConfig
+from sa_nom_governance.guards.access_control import AccessControl, hash_token
+from sa_nom_governance.utils.config import AppConfig
 
 
 class FakeHeaders(dict):

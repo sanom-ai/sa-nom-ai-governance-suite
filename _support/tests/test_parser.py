@@ -1,5 +1,5 @@
-﻿from ptag_parser import PTAGParser
-from ptag_semantic import SemanticAnalyzer
+from sa_nom_governance.ptag.ptag_parser import PTAGParser
+from sa_nom_governance.ptag.ptag_semantic import SemanticAnalyzer
 
 
 def test_parser_extracts_headers_and_blocks() -> None:

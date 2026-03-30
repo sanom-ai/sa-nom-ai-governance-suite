@@ -1,5 +1,5 @@
-﻿from api_engine import build_engine_app
-from config import AppConfig
+from sa_nom_governance.api.api_engine import build_engine_app
+from sa_nom_governance.utils.config import AppConfig
 
 
 def build_test_app():
@@ -9,8 +9,9 @@ def build_test_app():
 def test_compliance_snapshot_returns_frameworks() -> None:
     app = build_test_app()
     snapshot = app.compliance_snapshot()
-    assert snapshot['summary']['frameworks_total'] >= 4
-    assert 'frameworks' in snapshot
+    framework_ids = {item['framework_id'] for item in snapshot['frameworks']}
+    assert snapshot['summary']['frameworks_total'] >= 6
+    assert {'THAI_BANKING_BASELINE', 'THAI_GOVERNMENT_BASELINE'} <= framework_ids
 
 
 def test_evidence_pack_summary_is_available() -> None:

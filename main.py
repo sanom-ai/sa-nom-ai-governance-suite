@@ -1,6 +1,5 @@
-from api_engine import build_engine_app
-from config import AppConfig
+from sa_nom_governance.api.main import *
+from sa_nom_governance.api.main import main
 
-
-config = AppConfig()
-app = build_engine_app(config)
+if __name__ == '__main__':
+    main()
