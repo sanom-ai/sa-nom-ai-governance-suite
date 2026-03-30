@@ -15,6 +15,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Demo Checklist](DEMO_CHECKLIST.md)
 - [Product Tour](PRODUCT_TOUR.md)
 - [Legal Review Role Pack](LEGAL_REVIEW_ROLE_PACK.md)
+- [Guided Legal Review Scenario](LEGAL_REVIEW_SCENARIO.md)
 
 ## Product And Commercial
 
@@ -47,6 +48,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
+
 
 
 

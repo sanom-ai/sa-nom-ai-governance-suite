@@ -11,6 +11,8 @@ JSON_EXAMPLES = [
     'guided_smoke_test.example.json',
     'runtime_startup_smoke.example.json',
     'provider_demo_flow.ollama.example.json',
+    'legal_review_role_pack.example.json',
+    'legal_review_scenario.example.json',
 ]
 
 
@@ -44,3 +46,17 @@ def test_access_profile_example_matches_current_enterprise_profile_ids() -> None
         'enterprise-auditor',
         'enterprise-viewer',
     ]
+
+
+def test_legal_review_scenario_example_matches_role_pack_story() -> None:
+    payload = _load('legal_review_scenario.example.json')
+
+    assert payload['selected_provider'] == 'ollama'
+    assert payload['default_private_demo_lane'] == 'ollama'
+    assert payload['role_pack']['template_id'] == 'legal_review_escalation_pack'
+    assert payload['review_result']['escalation_required'] is True
+    assert 'approve_contract_exception' in payload['review_result']['wait_human_actions']
+    assert 'sign_contract' in payload['review_result']['forbidden_actions_enforced']
+    encoded = json.dumps(payload)
+    assert 'TAWAN' not in encoded
+    assert 'D:\\' not in encoded

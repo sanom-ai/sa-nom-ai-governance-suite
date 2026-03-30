@@ -1,0 +1,46 @@
+{
+  "scenario_id": "legal-review-vendor-msa",
+  "selected_provider": "ollama",
+  "default_private_demo_lane": "ollama",
+  "role_pack": {
+    "template_id": "legal_review_escalation_pack",
+    "example_name": "Vendor Contract Risk Counsel",
+    "operating_mode": "indirect",
+    "reporting_line": "LEGAL"
+  },
+  "request": {
+    "request_type": "vendor_contract_review",
+    "packet_id": "VENDOR_PACKET_001",
+    "issue_summary": "Vendor MSA contains a non-standard liability clause and a policy-exception request.",
+    "review_scope": [
+      "summarize non-standard clauses",
+      "flag compliance exposure",
+      "prepare escalation notes"
+    ]
+  },
+  "review_result": {
+    "status": "review_complete",
+    "summary": "The contract packet can be summarized and risk-flagged by the AI role, but the policy exception must remain with a human legal approver.",
+    "escalation_required": true,
+    "wait_human_actions": [
+      "approve_contract_exception"
+    ],
+    "forbidden_actions_enforced": [
+      "sign_contract",
+      "waive_regulatory_obligation"
+    ],
+    "recommended_next_step": "route escalation note to LEGAL owner"
+  },
+  "evidence": {
+    "summary": [
+      "role pack stayed inside review-only authority",
+      "exception approval remained human-gated",
+      "scenario output stayed aligned with the private Ollama lane"
+    ],
+    "artifacts": [
+      "legal review summary",
+      "exception escalation note",
+      "governed scenario record"
+    ]
+  }
+}
