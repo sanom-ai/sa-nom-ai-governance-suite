@@ -1,11 +1,12 @@
 # Enterprise Function Map
 
-Use this guide when you want to position SA-NOM beyond a single demo lane and explain how governed AI roles can cover an end-to-end organization across manufacturing, audit, and IT.
+Use this guide when you want to position SA-NOM beyond a single demo lane and explain how governed AI roles can cover an end-to-end organization across manufacturing, finance, accounting, audit, and IT.
 
 ## Goal
 
 By the end of this guide you should be able to:
 - explain the full manufacturing operating chain from sales planning through delivery
+- show where finance and accounting sit inside the governed operating model
 - show where internal audit and external-audit response sit in the governed operating model
 - explain how IT becomes the enabling and control layer for the whole system
 - identify which role packs and scenarios should be built next
@@ -155,14 +156,93 @@ Human-gated boundaries:
 - penalty acceptance
 - crisis-routing decisions during major disruption
 
-## 2. Audit Layer
+### 1.9 New Model / NPI / New Product Introduction
+
+Purpose:
+- review readiness for new model launch, trial builds, and change-control gates
+- summarize cross-functional blockers before launch
+- route unresolved engineering, quality, supply, or cost risks to human owners
+
+Potential role packs:
+- New Model Readiness Coordinator
+- Trial Build Review Analyst
+- Launch Gate Escalation Lead
+- Engineering Change Review Coordinator
+
+Key workflow stories:
+- NPI readiness review
+- APQP / PPAP / control-plan checkpoint summary
+- launch blocker escalation
+- engineering-change and trial-build exception routing
+
+Human-gated boundaries:
+- launch approval
+- engineering change authorization
+- PPAP sign-off
+- acceptance of residual launch risk
+
+## 2. Finance And Accounting Layer
+
+Finance and accounting should be shown as first-class governed lanes, not hidden behind generic operations.
+
+### 2.1 Finance
+
+Purpose:
+- review budget posture, spending pressure, and cost variance
+- summarize operational financial risk before it becomes a business problem
+- route high-impact exceptions to human finance owners
+
+Potential role packs:
+- Budget Review Analyst
+- Cost Variance Escalation Lead
+- Spend Control Coordinator
+- Forecast Pressure Review Lead
+
+Key workflow stories:
+- budget-versus-actual review
+- cost-overrun escalation
+- capex or opex exception routing
+- margin-risk summary linked to production or delivery issues
+
+Human-gated boundaries:
+- budget approval
+- fund release
+- acceptance of material variance without remediation
+- commercial or pricing decisions that bind the business
+
+### 2.2 Accounting
+
+Purpose:
+- review accounting-close readiness, inventory valuation posture, and transaction exceptions
+- summarize what is missing, mismatched, or blocked before close or audit review
+- route sensitive accounting judgments to human owners
+
+Potential role packs:
+- Close Readiness Coordinator
+- Inventory Valuation Review Analyst
+- GR/IR Exception Lead
+- Revenue Recognition Escalation Coordinator
+
+Key workflow stories:
+- month-end close readiness
+- inventory valuation exception review
+- GR/IR mismatch analysis
+- accrual and revenue-recognition escalation
+
+Human-gated boundaries:
+- final journal approval
+- revenue-recognition judgment
+- statutory filing sign-off
+- external-financial-reporting approval
+
+## 3. Audit Layer
 
 Audit should be positioned as a cross-functional control lane, not a separate afterthought.
 
-### 2.1 Internal Audit
+### 3.1 Internal Audit
 
 Purpose:
-- review governed evidence across purchasing, warehouse, production, quality, and delivery
+- review governed evidence across purchasing, warehouse, production, quality, delivery, finance, and accounting
 - identify policy deviation, repeated overrides, and weak control points
 - prepare management-facing audit summaries
 
@@ -175,13 +255,14 @@ Key workflow stories:
 - sample-based review of exceptions
 - repeated override analysis
 - control-gap reporting for management review
+- cross-functional control review spanning operations and finance
 
 Human-gated boundaries:
 - final audit opinion
 - audit rating sign-off
 - management-action closeout approval
 
-### 2.2 External Audit Response
+### 3.2 External Audit Response
 
 Purpose:
 - prepare structured evidence for outside auditors
@@ -197,18 +278,18 @@ Key workflow stories:
 - auditor request intake
 - evidence-pack assembly
 - response-note preparation
-- escalation when the request crosses legal, finance, or compliance boundaries
+- escalation when the request crosses legal, finance, accounting, or compliance boundaries
 
 Human-gated boundaries:
 - official external response approval
 - legal or regulatory representation
 - commitments made to outside auditors or regulators
 
-## 3. IT Layer
+## 4. IT Layer
 
 IT should be framed as the enabling and control backbone for every domain above.
 
-### 3.1 IT Operations
+### 4.1 IT Operations
 
 Purpose:
 - review system posture, service incidents, and runtime health
@@ -220,7 +301,7 @@ Potential role packs:
 - Service Health Escalation Coordinator
 - Runtime Change Review Analyst
 
-### 3.2 Security And Access
+### 4.2 Security And Access
 
 Purpose:
 - monitor access posture, secrets handling, and high-risk changes
@@ -231,7 +312,7 @@ Potential role packs:
 - Security Exception Escalation Lead
 - Privileged Change Review Coordinator
 
-### 3.3 Change / Release / Recovery
+### 4.3 Change / Release / Recovery
 
 Purpose:
 - review change requests
@@ -248,10 +329,11 @@ Human-gated boundaries across IT:
 - emergency override on privileged operations
 - acceptance of residual security risk
 
-## 4. How These Layers Connect In SA-NOM
+## 5. How These Layers Connect In SA-NOM
 
 SA-NOM should present these functions as one governed operating model:
 - manufacturing roles run the day-to-day chain
+- finance and accounting roles explain cost, budget, close, and transaction posture
 - audit roles review the evidence and the exceptions
 - IT roles keep the runtime, access, and change posture safe
 
@@ -262,23 +344,27 @@ It becomes a governed operating fabric where:
 - escalations and alerts move sensitive decisions back to humans
 - evidence remains available for internal and external review
 
-## 5. Recommended Build Order
+## 6. Recommended Build Order
 
 A practical sequence after the current legal and HR lanes:
 1. Purchasing / supplier-risk role pack
 2. Warehouse / inventory-exception role pack
-3. Production schedule or bottleneck role pack
-4. QC / QA quality-hold scenario
-5. Internal audit evidence-review scenario
-6. External audit response coordinator pack
-7. IT operations and change-control pack
+3. New model / NPI readiness pack
+4. Finance budget and cost-variance pack
+5. Accounting close-readiness or GR/IR exception pack
+6. Production schedule or bottleneck role pack
+7. QC / QA quality-hold scenario
+8. Internal audit evidence-review scenario
+9. External audit response coordinator pack
+10. IT operations and change-control pack
 
-## 6. Good Demo Story For This Expansion
+## 7. Good Demo Story For This Expansion
 
 A strong enterprise-level talk track is:
 - planning creates demand pressure
 - procurement and warehouse surface supply risk
 - production and quality surface execution risk
+- finance and accounting surface cost, variance, and close pressure
 - delivery surfaces customer impact
 - audit reviews the evidence trail afterward
 - IT keeps the whole governed runtime safe and explainable
