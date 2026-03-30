@@ -101,3 +101,8 @@ The compliance skill-layer contract is simple:
 - stay honest about gaps
 - separate governance readiness from legal completion
 - route humans into the decision path when the question crosses into legal, regulatory, or formal filing territory
+
+## Recommended Companion Document
+
+Use [Compliance Response Templates](COMPLIANCE_RESPONSE_TEMPLATES.md) as the starter answer bank for recurring compliance questions.
+
