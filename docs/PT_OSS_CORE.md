@@ -65,6 +65,9 @@ They are different assessment depth and context profiles for different environme
 
 ## Embedded Core Metrics
 
+See [PT_OSS_METRICS.md](PT_OSS_METRICS.md) for the plain-language explainer of what each PT-OSS metric means in product terms.
+## Embedded Core Metrics
+
 The current PT-OSS foundation already includes these core metrics:
 
 - `HDI-S` - Human Dependency Index, structural

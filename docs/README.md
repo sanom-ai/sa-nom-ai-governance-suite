@@ -19,6 +19,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Private Rule Position](PRIVATE_RULE_POSITION.md)
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 - [PT-OSS Core](PT_OSS_CORE.md): PT-OSS is SA-NOM's embedded structural intelligence layer and a proprietary framework developed by the creator
+- [PT-OSS Metrics](PT_OSS_METRICS.md): plain-language explainer for HDI-S, HDI-D, SFS, KPIR, ASP, HOIS, and SPAI
 - [Compliance Knowledge Baseline](COMPLIANCE_KNOWLEDGE_BASELINE.md)
 - [ISO 42001 and NIST AI RMF Crosswalk](ISO_42001_NIST_CROSSWALK.md)
 - [Thai AI Regulatory Gap Map](THAI_AI_REGULATORY_GAP_MAP.md)
