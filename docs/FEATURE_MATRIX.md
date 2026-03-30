@@ -27,7 +27,7 @@ It is a product-positioning guide, not a binding commercial contract. Final comm
 
 | Area | Community baseline | Guided / commercial path | Why it matters |
 | --- | --- | --- | --- |
-| PT-OSS structural intelligence | Included in the public baseline with structural assessment support and posture-driven readiness logic. | Tailored calibration, deeper rollout interpretation, and regulated-environment operating guidance. | Helps organizations evaluate whether the structure around AI is ready, not only whether the model works. |
+| PT-OSS structural intelligence | Included in the public baseline with embedded modes, structural assessment support, posture-driven readiness logic, and metrics spanning dependency, fragility, stability, override integrity, and public-sector asymmetry posture. | Tailored calibration, deeper rollout interpretation, and regulated-environment operating guidance. | Helps organizations evaluate whether the structure around AI is ready, not only whether the model works. |
 | Trusted Registry | Included baseline path for signed role publication and manifest verification. | Hardened key operations, rollout-specific signing programs, and regulated publication processes. | Protects who is allowed to publish or trust role packs in a real organization. |
 | Owner registration and delegated access | Included in the public baseline through owner registration, access profiles, and token rotation-aware flows. | Rollout hardening, identity design, and enterprise packaging for larger operator groups. | Establishes who owns the runtime and which delegated actors can perform privileged operations. |
 | Audit Chain | Included in the public baseline with hash-linked audit behavior and tamper-evident runtime history. | Audit-program support, rollout reviews, and tailored evidence handling workflows. | Gives audit and leadership teams a stronger evidence trail than ad hoc logging. |
@@ -90,4 +90,5 @@ A prospect is usually a strong `guided / commercial` fit when:
 - [PRODUCT_TOUR.md](PRODUCT_TOUR.md)
 - [LIVE_CUSTOMER_WALKTHROUGH.md](LIVE_CUSTOMER_WALKTHROUGH.md)
 - [LIVE_CUSTOMER_WALKTHROUGH_TH.md](LIVE_CUSTOMER_WALKTHROUGH_TH.md)
+
 

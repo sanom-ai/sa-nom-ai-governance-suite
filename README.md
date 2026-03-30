@@ -39,6 +39,12 @@ That means the repo can help organizations with internal governance, evidence, w
 
 See [docs/COMPLIANCE_KNOWLEDGE_BASELINE.md](docs/COMPLIANCE_KNOWLEDGE_BASELINE.md), [docs/ISO_42001_NIST_CROSSWALK.md](docs/ISO_42001_NIST_CROSSWALK.md), [docs/THAI_AI_REGULATORY_GAP_MAP.md](docs/THAI_AI_REGULATORY_GAP_MAP.md), [docs/PDPA_AI_GUIDELINE_MAP.md](docs/PDPA_AI_GUIDELINE_MAP.md), [docs/LOCAL_REPRESENTATIVE_READINESS.md](docs/LOCAL_REPRESENTATIVE_READINESS.md), and [docs/COMPLIANCE_SKILL_LAYER_CONTRACT.md](docs/COMPLIANCE_SKILL_LAYER_CONTRACT.md), and [docs/COMPLIANCE_RESPONSE_TEMPLATES.md](docs/COMPLIANCE_RESPONSE_TEMPLATES.md).
 
+## PT-OSS Structural Intelligence
+
+SA-NOM already includes PT-OSS as an embedded structural intelligence layer. It is used to assess dependency posture, structural fragility, key-person concentration, stability, human-override integrity, and power asymmetry before roles and workflows are treated as safely governed.
+
+See [docs/PT_OSS_CORE.md](docs/PT_OSS_CORE.md) for the core explanation of what is already embedded in the codebase.
+
 ## Why Teams Use SA-NOM
 
 Organizations do not only need AI governance. They need AI that can actually operate.
@@ -107,6 +113,7 @@ The public repository currently includes:
 - PTAG parsing and validation
 - governed runtime execution and decision flow
 - audit chain and evidence-oriented execution paths
+- PT-OSS structural intelligence and posture-driven gating
 - Role Private Studio authoring flows
 - Human Ask reporting and meeting workflows
 - deployment readiness and operational health checks
@@ -270,6 +277,7 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
 
 
 
