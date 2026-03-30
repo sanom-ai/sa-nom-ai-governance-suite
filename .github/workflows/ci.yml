@@ -25,6 +25,9 @@ jobs:
       - name: Lint Python sources
         run: python -m ruff check .
 
+      - name: Run static type checks
+        run: python -m mypy
+
       - name: Compile Python sources
         run: python -m compileall -q .
 

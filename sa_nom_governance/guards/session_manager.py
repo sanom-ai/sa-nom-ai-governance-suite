@@ -26,12 +26,14 @@ class SessionState:
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> "SessionState":
+        permissions_value = data.get("permissions", [])
+        permissions_items = permissions_value if isinstance(permissions_value, list) else []
         return cls(
             session_id=str(data["session_id"]),
             profile_id=str(data["profile_id"]),
             display_name=str(data["display_name"]),
             role_name=str(data["role_name"]),
-            permissions=[str(item) for item in data.get("permissions", [])],
+            permissions=[str(item) for item in permissions_items],
             token_hash=str(data["token_hash"]),
             status=str(data["status"]),
             created_at=str(data["created_at"]),
@@ -245,3 +247,5 @@ class SessionManager:
 
     def _utc_now(self) -> str:
         return self._now().isoformat()
+
+

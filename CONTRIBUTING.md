@@ -15,10 +15,12 @@ Thanks for helping improve SA-NOM AI Governance Suite.
    - `python -m pip install -r requirements-dev.txt`
 3. Run lint checks:
    - `python -m ruff check .`
-4. Run the test suite:
+4. Run scoped static type checks:
+   - `python -m mypy`
+5. Run the test suite:
    - `python -m pytest _support/tests`
 
-This first `v0.1.10` quality gate is intentionally conservative. It starts with critical Ruff checks so the repo can improve engineering discipline without forcing a full style rewrite in one pull request.
+The current `v0.1.10` hardening work is intentionally incremental. Ruff starts with critical lint rules, and mypy starts with a small scoped baseline in `sa_nom_governance.guards` so engineering discipline can improve without forcing a repo-wide rewrite in one pull request.
 
 ## Contribution Rules
 
@@ -27,11 +29,12 @@ This first `v0.1.10` quality gate is intentionally conservative. It starts with 
 - keep examples sanitized and public-safe
 - avoid committing `_runtime/` state or generated credentials
 - document operator-facing behavior changes in the relevant markdown file
-- keep Python linting clean before opening a pull request
+- keep Python linting and scoped type checks clean before opening a pull request
 
 ## Pull Request Checklist
 
 - lint checks pass locally
+- scoped type checks pass locally
 - tests added or updated when behavior changes
 - docs updated when needed
 - no secrets or runtime state committed
