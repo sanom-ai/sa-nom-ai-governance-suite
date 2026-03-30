@@ -7,11 +7,14 @@ For medium-to-large organizations, regulated programs, sovereign environments, o
 
 ## What Commercial Covers
 
+`Private Rule Studio` is a core platform capability. Commercial scope should focus on tailoring, starter-library support, workshops, and rollout help, not on artificial limits for creating rules or positions.
+
 A commercial agreement may include one or more of the following:
 - enterprise-only modules or integration packs not shipped in the public baseline
 - direct support, response targets, and structured rollout guidance
 - on-site or guided enablement for governance operators
 - hardening, air-gapped delivery patterns, and organization-specific compliance work
+- curated starter JD, starter rule, and starter hat tailoring for specific organizations or industries
 
 ## Pricing (2026 baseline)
 
