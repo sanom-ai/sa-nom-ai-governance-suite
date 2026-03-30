@@ -1,6 +1,6 @@
 # Sales Intake Template
 
-Use this template for first commercial conversations or inbound pricing requests.
+Use this template for first commercial conversations or inbound pricing requests. Pair it with [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md) so the call outcome is qualified before you fill the intake.
 
 ## Contact Details
 
