@@ -18,6 +18,8 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [PTAG Framework](PTAG_FRAMEWORK.md)
 - [Private Rule Position](PRIVATE_RULE_POSITION.md)
 - [Governed Document Center](GOVERNED_DOCUMENT_CENTER.md)
+- [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
+- [Governed Document Lifecycle](GOVERNED_DOCUMENT_LIFECYCLE.md)
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 - [PT-OSS Core](PT_OSS_CORE.md): PT-OSS is SA-NOM's embedded structural intelligence layer and a proprietary framework developed by the creator
 - [PT-OSS Metrics](PT_OSS_METRICS.md): plain-language explainer for HDI-S, HDI-D, SFS, KPIR, ASP, HOIS, and SPAI
