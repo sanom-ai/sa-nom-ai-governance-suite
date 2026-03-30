@@ -85,6 +85,8 @@ Choose the path that matches your situation:
 - [OPEN_SOURCE_RELEASE_CHECKLIST.md](OPEN_SOURCE_RELEASE_CHECKLIST.md): launch checklist for publishing a clean public release
 - [PUBLIC_UPLOAD_RUNBOOK.md](PUBLIC_UPLOAD_RUNBOOK.md): step-by-step upload procedure for the first public push
 - [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md): intake template for commercial inquiries
+- [GITHUB_OPERATIONS_PLAYBOOK.md](GITHUB_OPERATIONS_PLAYBOOK.md): GitHub setup, milestone, label, and repo-positioning guidance
+- [ISSUE_DRAFTS_v0.1.1.md](ISSUE_DRAFTS_v0.1.1.md): ready-to-use issue drafts for the first post-launch milestone
 
 ## Repository Layout
 
