@@ -183,6 +183,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md](docs/ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md): pilot-ready public-safe accounting role pack for close readiness, reconciliation exceptions, and governed period-end routing
 - [docs/BANKING_TREASURY_CONTROL_ROLE_PACK.md](docs/BANKING_TREASURY_CONTROL_ROLE_PACK.md): pilot-ready public-safe banking and treasury role pack for payment-batch review, bank-file control, and governed release routing
 - [docs/NEW_MODEL_LAUNCH_READINESS_ROLE_PACK.md](docs/NEW_MODEL_LAUNCH_READINESS_ROLE_PACK.md): pilot-ready public-safe NPI role pack for launch readiness, trial-build exceptions, and governed new-model escalation
+- [docs/NEW_MODEL_LAUNCH_READINESS_SCENARIO.md](docs/NEW_MODEL_LAUNCH_READINESS_SCENARIO.md): guided NPI workflow story for launch readiness, APQP exceptions, and human-gated new-model release
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
 - [docs/KUBERNETES.md](docs/KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md): community vs commercial boundary

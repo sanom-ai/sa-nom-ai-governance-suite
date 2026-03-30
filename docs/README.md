@@ -25,6 +25,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Guided HR Policy Scenario](HR_POLICY_SCENARIO.md)
 - [Guided Purchasing Supplier-Risk Scenario](PURCHASING_SUPPLIER_RISK_SCENARIO.md)
 - [Guided Finance Budget-Variance Scenario](FINANCE_BUDGET_VARIANCE_SCENARIO.md)
+- [Guided New Model Launch-Readiness Scenario](NEW_MODEL_LAUNCH_READINESS_SCENARIO.md)
 
 ## Product And Commercial
 
