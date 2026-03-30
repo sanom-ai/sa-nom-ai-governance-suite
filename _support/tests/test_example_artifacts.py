@@ -142,3 +142,16 @@ def test_finance_budget_variance_role_pack_example_preserves_human_finance_bound
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded
 
+
+
+def test_accounting_close_exception_role_pack_example_preserves_human_accounting_boundary() -> None:
+    payload = _load('accounting_close_exception_role_pack.example.json')
+
+    assert payload['template_id'] == 'accounting_close_exception_pack'
+    assert payload['reporting_line'] == 'ACCOUNTING'
+    assert 'approve_close_exception' in payload['wait_human_actions']
+    assert 'approve_manual_adjustment' in payload['wait_human_actions']
+    assert 'post_manual_journal' in payload['forbidden_actions']
+    encoded = json.dumps(payload)
+    assert 'TAWAN' not in encoded
+    assert 'D:\\' not in encoded

@@ -20,6 +20,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [HR Policy Role Pack](HR_POLICY_ROLE_PACK.md)
 - [Purchasing Supplier Risk Role Pack](PURCHASING_SUPPLIER_RISK_ROLE_PACK.md)
 - [Finance Budget Variance Role Pack](FINANCE_BUDGET_VARIANCE_ROLE_PACK.md)
+- [Accounting Close-Readiness Role Pack](ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md)
 - [Guided Legal Review Scenario](LEGAL_REVIEW_SCENARIO.md)
 - [Guided HR Policy Scenario](HR_POLICY_SCENARIO.md)
 - [Guided Purchasing Supplier-Risk Scenario](PURCHASING_SUPPLIER_RISK_SCENARIO.md)
