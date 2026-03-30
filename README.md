@@ -55,6 +55,14 @@ PT-OSS is a proprietary framework developed by the creator and integrated into S
 
 See [docs/PT_OSS_CORE.md](docs/PT_OSS_CORE.md) for the core explanation of what is already embedded in the codebase and [docs/PT_OSS_METRICS.md](docs/PT_OSS_METRICS.md) for the plain-language metric explainer.
 
+## Governed Document Center
+
+SA-NOM's Governed Document Center is a controlled system for creating, organizing, approving, publishing, and retaining policies, standards, procedures, forms, templates, and records under role-based authority and audit-ready governance.
+
+It is designed so AI can do routine document work inside defined boundaries, while humans step in only when approval, exception handling, or higher-risk control decisions are required.
+
+See [docs/GOVERNED_DOCUMENT_CENTER.md](docs/GOVERNED_DOCUMENT_CENTER.md) for the concept.
+
 ## Why Teams Use SA-NOM
 
 Organizations do not only need AI governance. They need AI that can actually operate.

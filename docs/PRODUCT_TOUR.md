@@ -85,7 +85,19 @@ Private-first probe flow:
 
 This keeps the product story aligned with private AI operations while still allowing hosted evaluation when needed.
 
-## 6. Runtime, Escalation, And Evidence
+## 6. Governed Document Center
+
+Beyond runtime execution, SA-NOM can also be read as the foundation for a governed document system.
+
+The Governed Document Center is the layer for creating, organizing, approving, publishing, and retaining policies, standards, procedures, forms, templates, and records under role-based authority and audit-ready control.
+
+The operating model stays the same:
+- AI should do routine document work inside approved boundaries
+- humans should step in only when approval, exception handling, or higher-risk control decisions are required
+
+See [GOVERNED_DOCUMENT_CENTER.md](GOVERNED_DOCUMENT_CENTER.md).
+
+## 7. Runtime, Escalation, And Evidence
 
 Once the baseline is prepared, the runtime can expose dashboard, health, evidence, integration, and provider surfaces in one governed path.
 
