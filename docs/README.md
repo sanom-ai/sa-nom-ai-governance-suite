@@ -26,6 +26,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [One Pager](ONE_PAGER.md)
 - [One Pager (TH)](ONE_PAGER_TH.md)
 - [Support](SUPPORT.md)
+- [Pilot Proposal Template](PILOT_PROPOSAL_TEMPLATE.md)
 
 ## Operations And Security
 
@@ -48,6 +49,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
+
 
 
 

@@ -1,6 +1,6 @@
 # Sales Intake Template
 
-Use this template for first commercial conversations or inbound pricing requests. Pair it with [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md) so the call outcome is qualified before you fill the intake.
+Use this template for first commercial conversations or inbound pricing requests. Pair it with [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md) so the call outcome is qualified before you fill the intake. If the recommended next step becomes a paid pilot, continue with [PILOT_PROPOSAL_TEMPLATE.md](PILOT_PROPOSAL_TEMPLATE.md).
 
 ## Contact Details
 
@@ -50,4 +50,5 @@ Use this template for first commercial conversations or inbound pricing requests
 - Risks or blockers:
 - Next meeting date:
 - Owner:
+
 

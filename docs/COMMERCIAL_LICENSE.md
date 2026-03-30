@@ -38,7 +38,7 @@ Commercial discussion is recommended if you need any of the following:
 
 1. Email `sanomaiarch@gmail.com` with your deployment size, environment type, and target go-live window.
 2. We align on fit, scope, and whether community, commercial, or a phased path makes the most sense, using [FEATURE_MATRIX.md](FEATURE_MATRIX.md) for boundary review and [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md) for structured qualification.
-3. If needed, we define an evaluation, rollout plan, or tailored commercial quote.
+3. If needed, we define an evaluation, a scoped pilot using [PILOT_PROPOSAL_TEMPLATE.md](PILOT_PROPOSAL_TEMPLATE.md), a rollout plan, or a tailored commercial quote.
 4. We finalize the license, support scope, and delivery model.
 
 ## Notes
@@ -60,6 +60,7 @@ Start locally with:
 - `docker compose up`
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the installation guide.
+
 
 
 

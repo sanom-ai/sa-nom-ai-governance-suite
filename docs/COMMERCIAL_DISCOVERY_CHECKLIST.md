@@ -1,4 +1,4 @@
-﻿# Commercial Discovery Checklist
+# Commercial Discovery Checklist
 
 Use this checklist for the first real commercial conversation after a prospect has seen the repo, one-pager, or product demo.
 
@@ -243,7 +243,7 @@ By the end of the call, record:
 - internal owner
 - next meeting date
 
-Then transfer the result into [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md).
+Then transfer the result into [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md) and use [PILOT_PROPOSAL_TEMPLATE.md](PILOT_PROPOSAL_TEMPLATE.md) when the next step is a scoped paid pilot.
 
 ## 12. Fast Follow-Up Message
 
@@ -255,4 +255,5 @@ A good follow-up should include:
 - pilot recommendation or rollout recommendation
 - any prerequisites before the next demo or quote
 - contact point: `sanomaiarch@gmail.com`
+
 

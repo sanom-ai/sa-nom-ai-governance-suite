@@ -112,7 +112,7 @@ See [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) for the intended open-core 
 Choose the path that matches your situation:
 - Guided evaluation path: run `python scripts/guided_smoke_test.py --registration-code DEMO-ORG` for the fastest first run, then use [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md) for the manual breakdown.
 - Self-managed community path: start with the quick start below, review [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md), [docs/OLLAMA_DEMO_ENVIRONMENT.md](docs/OLLAMA_DEMO_ENVIRONMENT.md), [docs/DISCOVERY_DEMO.md](docs/DISCOVERY_DEMO.md), [docs/LIVE_CUSTOMER_WALKTHROUGH.md](docs/LIVE_CUSTOMER_WALKTHROUGH.md), and [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
-- Commercial path: review [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md), use [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md), [docs/COMMERCIAL_DISCOVERY_CHECKLIST.md](docs/COMMERCIAL_DISCOVERY_CHECKLIST.md), [docs/ROI_ONE_PAGER.md](docs/ROI_ONE_PAGER.md), and [docs/SALES_INTAKE_TEMPLATE.md](docs/SALES_INTAKE_TEMPLATE.md), then contact `sanomaiarch@gmail.com`.
+- Commercial path: review [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md), use [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md), [docs/COMMERCIAL_DISCOVERY_CHECKLIST.md](docs/COMMERCIAL_DISCOVERY_CHECKLIST.md), [docs/ROI_ONE_PAGER.md](docs/ROI_ONE_PAGER.md), [docs/SALES_INTAKE_TEMPLATE.md](docs/SALES_INTAKE_TEMPLATE.md), and [docs/PILOT_PROPOSAL_TEMPLATE.md](docs/PILOT_PROPOSAL_TEMPLATE.md), then contact `sanomaiarch@gmail.com`.
 
 ## Quick Start
 
@@ -230,6 +230,7 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
 
 
 
