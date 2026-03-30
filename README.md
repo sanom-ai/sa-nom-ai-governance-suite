@@ -61,7 +61,7 @@ SA-NOM's Governed Document Center is a controlled system for creating, organizin
 
 It is designed so AI can do routine document work inside defined boundaries, while humans step in only when approval, exception handling, or higher-risk control decisions are required.
 
-See [docs/GOVERNED_DOCUMENT_CENTER.md](docs/GOVERNED_DOCUMENT_CENTER.md) for the concept, [docs/GOVERNED_DOCUMENT_CLASSES.md](docs/GOVERNED_DOCUMENT_CLASSES.md) for the class model, and [docs/GOVERNED_DOCUMENT_LIFECYCLE.md](docs/GOVERNED_DOCUMENT_LIFECYCLE.md) for the lifecycle and authority model.
+See [docs/GOVERNED_DOCUMENT_CENTER.md](docs/GOVERNED_DOCUMENT_CENTER.md) for the concept, [docs/GOVERNED_DOCUMENT_CLASSES.md](docs/GOVERNED_DOCUMENT_CLASSES.md) for the class model, [docs/GOVERNED_DOCUMENT_LIFECYCLE.md](docs/GOVERNED_DOCUMENT_LIFECYCLE.md) for the lifecycle and authority model, and [docs/GOVERNED_DOCUMENT_TEMPLATE_MODEL.md](docs/GOVERNED_DOCUMENT_TEMPLATE_MODEL.md) for the single-template rule-driven design.
 
 ## Why Teams Use SA-NOM
 

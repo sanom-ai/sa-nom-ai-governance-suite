@@ -145,6 +145,13 @@ This does not mean:
 
 The intended model is governed document work, not uncontrolled auto-publication.
 
+## Template Model
+
+The preferred design is not to create a different hardcoded template for every document type.
+The preferred design is one governed base template shaped by rules for document class, lifecycle, authority, numbering, and release behavior.
+
+See [Governed Document Template Model](GOVERNED_DOCUMENT_TEMPLATE_MODEL.md).
+
 ## Related Guides
 
 - [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
