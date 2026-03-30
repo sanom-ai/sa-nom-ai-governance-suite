@@ -22,7 +22,27 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.11.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["_support/tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+extend-exclude = [
+  "_runtime",
+  "_review",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sa_nom_governance"]
+
+[tool.ruff.format]
+quote-style = "single"

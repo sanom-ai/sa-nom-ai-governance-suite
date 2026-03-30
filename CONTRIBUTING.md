@@ -13,8 +13,16 @@ Thanks for helping improve SA-NOM AI Governance Suite.
 1. Use Python 3.14 or newer.
 2. Install development tooling:
    - `python -m pip install -r requirements-dev.txt`
-3. Run the test suite:
+3. Run format checks:
+   - `python -m ruff format --check .`
+4. Run lint checks:
+   - `python -m ruff check .`
+5. Run the test suite:
    - `python -m pytest _support/tests`
+
+If you want to normalize files before committing, run:
+- `python -m ruff format .`
+- `python -m ruff check . --fix`
 
 ## Contribution Rules
 
@@ -23,10 +31,12 @@ Thanks for helping improve SA-NOM AI Governance Suite.
 - keep examples sanitized and public-safe
 - avoid committing `_runtime/` state or generated credentials
 - document operator-facing behavior changes in the relevant markdown file
+- keep Python formatting and linting clean before opening a pull request
 
 ## Pull Request Checklist
 
-- tests added or updated
+- lint and format checks pass locally
+- tests added or updated when behavior changes
 - docs updated when needed
 - no secrets or runtime state committed
 - no machine-local paths left in public docs
