@@ -29,6 +29,7 @@ Use them as templates and replace every placeholder before a real deployment.
 - accounting_close_exception_role_pack.example.json: sanitized example payload for the pilot-ready accounting close-readiness role pack.
 - banking_treasury_control_role_pack.example.json: sanitized example payload for the pilot-ready banking and treasury control role pack.
 - new_model_launch_readiness_role_pack.example.json: sanitized example payload for the pilot-ready NPI launch-readiness role pack.
+- new_model_launch_readiness_scenario.example.json: sanitized example output for the guided NPI launch-readiness scenario.
 - purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
 
@@ -75,6 +76,7 @@ Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full fi
 - accounting_close_exception_role_pack.example.json: sanitized example payload for the pilot-ready accounting close-readiness role pack.
 - banking_treasury_control_role_pack.example.json: sanitized example payload for the pilot-ready banking and treasury control role pack.
 - new_model_launch_readiness_role_pack.example.json: sanitized example payload for the pilot-ready NPI launch-readiness role pack.
+- new_model_launch_readiness_scenario.example.json: sanitized example output for the guided NPI launch-readiness scenario.
 - purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
 

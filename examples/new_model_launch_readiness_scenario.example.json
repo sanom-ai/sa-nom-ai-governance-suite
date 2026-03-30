@@ -1,0 +1,36 @@
+{
+  "scenario_id": "new-model-launch-readiness-review",
+  "selected_provider": "ollama",
+  "default_private_demo_lane": "ollama",
+  "role_pack": {
+    "template_id": "new_model_launch_readiness_pack",
+    "starter_example": "New Model Launch Readiness Lead",
+    "reporting_line": "NPI",
+    "operating_mode": "indirect"
+  },
+  "scenario_inputs": {
+    "request_type": "launch_readiness_review",
+    "issue_type": "apqp_and_trial_build_exception",
+    "launch_gate": "gate_4",
+    "launch_owner": "NPI_MANAGER_01"
+  },
+  "review_result": {
+    "summary": "Launch gate readiness is blocked by open APQP and trial-build exceptions. The AI lane prepared a launch-readiness review and escalated the release decision to the manufacturing owner.",
+    "launch_posture": "elevated",
+    "supplier_posture": "watch",
+    "escalation_required": true,
+    "wait_human_actions": [
+      "approve_launch_exception",
+      "approve_process_change"
+    ],
+    "forbidden_actions_enforced": [
+      "release_new_model_launch",
+      "approve_process_change",
+      "waive_customer_requirement"
+    ]
+  },
+  "evidence": {
+    "summary": "Evidence pack would include the role snapshot, launch-readiness review, APQP and trial-build note, escalation requirement, and provider-selection state.",
+    "retained_for_audit": true
+  }
+}

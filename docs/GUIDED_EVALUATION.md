@@ -155,6 +155,7 @@ You are in a good evaluation state if all of the following are true:
 - For an accounting-focused pilot-ready pack: [ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md](ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md)
 - For a bank-facing treasury control pack: [BANKING_TREASURY_CONTROL_ROLE_PACK.md](BANKING_TREASURY_CONTROL_ROLE_PACK.md)
 - For an NPI and launch-readiness pack: [NEW_MODEL_LAUNCH_READINESS_ROLE_PACK.md](NEW_MODEL_LAUNCH_READINESS_ROLE_PACK.md)
+- For an NPI workflow story: [NEW_MODEL_LAUNCH_READINESS_SCENARIO.md](NEW_MODEL_LAUNCH_READINESS_SCENARIO.md)
 - For a first role-based scenario: [LEGAL_REVIEW_SCENARIO.md](LEGAL_REVIEW_SCENARIO.md)
 - For an HR policy workflow story: [HR_POLICY_SCENARIO.md](HR_POLICY_SCENARIO.md)
 
