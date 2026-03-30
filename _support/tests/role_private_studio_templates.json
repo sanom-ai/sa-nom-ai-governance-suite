@@ -561,6 +561,213 @@
                 ],
                 "operator_notes": "Use this pack for finance review and escalation only. Human finance authority must approve funding, CAPEX commitments, and pricing changes."
             }
+        },
+        {
+            "template_id": "accounting_close_exception_pack",
+            "category": "accounting",
+            "label": "Accounting Close Exception Pack",
+            "summary": "Pilot-ready accounting review role for close-readiness, reconciliation exceptions, and governed escalation.",
+            "payload": {
+                "role_name": "Accounting Close Exception Lead",
+                "purpose": "Review close-readiness posture, summarize reconciliation and accrual exceptions, and route high-impact accounting issues to human decision makers.",
+                "reporting_line": "ACCOUNTING",
+                "business_domain": "accounting_operations",
+                "operating_mode": "indirect",
+                "assigned_user_id": "ACCOUNTING_MANAGER_01",
+                "executive_owner_id": "EXEC_OWNER",
+                "seat_id": "OPS-ACCOUNTING-CLOSE",
+                "responsibilities": [
+                    "review close-readiness posture",
+                    "summarize reconciliation and accrual exceptions",
+                    "flag GR/IR and period-end exposure",
+                    "prepare escalation notes for accounting exceptions"
+                ],
+                "allowed_actions": [
+                    "review_close_readiness",
+                    "summarize_accounting_exception",
+                    "prepare_close_report",
+                    "approve_close_exception"
+                ],
+                "forbidden_actions": [
+                    "post_manual_journal",
+                    "close_financial_period",
+                    "release_payment"
+                ],
+                "wait_human_actions": [
+                    "approve_close_exception",
+                    "approve_manual_adjustment"
+                ],
+                "handled_resources": [
+                    "close_packet",
+                    "reconciliation_exception",
+                    "accrual_review"
+                ],
+                "financial_sensitivity": "high",
+                "legal_sensitivity": "medium",
+                "compliance_sensitivity": "high",
+                "sample_scenarios": [
+                    "month-end close readiness review",
+                    "GR/IR exception routing",
+                    "accrual escalation"
+                ],
+                "operator_notes": "Use this pack for accounting review and escalation only. Human accounting authority must approve manual adjustments, period close, and payment release."
+            }
+        },
+        {
+            "template_id": "banking_treasury_control_pack",
+            "category": "treasury",
+            "label": "Banking Treasury Control Pack",
+            "summary": "Pilot-ready treasury review role for payment control, bank-file readiness, and governed dual-authorization routing.",
+            "payload": {
+                "role_name": "Treasury Payment Control Lead",
+                "purpose": "Review payment-batch posture, summarize bank-file and cash-control exceptions, and route high-impact treasury actions to human decision makers.",
+                "reporting_line": "TREASURY",
+                "business_domain": "treasury_operations",
+                "operating_mode": "indirect",
+                "assigned_user_id": "TREASURY_MANAGER_01",
+                "executive_owner_id": "EXEC_OWNER",
+                "seat_id": "OPS-TREASURY-CONTROL",
+                "responsibilities": [
+                    "review payment-batch posture",
+                    "summarize bank-file and cash-control exceptions",
+                    "flag dual-authorization and master-data exposure",
+                    "prepare escalation notes for treasury exceptions"
+                ],
+                "allowed_actions": [
+                    "review_payment_batch",
+                    "summarize_bank_control_risk",
+                    "prepare_treasury_report",
+                    "approve_payment_exception"
+                ],
+                "forbidden_actions": [
+                    "release_payment",
+                    "sign_bank_instruction",
+                    "change_bank_master_data"
+                ],
+                "wait_human_actions": [
+                    "approve_payment_exception",
+                    "approve_bank_file_release"
+                ],
+                "handled_resources": [
+                    "payment_batch",
+                    "bank_file",
+                    "cash_position",
+                    "treasury_exception"
+                ],
+                "financial_sensitivity": "critical",
+                "legal_sensitivity": "medium",
+                "compliance_sensitivity": "high",
+                "sample_scenarios": [
+                    "payment-batch exception review",
+                    "bank-file release routing",
+                    "cash-position control escalation"
+                ],
+                "operator_notes": "Use this pack for treasury review and escalation only. Human treasury authority must approve bank-file release, payment release, and bank master-data changes."
+            }
+        },
+        {
+            "template_id": "new_model_launch_readiness_pack",
+            "category": "manufacturing_npi",
+            "label": "New Model Launch Readiness Pack",
+            "summary": "Pilot-ready manufacturing review role for launch readiness, cross-functional exception routing, and governed NPI escalation.",
+            "payload": {
+                "role_name": "New Model Launch Readiness Lead",
+                "purpose": "Review new-model launch posture, summarize cross-functional readiness gaps, and route high-impact NPI exceptions to human decision makers.",
+                "reporting_line": "NPI",
+                "business_domain": "manufacturing_npi",
+                "operating_mode": "indirect",
+                "assigned_user_id": "NPI_MANAGER_01",
+                "executive_owner_id": "EXEC_OWNER",
+                "seat_id": "OPS-NPI-LAUNCH",
+                "responsibilities": [
+                    "review launch-readiness posture",
+                    "summarize APQP and trial-build exceptions",
+                    "flag supplier, tooling, and control-plan exposure",
+                    "prepare escalation notes for NPI readiness exceptions"
+                ],
+                "allowed_actions": [
+                    "review_launch_readiness",
+                    "summarize_npi_exception",
+                    "prepare_launch_report",
+                    "approve_launch_exception"
+                ],
+                "forbidden_actions": [
+                    "release_new_model_launch",
+                    "approve_process_change",
+                    "waive_customer_requirement"
+                ],
+                "wait_human_actions": [
+                    "approve_launch_exception",
+                    "approve_process_change"
+                ],
+                "handled_resources": [
+                    "launch_packet",
+                    "trial_build_review",
+                    "control_plan",
+                    "npi_exception"
+                ],
+                "financial_sensitivity": "high",
+                "legal_sensitivity": "medium",
+                "compliance_sensitivity": "high",
+                "sample_scenarios": [
+                    "new model launch gate review",
+                    "trial build exception routing",
+                    "PPAP readiness escalation"
+                ],
+                "operator_notes": "Use this pack for governed launch-readiness review only. Human manufacturing authority must approve launch release, process changes, and customer-facing waivers."
+            }
+        },
+        {
+            "template_id": "warehouse_material_shortage_pack",
+            "category": "warehouse",
+            "label": "Warehouse Material Shortage Pack",
+            "summary": "Pilot-ready warehouse review role for shortage posture, allocation exceptions, and governed material-escalation routing.",
+            "payload": {
+                "role_name": "Warehouse Material Shortage Lead",
+                "purpose": "Review material-shortage posture, summarize allocation and stock-risk exceptions, and route high-impact warehouse actions to human decision makers.",
+                "reporting_line": "WAREHOUSE",
+                "business_domain": "warehouse_operations",
+                "operating_mode": "indirect",
+                "assigned_user_id": "WAREHOUSE_MANAGER_01",
+                "executive_owner_id": "EXEC_OWNER",
+                "seat_id": "OPS-WAREHOUSE-SHORTAGE",
+                "responsibilities": [
+                    "review shortage posture",
+                    "summarize material allocation exceptions",
+                    "flag stock-out and line-starvation exposure",
+                    "prepare escalation notes for warehouse exceptions"
+                ],
+                "allowed_actions": [
+                    "review_material_shortage",
+                    "summarize_stock_risk",
+                    "prepare_warehouse_report",
+                    "approve_allocation_exception"
+                ],
+                "forbidden_actions": [
+                    "issue_material_to_line",
+                    "adjust_inventory_balance",
+                    "override_cycle_count_result"
+                ],
+                "wait_human_actions": [
+                    "approve_allocation_exception",
+                    "approve_inventory_override"
+                ],
+                "handled_resources": [
+                    "material_shortage_packet",
+                    "allocation_exception",
+                    "inventory_snapshot",
+                    "warehouse_exception"
+                ],
+                "financial_sensitivity": "high",
+                "legal_sensitivity": "medium",
+                "compliance_sensitivity": "high",
+                "sample_scenarios": [
+                    "critical material shortage review",
+                    "allocation exception routing",
+                    "line-starvation escalation"
+                ],
+                "operator_notes": "Use this pack for governed warehouse review only. Human warehouse authority must approve material issue overrides, inventory adjustments, and allocation exceptions."
+            }
         }
     ]
 }

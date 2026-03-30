@@ -23,6 +23,7 @@ JSON_EXAMPLES = [
     'banking_treasury_control_role_pack.example.json',
     'new_model_launch_readiness_role_pack.example.json',
     'new_model_launch_readiness_scenario.example.json',
+    'warehouse_material_shortage_role_pack.example.json',
 ]
 
 
@@ -199,6 +200,18 @@ def test_new_model_launch_readiness_scenario_example_matches_role_pack_story() -
     assert payload['review_result']['escalation_required'] is True
     assert 'approve_launch_exception' in payload['review_result']['wait_human_actions']
     assert 'release_new_model_launch' in payload['review_result']['forbidden_actions_enforced']
+    encoded = json.dumps(payload)
+    assert 'TAWAN' not in encoded
+    assert 'D:\\' not in encoded
+
+def test_warehouse_material_shortage_role_pack_example_preserves_human_warehouse_boundary() -> None:
+    payload = _load('warehouse_material_shortage_role_pack.example.json')
+
+    assert payload['template_id'] == 'warehouse_material_shortage_pack'
+    assert payload['reporting_line'] == 'WAREHOUSE'
+    assert 'approve_allocation_exception' in payload['wait_human_actions']
+    assert 'approve_inventory_override' in payload['wait_human_actions']
+    assert 'issue_material_to_line' in payload['forbidden_actions']
     encoded = json.dumps(payload)
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded

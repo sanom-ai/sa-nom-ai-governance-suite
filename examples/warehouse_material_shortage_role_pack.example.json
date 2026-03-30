@@ -1,0 +1,49 @@
+{
+  "pack_name": "Warehouse Material Shortage Pack",
+  "template_id": "warehouse_material_shortage_pack",
+  "example_name": "Warehouse Material Shortage Lead",
+  "business_domain": "warehouse_operations",
+  "operating_mode": "indirect",
+  "reporting_line": "WAREHOUSE",
+  "assigned_user_id": "WAREHOUSE_MANAGER_01",
+  "executive_owner_id": "EXEC_OWNER",
+  "seat_id": "OPS-WAREHOUSE-SHORTAGE",
+  "responsibilities": [
+    "review shortage posture",
+    "summarize material allocation exceptions",
+    "flag stock-out and line-starvation exposure",
+    "prepare escalation notes for warehouse exceptions"
+  ],
+  "allowed_actions": [
+    "review_material_shortage",
+    "summarize_stock_risk",
+    "prepare_warehouse_report",
+    "approve_allocation_exception"
+  ],
+  "forbidden_actions": [
+    "issue_material_to_line",
+    "adjust_inventory_balance",
+    "override_cycle_count_result"
+  ],
+  "wait_human_actions": [
+    "approve_allocation_exception",
+    "approve_inventory_override"
+  ],
+  "handled_resources": [
+    "material_shortage_packet",
+    "allocation_exception",
+    "inventory_snapshot",
+    "warehouse_exception"
+  ],
+  "sample_scenarios": [
+    "critical material shortage review",
+    "allocation exception routing",
+    "line-starvation escalation"
+  ],
+  "operator_notes": "This example is for governed warehouse review only. Human warehouse authority must approve material issue overrides, inventory adjustments, and allocation exceptions.",
+  "pilot_fit": [
+    "material shortage review",
+    "allocation escalation",
+    "warehouse exception routing"
+  ]
+}
