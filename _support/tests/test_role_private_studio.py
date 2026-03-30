@@ -616,3 +616,42 @@ def test_role_private_studio_production_pack_preserves_human_production_boundary
         assert "release_production_schedule_change" in created["normalized_spec"]["forbidden_actions"]
         assert "override_quality_hold" in created["normalized_spec"]["forbidden_actions"]
         assert "require human_override for approve_recovery_exception" in created["generated_ptag"]
+
+
+def test_role_private_studio_template_library_includes_quality_audit_readiness_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        quality_pack = next(item for item in library if item["template_id"] == "quality_audit_readiness_pack")
+
+        assert quality_pack["category"] == "quality_audit"
+        assert quality_pack["payload"]["role_name"] == "Quality Audit Readiness Lead"
+
+
+def test_role_private_studio_examples_include_quality_audit_readiness_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        quality_example = next(item for item in examples if item["name"] == "Quality Audit Readiness Lead")
+
+        assert quality_example["operating_mode"] == "indirect"
+        assert quality_example["reporting_line"] == "QUALITY"
+
+
+def test_role_private_studio_quality_pack_preserves_human_quality_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "quality_audit_readiness_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "QUALITY_AUDIT_READINESS_LEAD"
+        assert "approve_release_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_deviation_waiver" in created["normalized_spec"]["wait_human_actions"]
+        assert "release_quality_hold" in created["normalized_spec"]["forbidden_actions"]
+        assert "waive_specification_requirement" in created["normalized_spec"]["forbidden_actions"]
+        assert "require human_override for approve_release_exception" in created["generated_ptag"]

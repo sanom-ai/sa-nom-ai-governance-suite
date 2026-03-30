@@ -159,6 +159,7 @@ You are in a good evaluation state if all of the following are true:
 - For a warehouse shortage pack: [WAREHOUSE_MATERIAL_SHORTAGE_ROLE_PACK.md](WAREHOUSE_MATERIAL_SHORTAGE_ROLE_PACK.md)
 - For a production line-exception pack: [PRODUCTION_LINE_EXCEPTION_ROLE_PACK.md](PRODUCTION_LINE_EXCEPTION_ROLE_PACK.md)
 - For a guided production workflow story: [PRODUCTION_LINE_EXCEPTION_SCENARIO.md](PRODUCTION_LINE_EXCEPTION_SCENARIO.md)
+- For a QC QA and audit-ready quality pack: [QUALITY_AUDIT_READINESS_ROLE_PACK.md](QUALITY_AUDIT_READINESS_ROLE_PACK.md)
 - For a first role-based scenario: [LEGAL_REVIEW_SCENARIO.md](LEGAL_REVIEW_SCENARIO.md)
 - For an HR policy workflow story: [HR_POLICY_SCENARIO.md](HR_POLICY_SCENARIO.md)
 
