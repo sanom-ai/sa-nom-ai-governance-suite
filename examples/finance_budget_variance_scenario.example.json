@@ -1,0 +1,36 @@
+{
+  "scenario_id": "finance-budget-variance-review",
+  "selected_provider": "ollama",
+  "default_private_demo_lane": "ollama",
+  "role_pack": {
+    "template_id": "finance_budget_variance_pack",
+    "starter_example": "Finance Budget Variance Lead",
+    "reporting_line": "FINANCE",
+    "operating_mode": "indirect"
+  },
+  "scenario_inputs": {
+    "request_type": "budget_exception_review",
+    "issue_type": "overtime_and_supplier_cost_variance",
+    "month": "2026-03",
+    "budget_owner": "FINANCE_MANAGER_01"
+  },
+  "review_result": {
+    "summary": "March spend is above plan due to overtime pressure and supplier-cost variance. The AI lane prepared a finance exception review and escalated the budget decision to the finance owner.",
+    "variance_posture": "elevated",
+    "margin_pressure": "watch",
+    "escalation_required": true,
+    "wait_human_actions": [
+      "approve_budget_exception",
+      "approve_capex_commitment"
+    ],
+    "forbidden_actions_enforced": [
+      "release_funds",
+      "approve_capex_commitment",
+      "change_customer_pricing"
+    ]
+  },
+  "evidence": {
+    "summary": "Evidence pack would include the role snapshot, budget review summary, variance note, escalation requirement, and provider-selection state.",
+    "retained_for_audit": true
+  }
+}
