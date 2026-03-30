@@ -184,15 +184,18 @@ The preferred design is rule-driven retention layered onto the same governed str
 
 See [Governed Document Retention And Records Governance](GOVERNED_DOCUMENT_RETENTION_RECORDS.md).
 
-<<<<<<< HEAD
 ## Release Scenario
 
 A concrete governed workflow should show how drafting, review, approval, release, retained records, and Human Ask reporting work together in one document change-control path.
 
 See [Governed Document Release And Change-Control Scenario](GOVERNED_DOCUMENT_RELEASE_SCENARIO.md).
 
-=======
->>>>>>> origin/main
+## Role Pack
+
+A governed document module should also have at least one public-safe role story that shows how AI performs routine document-governance work inside boundary.
+
+See [Document Governance Role Pack](DOCUMENT_GOVERNANCE_ROLE_PACK.md).
+
 ## Related Guides
 
 - [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
@@ -203,5 +206,4 @@ See [Governed Document Release And Change-Control Scenario](GOVERNED_DOCUMENT_RE
 The Governed Document Center is the document-governance layer that fits naturally into SA-NOM's operating model.
 
 It is designed so AI can do routine document work inside defined boundaries, while humans step in only when approval, exception handling, or higher-risk control decisions are required.
-
 
