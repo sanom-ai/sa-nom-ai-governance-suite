@@ -16,7 +16,27 @@ By the end you should have:
 
 - Python 3.14 or newer
 - a writable `_runtime/` directory
-- local environment variables prepared from [`.env.production.example`](.env.production.example)
+- local environment variables prepared from [`.env.production.example`](../.env.production.example)
+
+## Fastest Path
+
+Run:
+
+- `python scripts/guided_smoke_test.py --registration-code DEMO-ORG`
+
+Optional when Ollama is already available and you want a live private-model probe:
+
+- `python scripts/guided_smoke_test.py --registration-code DEMO-ORG --probe`
+
+Expected result:
+- `_review/guided_smoke_test.json` is written
+- public resources are available under `resources/`
+- owner registration, delegated access profiles, and trusted registry artifacts exist
+- startup readiness is reported inline
+- runtime smoke completes end-to-end
+- the provider guidance defaults to Ollama as the private demo lane
+
+If you want to inspect each step manually, use the breakdown below.
 
 ## Step 1: Register The Executive Owner
 
@@ -29,7 +49,7 @@ Expected result:
 - the command prints the normalized owner registration payload
 
 Reference example:
-- [examples/owner_registration.example.json](examples/owner_registration.example.json)
+- [../examples/owner_registration.example.json](../examples/owner_registration.example.json)
 
 ## Step 2: Generate Delegated Access Profiles
 
@@ -42,7 +62,7 @@ Expected result:
 - `_runtime/generated_access_tokens.json` contains raw tokens for secure storage
 
 Reference example:
-- [examples/access_profiles.example.json](examples/access_profiles.example.json)
+- [../examples/access_profiles.example.json](../examples/access_profiles.example.json)
 
 ## Step 3: Refresh Trusted Registry Artifacts
 
@@ -54,7 +74,7 @@ Expected result:
 - trusted registry manifest and cache are regenerated from the current PTAG role packs
 
 Reference example:
-- [examples/trusted_registry_manifest.example.json](examples/trusted_registry_manifest.example.json)
+- [../examples/trusted_registry_manifest.example.json](../examples/trusted_registry_manifest.example.json)
 
 ## Step 4: Validate Startup Readiness
 
@@ -78,11 +98,11 @@ Expected results:
 - or a provider report if a provider lane is configured
 
 Recommended default private demo lane:
-- [examples/.env.ollama.example](examples/.env.ollama.example)
+- [../examples/.env.ollama.example](../examples/.env.ollama.example)
 
 Optional hosted evaluation lanes:
-- [examples/.env.openai.example](examples/.env.openai.example)
-- [examples/.env.claude.example](examples/.env.claude.example)
+- [../examples/.env.openai.example](../examples/.env.openai.example)
+- [../examples/.env.claude.example](../examples/.env.claude.example)
 
 ## Step 6: Run The Runtime Smoke Test
 
@@ -105,6 +125,7 @@ At this point the community baseline is operational for local evaluation.
 ## Success Checklist
 
 You are in a good evaluation state if all of the following are true:
+- `scripts/guided_smoke_test.py` returns a passing JSON report or writes `_review/guided_smoke_test.json`
 - `scripts/register_owner.py` created the owner registration file
 - `scripts/bootstrap_access_profiles.py` created hashed profiles successfully
 - `scripts/dashboard_server.py --check-only` reports `ready: true`

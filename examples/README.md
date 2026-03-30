@@ -20,6 +20,11 @@ Use them as templates and replace every placeholder before a real deployment.
 
 ## Suggested Evaluation Order
 
+Fastest first run:
+- `python scripts/guided_smoke_test.py --registration-code DEMO-ORG`
+- This creates the owner registration, access profiles, trusted registry artifacts, startup report, and runtime smoke result in one pass.
+
+Manual order if you want to inspect each artifact:
 1. Register an owner:
    - `python scripts/register_owner.py --registration-code DEMO-ORG`
 2. Generate delegated access:
@@ -33,7 +38,7 @@ Use them as templates and replace every placeholder before a real deployment.
 6. Run the end-to-end smoke test:
    - `python scripts/private_server_smoke_test.py`
 
-Use [../docs/GUIDED_EVALUATION.md](../../docs/GUIDED_EVALUATION.md) for the full first-run path and [../docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md) if any validation step fails.
+Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full first-run path and [../docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) if any validation step fails.
 
 ## Provider Demo Commands
 
@@ -41,4 +46,4 @@ Use [../docs/GUIDED_EVALUATION.md](../../docs/GUIDED_EVALUATION.md) for the full
 - `python scripts/provider_demo_flow.py --provider anthropic --probe`: build a demo artifact for a Claude lane.
 - `python scripts/provider_demo_flow.py --provider ollama --probe`: build a demo artifact for a local Ollama lane.
 
-See [../docs/PROVIDER_SETUP.md](../../docs/PROVIDER_SETUP.md) for provider configuration details and [../docs/DISCOVERY_DEMO.md](../../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.
+See [../docs/PROVIDER_SETUP.md](../docs/PROVIDER_SETUP.md) for provider configuration details and [../docs/DISCOVERY_DEMO.md](../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.

@@ -70,7 +70,7 @@ See [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) for the intended open-core 
 ## Start Here
 
 Choose the path that matches your situation:
-- Guided evaluation path: follow [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md) for the fastest first run.
+- Guided evaluation path: run `python scripts/guided_smoke_test.py --registration-code DEMO-ORG` for the fastest first run, then use [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md) for the manual breakdown.
 - Self-managed community path: start with the quick start below, review [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md), [docs/DISCOVERY_DEMO.md](docs/DISCOVERY_DEMO.md), and [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 - Commercial path: review [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md), prepare [docs/SALES_INTAKE_TEMPLATE.md](docs/SALES_INTAKE_TEMPLATE.md), and contact `sanomaiarch@gmail.com`.
 
@@ -81,6 +81,11 @@ See [`docs/README.md`](docs/README.md) for the operator, deployment, and release
 
 ### Local Python runtime
 
+Fastest first run:
+- `python scripts/guided_smoke_test.py --registration-code DEMO-ORG`
+- This writes `_review/guided_smoke_test.json`, prepares the local runtime artifacts, runs startup validation, and finishes with the end-to-end smoke test.
+
+Manual path:
 1. Use Python 3.14 or newer.
 2. Create a local environment file from [`.env.production.example`](.env.production.example) or export the variables directly.
 3. Register an organization owner:
@@ -119,7 +124,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 
 ## Public Docs
 
-- [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md): fastest first-run path for evaluators
+- [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md): fastest first-run path for evaluators, including the one-command smoke helper
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): recovery steps for common startup and provider issues
 - [docs/FAQ.md](docs/FAQ.md): AGPL, self-hosting, and commercial-boundary answers
 - [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md): provider configuration, probe flow, and demo artifact path
