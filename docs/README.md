@@ -15,6 +15,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Demo Checklist](DEMO_CHECKLIST.md)
 - [Demo Checklist (TH)](DEMO_CHECKLIST_TH.md)
 - [Product Tour](PRODUCT_TOUR.md)
+- [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 - [Legal Review Role Pack](LEGAL_REVIEW_ROLE_PACK.md)
 - [HR Policy Role Pack](HR_POLICY_ROLE_PACK.md)
 - [Guided Legal Review Scenario](LEGAL_REVIEW_SCENARIO.md)
@@ -40,6 +41,8 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Planning And Release Notes
 
+- [Roadmap v0.1.6](ROADMAP_v0.1.6.md)
+- [Issue Drafts v0.1.6](ISSUE_DRAFTS_v0.1.6.md)
 - [Release Notes v0.1.5](releases/RELEASE_NOTES_v0.1.5.md)
 - [Roadmap v0.1.5](ROADMAP_v0.1.5.md)
 - [Issue Drafts v0.1.5](ISSUE_DRAFTS_v0.1.5.md)
