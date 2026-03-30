@@ -544,5 +544,52 @@
             "customer commitment risk escalation"
         ],
         "operator_notes": "This example is for governed delivery review only. Human delivery authority must approve shipment release, customer commitment changes, and export-control hold overrides."
+    },
+    {
+        "name": "External Audit Response Lead",
+        "role_name": "External Audit Response Lead",
+        "purpose": "Review external auditor requests, summarize evidence and corrective-action gaps, and route high-impact audit response decisions to human decision makers.",
+        "reporting_line": "AUDIT",
+        "business_domain": "audit_response",
+        "operating_mode": "indirect",
+        "assigned_user_id": "AUDIT_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-AUDIT-EXTERNAL",
+        "responsibilities": [
+            "review external audit request posture",
+            "summarize evidence and corrective-action gaps",
+            "flag regulatory and management-response exposure",
+            "prepare escalation notes for auditor-response exceptions"
+        ],
+        "allowed_actions": [
+            "review_audit_request",
+            "summarize_evidence_gap",
+            "prepare_audit_response",
+            "approve_audit_response_exception"
+        ],
+        "forbidden_actions": [
+            "close_audit_finding",
+            "release_regulatory_response",
+            "alter_audit_evidence"
+        ],
+        "wait_human_actions": [
+            "approve_audit_response_exception",
+            "approve_regulatory_response"
+        ],
+        "handled_resources": [
+            "external_audit_request",
+            "audit_evidence_packet",
+            "corrective_action_status",
+            "audit_response_record"
+        ],
+        "financial_sensitivity": "high",
+        "legal_sensitivity": "high",
+        "compliance_sensitivity": "critical",
+        "sample_scenarios": [
+            "external auditor evidence request review",
+            "finding-response escalation",
+            "management response routing"
+        ],
+        "operator_notes": "This example is for governed external-audit review only. Human audit and executive authority must approve auditor responses, regulatory filings, and audit-finding closure decisions."
     }
 ]
