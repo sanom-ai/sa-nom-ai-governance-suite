@@ -1,4 +1,4 @@
-# SA-NOM AI Governance Suite
+﻿# SA-NOM AI Governance Suite
 
 [![CI](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL%203.0--only-blue.svg)](LICENSE)
@@ -111,7 +111,7 @@ See [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) for the intended open-core 
 
 Choose the path that matches your situation:
 - Guided evaluation path: run `python scripts/guided_smoke_test.py --registration-code DEMO-ORG` for the fastest first run, then use [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md) for the manual breakdown.
-- Self-managed community path: start with the quick start below, review [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md), [docs/DISCOVERY_DEMO.md](docs/DISCOVERY_DEMO.md), and [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+- Self-managed community path: start with the quick start below, review [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md), [docs/OLLAMA_DEMO_ENVIRONMENT.md](docs/OLLAMA_DEMO_ENVIRONMENT.md), [docs/DISCOVERY_DEMO.md](docs/DISCOVERY_DEMO.md), and [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 - Commercial path: review [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md), use [docs/COMMERCIAL_DISCOVERY_CHECKLIST.md](docs/COMMERCIAL_DISCOVERY_CHECKLIST.md) and [docs/SALES_INTAKE_TEMPLATE.md](docs/SALES_INTAKE_TEMPLATE.md), then contact `sanomaiarch@gmail.com`.
 
 ## Quick Start
@@ -124,6 +124,7 @@ See [`docs/README.md`](docs/README.md) for the operator, deployment, and release
 Fastest first run:
 - `python scripts/guided_smoke_test.py --registration-code DEMO-ORG`
 - This writes `_review/guided_smoke_test.json`, prepares the local runtime artifacts, runs startup validation, and finishes with the end-to-end smoke test.
+- For a real private-model demo lane, follow with `python scripts/ollama_demo_environment.py`.
 
 Manual path:
 1. Use Python 3.14 or newer.
@@ -138,9 +139,10 @@ Manual path:
    - `python scripts/private_server_smoke_test.py`
    - `python scripts/provider_smoke_test.py`
    - `python scripts/provider_smoke_test.py` returning `disabled` is expected until a provider is configured
-7. Build a provider-ready demo report when you want to validate the default private demo lane:
+7. Prepare the real private Ollama demo lane when you want live local inference:
+   - `python scripts/ollama_demo_environment.py`
    - `python scripts/provider_demo_flow.py --provider ollama --probe`
-   - OpenAI and Claude remain optional hosted evaluation lanes; see [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md).
+   - OpenAI and Claude remain optional hosted evaluation lanes; see [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md) and [docs/OLLAMA_DEMO_ENVIRONMENT.md](docs/OLLAMA_DEMO_ENVIRONMENT.md).
 8. Start the server:
    - `python scripts/run_private_server.py --host 127.0.0.1 --port 8080`
 
@@ -157,8 +159,8 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 
 ## Current Release
 
-- Current public release: [v0.1.1](https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases/tag/v0.1.1)
-- Release notes: [docs/releases/RELEASE_NOTES_v0.1.1.md](docs/releases/RELEASE_NOTES_v0.1.1.md)
+- Current public release: [v0.1.2](https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases/tag/v0.1.2)
+- Release notes: [docs/releases/RELEASE_NOTES_v0.1.2.md](docs/releases/RELEASE_NOTES_v0.1.2.md)
 - Release roadmap archive: [docs/ROADMAP_v0.1.1.md](docs/ROADMAP_v0.1.1.md)
 - Backlog seeds: [docs/BACKLOG_SEEDS.md](docs/BACKLOG_SEEDS.md)
 
@@ -168,6 +170,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): recovery steps for common startup and provider issues
 - [docs/FAQ.md](docs/FAQ.md): AGPL, self-hosting, and commercial-boundary answers
 - [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md): provider configuration, probe flow, and demo artifact path
+- [docs/OLLAMA_DEMO_ENVIRONMENT.md](docs/OLLAMA_DEMO_ENVIRONMENT.md): real private-model setup path for the default Ollama demo lane
 - [docs/DISCOVERY_DEMO.md](docs/DISCOVERY_DEMO.md): short customer demo runbook for provider-backed evaluations
 - [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md): visual walkthrough of the operator journey, runtime shape, and first demo flow
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
@@ -193,7 +196,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 ## Repository Layout
 
 - `sa_nom_governance/`: main Python package grouped by domain (`api`, `audit`, `compliance`, `core`, `dashboard`, `deployment`, `guards`, `human_ask`, `integrations`, `ptag`, `studio`, `utils`)
-- `scripts/`: operational entrypoints such as `scripts/dashboard_server.py`, `scripts/run_private_server.py`, `scripts/provider_smoke_test.py`, and `scripts/provider_demo_flow.py`
+- `scripts/`: operational entrypoints such as `scripts/dashboard_server.py`, `scripts/run_private_server.py`, `scripts/provider_smoke_test.py`, `scripts/provider_demo_flow.py`, and `scripts/ollama_demo_environment.py`
 - `_support/tests/`: regression tests and fixtures
 - `_runtime/`: generated local runtime state only; do not commit real organization state
 - `examples/`: sanitized example artifacts for documentation and onboarding
@@ -222,3 +225,9 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
+
+
+
+
+

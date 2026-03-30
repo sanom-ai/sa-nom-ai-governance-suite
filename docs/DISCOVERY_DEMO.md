@@ -1,4 +1,4 @@
-# Discovery Demo
+﻿# Discovery Demo
 
 Use this runbook for a short customer or stakeholder demo of the community baseline.
 
@@ -17,6 +17,7 @@ Prepare:
 - owner registration in `_runtime/owner_registration.json`
 - delegated access profiles in `_runtime/access_profiles.json`
 - one configured provider lane, preferably Ollama for the default private demo story
+- a passing Ollama environment report from `python scripts/ollama_demo_environment.py --probe --output _review/ollama_demo_environment.json` when using the default private lane
 - a passing provider report from `python scripts/provider_demo_flow.py --provider <provider-id> --probe`
 - a passing runtime smoke result from `python scripts/private_server_smoke_test.py`
 
@@ -34,7 +35,8 @@ Explain:
 ### 2. Show provider readiness
 
 Run:
-- `python scripts/provider_demo_flow.py --provider <provider-id> --probe`
+- `python scripts/ollama_demo_environment.py --probe` for the default private lane
+- `python scripts/provider_demo_flow.py --provider <provider-id> --probe` for the provider-specific report
 
 Explain:
 - which provider lane is active
@@ -72,6 +74,7 @@ Explain:
 
 ## Recommended Demo Commands
 
+- `python scripts/ollama_demo_environment.py --probe`
 - `python scripts/provider_demo_flow.py --provider ollama --probe`
 - `python scripts/provider_demo_flow.py --provider openai --probe`
 - `python scripts/provider_demo_flow.py --provider anthropic --probe`
@@ -80,6 +83,7 @@ Explain:
 
 Archive:
 - the guided smoke report
+- the Ollama environment report when you used the default private lane
 - the provider demo report
 - the startup readiness report
 - the smoke-test report
