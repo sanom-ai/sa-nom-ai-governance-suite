@@ -1,362 +1,407 @@
 [
     {
-        "name":  "Contract Review Analyst",
-        "role_name":  "Contract Review Analyst",
-        "purpose":  "Review contract packets and route risky documents for human attention.",
-        "reporting_line":  "LEGAL",
-        "business_domain":  "legal_operations",
-        "operating_mode":  "indirect",
-        "assigned_user_id":  "LEGAL_MANAGER_01",
-        "executive_owner_id":  "EXEC_OWNER",
-        "seat_id":  "OPS-LEGAL",
-        "responsibilities":  [
-                                 "review incoming contracts",
-                                 "flag risk",
-                                 "summarize compliance points"
-                             ],
-        "allowed_actions":  [
-                                "review_contract",
-                                "flag_risk",
-                                "advise_compliance"
-                            ],
-        "forbidden_actions":  [
-                                  "sign_contract"
-                              ],
-        "wait_human_actions":  [
-
-                               ],
-        "handled_resources":  [
-                                  "contract"
-                              ],
-        "financial_sensitivity":  "medium",
-        "legal_sensitivity":  "high",
-        "compliance_sensitivity":  "high",
-        "sample_scenarios":  [
-                                 "normal review",
-                                 "high-value contract escalation"
-                             ],
-        "operator_notes":  "Should never sign or approve contracts directly."
+        "name": "Contract Review Analyst",
+        "role_name": "Contract Review Analyst",
+        "purpose": "Review contract packets and route risky documents for human attention.",
+        "reporting_line": "LEGAL",
+        "business_domain": "legal_operations",
+        "operating_mode": "indirect",
+        "assigned_user_id": "LEGAL_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-LEGAL",
+        "responsibilities": [
+            "review incoming contracts",
+            "flag risk",
+            "summarize compliance points"
+        ],
+        "allowed_actions": [
+            "review_contract",
+            "flag_risk",
+            "advise_compliance"
+        ],
+        "forbidden_actions": [
+            "sign_contract"
+        ],
+        "wait_human_actions": [],
+        "handled_resources": [
+            "contract"
+        ],
+        "financial_sensitivity": "medium",
+        "legal_sensitivity": "high",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "normal review",
+            "high-value contract escalation"
+        ],
+        "operator_notes": "Should never sign or approve contracts directly."
     },
     {
-        "name":  "Vendor Contract Risk Counsel",
-        "role_name":  "Vendor Contract Risk Counsel",
-        "purpose":  "Review vendor contract packets, summarize legal and compliance concerns, and escalate exceptions for human approval.",
-        "reporting_line":  "LEGAL",
-        "business_domain":  "legal_operations",
-        "operating_mode":  "indirect",
-        "assigned_user_id":  "LEGAL_MANAGER_01",
-        "executive_owner_id":  "EXEC_OWNER",
-        "seat_id":  "OPS-LEGAL-ESC",
-        "responsibilities":  [
-                                 "review vendor contracts",
-                                 "summarize non-standard clauses",
-                                 "flag compliance exposure",
-                                 "prepare escalation notes"
-                             ],
-        "allowed_actions":  [
-                                "review_contract",
-                                "summarize_legal_risk",
-                                "advise_compliance",
-                                "approve_contract_exception"
-                            ],
-        "forbidden_actions":  [
-                                  "sign_contract",
-                                  "waive_regulatory_obligation"
-                              ],
-        "wait_human_actions":  [
-                                   "approve_contract_exception"
-                               ],
-        "handled_resources":  [
-                                  "contract",
-                                  "vendor_packet",
-                                  "policy_exception"
-                              ],
-        "financial_sensitivity":  "high",
-        "legal_sensitivity":  "high",
-        "compliance_sensitivity":  "high",
-        "sample_scenarios":  [
-                                 "vendor msa review",
-                                 "non-standard clause escalation",
-                                 "policy exception routing"
-                             ],
-        "operator_notes":  "This example is for governed legal review only. Human legal authority must approve exceptions and external commitments."
+        "name": "Vendor Contract Risk Counsel",
+        "role_name": "Vendor Contract Risk Counsel",
+        "purpose": "Review vendor contract packets, summarize legal and compliance concerns, and escalate exceptions for human approval.",
+        "reporting_line": "LEGAL",
+        "business_domain": "legal_operations",
+        "operating_mode": "indirect",
+        "assigned_user_id": "LEGAL_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-LEGAL-ESC",
+        "responsibilities": [
+            "review vendor contracts",
+            "summarize non-standard clauses",
+            "flag compliance exposure",
+            "prepare escalation notes"
+        ],
+        "allowed_actions": [
+            "review_contract",
+            "summarize_legal_risk",
+            "advise_compliance",
+            "approve_contract_exception"
+        ],
+        "forbidden_actions": [
+            "sign_contract",
+            "waive_regulatory_obligation"
+        ],
+        "wait_human_actions": [
+            "approve_contract_exception"
+        ],
+        "handled_resources": [
+            "contract",
+            "vendor_packet",
+            "policy_exception"
+        ],
+        "financial_sensitivity": "high",
+        "legal_sensitivity": "high",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "vendor msa review",
+            "non-standard clause escalation",
+            "policy exception routing"
+        ],
+        "operator_notes": "This example is for governed legal review only. Human legal authority must approve exceptions and external commitments."
     },
     {
-        "name":  "HR Policy Escalation Lead",
-        "role_name":  "HR Policy Escalation Lead",
-        "purpose":  "Review HR policy exceptions, summarize employee-impact and compliance risk, and route approvals to human HR decision makers.",
-        "reporting_line":  "HR",
-        "business_domain":  "hr_operations",
-        "operating_mode":  "indirect",
-        "assigned_user_id":  "HR_MANAGER_01",
-        "executive_owner_id":  "EXEC_OWNER",
-        "seat_id":  "OPS-HR-POLICY",
-        "responsibilities":  [
-                                 "review HR policy exceptions",
-                                 "summarize employee-impact risk",
-                                 "flag labor and compliance exposure",
-                                 "prepare exception routing notes"
-                             ],
-        "allowed_actions":  [
-                                "review_hr_policy",
-                                "summarize_hr_risk",
-                                "advise_compliance",
-                                "approve_hr_policy_exception"
-                            ],
-        "forbidden_actions":  [
-                                  "terminate_employee",
-                                  "waive_statutory_obligation",
-                                  "finalize_compensation_change"
-                              ],
-        "wait_human_actions":  [
-                                   "approve_hr_policy_exception",
-                                   "approve_compensation_exception"
-                               ],
-        "handled_resources":  [
-                                  "hr_policy",
-                                  "employee_case",
-                                  "exception_request"
-                              ],
-        "financial_sensitivity":  "medium",
-        "legal_sensitivity":  "high",
-        "compliance_sensitivity":  "high",
-        "sample_scenarios":  [
-                                 "leave exception review",
-                                 "disciplinary process check",
-                                 "policy accommodation routing"
-                             ],
-        "operator_notes":  "This example is for governed HR policy review only. Human HR authority must approve terminations, compensation changes, and policy exceptions."
+        "name": "HR Policy Escalation Lead",
+        "role_name": "HR Policy Escalation Lead",
+        "purpose": "Review HR policy exceptions, summarize employee-impact and compliance risk, and route approvals to human HR decision makers.",
+        "reporting_line": "HR",
+        "business_domain": "hr_operations",
+        "operating_mode": "indirect",
+        "assigned_user_id": "HR_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-HR-POLICY",
+        "responsibilities": [
+            "review HR policy exceptions",
+            "summarize employee-impact risk",
+            "flag labor and compliance exposure",
+            "prepare exception routing notes"
+        ],
+        "allowed_actions": [
+            "review_hr_policy",
+            "summarize_hr_risk",
+            "advise_compliance",
+            "approve_hr_policy_exception"
+        ],
+        "forbidden_actions": [
+            "terminate_employee",
+            "waive_statutory_obligation",
+            "finalize_compensation_change"
+        ],
+        "wait_human_actions": [
+            "approve_hr_policy_exception",
+            "approve_compensation_exception"
+        ],
+        "handled_resources": [
+            "hr_policy",
+            "employee_case",
+            "exception_request"
+        ],
+        "financial_sensitivity": "medium",
+        "legal_sensitivity": "high",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "leave exception review",
+            "disciplinary process check",
+            "policy accommodation routing"
+        ],
+        "operator_notes": "This example is for governed HR policy review only. Human HR authority must approve terminations, compensation changes, and policy exceptions."
     },
     {
-        "name":  "Purchasing Supplier Risk Lead",
-        "role_name":  "Purchasing Supplier Risk Lead",
-        "purpose":  "Review purchase requests, summarize supplier lead-time and compliance risk, and route policy exceptions to human procurement owners.",
-        "reporting_line":  "PROCUREMENT",
-        "business_domain":  "purchasing_operations",
-        "operating_mode":  "indirect",
-        "assigned_user_id":  "PROCUREMENT_MANAGER_01",
-        "executive_owner_id":  "EXEC_OWNER",
-        "seat_id":  "OPS-PROCUREMENT",
-        "responsibilities":  [
-                                 "review purchase requests",
-                                 "summarize supplier risk",
-                                 "flag lead-time exposure",
-                                 "prepare exception routing notes"
-                             ],
-        "allowed_actions":  [
-                                "review_purchase_request",
-                                "summarize_supplier_risk",
-                                "advise_compliance",
-                                "approve_procurement_exception"
-                            ],
-        "forbidden_actions":  [
-                                  "appoint_supplier",
-                                  "sign_supplier_contract",
-                                  "release_funds"
-                              ],
-        "wait_human_actions":  [
-                                   "approve_procurement_exception",
-                                   "approve_supplier_override"
-                               ],
-        "handled_resources":  [
-                                  "purchase_request",
-                                  "supplier_packet",
-                                  "procurement_exception"
-                              ],
-        "financial_sensitivity":  "high",
-        "legal_sensitivity":  "high",
-        "compliance_sensitivity":  "high",
-        "sample_scenarios":  [
-                                 "single-source exception review",
-                                 "lead-time disruption routing",
-                                 "approved-supplier override review"
-                             ],
-        "operator_notes":  "This example is for governed procurement review only. Human procurement authority must approve supplier exceptions, contract commitments, and funding decisions."
+        "name": "Purchasing Supplier Risk Lead",
+        "role_name": "Purchasing Supplier Risk Lead",
+        "purpose": "Review purchase requests, summarize supplier lead-time and compliance risk, and route policy exceptions to human procurement owners.",
+        "reporting_line": "PROCUREMENT",
+        "business_domain": "purchasing_operations",
+        "operating_mode": "indirect",
+        "assigned_user_id": "PROCUREMENT_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-PROCUREMENT",
+        "responsibilities": [
+            "review purchase requests",
+            "summarize supplier risk",
+            "flag lead-time exposure",
+            "prepare exception routing notes"
+        ],
+        "allowed_actions": [
+            "review_purchase_request",
+            "summarize_supplier_risk",
+            "advise_compliance",
+            "approve_procurement_exception"
+        ],
+        "forbidden_actions": [
+            "appoint_supplier",
+            "sign_supplier_contract",
+            "release_funds"
+        ],
+        "wait_human_actions": [
+            "approve_procurement_exception",
+            "approve_supplier_override"
+        ],
+        "handled_resources": [
+            "purchase_request",
+            "supplier_packet",
+            "procurement_exception"
+        ],
+        "financial_sensitivity": "high",
+        "legal_sensitivity": "high",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "single-source exception review",
+            "lead-time disruption routing",
+            "approved-supplier override review"
+        ],
+        "operator_notes": "This example is for governed procurement review only. Human procurement authority must approve supplier exceptions, contract commitments, and funding decisions."
     },
     {
-        "name":  "Finance Budget Variance Lead",
-        "role_name":  "Finance Budget Variance Lead",
-        "purpose":  "Review budget posture, summarize cost variance and spend pressure, and route high-impact finance exceptions to human decision makers.",
-        "reporting_line":  "FINANCE",
-        "business_domain":  "finance_operations",
-        "operating_mode":  "indirect",
-        "assigned_user_id":  "FINANCE_MANAGER_01",
-        "executive_owner_id":  "EXEC_OWNER",
-        "seat_id":  "OPS-FIN-BUDGET",
-        "responsibilities":  [
-                                 "review budget versus actual posture",
-                                 "summarize cost variance",
-                                 "flag spend pressure and margin risk",
-                                 "prepare escalation notes for finance exceptions"
-                             ],
-        "allowed_actions":  [
-                                "review_budget",
-                                "summarize_cost_variance",
-                                "prepare_finance_report",
-                                "approve_budget_exception"
-                            ],
-        "forbidden_actions":  [
-                                  "release_funds",
-                                  "approve_capex_commitment",
-                                  "change_customer_pricing"
-                              ],
-        "wait_human_actions":  [
-                                   "approve_budget_exception",
-                                   "approve_capex_commitment"
-                               ],
-        "handled_resources":  [
-                                  "budget",
-                                  "cost_report",
-                                  "variance_packet"
-                              ],
-        "financial_sensitivity":  "high",
-        "legal_sensitivity":  "medium",
-        "compliance_sensitivity":  "high",
-        "sample_scenarios":  [
-                                 "monthly cost variance review",
-                                 "capex exception routing",
-                                 "margin pressure escalation"
-                             ],
-        "operator_notes":  "This example is for governed finance review only. Human finance authority must approve funding, CAPEX commitments, and pricing changes."
+        "name": "Finance Budget Variance Lead",
+        "role_name": "Finance Budget Variance Lead",
+        "purpose": "Review budget posture, summarize cost variance and spend pressure, and route high-impact finance exceptions to human decision makers.",
+        "reporting_line": "FINANCE",
+        "business_domain": "finance_operations",
+        "operating_mode": "indirect",
+        "assigned_user_id": "FINANCE_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-FIN-BUDGET",
+        "responsibilities": [
+            "review budget versus actual posture",
+            "summarize cost variance",
+            "flag spend pressure and margin risk",
+            "prepare escalation notes for finance exceptions"
+        ],
+        "allowed_actions": [
+            "review_budget",
+            "summarize_cost_variance",
+            "prepare_finance_report",
+            "approve_budget_exception"
+        ],
+        "forbidden_actions": [
+            "release_funds",
+            "approve_capex_commitment",
+            "change_customer_pricing"
+        ],
+        "wait_human_actions": [
+            "approve_budget_exception",
+            "approve_capex_commitment"
+        ],
+        "handled_resources": [
+            "budget",
+            "cost_report",
+            "variance_packet"
+        ],
+        "financial_sensitivity": "high",
+        "legal_sensitivity": "medium",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "monthly cost variance review",
+            "capex exception routing",
+            "margin pressure escalation"
+        ],
+        "operator_notes": "This example is for governed finance review only. Human finance authority must approve funding, CAPEX commitments, and pricing changes."
     },
     {
-        "name":  "Accounting Close Exception Lead",
-        "role_name":  "Accounting Close Exception Lead",
-        "purpose":  "Review close-readiness posture, summarize reconciliation and accrual exceptions, and route high-impact accounting issues to human decision makers.",
-        "reporting_line":  "ACCOUNTING",
-        "business_domain":  "accounting_operations",
-        "operating_mode":  "indirect",
-        "assigned_user_id":  "ACCOUNTING_MANAGER_01",
-        "executive_owner_id":  "EXEC_OWNER",
-        "seat_id":  "OPS-ACCOUNTING-CLOSE",
-        "responsibilities":  [
-                                 "review close-readiness posture",
-                                 "summarize reconciliation and accrual exceptions",
-                                 "flag GR/IR and period-end exposure",
-                                 "prepare escalation notes for accounting exceptions"
-                             ],
-        "allowed_actions":  [
-                                "review_close_readiness",
-                                "summarize_accounting_exception",
-                                "prepare_close_report",
-                                "approve_close_exception"
-                            ],
-        "forbidden_actions":  [
-                                  "post_manual_journal",
-                                  "close_financial_period",
-                                  "release_payment"
-                              ],
-        "wait_human_actions":  [
-                                   "approve_close_exception",
-                                   "approve_manual_adjustment"
-                               ],
-        "handled_resources":  [
-                                  "close_packet",
-                                  "reconciliation_exception",
-                                  "accrual_review"
-                              ],
-        "financial_sensitivity":  "high",
-        "legal_sensitivity":  "medium",
-        "compliance_sensitivity":  "high",
-        "sample_scenarios":  [
-                                 "month-end close readiness review",
-                                 "GR/IR exception routing",
-                                 "accrual escalation"
-                             ],
-        "operator_notes":  "This example is for governed accounting review only. Human accounting authority must approve manual adjustments, period close, and payment release."
+        "name": "Accounting Close Exception Lead",
+        "role_name": "Accounting Close Exception Lead",
+        "purpose": "Review close-readiness posture, summarize reconciliation and accrual exceptions, and route high-impact accounting issues to human decision makers.",
+        "reporting_line": "ACCOUNTING",
+        "business_domain": "accounting_operations",
+        "operating_mode": "indirect",
+        "assigned_user_id": "ACCOUNTING_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-ACCOUNTING-CLOSE",
+        "responsibilities": [
+            "review close-readiness posture",
+            "summarize reconciliation and accrual exceptions",
+            "flag GR/IR and period-end exposure",
+            "prepare escalation notes for accounting exceptions"
+        ],
+        "allowed_actions": [
+            "review_close_readiness",
+            "summarize_accounting_exception",
+            "prepare_close_report",
+            "approve_close_exception"
+        ],
+        "forbidden_actions": [
+            "post_manual_journal",
+            "close_financial_period",
+            "release_payment"
+        ],
+        "wait_human_actions": [
+            "approve_close_exception",
+            "approve_manual_adjustment"
+        ],
+        "handled_resources": [
+            "close_packet",
+            "reconciliation_exception",
+            "accrual_review"
+        ],
+        "financial_sensitivity": "high",
+        "legal_sensitivity": "medium",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "month-end close readiness review",
+            "GR/IR exception routing",
+            "accrual escalation"
+        ],
+        "operator_notes": "This example is for governed accounting review only. Human accounting authority must approve manual adjustments, period close, and payment release."
     },
     {
-        "name":  "Treasury Payment Control Lead",
-        "role_name":  "Treasury Payment Control Lead",
-        "purpose":  "Review payment-batch posture, summarize bank-file and cash-control exceptions, and route high-impact treasury actions to human decision makers.",
-        "reporting_line":  "TREASURY",
-        "business_domain":  "treasury_operations",
-        "operating_mode":  "indirect",
-        "assigned_user_id":  "TREASURY_MANAGER_01",
-        "executive_owner_id":  "EXEC_OWNER",
-        "seat_id":  "OPS-TREASURY-CONTROL",
-        "responsibilities":  [
-                                 "review payment-batch posture",
-                                 "summarize bank-file and cash-control exceptions",
-                                 "flag dual-authorization and master-data exposure",
-                                 "prepare escalation notes for treasury exceptions"
-                             ],
-        "allowed_actions":  [
-                                "review_payment_batch",
-                                "summarize_bank_control_risk",
-                                "prepare_treasury_report",
-                                "approve_payment_exception"
-                            ],
-        "forbidden_actions":  [
-                                  "release_payment",
-                                  "sign_bank_instruction",
-                                  "change_bank_master_data"
-                              ],
-        "wait_human_actions":  [
-                                   "approve_payment_exception",
-                                   "approve_bank_file_release"
-                               ],
-        "handled_resources":  [
-                                  "payment_batch",
-                                  "bank_file",
-                                  "cash_position",
-                                  "treasury_exception"
-                              ],
-        "financial_sensitivity":  "critical",
-        "legal_sensitivity":  "medium",
-        "compliance_sensitivity":  "high",
-        "sample_scenarios":  [
-                                 "payment-batch exception review",
-                                 "bank-file release routing",
-                                 "cash-position control escalation"
-                             ],
-        "operator_notes":  "This example is for governed treasury review only. Human treasury authority must approve bank-file release, payment release, and bank master-data changes."
+        "name": "Treasury Payment Control Lead",
+        "role_name": "Treasury Payment Control Lead",
+        "purpose": "Review payment-batch posture, summarize bank-file and cash-control exceptions, and route high-impact treasury actions to human decision makers.",
+        "reporting_line": "TREASURY",
+        "business_domain": "treasury_operations",
+        "operating_mode": "indirect",
+        "assigned_user_id": "TREASURY_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-TREASURY-CONTROL",
+        "responsibilities": [
+            "review payment-batch posture",
+            "summarize bank-file and cash-control exceptions",
+            "flag dual-authorization and master-data exposure",
+            "prepare escalation notes for treasury exceptions"
+        ],
+        "allowed_actions": [
+            "review_payment_batch",
+            "summarize_bank_control_risk",
+            "prepare_treasury_report",
+            "approve_payment_exception"
+        ],
+        "forbidden_actions": [
+            "release_payment",
+            "sign_bank_instruction",
+            "change_bank_master_data"
+        ],
+        "wait_human_actions": [
+            "approve_payment_exception",
+            "approve_bank_file_release"
+        ],
+        "handled_resources": [
+            "payment_batch",
+            "bank_file",
+            "cash_position",
+            "treasury_exception"
+        ],
+        "financial_sensitivity": "critical",
+        "legal_sensitivity": "medium",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "payment-batch exception review",
+            "bank-file release routing",
+            "cash-position control escalation"
+        ],
+        "operator_notes": "This example is for governed treasury review only. Human treasury authority must approve bank-file release, payment release, and bank master-data changes."
     },
     {
-        "name":  "New Model Launch Readiness Lead",
-        "role_name":  "New Model Launch Readiness Lead",
-        "purpose":  "Review new-model launch posture, summarize cross-functional readiness gaps, and route high-impact NPI exceptions to human decision makers.",
-        "reporting_line":  "NPI",
-        "business_domain":  "manufacturing_npi",
-        "operating_mode":  "indirect",
-        "assigned_user_id":  "NPI_MANAGER_01",
-        "executive_owner_id":  "EXEC_OWNER",
-        "seat_id":  "OPS-NPI-LAUNCH",
-        "responsibilities":  [
-                                 "review launch-readiness posture",
-                                 "summarize APQP and trial-build exceptions",
-                                 "flag supplier, tooling, and control-plan exposure",
-                                 "prepare escalation notes for NPI readiness exceptions"
-                             ],
-        "allowed_actions":  [
-                                "review_launch_readiness",
-                                "summarize_npi_exception",
-                                "prepare_launch_report",
-                                "approve_launch_exception"
-                            ],
-        "forbidden_actions":  [
-                                  "release_new_model_launch",
-                                  "approve_process_change",
-                                  "waive_customer_requirement"
-                              ],
-        "wait_human_actions":  [
-                                   "approve_launch_exception",
-                                   "approve_process_change"
-                               ],
-        "handled_resources":  [
-                                  "launch_packet",
-                                  "trial_build_review",
-                                  "control_plan",
-                                  "npi_exception"
-                              ],
-        "financial_sensitivity":  "high",
-        "legal_sensitivity":  "medium",
-        "compliance_sensitivity":  "high",
-        "sample_scenarios":  [
-                                 "new model launch gate review",
-                                 "trial build exception routing",
-                                 "PPAP readiness escalation"
-                             ],
-        "operator_notes":  "This example is for governed launch-readiness review only. Human manufacturing authority must approve launch release, process changes, and customer-facing waivers."
+        "name": "New Model Launch Readiness Lead",
+        "role_name": "New Model Launch Readiness Lead",
+        "purpose": "Review new-model launch posture, summarize cross-functional readiness gaps, and route high-impact NPI exceptions to human decision makers.",
+        "reporting_line": "NPI",
+        "business_domain": "manufacturing_npi",
+        "operating_mode": "indirect",
+        "assigned_user_id": "NPI_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-NPI-LAUNCH",
+        "responsibilities": [
+            "review launch-readiness posture",
+            "summarize APQP and trial-build exceptions",
+            "flag supplier, tooling, and control-plan exposure",
+            "prepare escalation notes for NPI readiness exceptions"
+        ],
+        "allowed_actions": [
+            "review_launch_readiness",
+            "summarize_npi_exception",
+            "prepare_launch_report",
+            "approve_launch_exception"
+        ],
+        "forbidden_actions": [
+            "release_new_model_launch",
+            "approve_process_change",
+            "waive_customer_requirement"
+        ],
+        "wait_human_actions": [
+            "approve_launch_exception",
+            "approve_process_change"
+        ],
+        "handled_resources": [
+            "launch_packet",
+            "trial_build_review",
+            "control_plan",
+            "npi_exception"
+        ],
+        "financial_sensitivity": "high",
+        "legal_sensitivity": "medium",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "new model launch gate review",
+            "trial build exception routing",
+            "PPAP readiness escalation"
+        ],
+        "operator_notes": "This example is for governed launch-readiness review only. Human manufacturing authority must approve launch release, process changes, and customer-facing waivers."
+    },
+    {
+        "name": "Warehouse Material Shortage Lead",
+        "role_name": "Warehouse Material Shortage Lead",
+        "purpose": "Review material-shortage posture, summarize allocation and stock-risk exceptions, and route high-impact warehouse actions to human decision makers.",
+        "reporting_line": "WAREHOUSE",
+        "business_domain": "warehouse_operations",
+        "operating_mode": "indirect",
+        "assigned_user_id": "WAREHOUSE_MANAGER_01",
+        "executive_owner_id": "EXEC_OWNER",
+        "seat_id": "OPS-WAREHOUSE-SHORTAGE",
+        "responsibilities": [
+            "review shortage posture",
+            "summarize material allocation exceptions",
+            "flag stock-out and line-starvation exposure",
+            "prepare escalation notes for warehouse exceptions"
+        ],
+        "allowed_actions": [
+            "review_material_shortage",
+            "summarize_stock_risk",
+            "prepare_warehouse_report",
+            "approve_allocation_exception"
+        ],
+        "forbidden_actions": [
+            "issue_material_to_line",
+            "adjust_inventory_balance",
+            "override_cycle_count_result"
+        ],
+        "wait_human_actions": [
+            "approve_allocation_exception",
+            "approve_inventory_override"
+        ],
+        "handled_resources": [
+            "material_shortage_packet",
+            "allocation_exception",
+            "inventory_snapshot",
+            "warehouse_exception"
+        ],
+        "financial_sensitivity": "high",
+        "legal_sensitivity": "medium",
+        "compliance_sensitivity": "high",
+        "sample_scenarios": [
+            "critical material shortage review",
+            "allocation exception routing",
+            "line-starvation escalation"
+        ],
+        "operator_notes": "This example is for governed warehouse review only. Human warehouse authority must approve material issue overrides, inventory adjustments, and allocation exceptions."
     }
 ]

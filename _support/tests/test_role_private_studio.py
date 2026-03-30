@@ -533,3 +533,48 @@ def test_role_private_studio_new_model_launch_pack_preserves_human_npi_boundary(
         assert "release_new_model_launch" in created["generated_ptag"]
         assert "require human_override for approve_launch_exception" in created["generated_ptag"]
         assert created["publish_readiness"]["gates"]["validation"] is True
+
+def test_role_private_studio_template_library_includes_warehouse_material_shortage_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        warehouse_pack = next(item for item in library if item["template_id"] == "warehouse_material_shortage_pack")
+
+        assert warehouse_pack["category"] == "warehouse"
+        assert warehouse_pack["payload"]["role_name"] == "Warehouse Material Shortage Lead"
+        assert "approve_allocation_exception" in warehouse_pack["payload"]["allowed_actions"]
+        assert "approve_inventory_override" in warehouse_pack["payload"]["wait_human_actions"]
+        assert "issue_material_to_line" in warehouse_pack["payload"]["forbidden_actions"]
+        assert "adjust_inventory_balance" in warehouse_pack["payload"]["forbidden_actions"]
+
+
+def test_role_private_studio_examples_include_warehouse_material_shortage_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        warehouse_example = next(item for item in examples if item["name"] == "Warehouse Material Shortage Lead")
+
+        assert warehouse_example["operating_mode"] == "indirect"
+        assert warehouse_example["reporting_line"] == "WAREHOUSE"
+        assert "approve_allocation_exception" in warehouse_example["wait_human_actions"]
+        assert "inventory_snapshot" in warehouse_example["handled_resources"]
+        assert "line-starvation escalation" in warehouse_example["sample_scenarios"]
+
+
+def test_role_private_studio_warehouse_pack_preserves_human_warehouse_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "warehouse_material_shortage_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "WAREHOUSE_MATERIAL_SHORTAGE_LEAD"
+        assert "approve_allocation_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_inventory_override" in created["normalized_spec"]["wait_human_actions"]
+        assert "issue_material_to_line" in created["generated_ptag"]
+        assert "require human_override for approve_allocation_exception" in created["generated_ptag"]
+        assert created["publish_readiness"]["gates"]["validation"] is True
