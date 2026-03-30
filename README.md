@@ -4,25 +4,55 @@
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL%203.0--only-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/sanom-ai/sa-nom-ai-governance-suite)](https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases)
 
-SA-NOM AI Governance Suite is an open-core governance and orchestration toolkit for teams that need structured policy control around AI-assisted operations.
+SA-NOM is a private AI operations platform for organizations that want AI in real roles, with governance built in.
 
-The community baseline in this repository is designed for evaluation, internal deployment, and self-managed governance experiments on your own infrastructure.
+Instead of treating AI as a loose chatbot or an unsafe automation layer, SA-NOM lets teams define governed AI roles, route work through authority boundaries, keep human escalation paths, and retain evidence for every important decision.
+
+## What SA-NOM Actually Does
+
+SA-NOM helps organizations move from "AI that answers" to "AI that works inside the business."
+
+With SA-NOM, teams can:
+- define AI roles with explicit responsibilities and allowed authority
+- route work through approval, escalation, and reporting paths
+- keep human override available for sensitive or ambiguous decisions
+- maintain evidence, audit context, and deployment readiness records
+- run the whole stack in private infrastructure controlled by the organization
+
+The result is not only safer AI. It is AI that can participate in operations, coordination, and managed execution without falling outside organizational control.
 
 ## Why Teams Use SA-NOM
 
-- Keep AI-assisted operations inside explicit governance, audit, and escalation boundaries.
-- Model role authority and review flows with PTAG rather than leaving critical behavior implicit.
-- Start self-managed under AGPL, then move into commercial rollout or enterprise support only if needed.
+Organizations do not only need AI governance. They need AI that can actually operate.
+
+SA-NOM is designed for teams that want to:
+- assign AI to real work, not just experiments
+- give AI bounded roles instead of broad unrestricted access
+- keep reporting lines, escalation paths, and auditability intact
+- deploy AI in private or air-gapped environments
+- show legal, IT, audit, and leadership teams how the system stays accountable
+
+## Product Direction
+
+SA-NOM follows an operations-first model:
+- AI takes a role
+- AI works inside boundaries
+- humans stay in control of escalation
+- evidence stays attached to important actions
+- governance, compliance, and private deployment are built in from the start
+
+That means SA-NOM should be read as a governed AI operations system, not only as a governance utility.
 
 ## Community Baseline
 
 The public repository currently includes:
 - PTAG parsing and validation
-- governed request execution and audit chaining
+- governed runtime execution and decision flow
+- audit chain and evidence-oriented execution paths
 - Role Private Studio authoring flows
-- Human Ask escalation flows
+- Human Ask escalation-aware workflows
 - deployment readiness and operational health checks
-- provider probes for OpenAI, Claude, and Ollama
+- provider probes and demo-readiness flows for OpenAI, Claude, and Ollama
 - Docker, Helm, Kubernetes, and local private-server deployment paths
 - security audit and Thai regulated-deployment templates
 
@@ -31,7 +61,7 @@ The public repository currently includes:
 This repository is published as the community baseline of SA-NOM under AGPL-3.0-only.
 
 - Community: self-managed core runtime, dashboard, PTAG tooling, audit chain, deployment checks, examples, and local ops workflows
-- Commercial: enterprise-only features, dedicated support, rollout hardening, compliance tailoring, custom integrations, and on-site enablement
+- Commercial: enterprise-only features, direct support, rollout hardening, compliance tailoring, custom integrations, and on-site enablement
 
 If you run a modified networked version of this software, AGPL requires you to make the corresponding source available to users of that service. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
@@ -41,7 +71,7 @@ See [FEATURE_MATRIX.md](FEATURE_MATRIX.md) for the intended open-core boundary a
 
 Choose the path that matches your situation:
 - Guided evaluation path: follow [GUIDED_EVALUATION.md](GUIDED_EVALUATION.md) for the fastest first run.
-- Self-managed community path: start with the quick start below, review [DEPLOYMENT.md](DEPLOYMENT.md), [TROUBLESHOOTING.md](TROUBLESHOOTING.md), and use the examples in `examples/`.
+- Self-managed community path: start with the quick start below, review [DEPLOYMENT.md](DEPLOYMENT.md), [PROVIDER_SETUP.md](PROVIDER_SETUP.md), [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md), and [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - Commercial path: review [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md), prepare [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md), and contact `sanomaiarch@gmail.com`.
 
 ## Quick Start
@@ -60,7 +90,9 @@ Choose the path that matches your situation:
    - `python private_server_smoke_test.py`
    - `python provider_smoke_test.py`
    - `provider_smoke_test.py` returning `disabled` is expected until a provider is configured
-7. Start the server:
+7. Build a provider-ready demo report when you want to validate one lane deeply:
+   - `python provider_demo_flow.py --provider openai --probe`
+8. Start the server:
    - `python run_private_server.py --host 127.0.0.1 --port 8080`
 
 If startup validation or smoke tests fail, go to [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
@@ -86,6 +118,8 @@ If startup validation or smoke tests fail, go to [TROUBLESHOOTING.md](TROUBLESHO
 - [GUIDED_EVALUATION.md](GUIDED_EVALUATION.md): fastest first-run path for evaluators
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md): recovery steps for common startup and provider issues
 - [FAQ.md](FAQ.md): AGPL, self-hosting, and commercial-boundary answers
+- [PROVIDER_SETUP.md](PROVIDER_SETUP.md): provider configuration, probe flow, and demo artifact path
+- [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md): short customer demo runbook for provider-backed evaluations
 - [DEPLOYMENT.md](DEPLOYMENT.md): public deployment guide
 - [KUBERNETES.md](KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [FEATURE_MATRIX.md](FEATURE_MATRIX.md): community vs commercial boundary
@@ -108,7 +142,7 @@ If startup validation or smoke tests fail, go to [TROUBLESHOOTING.md](TROUBLESHO
 ## Repository Layout
 
 - `sa_nom_governance/`: main Python package grouped by domain (`api`, `audit`, `compliance`, `core`, `dashboard`, `deployment`, `guards`, `human_ask`, `integrations`, `ptag`, `studio`, `utils`)
-- Root wrappers: compatibility entrypoints such as `dashboard_server.py`, `run_private_server.py`, and `provider_smoke_test.py`
+- Root wrappers: compatibility entrypoints such as `dashboard_server.py`, `run_private_server.py`, `provider_smoke_test.py`, and `provider_demo_flow.py`
 - `_support/tests/`: regression tests and fixtures
 - `_runtime/`: generated local runtime state only; do not commit real organization state
 - `examples/`: sanitized example artifacts for documentation and onboarding
@@ -122,6 +156,7 @@ For contributor tooling:
 - `python -m pip install -r requirements-dev.txt` or `python -m pip install -e .[dev]`
 - `python -m pytest _support/tests`
 - `python provider_smoke_test.py` when validating provider wiring
+- `python provider_demo_flow.py --provider openai --probe` when validating a provider demo lane
 
 GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
@@ -132,13 +167,7 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 - Use the files in `examples/` for documentation, demos, and onboarding.
 - Report vulnerabilities privately to `sanomaiarch@gmail.com`.
 
-## Commercial Path
+## Contact
 
-Commercial licensing is intended for organizations that need one or more of the following:
-- enterprise-only features or integration packs
-- dedicated support or SLA-backed response expectations
-- rollout, migration, or air-gapped deployment help
-- compliance tailoring or government delivery support
-
-Start with [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) and email `sanomaiarch@gmail.com`.
-
+Community, commercial, security, and evaluation contact:
+`sanomaiarch@gmail.com`
