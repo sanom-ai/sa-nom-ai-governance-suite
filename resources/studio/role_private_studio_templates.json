@@ -664,6 +664,58 @@
                                                              ],
                                         "operator_notes":  "Use this pack for treasury review and escalation only. Human treasury authority must approve bank-file release, payment release, and bank master-data changes."
                                     }
+                    },
+                    {
+                        "template_id":  "new_model_launch_readiness_pack",
+                        "category":  "manufacturing_npi",
+                        "label":  "New Model Launch Readiness Pack",
+                        "summary":  "Pilot-ready manufacturing review role for launch readiness, cross-functional exception routing, and governed NPI escalation.",
+                        "payload":  {
+                                        "role_name":  "New Model Launch Readiness Lead",
+                                        "purpose":  "Review new-model launch posture, summarize cross-functional readiness gaps, and route high-impact NPI exceptions to human decision makers.",
+                                        "reporting_line":  "NPI",
+                                        "business_domain":  "manufacturing_npi",
+                                        "operating_mode":  "indirect",
+                                        "assigned_user_id":  "NPI_MANAGER_01",
+                                        "executive_owner_id":  "EXEC_OWNER",
+                                        "seat_id":  "OPS-NPI-LAUNCH",
+                                        "responsibilities":  [
+                                                                 "review launch-readiness posture",
+                                                                 "summarize APQP and trial-build exceptions",
+                                                                 "flag supplier, tooling, and control-plan exposure",
+                                                                 "prepare escalation notes for NPI readiness exceptions"
+                                                             ],
+                                        "allowed_actions":  [
+                                                                "review_launch_readiness",
+                                                                "summarize_npi_exception",
+                                                                "prepare_launch_report",
+                                                                "approve_launch_exception"
+                                                            ],
+                                        "forbidden_actions":  [
+                                                                  "release_new_model_launch",
+                                                                  "approve_process_change",
+                                                                  "waive_customer_requirement"
+                                                              ],
+                                        "wait_human_actions":  [
+                                                                   "approve_launch_exception",
+                                                                   "approve_process_change"
+                                                               ],
+                                        "handled_resources":  [
+                                                                  "launch_packet",
+                                                                  "trial_build_review",
+                                                                  "control_plan",
+                                                                  "npi_exception"
+                                                              ],
+                                        "financial_sensitivity":  "high",
+                                        "legal_sensitivity":  "medium",
+                                        "compliance_sensitivity":  "high",
+                                        "sample_scenarios":  [
+                                                                 "new model launch gate review",
+                                                                 "trial build exception routing",
+                                                                 "PPAP readiness escalation"
+                                                             ],
+                                        "operator_notes":  "Use this pack for governed launch-readiness review only. Human manufacturing authority must approve launch release, process changes, and customer-facing waivers."
+                                    }
                     }
                 ]
 }

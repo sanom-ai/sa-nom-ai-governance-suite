@@ -1,0 +1,49 @@
+{
+  "pack_name": "New Model Launch Readiness Pack",
+  "template_id": "new_model_launch_readiness_pack",
+  "example_name": "New Model Launch Readiness Lead",
+  "business_domain": "manufacturing_npi",
+  "operating_mode": "indirect",
+  "reporting_line": "NPI",
+  "assigned_user_id": "NPI_MANAGER_01",
+  "executive_owner_id": "EXEC_OWNER",
+  "seat_id": "OPS-NPI-LAUNCH",
+  "responsibilities": [
+    "review launch-readiness posture",
+    "summarize APQP and trial-build exceptions",
+    "flag supplier, tooling, and control-plan exposure",
+    "prepare escalation notes for NPI readiness exceptions"
+  ],
+  "allowed_actions": [
+    "review_launch_readiness",
+    "summarize_npi_exception",
+    "prepare_launch_report",
+    "approve_launch_exception"
+  ],
+  "forbidden_actions": [
+    "release_new_model_launch",
+    "approve_process_change",
+    "waive_customer_requirement"
+  ],
+  "wait_human_actions": [
+    "approve_launch_exception",
+    "approve_process_change"
+  ],
+  "handled_resources": [
+    "launch_packet",
+    "trial_build_review",
+    "control_plan",
+    "npi_exception"
+  ],
+  "sample_scenarios": [
+    "new model launch gate review",
+    "trial build exception routing",
+    "PPAP readiness escalation"
+  ],
+  "operator_notes": "This example is for governed launch-readiness review only. Human manufacturing authority must approve launch release, process changes, and customer-facing waivers.",
+  "pilot_fit": [
+    "launch readiness review",
+    "NPI exception escalation",
+    "cross-functional launch routing"
+  ]
+}

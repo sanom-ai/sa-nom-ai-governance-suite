@@ -25,7 +25,10 @@ Use them as templates and replace every placeholder before a real deployment.
 - hr_policy_role_pack.example.json: sanitized example payload for the pilot-ready HR policy role pack.
 - purchasing_supplier_risk_role_pack.example.json: sanitized example payload for the pilot-ready purchasing supplier-risk role pack.
 - finance_budget_variance_role_pack.example.json: sanitized example payload for the pilot-ready finance budget-variance role pack.
-- finance_budget_variance_scenario.example.json: sanitized example output for the guided finance budget-variance scenario.`r`n- accounting_close_exception_role_pack.example.json: sanitized example payload for the pilot-ready accounting close-readiness role pack.
+- finance_budget_variance_scenario.example.json: sanitized example output for the guided finance budget-variance scenario.
+- accounting_close_exception_role_pack.example.json: sanitized example payload for the pilot-ready accounting close-readiness role pack.
+- banking_treasury_control_role_pack.example.json: sanitized example payload for the pilot-ready banking and treasury control role pack.
+- new_model_launch_readiness_role_pack.example.json: sanitized example payload for the pilot-ready NPI launch-readiness role pack.
 - purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
 
@@ -68,7 +71,10 @@ Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full fi
 - hr_policy_role_pack.example.json: sanitized example payload for the pilot-ready HR policy role pack.
 - purchasing_supplier_risk_role_pack.example.json: sanitized example payload for the pilot-ready purchasing supplier-risk role pack.
 - finance_budget_variance_role_pack.example.json: sanitized example payload for the pilot-ready finance budget-variance role pack.
-- finance_budget_variance_scenario.example.json: sanitized example output for the guided finance budget-variance scenario.`r`n- accounting_close_exception_role_pack.example.json: sanitized example payload for the pilot-ready accounting close-readiness role pack.
+- finance_budget_variance_scenario.example.json: sanitized example output for the guided finance budget-variance scenario.
+- accounting_close_exception_role_pack.example.json: sanitized example payload for the pilot-ready accounting close-readiness role pack.
+- banking_treasury_control_role_pack.example.json: sanitized example payload for the pilot-ready banking and treasury control role pack.
+- new_model_launch_readiness_role_pack.example.json: sanitized example payload for the pilot-ready NPI launch-readiness role pack.
 - purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
 

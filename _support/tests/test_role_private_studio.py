@@ -488,3 +488,48 @@ def test_role_private_studio_banking_pack_preserves_human_treasury_boundary():
         assert "release_payment" in created["generated_ptag"]
         assert "require human_override for approve_payment_exception" in created["generated_ptag"]
         assert created["publish_readiness"]["gates"]["validation"] is True
+
+def test_role_private_studio_template_library_includes_new_model_launch_readiness_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        npi_pack = next(item for item in library if item["template_id"] == "new_model_launch_readiness_pack")
+
+        assert npi_pack["category"] == "manufacturing_npi"
+        assert npi_pack["payload"]["role_name"] == "New Model Launch Readiness Lead"
+        assert "approve_launch_exception" in npi_pack["payload"]["allowed_actions"]
+        assert "approve_process_change" in npi_pack["payload"]["wait_human_actions"]
+        assert "release_new_model_launch" in npi_pack["payload"]["forbidden_actions"]
+        assert "waive_customer_requirement" in npi_pack["payload"]["forbidden_actions"]
+
+
+def test_role_private_studio_examples_include_new_model_launch_readiness_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        npi_example = next(item for item in examples if item["name"] == "New Model Launch Readiness Lead")
+
+        assert npi_example["operating_mode"] == "indirect"
+        assert npi_example["reporting_line"] == "NPI"
+        assert "approve_launch_exception" in npi_example["wait_human_actions"]
+        assert "control_plan" in npi_example["handled_resources"]
+        assert "PPAP readiness escalation" in npi_example["sample_scenarios"]
+
+
+def test_role_private_studio_new_model_launch_pack_preserves_human_npi_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "new_model_launch_readiness_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "NEW_MODEL_LAUNCH_READINESS_LEAD"
+        assert "approve_launch_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_process_change" in created["normalized_spec"]["wait_human_actions"]
+        assert "release_new_model_launch" in created["generated_ptag"]
+        assert "require human_override for approve_launch_exception" in created["generated_ptag"]
+        assert created["publish_readiness"]["gates"]["validation"] is True
