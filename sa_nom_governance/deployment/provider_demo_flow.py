@@ -55,17 +55,17 @@ def _build_demo_path(selected_entry: dict[str, object] | None) -> list[dict[str,
             {
                 'step': 1,
                 'title': 'Choose a provider lane',
-                'action': 'Pick OpenAI, Claude (Anthropic), or Ollama based on your environment and policy needs.',
+                'action': 'Use Ollama as the default private demo lane, or choose OpenAI or Claude only when you need a hosted evaluation lane.',
             },
             {
                 'step': 2,
                 'title': 'Apply an example environment file',
-                'action': 'Use the matching file in examples/ as the starting point for credentials and model settings.',
+                'action': 'Start with examples/.env.ollama.example for the default private demo lane unless you intentionally want a hosted evaluation lane.',
             },
             {
                 'step': 3,
                 'title': 'Set the runtime default provider',
-                'action': 'Set SANOM_MODEL_PROVIDER_DEFAULT to the provider you want operators and evaluators to use by default.',
+                'action': 'Set SANOM_MODEL_PROVIDER_DEFAULT=ollama for the default private demo lane, or point it to a hosted provider only for evaluation needs.',
             },
             {
                 'step': 4,

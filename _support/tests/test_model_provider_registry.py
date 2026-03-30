@@ -61,6 +61,18 @@ def test_model_provider_health_marks_default_provider_ready() -> None:
         assert health['configured_providers'] == 1
 
 
+def test_model_provider_setup_report_defaults_to_ollama_for_private_demo_lane() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        registry = ModelProviderRegistry(config)
+
+        report = registry.setup_report()
+
+        assert report['status'] == 'disabled'
+        assert report['recommended_provider'] == 'ollama'
+        assert any('SANOM_MODEL_PROVIDER_DEFAULT=ollama' in item for item in report['next_actions'])
+
+
 def test_model_provider_probe_supports_openai_responses_api() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)

@@ -9,7 +9,7 @@ By the end you should have:
 - an owner registration
 - delegated access profiles
 - a successful startup validation
-- a provider probe result
+- an optional provider probe result when you want a live model lane
 - a successful runtime smoke test
 
 ## Prerequisites
@@ -67,7 +67,7 @@ Expected result:
 
 If this step fails, go directly to [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
-## Step 5: Probe Model Provider Configuration
+## Step 5: Optional Provider Probe
 
 Run:
 
@@ -75,12 +75,14 @@ Run:
 
 Expected results:
 - `status: disabled` if no provider has been configured yet
-- or a provider report if OpenAI, Claude, or Ollama is configured
+- or a provider report if a provider lane is configured
 
-Provider examples:
+Recommended default private demo lane:
+- [examples/.env.ollama.example](examples/.env.ollama.example)
+
+Optional hosted evaluation lanes:
 - [examples/.env.openai.example](examples/.env.openai.example)
 - [examples/.env.claude.example](examples/.env.claude.example)
-- [examples/.env.ollama.example](examples/.env.ollama.example)
 
 ## Step 6: Run The Runtime Smoke Test
 
@@ -106,7 +108,7 @@ You are in a good evaluation state if all of the following are true:
 - `register_owner.py` created the owner registration file
 - `bootstrap_access_profiles.py` created hashed profiles successfully
 - `dashboard_server.py --check-only` reports `ready: true`
-- `provider_smoke_test.py` is either configured successfully or clearly reports `disabled`
+- `provider_smoke_test.py` is either configured successfully or clearly reports `disabled` when you have not enabled a provider yet
 - `private_server_smoke_test.py` passes
 
 ## Next Steps

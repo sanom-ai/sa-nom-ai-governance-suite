@@ -1,6 +1,13 @@
 # Provider Setup
 
-Use this guide when you want to configure OpenAI, Claude (Anthropic), or Ollama for a real SA-NOM evaluation, pilot, or customer demo.
+Use this guide when you want to configure a live model lane for SA-NOM.
+
+Recommended default demo lane:
+- Ollama
+
+Optional hosted evaluation lanes:
+- OpenAI
+- Claude (Anthropic)
 
 ## Fastest Check
 
@@ -20,9 +27,33 @@ Across all providers, these settings matter most:
 - `SANOM_MODEL_PROVIDER_DEFAULT`
 - `SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS`
 
-If more than one provider is configured, set `SANOM_MODEL_PROVIDER_DEFAULT` so operators and demos use a stable default lane.
+For the default private demo path, set:
+- `SANOM_MODEL_PROVIDER_DEFAULT=ollama`
+
+Use OpenAI or Claude as the default only when you intentionally want a hosted evaluation lane.
+
+## Ollama
+
+Recommended use:
+- default private demo lane
+- local or semi-air-gapped evaluation
+- keeping model traffic inside your own environment
+
+Start from:
+- [examples/.env.ollama.example](examples/.env.ollama.example)
+
+Required settings:
+- `SANOM_OLLAMA_MODEL`
+
+Typical command flow:
+- `python provider_demo_flow.py --provider ollama --probe`
+- `python provider_smoke_test.py --provider ollama`
 
 ## OpenAI
+
+Recommended use:
+- optional hosted evaluation lane
+- managed API access for external demos or comparisons
 
 Start from:
 - [examples/.env.openai.example](examples/.env.openai.example)
@@ -37,6 +68,10 @@ Typical command flow:
 
 ## Claude (Anthropic)
 
+Recommended use:
+- optional hosted evaluation lane
+- Anthropic-specific commercial or policy review scenarios
+
 Start from:
 - [examples/.env.claude.example](examples/.env.claude.example)
 
@@ -48,26 +83,16 @@ Typical command flow:
 - `python provider_demo_flow.py --provider anthropic --probe`
 - `python provider_smoke_test.py --provider anthropic`
 
-## Ollama
-
-Start from:
-- [examples/.env.ollama.example](examples/.env.ollama.example)
-
-Required settings:
-- `SANOM_OLLAMA_MODEL`
-
-Typical command flow:
-- `python provider_demo_flow.py --provider ollama --probe`
-- `python provider_smoke_test.py --provider ollama`
-
 ## Recommended Validation Order
 
-1. Configure one provider lane completely.
-2. Set `SANOM_MODEL_PROVIDER_DEFAULT`.
-3. Run `python provider_demo_flow.py --provider <provider-id> --probe`.
-4. Run `python provider_smoke_test.py --provider <provider-id>`.
+1. Configure Ollama completely if you want the default private demo lane.
+2. Set `SANOM_MODEL_PROVIDER_DEFAULT=ollama`.
+3. Run `python provider_demo_flow.py --provider ollama --probe`.
+4. Run `python provider_smoke_test.py --provider ollama`.
 5. Run `python dashboard_server.py --check-only`.
 6. Run `python private_server_smoke_test.py`.
+
+If you intentionally want a hosted evaluation lane, swap `ollama` for `openai` or `anthropic` in the commands above.
 
 ## Demo Artifact
 

@@ -19,21 +19,21 @@ PROVIDER_SETUP_GUIDANCE = {
     'openai': {
         'label': 'OpenAI',
         'example_file': 'examples/.env.openai.example',
-        'recommended_for': 'Hosted evaluation, managed API access, and fast commercial discovery demos.',
+        'recommended_for': 'Optional hosted evaluation lane for managed API access and fast commercial discovery demos.',
         'required_env_vars': ['SANOM_OPENAI_API_KEY', 'SANOM_OPENAI_MODEL'],
         'optional_env_vars': ['SANOM_OPENAI_BASE_URL', 'SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS'],
     },
     'anthropic': {
         'label': 'Claude (Anthropic)',
         'example_file': 'examples/.env.claude.example',
-        'recommended_for': 'Hosted evaluation with Anthropic-managed Claude models and explicit vendor policy review.',
+        'recommended_for': 'Optional hosted evaluation lane with Anthropic-managed Claude models and explicit vendor policy review.',
         'required_env_vars': ['SANOM_ANTHROPIC_API_KEY', 'SANOM_ANTHROPIC_MODEL'],
         'optional_env_vars': ['SANOM_ANTHROPIC_BASE_URL', 'SANOM_ANTHROPIC_VERSION', 'SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS'],
     },
     'ollama': {
         'label': 'Ollama',
         'example_file': 'examples/.env.ollama.example',
-        'recommended_for': 'Private or semi-air-gapped local inference lanes where model traffic should stay inside your environment.',
+        'recommended_for': 'Recommended private default demo lane for local or semi-air-gapped inference where model traffic should stay inside your environment.',
         'required_env_vars': ['SANOM_OLLAMA_MODEL'],
         'optional_env_vars': ['SANOM_OLLAMA_BASE_URL', 'SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS'],
     },
@@ -259,10 +259,12 @@ class ModelProviderRegistry:
     def _recommended_provider(self, default_provider: str | None) -> str | None:
         if default_provider and default_provider in self.providers and self.providers[default_provider].configured:
             return default_provider
-        for provider in self.providers.values():
-            if provider.configured:
-                return provider.provider_id
-        return None
+        if self.providers['ollama'].configured:
+            return 'ollama'
+        for provider_id in ('openai', 'anthropic'):
+            if self.providers[provider_id].configured:
+                return provider_id
+        return 'ollama'
 
     def _setup_next_actions(
         self,
@@ -279,16 +281,16 @@ class ModelProviderRegistry:
         if configured_total == 0:
             if selected is not None:
                 actions.append(f"Start from {selected['example_file']} and fill {', '.join(selected['missing_env_vars'] or selected['required_env_vars'])}.")
-                actions.append(f"Set SANOM_MODEL_PROVIDER_DEFAULT={selected['provider_id']} for a stable runtime default.")
+                actions.append(f"Set SANOM_MODEL_PROVIDER_DEFAULT={selected['provider_id']} for the default demo lane.")
                 actions.append(f"Run `{selected['demo_flow_command']}` when the variables are in place.")
             else:
-                actions.append('Choose one provider example file from examples/ and fill the matching required environment variables.')
-                actions.append('Set SANOM_MODEL_PROVIDER_DEFAULT to the provider you want operators and demos to use by default.')
+                actions.append('Start with examples/.env.ollama.example for the default private demo lane, or choose a hosted evaluation lane only if you need one.')
+                actions.append('Set SANOM_MODEL_PROVIDER_DEFAULT=ollama for the default private demo lane.')
                 actions.append('Run `python provider_demo_flow.py --provider <provider-id> --probe` after configuration.')
             return actions
 
         if not default_provider and recommended_provider:
-            actions.append(f'Set SANOM_MODEL_PROVIDER_DEFAULT={recommended_provider} so operators and demos use a consistent default provider.')
+            actions.append(f'Set SANOM_MODEL_PROVIDER_DEFAULT={recommended_provider} so operators and demos use a consistent default lane.')
 
         if selected is not None:
             if selected['configured']:

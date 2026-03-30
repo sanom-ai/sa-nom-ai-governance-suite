@@ -15,7 +15,7 @@ Show that SA-NOM can:
 Prepare:
 - owner registration in `_runtime/owner_registration.json`
 - delegated access profiles in `_runtime/access_profiles.json`
-- one configured provider lane
+- one configured provider lane, preferably Ollama for the default private demo story
 - a passing provider report from `python provider_demo_flow.py --provider <provider-id> --probe`
 - a passing runtime smoke result from `python private_server_smoke_test.py`
 
@@ -37,7 +37,8 @@ Run:
 
 Explain:
 - which provider lane is active
-- which endpoint and model are being used
+- that Ollama is the default private demo lane when you want model traffic to stay in your environment
+- that OpenAI and Claude remain optional hosted evaluation lanes
 - that the provider path can be probed before exposing the runtime to real operator traffic
 
 ### 3. Show end-to-end runtime validation
@@ -70,9 +71,9 @@ Explain:
 
 ## Recommended Demo Commands
 
+- `python provider_demo_flow.py --provider ollama --probe`
 - `python provider_demo_flow.py --provider openai --probe`
 - `python provider_demo_flow.py --provider anthropic --probe`
-- `python provider_demo_flow.py --provider ollama --probe`
 
 ## After The Demo
 
