@@ -82,3 +82,6 @@ After the environment report is ready, keep using:
 
 For the broader provider matrix, see [PROVIDER_SETUP.md](PROVIDER_SETUP.md).
 For the customer walkthrough, see [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md).
+
+For the sales-led live talk track, see [LIVE_CUSTOMER_WALKTHROUGH.md](LIVE_CUSTOMER_WALKTHROUGH.md).
+
