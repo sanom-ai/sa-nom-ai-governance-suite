@@ -43,7 +43,15 @@ Manual path:
 
 This creates the authority surface the dashboard and API will use.
 
-## 3. Trusted Registry And Startup Readiness
+## 3. PT-OSS Structural Intelligence
+
+Before a role is treated as publication-ready or structurally trustworthy, SA-NOM already carries a PT-OSS layer that can apply structural posture, readiness scoring, blockers, and recommendations.
+
+That means the product is not only checking whether the runtime starts. It is also checking whether the role and workflow are structurally safe enough to trust.
+
+See [PT_OSS_CORE.md](PT_OSS_CORE.md).
+
+## 4. Trusted Registry And Startup Readiness
 
 Before the runtime is treated as ready, SA-NOM verifies owner identity, delegated access, registry state, and session posture.
 
@@ -55,7 +63,7 @@ The one-command guided flow also writes:
 
 That report is the fastest way to show a stakeholder that the runtime is prepared before go-live.
 
-## 4. Provider Lane Strategy
+## 5. Provider Lane Strategy
 
 SA-NOM separates runtime governance from model-provider choice.
 
@@ -71,7 +79,7 @@ Private-first probe flow:
 
 This keeps the product story aligned with private AI operations while still allowing hosted evaluation when needed.
 
-## 5. Runtime, Escalation, And Evidence
+## 6. Runtime, Escalation, And Evidence
 
 Once the baseline is prepared, the runtime can expose dashboard, health, evidence, integration, and provider surfaces in one governed path.
 
@@ -102,3 +110,4 @@ It is that the runtime shows:
 - [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md)
 - [PROVIDER_SETUP.md](PROVIDER_SETUP.md)
 - [DEPLOYMENT.md](DEPLOYMENT.md)
+
