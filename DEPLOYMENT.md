@@ -11,6 +11,8 @@ Use this guide when you want to:
 - package the runtime into Docker
 - move the runtime into Helm or raw Kubernetes manifests
 
+If you want the shortest evaluator path first, use [GUIDED_EVALUATION.md](GUIDED_EVALUATION.md).
+
 ## Prerequisites
 
 - Python 3.14 or newer
@@ -93,3 +95,11 @@ For Thai banking or public-sector environments, start with the templates in [tem
 ## Legacy Note
 
 The older [PRIVATE_SERVER_DEPLOYMENT.md](PRIVATE_SERVER_DEPLOYMENT.md) filename is retained for compatibility, but this document is the public deployment reference going forward.
+
+
+## Troubleshooting And Operator Recovery
+
+- For common startup failures, use [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
+- For AGPL, self-hosting, and commercial-boundary questions, use [FAQ.md](FAQ.md).
+- For example artifacts, use [examples/README.md](examples/README.md).
+- `python provider_smoke_test.py` returning `disabled` is expected until a provider is configured.
