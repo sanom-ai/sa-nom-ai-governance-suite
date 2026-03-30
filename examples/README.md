@@ -1,4 +1,4 @@
-# Examples
+﻿# Examples
 
 This folder contains sanitized example artifacts for documentation and onboarding.
 
@@ -20,7 +20,9 @@ Use them as templates and replace every placeholder before a real deployment.
 - `trusted_registry_manifest.example.json`: trusted-registry manifest shape after a refresh.
 - `guided_smoke_test.example.json`: example output from the one-command guided evaluator flow.
 - `runtime_startup_smoke.example.json`: example end-to-end smoke report written to `_runtime/runtime_startup_smoke.json`.
-- `provider_demo_flow.ollama.example.json`: example provider-demo output for the default private Ollama lane.
+- `provider_demo_flow.ollama.example.json`: sanitized example output for the default private demo lane.
+
+Use [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) and `python scripts/ollama_demo_environment.py` when you want a real local private-model setup path.
 
 ## Suggested Evaluation Order
 
@@ -38,18 +40,22 @@ Manual order if you want to inspect each artifact:
    - `python scripts/trusted_registry_refresh.py`
 4. Validate startup:
    - `python scripts/dashboard_server.py --check-only`
-5. Probe providers:
+5. Inspect the real Ollama demo lane:
+   - `python scripts/ollama_demo_environment.py`
+6. Probe providers:
    - `python scripts/provider_smoke_test.py`
-6. Run the end-to-end smoke test:
+7. Run the end-to-end smoke test:
    - `python scripts/private_server_smoke_test.py`
 
 Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full first-run path and [../docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) if any validation step fails.
 
 ## Provider Demo Commands
 
+- `python scripts/ollama_demo_environment.py`: inspect the real local Ollama daemon and model state before probing.
+- `python scripts/ollama_demo_environment.py --probe`: build an Ollama environment report for the default private demo lane.
 - `python scripts/provider_demo_flow.py --provider openai --probe`: build a demo artifact for an OpenAI lane.
 - `python scripts/provider_demo_flow.py --provider anthropic --probe`: build a demo artifact for a Claude lane.
 - `python scripts/provider_demo_flow.py --provider ollama --probe`: build a demo artifact for a local Ollama lane.
 - `provider_demo_flow.ollama.example.json`: sanitized example output for the default private demo lane.
 
-See [../docs/PROVIDER_SETUP.md](../docs/PROVIDER_SETUP.md) for provider configuration details and [../docs/DISCOVERY_DEMO.md](../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.
+See [../docs/PROVIDER_SETUP.md](../docs/PROVIDER_SETUP.md) for provider configuration details, [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) for the real private-model setup path, and [../docs/DISCOVERY_DEMO.md](../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.

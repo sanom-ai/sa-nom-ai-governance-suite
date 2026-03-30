@@ -1,4 +1,4 @@
-# Guided Evaluation
+﻿# Guided Evaluation
 
 Use this path when you want to confirm the public community baseline quickly without wandering through every document first.
 
@@ -9,6 +9,7 @@ By the end you should have:
 - an owner registration
 - delegated access profiles
 - a successful startup validation
+- an optional Ollama environment report when you want the default private live-model lane
 - an optional provider probe result when you want a live model lane
 - a successful runtime smoke test
 
@@ -27,6 +28,7 @@ Run:
 Optional when Ollama is already available and you want a live private-model probe:
 
 - `python scripts/guided_smoke_test.py --registration-code DEMO-ORG --probe`
+- `python scripts/ollama_demo_environment.py`
 
 Expected result:
 - `_review/guided_smoke_test.json` is written
@@ -92,10 +94,12 @@ If this step fails, go directly to [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 
 Run:
 
+- `python scripts/ollama_demo_environment.py`
 - `python scripts/provider_smoke_test.py`
 
 Expected results:
-- `status: disabled` if no provider has been configured yet
+- `scripts/ollama_demo_environment.py` tells you whether the Ollama daemon is reachable and whether the requested model is already installed
+- `status: disabled` from `scripts/provider_smoke_test.py` is acceptable if no provider has been configured yet
 - or a provider report if a provider lane is configured
 
 Recommended default private demo lane:
@@ -105,6 +109,7 @@ Optional hosted evaluation lanes:
 - [../examples/.env.openai.example](../examples/.env.openai.example)
 - [../examples/.env.claude.example](../examples/.env.claude.example)
 - [../examples/provider_demo_flow.ollama.example.json](../examples/provider_demo_flow.ollama.example.json) shows the default private demo-lane output shape
+- use [OLLAMA_DEMO_ENVIRONMENT.md](OLLAMA_DEMO_ENVIRONMENT.md) when you want a real local private-model path before the provider probe
 
 ## Step 6: Run The Runtime Smoke Test
 
@@ -131,6 +136,7 @@ You are in a good evaluation state if all of the following are true:
 - `scripts/register_owner.py` created the owner registration file
 - `scripts/bootstrap_access_profiles.py` created hashed profiles successfully
 - `scripts/dashboard_server.py --check-only` reports `ready: true`
+- `scripts/ollama_demo_environment.py` clearly reports what is missing for a real private-model lane
 - `scripts/provider_smoke_test.py` is either configured successfully or clearly reports `disabled` when you have not enabled a provider yet
 - `scripts/private_server_smoke_test.py` passes
 
