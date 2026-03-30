@@ -1,4 +1,4 @@
-﻿# Examples
+# Examples
 
 This folder contains sanitized example artifacts for documentation and onboarding.
 

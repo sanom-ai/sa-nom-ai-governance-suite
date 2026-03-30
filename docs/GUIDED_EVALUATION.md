@@ -1,4 +1,4 @@
-﻿# Guided Evaluation
+# Guided Evaluation
 
 Use this path when you want to confirm the public community baseline quickly without wandering through every document first.
 
