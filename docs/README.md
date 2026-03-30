@@ -1,4 +1,4 @@
-# Documentation
+﻿# Documentation
 
 SA-NOM keeps product, deployment, evaluation, and release notes in this directory so the repository root stays focused on the codebase and top-level metadata.
 
@@ -24,6 +24,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Guided Legal Review Scenario](LEGAL_REVIEW_SCENARIO.md)
 - [Guided HR Policy Scenario](HR_POLICY_SCENARIO.md)
 - [Guided Purchasing Supplier-Risk Scenario](PURCHASING_SUPPLIER_RISK_SCENARIO.md)
+- [Guided Finance Budget-Variance Scenario](FINANCE_BUDGET_VARIANCE_SCENARIO.md)
 
 ## Product And Commercial
 
@@ -63,3 +64,4 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
+

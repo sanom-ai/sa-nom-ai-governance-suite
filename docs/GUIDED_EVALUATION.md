@@ -151,8 +151,9 @@ You are in a good evaluation state if all of the following are true:
 - For a procurement-focused pilot-ready pack: [PURCHASING_SUPPLIER_RISK_ROLE_PACK.md](PURCHASING_SUPPLIER_RISK_ROLE_PACK.md)
 - For a procurement workflow story: [PURCHASING_SUPPLIER_RISK_SCENARIO.md](PURCHASING_SUPPLIER_RISK_SCENARIO.md)
 - For a finance-focused pilot-ready pack: [FINANCE_BUDGET_VARIANCE_ROLE_PACK.md](FINANCE_BUDGET_VARIANCE_ROLE_PACK.md)
-- For an accounting-focused pilot-ready pack: [ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md](ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md)
+- For a finance workflow story: [FINANCE_BUDGET_VARIANCE_SCENARIO.md](FINANCE_BUDGET_VARIANCE_SCENARIO.md)`r`n- For an accounting-focused pilot-ready pack: [ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md](ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md)
 - For a first role-based scenario: [LEGAL_REVIEW_SCENARIO.md](LEGAL_REVIEW_SCENARIO.md)
 - For an HR policy workflow story: [HR_POLICY_SCENARIO.md](HR_POLICY_SCENARIO.md)
+
 
 
