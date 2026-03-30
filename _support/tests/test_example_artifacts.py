@@ -19,6 +19,8 @@ JSON_EXAMPLES = [
     'purchasing_supplier_risk_scenario.example.json',
     'finance_budget_variance_role_pack.example.json',
     'finance_budget_variance_scenario.example.json',
+    'accounting_close_exception_role_pack.example.json',
+    'banking_treasury_control_role_pack.example.json',
 ]
 
 
@@ -68,7 +70,6 @@ def test_legal_review_scenario_example_matches_role_pack_story() -> None:
     assert 'D:\\' not in encoded
 
 
-
 def test_hr_policy_role_pack_example_preserves_human_hr_boundary() -> None:
     payload = _load('hr_policy_role_pack.example.json')
 
@@ -80,8 +81,6 @@ def test_hr_policy_role_pack_example_preserves_human_hr_boundary() -> None:
     encoded = json.dumps(payload)
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded
-
-
 
 
 def test_hr_policy_scenario_example_matches_role_pack_story() -> None:
@@ -98,8 +97,6 @@ def test_hr_policy_scenario_example_matches_role_pack_story() -> None:
     assert 'D:\\' not in encoded
 
 
-
-
 def test_purchasing_supplier_risk_role_pack_example_preserves_human_procurement_boundary() -> None:
     payload = _load('purchasing_supplier_risk_role_pack.example.json')
 
@@ -111,8 +108,6 @@ def test_purchasing_supplier_risk_role_pack_example_preserves_human_procurement_
     encoded = json.dumps(payload)
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded
-
-
 
 
 def test_purchasing_supplier_risk_scenario_example_matches_role_pack_story() -> None:
@@ -129,8 +124,6 @@ def test_purchasing_supplier_risk_scenario_example_matches_role_pack_story() -> 
     assert 'D:\\' not in encoded
 
 
-
-
 def test_finance_budget_variance_role_pack_example_preserves_human_finance_boundary() -> None:
     payload = _load('finance_budget_variance_role_pack.example.json')
 
@@ -144,7 +137,6 @@ def test_finance_budget_variance_role_pack_example_preserves_human_finance_bound
     assert 'D:\\' not in encoded
 
 
-
 def test_finance_budget_variance_scenario_example_matches_role_pack_story() -> None:
     payload = _load('finance_budget_variance_scenario.example.json')
 
@@ -154,6 +146,19 @@ def test_finance_budget_variance_scenario_example_matches_role_pack_story() -> N
     assert payload['review_result']['escalation_required'] is True
     assert 'approve_budget_exception' in payload['review_result']['wait_human_actions']
     assert 'release_funds' in payload['review_result']['forbidden_actions_enforced']
+    encoded = json.dumps(payload)
+    assert 'TAWAN' not in encoded
+    assert 'D:\\' not in encoded
+
+
+def test_accounting_close_exception_role_pack_example_preserves_human_accounting_boundary() -> None:
+    payload = _load('accounting_close_exception_role_pack.example.json')
+
+    assert payload['template_id'] == 'accounting_close_exception_pack'
+    assert payload['reporting_line'] == 'ACCOUNTING'
+    assert 'approve_close_exception' in payload['wait_human_actions']
+    assert 'approve_manual_adjustment' in payload['wait_human_actions']
+    assert 'post_manual_journal' in payload['forbidden_actions']
     encoded = json.dumps(payload)
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded

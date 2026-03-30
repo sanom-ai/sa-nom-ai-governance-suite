@@ -220,6 +220,52 @@
         "operator_notes":  "This example is for governed finance review only. Human finance authority must approve funding, CAPEX commitments, and pricing changes."
     },
     {
+        "name":  "Accounting Close Exception Lead",
+        "role_name":  "Accounting Close Exception Lead",
+        "purpose":  "Review close-readiness posture, summarize reconciliation and accrual exceptions, and route high-impact accounting issues to human decision makers.",
+        "reporting_line":  "ACCOUNTING",
+        "business_domain":  "accounting_operations",
+        "operating_mode":  "indirect",
+        "assigned_user_id":  "ACCOUNTING_MANAGER_01",
+        "executive_owner_id":  "EXEC_OWNER",
+        "seat_id":  "OPS-ACCOUNTING-CLOSE",
+        "responsibilities":  [
+                                 "review close-readiness posture",
+                                 "summarize reconciliation and accrual exceptions",
+                                 "flag GR/IR and period-end exposure",
+                                 "prepare escalation notes for accounting exceptions"
+                             ],
+        "allowed_actions":  [
+                                "review_close_readiness",
+                                "summarize_accounting_exception",
+                                "prepare_close_report",
+                                "approve_close_exception"
+                            ],
+        "forbidden_actions":  [
+                                  "post_manual_journal",
+                                  "close_financial_period",
+                                  "release_payment"
+                              ],
+        "wait_human_actions":  [
+                                   "approve_close_exception",
+                                   "approve_manual_adjustment"
+                               ],
+        "handled_resources":  [
+                                  "close_packet",
+                                  "reconciliation_exception",
+                                  "accrual_review"
+                              ],
+        "financial_sensitivity":  "high",
+        "legal_sensitivity":  "medium",
+        "compliance_sensitivity":  "high",
+        "sample_scenarios":  [
+                                 "month-end close readiness review",
+                                 "GR/IR exception routing",
+                                 "accrual escalation"
+                             ],
+        "operator_notes":  "This example is for governed accounting review only. Human accounting authority must approve manual adjustments, period close, and payment release."
+    },
+    {
         "name":  "Treasury Payment Control Lead",
         "role_name":  "Treasury Payment Control Lead",
         "purpose":  "Review payment-batch posture, summarize bank-file and cash-control exceptions, and route high-impact treasury actions to human decision makers.",

@@ -179,7 +179,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/HR_POLICY_ROLE_PACK.md](docs/HR_POLICY_ROLE_PACK.md): pilot-ready public-safe HR role pack for policy exceptions, employee-case routing, and human approval boundaries
 - [docs/PURCHASING_SUPPLIER_RISK_ROLE_PACK.md](docs/PURCHASING_SUPPLIER_RISK_ROLE_PACK.md): pilot-ready public-safe purchasing role pack for supplier risk, lead-time exposure, and governed exception routing
 - [docs/FINANCE_BUDGET_VARIANCE_ROLE_PACK.md](docs/FINANCE_BUDGET_VARIANCE_ROLE_PACK.md): pilot-ready public-safe finance role pack for budget posture, cost variance, and governed exception routing
-- [docs/FINANCE_BUDGET_VARIANCE_SCENARIO.md](docs/FINANCE_BUDGET_VARIANCE_SCENARIO.md): guided finance workflow story for budget exceptions, cost variance, and human-gated finance approvals
+- [docs/FINANCE_BUDGET_VARIANCE_SCENARIO.md](docs/FINANCE_BUDGET_VARIANCE_SCENARIO.md): guided finance workflow story for budget exceptions, cost variance, and human-gated finance approvals`r`n- [docs/ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md](docs/ACCOUNTING_CLOSE_EXCEPTION_ROLE_PACK.md): pilot-ready public-safe accounting role pack for close readiness, reconciliation exceptions, and governed period-end routing
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
 - [docs/KUBERNETES.md](docs/KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md): community vs commercial boundary
