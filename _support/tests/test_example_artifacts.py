@@ -20,6 +20,7 @@ JSON_EXAMPLES = [
     'finance_budget_variance_role_pack.example.json',
     'finance_budget_variance_scenario.example.json',
     'accounting_close_exception_role_pack.example.json',
+    'banking_treasury_control_role_pack.example.json',
 ]
 
 
@@ -158,6 +159,19 @@ def test_accounting_close_exception_role_pack_example_preserves_human_accounting
     assert 'approve_close_exception' in payload['wait_human_actions']
     assert 'approve_manual_adjustment' in payload['wait_human_actions']
     assert 'post_manual_journal' in payload['forbidden_actions']
+    encoded = json.dumps(payload)
+    assert 'TAWAN' not in encoded
+    assert 'D:\\' not in encoded
+
+
+def test_banking_treasury_control_role_pack_example_preserves_human_treasury_boundary() -> None:
+    payload = _load('banking_treasury_control_role_pack.example.json')
+
+    assert payload['template_id'] == 'banking_treasury_control_pack'
+    assert payload['reporting_line'] == 'TREASURY'
+    assert 'approve_payment_exception' in payload['wait_human_actions']
+    assert 'approve_bank_file_release' in payload['wait_human_actions']
+    assert 'release_payment' in payload['forbidden_actions']
     encoded = json.dumps(payload)
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded

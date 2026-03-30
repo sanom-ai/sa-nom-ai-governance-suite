@@ -1,4 +1,4 @@
-﻿# Documentation
+# Documentation
 
 SA-NOM keeps product, deployment, evaluation, and release notes in this directory so the repository root stays focused on the codebase and top-level metadata.
 

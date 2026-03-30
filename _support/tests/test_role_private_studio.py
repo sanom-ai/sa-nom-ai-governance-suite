@@ -442,3 +442,49 @@ def test_role_private_studio_accounting_pack_preserves_human_accounting_boundary
         assert "post_manual_journal" in created["generated_ptag"]
         assert "require human_override for approve_close_exception" in created["generated_ptag"]
         assert created["publish_readiness"]["gates"]["validation"] is True
+
+
+def test_role_private_studio_template_library_includes_banking_treasury_control_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        treasury_pack = next(item for item in library if item["template_id"] == "banking_treasury_control_pack")
+
+        assert treasury_pack["category"] == "treasury"
+        assert treasury_pack["payload"]["role_name"] == "Treasury Payment Control Lead"
+        assert "approve_payment_exception" in treasury_pack["payload"]["allowed_actions"]
+        assert "approve_bank_file_release" in treasury_pack["payload"]["wait_human_actions"]
+        assert "release_payment" in treasury_pack["payload"]["forbidden_actions"]
+        assert "sign_bank_instruction" in treasury_pack["payload"]["forbidden_actions"]
+
+
+def test_role_private_studio_examples_include_treasury_payment_control_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        treasury_example = next(item for item in examples if item["name"] == "Treasury Payment Control Lead")
+
+        assert treasury_example["operating_mode"] == "indirect"
+        assert treasury_example["reporting_line"] == "TREASURY"
+        assert "approve_payment_exception" in treasury_example["wait_human_actions"]
+        assert "bank_file" in treasury_example["handled_resources"]
+        assert "bank-file release routing" in treasury_example["sample_scenarios"]
+
+
+def test_role_private_studio_banking_pack_preserves_human_treasury_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "banking_treasury_control_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "TREASURY_PAYMENT_CONTROL_LEAD"
+        assert "approve_payment_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_bank_file_release" in created["normalized_spec"]["wait_human_actions"]
+        assert "release_payment" in created["generated_ptag"]
+        assert "require human_override for approve_payment_exception" in created["generated_ptag"]
+        assert created["publish_readiness"]["gates"]["validation"] is True

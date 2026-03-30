@@ -1,0 +1,46 @@
+{
+  "template_id": "banking_treasury_control_pack",
+  "starter_example": "Treasury Payment Control Lead",
+  "reporting_line": "TREASURY",
+  "business_domain": "treasury_operations",
+  "operating_mode": "indirect",
+  "assigned_user_id": "TREASURY_MANAGER_01",
+  "executive_owner_id": "EXEC_OWNER",
+  "seat_id": "OPS-TREASURY-CONTROL",
+  "responsibilities": [
+    "review payment-batch posture",
+    "summarize bank-file and cash-control exceptions",
+    "flag dual-authorization and master-data exposure",
+    "prepare escalation notes for treasury exceptions"
+  ],
+  "allowed_actions": [
+    "review_payment_batch",
+    "summarize_bank_control_risk",
+    "prepare_treasury_report",
+    "approve_payment_exception"
+  ],
+  "forbidden_actions": [
+    "release_payment",
+    "sign_bank_instruction",
+    "change_bank_master_data"
+  ],
+  "wait_human_actions": [
+    "approve_payment_exception",
+    "approve_bank_file_release"
+  ],
+  "handled_resources": [
+    "payment_batch",
+    "bank_file",
+    "cash_position",
+    "treasury_exception"
+  ],
+  "financial_sensitivity": "critical",
+  "legal_sensitivity": "medium",
+  "compliance_sensitivity": "high",
+  "sample_scenarios": [
+    "payment-batch exception review",
+    "bank-file release routing",
+    "cash-position control escalation"
+  ],
+  "operator_notes": "This sanitized example is for governed treasury review only. Human treasury authority must approve bank-file release, payment release, and bank master-data changes."
+}
