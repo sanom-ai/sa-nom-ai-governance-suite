@@ -14,7 +14,7 @@
 
 ใช้ช่วงต้นคอลประมาณนี้:
 
-> วันนี้ผมไม่ได้โชว์ AI แบบ hosted ทั่วไป แต่กำลังโชว์ private AI operations lane ที่รันใน environment ขององค์กรเอง พิสูจน์ readiness ได้ และยังคง governance ติดอยู่กับ runtime จริงทุกขั้น
+> วันนี้ตะวันไม่ได้โชว์ AI แบบ hosted ทั่วไป แต่กำลังโชว์ private AI operations lane ที่รันใน environment ขององค์กรเอง พิสูจน์ readiness ได้ และยังคง governance ติดอยู่กับ runtime จริงทุกขั้น
 
 ตามต่อด้วย:
 
@@ -138,7 +138,7 @@
 
 คำถามปิดที่แนะนำ:
 
-> ถ้าสิ่งนี้จะถูกประเมินต่ออย่างจริงจัง ขั้นถัดไปของคุณน่าจะเป็น guided pilot, infrastructure review, หรือ compliance และ rollout discussion แบบไหนมากที่สุดครับ
+> ถ้าสิ่งนี้จะถูกประเมินต่ออย่างจริงจัง ขั้นถัดไปของคุณน่าจะเป็น guided pilot, infrastructure review, หรือ compliance และ rollout discussion แบบไหนมากที่สุด
 
 ## แผนสำรองถ้าระหว่างเดโมมีสะดุด
 
@@ -177,3 +177,4 @@
 สำหรับฉบับภาษาอังกฤษ ดู [LIVE_CUSTOMER_WALKTHROUGH.md](LIVE_CUSTOMER_WALKTHROUGH.md)
 สำหรับ runbook เดโมสั้น ดู [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md)
 สำหรับเอกสาร setup ฝั่ง operator ดู [OLLAMA_DEMO_ENVIRONMENT.md](OLLAMA_DEMO_ENVIRONMENT.md)
+
