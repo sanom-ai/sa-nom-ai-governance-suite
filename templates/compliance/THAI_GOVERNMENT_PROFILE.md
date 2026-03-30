@@ -1,6 +1,18 @@
 # Thai Government Compliance Starter Profile
 
+Label: `Starter support`
+
 Use this profile as a working template for Thai government or public-sector deployments that need private hosting, audit evidence, data handling discipline, and public-sector security review.
+
+Legal review required.
+Regulator filing not included.
+
+For the broader baseline, read:
+- [Compliance Knowledge Baseline](../../docs/COMPLIANCE_KNOWLEDGE_BASELINE.md)
+- [ISO 42001 and NIST AI RMF Crosswalk](../../docs/ISO_42001_NIST_CROSSWALK.md)
+- [Thai AI Regulatory Gap Map](../../docs/THAI_AI_REGULATORY_GAP_MAP.md)
+- [PDPA AI Guideline Map](../../docs/PDPA_AI_GUIDELINE_MAP.md)
+- [Local Representative Readiness](../../docs/LOCAL_REPRESENTATIVE_READINESS.md)
 
 ## Regulatory Reference Points
 
