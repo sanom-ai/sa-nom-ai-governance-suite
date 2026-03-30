@@ -71,6 +71,8 @@ The same document layer should also support Human Ask reporting, so people can c
 
 Controlled document work also needs retention and records governance so archive, hold, disposal, and record-custody decisions stay explicit and auditable. See [docs/GOVERNED_DOCUMENT_RETENTION_RECORDS.md](docs/GOVERNED_DOCUMENT_RETENTION_RECORDS.md).
 
+A governed release scenario should also be visible, so readers can see how draft, review, approval, release, retained records, and Human Ask reporting fit together in one workflow. See [docs/GOVERNED_DOCUMENT_RELEASE_SCENARIO.md](docs/GOVERNED_DOCUMENT_RELEASE_SCENARIO.md).
+
 ## Why Teams Use SA-NOM
 
 Organizations do not only need AI governance. They need AI that can actually operate.
