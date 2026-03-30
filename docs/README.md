@@ -29,3 +29,8 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Document Governance Role Pack](DOCUMENT_GOVERNANCE_ROLE_PACK.md)
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 
+## Planning And Release Notes
+
+- [Release Notes v0.1.9](releases/RELEASE_NOTES_v0.1.9.md)
+- [Release Notes v0.1.8](releases/RELEASE_NOTES_v0.1.8.md)
+
