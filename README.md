@@ -65,6 +65,8 @@ See [docs/GOVERNED_DOCUMENT_CENTER.md](docs/GOVERNED_DOCUMENT_CENTER.md) for the
 
 Document routing should also stay governed. The right model is explicit authority and approval routing where AI can move routine document work forward inside approved boundaries, while humans confirm approvals, exceptions, waivers, and higher-risk release decisions.
 
+Controlled documents also need a rule-driven numbering and metadata standard so each release, revision, superseded reference, owner, approver, and retention posture stays identifiable and auditable. See [docs/GOVERNED_DOCUMENT_NUMBERING_METADATA.md](docs/GOVERNED_DOCUMENT_NUMBERING_METADATA.md).
+
 ## Why Teams Use SA-NOM
 
 Organizations do not only need AI governance. They need AI that can actually operate.
@@ -86,3 +88,4 @@ SA-NOM follows an operations-first model:
 - governance, compliance, and private deployment are built in from the start
 
 That means SA-NOM should be read as a governed AI operations system, not only as a governance utility.
+
