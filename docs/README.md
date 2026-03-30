@@ -12,6 +12,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Discovery Demo](DISCOVERY_DEMO.md)
 - [Live Customer Walkthrough](LIVE_CUSTOMER_WALKTHROUGH.md)
 - [Live Customer Walkthrough (TH)](LIVE_CUSTOMER_WALKTHROUGH_TH.md)
+- [Demo Checklist](DEMO_CHECKLIST.md)
 - [Product Tour](PRODUCT_TOUR.md)
 
 ## Product And Commercial
@@ -19,6 +20,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Feature Matrix](FEATURE_MATRIX.md)
 - [Commercial License](COMMERCIAL_LICENSE.md)
 - [Commercial Discovery Checklist](COMMERCIAL_DISCOVERY_CHECKLIST.md)
+- [ROI One-Pager](ROI_ONE_PAGER.md)
 - [One Pager](ONE_PAGER.md)
 - [One Pager (TH)](ONE_PAGER_TH.md)
 - [Support](SUPPORT.md)
