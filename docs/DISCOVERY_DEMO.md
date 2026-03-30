@@ -13,6 +13,7 @@ Show that SA-NOM can:
 ## Before The Call
 
 Prepare:
+- a passing guided smoke report from `python scripts/guided_smoke_test.py --registration-code DEMO-ORG`
 - owner registration in `_runtime/owner_registration.json`
 - delegated access profiles in `_runtime/access_profiles.json`
 - one configured provider lane, preferably Ollama for the default private demo story
@@ -78,6 +79,7 @@ Explain:
 ## After The Demo
 
 Archive:
+- the guided smoke report
 - the provider demo report
 - the startup readiness report
 - the smoke-test report
