@@ -147,4 +147,6 @@ You are in a good evaluation state if all of the following are true:
 - For startup failures: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 - For licensing and commercial questions: [FAQ.md](FAQ.md) and [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
 - For a pilot-ready use-case pack: [LEGAL_REVIEW_ROLE_PACK.md](LEGAL_REVIEW_ROLE_PACK.md)
+- For a first role-based scenario: [LEGAL_REVIEW_SCENARIO.md](LEGAL_REVIEW_SCENARIO.md)
+
 
