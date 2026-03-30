@@ -1,0 +1,48 @@
+{
+  "pack_name": "Finance Budget Variance Pack",
+  "template_id": "finance_budget_variance_pack",
+  "example_name": "Finance Budget Variance Lead",
+  "business_domain": "finance_operations",
+  "operating_mode": "indirect",
+  "reporting_line": "FINANCE",
+  "assigned_user_id": "FINANCE_MANAGER_01",
+  "executive_owner_id": "EXEC_OWNER",
+  "seat_id": "OPS-FIN-BUDGET",
+  "responsibilities": [
+    "review budget versus actual posture",
+    "summarize cost variance",
+    "flag spend pressure and margin risk",
+    "prepare escalation notes for finance exceptions"
+  ],
+  "allowed_actions": [
+    "review_budget",
+    "summarize_cost_variance",
+    "prepare_finance_report",
+    "approve_budget_exception"
+  ],
+  "forbidden_actions": [
+    "release_funds",
+    "approve_capex_commitment",
+    "change_customer_pricing"
+  ],
+  "wait_human_actions": [
+    "approve_budget_exception",
+    "approve_capex_commitment"
+  ],
+  "handled_resources": [
+    "budget",
+    "cost_report",
+    "variance_packet"
+  ],
+  "sample_scenarios": [
+    "monthly cost variance review",
+    "capex exception routing",
+    "margin pressure escalation"
+  ],
+  "operator_notes": "This example is for governed finance review only. Human finance authority must approve funding, CAPEX commitments, and pricing changes.",
+  "pilot_fit": [
+    "budget posture review",
+    "cost variance escalation",
+    "finance exception routing"
+  ]
+}
