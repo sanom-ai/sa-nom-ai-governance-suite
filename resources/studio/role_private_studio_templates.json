@@ -976,6 +976,58 @@
                 ],
                 "operator_notes": "Use this pack for governed external-audit review only. Human audit and executive authority must approve auditor responses, regulatory filings, and audit-finding closure decisions."
             }
+        },
+        {
+            "template_id": "regulator_response_pack",
+            "category": "regulator_response",
+            "label": "Regulator Response Pack",
+            "summary": "Pilot-ready regulatory review role for regulator requests, deadline posture, and governed response escalation.",
+            "payload": {
+                "role_name": "Regulator Response Coordination Lead",
+                "purpose": "Review regulator requests, summarize evidence and disclosure gaps, track response deadlines, and route high-impact regulator-response decisions to human decision makers.",
+                "reporting_line": "COMPLIANCE",
+                "business_domain": "regulatory_response",
+                "operating_mode": "indirect",
+                "assigned_user_id": "COMPLIANCE_MANAGER_01",
+                "executive_owner_id": "EXEC_OWNER",
+                "seat_id": "OPS-REGULATOR-RESPONSE",
+                "responsibilities": [
+                    "review regulator request posture",
+                    "summarize evidence and disclosure gaps",
+                    "flag deadline and legal exposure",
+                    "prepare escalation notes for regulator-response exceptions"
+                ],
+                "allowed_actions": [
+                    "review_regulator_request",
+                    "summarize_disclosure_gap",
+                    "prepare_regulator_response",
+                    "approve_regulator_response_exception"
+                ],
+                "forbidden_actions": [
+                    "release_official_regulator_response",
+                    "submit_regulatory_filing",
+                    "waive_regulatory_requirement"
+                ],
+                "wait_human_actions": [
+                    "approve_regulator_response_exception",
+                    "approve_regulatory_filing"
+                ],
+                "handled_resources": [
+                    "regulator_request_packet",
+                    "regulatory_evidence_packet",
+                    "response_deadline_record",
+                    "regulator_response_draft"
+                ],
+                "financial_sensitivity": "high",
+                "legal_sensitivity": "critical",
+                "compliance_sensitivity": "critical",
+                "sample_scenarios": [
+                    "regulator information request review",
+                    "deadline-risk escalation",
+                    "official response routing"
+                ],
+                "operator_notes": "Use this pack for governed regulator-response review only. Human compliance, legal, and executive authority must approve official regulator responses, filings, and requirement-waiver decisions."
+            }
         }
     ]
 }
