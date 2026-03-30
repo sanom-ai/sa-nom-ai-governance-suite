@@ -80,6 +80,7 @@ Choose the path that matches your situation:
 - [TRADEMARKS.md](TRADEMARKS.md): brand and naming guidance
 - [NOTICE](NOTICE): project-specific license, trademark, and commercial notice
 - [SUPPORT.md](SUPPORT.md): community, commercial, and security contact path
+- [ONE_PAGER.md](ONE_PAGER.md): concise product and commercial summary aligned with the public repo
 - [OPEN_SOURCE_RELEASE_CHECKLIST.md](OPEN_SOURCE_RELEASE_CHECKLIST.md): launch checklist for publishing a clean public release
 - [PUBLIC_UPLOAD_RUNBOOK.md](PUBLIC_UPLOAD_RUNBOOK.md): step-by-step upload procedure for the first public push
 - [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md): intake template for commercial inquiries
