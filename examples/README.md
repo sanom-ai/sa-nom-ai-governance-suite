@@ -24,6 +24,7 @@ Use them as templates and replace every placeholder before a real deployment.
 - legal_review_role_pack.example.json: sanitized example payload for the pilot-ready legal review role pack.
 - hr_policy_role_pack.example.json: sanitized example payload for the pilot-ready HR policy role pack.
 - purchasing_supplier_risk_role_pack.example.json: sanitized example payload for the pilot-ready purchasing supplier-risk role pack.
+- finance_budget_variance_role_pack.example.json: sanitized example payload for the pilot-ready finance budget-variance role pack.
 - purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
 
@@ -65,6 +66,7 @@ Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full fi
 - legal_review_role_pack.example.json: sanitized example payload for the pilot-ready legal review role pack.
 - hr_policy_role_pack.example.json: sanitized example payload for the pilot-ready HR policy role pack.
 - purchasing_supplier_risk_role_pack.example.json: sanitized example payload for the pilot-ready purchasing supplier-risk role pack.
+- finance_budget_variance_role_pack.example.json: sanitized example payload for the pilot-ready finance budget-variance role pack.
 - purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
 

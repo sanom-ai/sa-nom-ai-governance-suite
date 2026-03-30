@@ -349,3 +349,50 @@ def test_role_private_studio_purchasing_pack_preserves_human_procurement_boundar
         assert "appoint_supplier" in created["generated_ptag"]
         assert "require human_override for approve_procurement_exception" in created["generated_ptag"]
         assert created["publish_readiness"]["gates"]["validation"] is True
+
+
+
+def test_role_private_studio_template_library_includes_finance_budget_variance_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        finance_pack = next(item for item in library if item["template_id"] == "finance_budget_variance_pack")
+
+        assert finance_pack["category"] == "finance"
+        assert finance_pack["payload"]["role_name"] == "Finance Budget Variance Lead"
+        assert "approve_budget_exception" in finance_pack["payload"]["allowed_actions"]
+        assert "approve_capex_commitment" in finance_pack["payload"]["wait_human_actions"]
+        assert "release_funds" in finance_pack["payload"]["forbidden_actions"]
+        assert "change_customer_pricing" in finance_pack["payload"]["forbidden_actions"]
+
+
+def test_role_private_studio_examples_include_finance_budget_variance_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        finance_example = next(item for item in examples if item["name"] == "Finance Budget Variance Lead")
+
+        assert finance_example["operating_mode"] == "indirect"
+        assert finance_example["reporting_line"] == "FINANCE"
+        assert "approve_budget_exception" in finance_example["wait_human_actions"]
+        assert "variance_packet" in finance_example["handled_resources"]
+        assert "margin pressure escalation" in finance_example["sample_scenarios"]
+
+
+def test_role_private_studio_finance_pack_preserves_human_finance_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "finance_budget_variance_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "FINANCE_BUDGET_VARIANCE_LEAD"
+        assert "approve_budget_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_capex_commitment" in created["normalized_spec"]["wait_human_actions"]
+        assert "release_funds" in created["generated_ptag"]
+        assert "require human_override for approve_budget_exception" in created["generated_ptag"]
+        assert created["publish_readiness"]["gates"]["validation"] is True
