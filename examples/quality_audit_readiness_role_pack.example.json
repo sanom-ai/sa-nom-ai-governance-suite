@@ -1,0 +1,45 @@
+{
+    "pack_name": "Quality Release and Audit Readiness Pack",
+    "template_id": "quality_audit_readiness_pack",
+    "example_name": "Quality Audit Readiness Lead",
+    "business_domain": "quality_operations",
+    "operating_mode": "indirect",
+    "reporting_line": "QUALITY",
+    "assigned_user_id": "QUALITY_MANAGER_01",
+    "executive_owner_id": "EXEC_OWNER",
+    "seat_id": "OPS-QUALITY-AUDIT",
+    "responsibilities": [
+        "review QC defect and QA deviation posture",
+        "summarize release-readiness exceptions",
+        "flag audit-evidence and control gaps",
+        "prepare escalation notes for quality and audit exceptions"
+    ],
+    "allowed_actions": [
+        "review_quality_exception",
+        "summarize_audit_readiness",
+        "prepare_quality_report",
+        "approve_release_exception"
+    ],
+    "forbidden_actions": [
+        "release_quality_hold",
+        "waive_specification_requirement",
+        "close_audit_finding"
+    ],
+    "wait_human_actions": [
+        "approve_release_exception",
+        "approve_deviation_waiver"
+    ],
+    "handled_resources": [
+        "defect_triage_packet",
+        "deviation_report",
+        "release_readiness_packet",
+        "audit_evidence_packet"
+    ],
+    "sample_scenarios": [
+        "QC defect triage review",
+        "QA release-readiness escalation",
+        "internal audit evidence-gap routing"
+    ],
+    "notes": "Public-safe quality role-pack example covering QC, QA, and audit-readiness review. Human quality authority still owns hold release, deviation waivers, and audit-finding closure.",
+    "pilot_fit": "Useful for pilots that need one governed quality lane spanning defect review, release posture, and audit preparation."
+}
