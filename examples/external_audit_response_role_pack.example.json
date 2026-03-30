@@ -1,0 +1,45 @@
+{
+    "pack_name": "External Audit Response Pack",
+    "template_id": "external_audit_response_pack",
+    "example_name": "External Audit Response Lead",
+    "business_domain": "audit_response",
+    "operating_mode": "indirect",
+    "reporting_line": "AUDIT",
+    "assigned_user_id": "AUDIT_MANAGER_01",
+    "executive_owner_id": "EXEC_OWNER",
+    "seat_id": "OPS-AUDIT-EXTERNAL",
+    "responsibilities": [
+        "review external audit request posture",
+        "summarize evidence and corrective-action gaps",
+        "flag regulatory and management-response exposure",
+        "prepare escalation notes for auditor-response exceptions"
+    ],
+    "allowed_actions": [
+        "review_audit_request",
+        "summarize_evidence_gap",
+        "prepare_audit_response",
+        "approve_audit_response_exception"
+    ],
+    "forbidden_actions": [
+        "close_audit_finding",
+        "release_regulatory_response",
+        "alter_audit_evidence"
+    ],
+    "wait_human_actions": [
+        "approve_audit_response_exception",
+        "approve_regulatory_response"
+    ],
+    "handled_resources": [
+        "external_audit_request",
+        "audit_evidence_packet",
+        "corrective_action_status",
+        "audit_response_record"
+    ],
+    "sample_scenarios": [
+        "external auditor evidence request review",
+        "finding-response escalation",
+        "management response routing"
+    ],
+    "notes": "Public-safe external audit role-pack example. Human audit and executive authority still own auditor responses, regulatory filings, and audit-finding closure decisions.",
+    "pilot_fit": "Useful for pilots that need one governed lane for external auditor requests, evidence gaps, and management-response review."
+}

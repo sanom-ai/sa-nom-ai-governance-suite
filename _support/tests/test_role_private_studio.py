@@ -694,3 +694,42 @@ def test_role_private_studio_delivery_pack_preserves_human_delivery_boundary():
         assert "release_shipment" in created["normalized_spec"]["forbidden_actions"]
         assert "change_customer_delivery_commitment" in created["normalized_spec"]["forbidden_actions"]
         assert "require human_override for approve_dispatch_exception" in created["generated_ptag"]
+
+
+def test_role_private_studio_template_library_includes_external_audit_response_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        audit_pack = next(item for item in library if item["template_id"] == "external_audit_response_pack")
+
+        assert audit_pack["category"] == "audit_external"
+        assert audit_pack["payload"]["role_name"] == "External Audit Response Lead"
+
+
+def test_role_private_studio_examples_include_external_audit_response_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        audit_example = next(item for item in examples if item["name"] == "External Audit Response Lead")
+
+        assert audit_example["operating_mode"] == "indirect"
+        assert audit_example["reporting_line"] == "AUDIT"
+
+
+def test_role_private_studio_external_audit_pack_preserves_human_audit_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "external_audit_response_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "EXTERNAL_AUDIT_RESPONSE_LEAD"
+        assert "approve_audit_response_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_regulatory_response" in created["normalized_spec"]["wait_human_actions"]
+        assert "close_audit_finding" in created["normalized_spec"]["forbidden_actions"]
+        assert "alter_audit_evidence" in created["normalized_spec"]["forbidden_actions"]
+        assert "require human_override for approve_audit_response_exception" in created["generated_ptag"]
