@@ -9,6 +9,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Provider Setup](PROVIDER_SETUP.md)
 - [Discovery Demo](DISCOVERY_DEMO.md)
+- [Product Tour](PRODUCT_TOUR.md)
 
 ## Product And Commercial
 

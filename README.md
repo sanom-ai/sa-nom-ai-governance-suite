@@ -43,6 +43,46 @@ SA-NOM follows an operations-first model:
 
 That means SA-NOM should be read as a governed AI operations system, not only as a governance utility.
 
+
+## Visual Tour
+
+### From Role Definition To Governed Runtime
+
+```mermaid
+flowchart LR
+    A["Define an AI role"] --> B["Attach authority boundaries"]
+    B --> C["Register owner and delegated access"]
+    C --> D["Validate startup readiness"]
+    D --> E["Run governed runtime"]
+    E --> F["Escalate to humans when needed"]
+    F --> G["Export evidence and review state"]
+```
+
+### What Operators Actually Touch
+
+```mermaid
+flowchart TD
+    A["Policy and role packs"] --> B["SA-NOM runtime"]
+    C["Owner registration"] --> B
+    D["Access profiles"] --> B
+    E["Trusted registry"] --> B
+    B --> F["Dashboard and API"]
+    B --> G["Audit and evidence"]
+    B --> H["Provider lane"]
+    H --> I["Ollama (default private demo)"]
+    H --> J["OpenAI or Claude (optional evaluation)"]
+```
+
+### 5-Minute Product Tour
+
+1. Register the executive owner and delegated access so the runtime has a real authority model.
+2. Run `python scripts/guided_smoke_test.py --registration-code DEMO-ORG` to prepare the local baseline in one pass.
+3. Inspect startup readiness and runtime smoke results in `_review/guided_smoke_test.json`.
+4. Treat Ollama as the default private demo lane, then add OpenAI or Claude only when you need hosted evaluation.
+5. Open the dashboard or API and review how evidence, compliance, and escalation state stay attached to live operations.
+
+See [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md) for the full walkthrough.
+
 ## Community Baseline
 
 The public repository currently includes:
@@ -129,6 +169,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/FAQ.md](docs/FAQ.md): AGPL, self-hosting, and commercial-boundary answers
 - [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md): provider configuration, probe flow, and demo artifact path
 - [docs/DISCOVERY_DEMO.md](docs/DISCOVERY_DEMO.md): short customer demo runbook for provider-backed evaluations
+- [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md): visual walkthrough of the operator journey, runtime shape, and first demo flow
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
 - [docs/KUBERNETES.md](docs/KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md): community vs commercial boundary
