@@ -80,6 +80,7 @@ The first compliance knowledge baseline should include:
 - [Thai AI Regulatory Gap Map](THAI_AI_REGULATORY_GAP_MAP.md)
 - [PDPA AI Guideline Map](PDPA_AI_GUIDELINE_MAP.md)
 - [Local Representative Readiness](LOCAL_REPRESENTATIVE_READINESS.md)
+- [Compliance Skill-Layer Contract](COMPLIANCE_SKILL_LAYER_CONTRACT.md)
 
 ## Commercial Boundary
 
@@ -101,3 +102,4 @@ The public repo should treat compliance content as a disciplined baseline:
 - honest enough to show the gaps
 - structured enough to support a future skill layer
 - careful enough not to overclaim legal or regulator readiness
+

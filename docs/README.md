@@ -22,6 +22,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Thai AI Regulatory Gap Map](THAI_AI_REGULATORY_GAP_MAP.md)
 - [PDPA AI Guideline Map](PDPA_AI_GUIDELINE_MAP.md)
 - [Local Representative Readiness](LOCAL_REPRESENTATIVE_READINESS.md)
+- [Compliance Skill-Layer Contract](COMPLIANCE_SKILL_LAYER_CONTRACT.md)
 - [Legal Review Role Pack](LEGAL_REVIEW_ROLE_PACK.md)
 - [HR Policy Role Pack](HR_POLICY_ROLE_PACK.md)
 - [Purchasing Supplier Risk Role Pack](PURCHASING_SUPPLIER_RISK_ROLE_PACK.md)
@@ -74,5 +75,6 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 ## Archive
 
 - [Open Source Strategy Notes](archive/open-source-strategy-notes.txt)
+
 
 
