@@ -1,4 +1,4 @@
-# SA-NOM AI Governance Suite
+﻿# SA-NOM AI Governance Suite
 
 Private AI operations for organizations that want AI in real roles, with governance built in.
 
@@ -33,13 +33,13 @@ Community baseline is published under AGPL-3.0-only. Commercial path remains ava
 ## ฟีเจอร์หลักแปดประการ
 
 - **01  Role Private Studio — สร้าง AI ที่มีตำแหน่งจาก JD ขององค์กร**: อัปโหลด Job Description → ระบบสร้าง PTAG Role Pack อัตโนมัติ ไม่ต้องเขียน Prompt เอง AI รับบทบาทจริงได้ทันที เช่น CFO, Legal Director, Compliance Officer, HR Manager ทุก Role ผ่านการประเมิน PT-OSS และ Trusted Registry signature ก่อน publish รองรับ revision history, diff ระหว่างเวอร์ชัน และกู้คืนเวอร์ชันเก่าได้ตลอดเวลา
-- **02  Human Ask — เรียก AI รายงานได้ทุกเมื่อ แบบ real-time**: พิมพ์คำถามได้เลย เช่น "สรุปสถานะงานทั้งหมดของทีมกฎหมายในเดือนนี้" รองรับการเรียก AI หลายตำแหน่งพร้อมกันในโหมด Meeting มี confidence threshold ที่ตั้งค่าได้ หากมั่นใจต่ำกว่าเกณฑ์จะหยุดและรอมนุษย์ทันที ทุกการรายงานถูกบันทึกเป็นหลักฐานอัตโนมัติพร้อม scope assessment ก่อนตอบทุกครั้ง
+- **02  Human Ask — มนุษย์เรียก AI มารายงานหรือประชุมได้ทุกเมื่อ แบบ real-time**: พิมพ์คำถามได้เลย เช่น "สรุปสถานะงานทั้งหมดของทีมกฎหมายในเดือนนี้" รองรับการเรียก AI หลายตำแหน่งพร้อมกันในโหมด Meeting เพื่อให้รายงานร่วมกันแบบมีขอบเขต ทุกการรายงานถูกบันทึกเป็นหลักฐานอัตโนมัติพร้อม scope assessment ก่อนตอบทุกครั้ง Human Ask จึงเป็นฝั่งที่มนุษย์เรียก AI เข้ามารายงาน ไม่ใช่ AI เป็นฝ่ายย้อนมาถามมนุษย์
 - **03  PT-OSS Structural Intelligence — เรดาร์ตรวจโครงสร้างองค์กรก่อนปล่อย AI**: ประเมินความพร้อมเชิงโครงสร้างด้วย 7 ตัวชี้วัดหลัก (HDI-S, HDI-D, SFS, KPIR, ASP, HOIS, SPAI) หากโครงสร้างองค์กรยังไม่พร้อม ระบบจะ block การ publish Role โดยอัตโนมัติ รองรับโหมด PT_OSS_FULL_CAL_TH สำหรับหน่วยงานรัฐไทย ที่วัดปัจจัยทางวัฒนธรรม เช่น บุญคุณผูกพันและ hierarchy pressure ให้รายงาน posture (healthy / watch / elevated / critical) พร้อมคำแนะนำที่นำไปปฏิบัติได้จริง
 - **04  Authority Guard + Resource Lock — ป้องกันทุก action ทุก request**: ตรวจสอบ 3 ระดับก่อนทุกการกระทำ: allow / deny / require human override Resource Lock ป้องกัน race condition เมื่อหลาย request เข้าถึงทรัพยากรเดียวกัน Ethics Guard และ Risk Scorer ทำงานแยกชั้น หากไม่ผ่านการตรวจสอบ ระบบจะปฏิเสธทันทีและบันทึกเหตุผลเป็นหลักฐาน
 - **05  Audit Chain + Evidence Pack — หลักฐานที่แก้ไขย้อนหลังไม่ได้**: ทุก event เชื่อมต่อด้วย SHA-256 hash chain ทำให้ตรวจพบการแก้ไขได้ทันที Evidence Pack รวบรวมหลักฐานครบชุด (audit log, role snapshot, compliance mapping, session record) พร้อมส่งให้ Auditor ด้วยคำสั่งเดียว Retention Manager จัดการ lifecycle ข้อมูลแบบครบวงจร ได้แก่ archival, legal hold และ purge policy
 - **06  Trusted Registry — ควบคุมการ publish Role อย่างเป็นทางการ**: ทุก Role ต้องผ่านการ sign ด้วย Trusted Registry key ขององค์กรก่อน deploy องค์กรเป็นผู้ถือกุญแจเอง ไม่มีบุคคลที่สามสามารถ publish Role ได้โดยไม่ได้รับอนุมัติ manifest.json บันทึก SHA-256 และลายเซ็นของทุก Role Pack หาก signature ไม่ถูกต้อง ระบบจะปฏิเสธการโหลด Role ทันที
 - **07  Integration Outbound — เชื่อมต่อกับระบบเดิมขององค์กร**: รองรับ SIEM Bridge, Service Desk Bridge (Jira / ServiceNow) และ Custom Webhook ทุก integration event ถูกบันทึกใน audit log อย่างครบถ้วน ใช้ Outbox Queue + Dead Letter Queue พร้อม retry policy และ HMAC-SHA256 signing
-- **08  Human Alert & Escalation Notification — แจ้งเตือนทันทีเมื่อ AI ต้องการมนุษย์**: ระบบแจ้งเตือนแบบ real-time เมื่อ AI ไม่สามารถตัดสินใจหรือดำเนินการได้ด้วยตนเอง ครอบคลุมกรณี: ถูก block เพราะอยู่นอกขอบเขตอำนาจ, ต้องใช้ Human Override, Policy สั่ง escalate, Confidence Score ต่ำกว่าเกณฑ์ หรือ PT-OSS Posture อยู่ในระดับ elevated ขึ้นไป แสดงผลผ่าน Dashboard และส่งแจ้งเตือนผ่าน Webhook ไปยัง SIEM, Teams, Slack หรือ Ticketing System
+- **08  Human Alert & Escalation Notification — แจ้งเตือนทันทีเมื่อ AI ไปต่อไม่ได้หรือจำเป็นต้องส่งต่อมนุษย์**: ระบบแจ้งเตือนแบบ real-time เมื่อ AI ไม่สามารถตัดสินใจหรือดำเนินการได้ด้วยตนเอง ครอบคลุมกรณี: ถูก block เพราะอยู่นอกขอบเขตอำนาจ, ต้องใช้ Human Override, Policy สั่ง escalate, Confidence Score ต่ำกว่าเกณฑ์ หรือ PT-OSS Posture อยู่ในระดับ elevated ขึ้นไป แสดงผลผ่าน Dashboard และส่งแจ้งเตือนผ่าน Webhook ไปยัง SIEM, Teams, Slack หรือ Ticketing System
 
 ## ก่อน และ หลัง
 
@@ -97,3 +97,4 @@ Use [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) as the source of truth for cu
 ## Contact
 
 Commercial, rollout, security, and evaluation contact: `sanomaiarch@gmail.com`
+
