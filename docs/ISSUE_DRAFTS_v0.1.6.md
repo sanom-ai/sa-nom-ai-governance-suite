@@ -2,25 +2,25 @@
 
 Use these drafts to seed the next milestone after `v0.1.5`.
 
-## 1. Add enterprise function map for manufacturing, audit, and IT
+## 1. Add enterprise function map for manufacturing, finance, accounting, audit, and IT
 
-- Title: `Add enterprise function map for manufacturing, audit, and IT`
+- Title: `Add enterprise function map for manufacturing, finance, accounting, audit, and IT`
 - Labels: `documentation`, `community`, `commercial`, `v0.1.6`
 - Milestone: `v0.1.6`
 
 ```md
 ## Summary
-Add a high-level enterprise operating map that shows how SA-NOM can cover manufacturing, audit, and IT as one governed system.
+Add a high-level enterprise operating map that shows how SA-NOM can cover manufacturing, finance, accounting, audit, and IT as one governed system.
 
 ## Problem
 The repo now has stronger legal and HR lanes, but it still needs a clear picture of how those lanes scale into a full enterprise operating model.
 
 ## Proposed Direction
-Document the end-to-end workflow across manufacturing, audit, and IT and identify the next role-pack and scenario priorities.
+Document the end-to-end workflow across manufacturing, finance, accounting, audit, and IT and identify the next role-pack and scenario priorities.
 
 ## Acceptance Criteria
 - the full workflow is easy to explain
-- manufacturing, audit, and IT are all covered
+- manufacturing, finance, accounting, audit, and IT are all covered
 - the next role-pack priorities are clear
 ```
 
@@ -68,7 +68,73 @@ Create a warehouse-focused role pack that can summarize stock posture and route 
 - examples remain aligned with the private demo lane
 ```
 
-## 4. Add guided production and quality-hold scenario
+## 4. Add new model and launch-readiness role pack
+
+- Title: `Add new model and launch-readiness role pack`
+- Labels: `enhancement`, `community`, `commercial`, `v0.1.6`
+- Milestone: `v0.1.6`
+
+```md
+## Summary
+Add a pilot-ready new-model or NPI readiness role pack.
+
+## Problem
+The manufacturing story is incomplete without a governed lane for launch readiness, trial builds, and change-control gates.
+
+## Proposed Direction
+Create an NPI-focused pack that can summarize launch blockers, route engineering or quality exceptions, and keep launch approval human-gated.
+
+## Acceptance Criteria
+- role pack is public-safe and documented
+- launch and change-control boundaries are explicit
+- the pack fits demos and pilot discussions for manufacturing organizations
+```
+
+## 5. Add finance budget and cost-variance role pack
+
+- Title: `Add finance budget and cost-variance role pack`
+- Labels: `enhancement`, `community`, `commercial`, `v0.1.6`
+- Milestone: `v0.1.6`
+
+```md
+## Summary
+Add a finance-focused role pack for budget posture, cost variance, and spend-risk escalation.
+
+## Problem
+The enterprise story still lacks a governed lane for budget pressure and operational financial risk.
+
+## Proposed Direction
+Create a finance pack that can summarize budget-versus-actual posture, highlight cost overruns, and route sensitive approvals to human finance owners.
+
+## Acceptance Criteria
+- role pack is public-safe and documented
+- fund release and budget approval stay human-gated
+- the pack connects naturally to manufacturing and delivery scenarios
+```
+
+## 6. Add accounting close-readiness and exception pack
+
+- Title: `Add accounting close-readiness and exception pack`
+- Labels: `enhancement`, `community`, `commercial`, `v0.1.6`
+- Milestone: `v0.1.6`
+
+```md
+## Summary
+Add an accounting-focused role pack for close readiness, valuation posture, and transaction exceptions.
+
+## Problem
+The product story still needs a governed lane for accounting-control workflows such as GR/IR, inventory valuation, and close blockers.
+
+## Proposed Direction
+Create an accounting pack that summarizes close posture, routes judgment-heavy exceptions, and keeps final accounting approval with humans.
+
+## Acceptance Criteria
+- role pack is public-safe and documented
+- close and reporting judgments remain human-gated
+- the pack supports audit-oriented demos and pilot proposals
+```
+
+## 7. Add guided production and quality-hold scenario
 
 - Title: `Add guided production and quality-hold scenario`
 - Labels: `documentation`, `enhancement`, `community`, `commercial`, `v0.1.6`
@@ -90,7 +156,7 @@ Add a repeatable production-to-quality scenario with expected outputs, escalatio
 - outputs help explain the workflow to evaluators and buyers
 ```
 
-## 5. Add internal audit evidence-review scenario
+## 8. Add internal audit evidence-review scenario
 
 - Title: `Add internal audit evidence-review scenario`
 - Labels: `documentation`, `enhancement`, `community`, `commercial`, `v0.1.6`
@@ -112,7 +178,7 @@ Add a scenario runbook plus expected outputs for evidence-pack review and contro
 - the scenario supports both demos and pilot proposals
 ```
 
-## 6. Add external audit response coordinator pack
+## 9. Add external audit response coordinator pack
 
 - Title: `Add external audit response coordinator pack`
 - Labels: `enhancement`, `community`, `commercial`, `v0.1.6`
@@ -134,7 +200,7 @@ Create an external-audit response pack with bounded responsibilities and human-g
 - the pack fits evidence-oriented demos and pilot discussions
 ```
 
-## 7. Add IT operations and change-control pack
+## 10. Add IT operations and change-control pack
 
 - Title: `Add IT operations and change-control pack`
 - Labels: `enhancement`, `community`, `commercial`, `v0.1.6`
