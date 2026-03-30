@@ -42,10 +42,18 @@ The public baseline now supports probeable provider configurations for:
 - Anthropic Claude via the Messages API
 - Ollama via the local generate API
 
+Use [PROVIDER_SETUP.md](PROVIDER_SETUP.md) for the dedicated provider guide and [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md) for a short provider-backed demo runbook.
+
 Use the example files in [examples/](examples/) to start quickly:
 - [examples/.env.openai.example](examples/.env.openai.example)
 - [examples/.env.claude.example](examples/.env.claude.example)
 - [examples/.env.ollama.example](examples/.env.ollama.example)
+
+Recommended commands:
+- `python provider_demo_flow.py --provider openai --probe`
+- `python provider_demo_flow.py --provider anthropic --probe`
+- `python provider_demo_flow.py --provider ollama --probe`
+- `python provider_smoke_test.py --provider <provider-id>`
 
 ## Docker Compose
 

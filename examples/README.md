@@ -35,3 +35,10 @@ Use them as templates and replace every placeholder before a real deployment.
 
 Use [GUIDED_EVALUATION.md](../GUIDED_EVALUATION.md) for the full first-run path and [TROUBLESHOOTING.md](../TROUBLESHOOTING.md) if any validation step fails.
 
+## Provider Demo Commands
+
+- `python provider_demo_flow.py --provider openai --probe`: build a demo artifact for an OpenAI lane.
+- `python provider_demo_flow.py --provider anthropic --probe`: build a demo artifact for a Claude lane.
+- `python provider_demo_flow.py --provider ollama --probe`: build a demo artifact for a local Ollama lane.
+
+See [PROVIDER_SETUP.md](../PROVIDER_SETUP.md) for provider configuration details and [DISCOVERY_DEMO.md](../DISCOVERY_DEMO.md) for a short customer-demo flow.

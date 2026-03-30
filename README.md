@@ -60,7 +60,9 @@ Choose the path that matches your situation:
    - `python private_server_smoke_test.py`
    - `python provider_smoke_test.py`
    - `provider_smoke_test.py` returning `disabled` is expected until a provider is configured
-7. Start the server:
+7. Build a provider-ready demo report when you want to validate one lane deeply:
+   - `python provider_demo_flow.py --provider openai --probe`
+8. Start the server:
    - `python run_private_server.py --host 127.0.0.1 --port 8080`
 
 If startup validation or smoke tests fail, go to [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
@@ -86,6 +88,8 @@ If startup validation or smoke tests fail, go to [TROUBLESHOOTING.md](TROUBLESHO
 - [GUIDED_EVALUATION.md](GUIDED_EVALUATION.md): fastest first-run path for evaluators
 - [TROUBLESHOOTING.md](TROUBLESHOOTING.md): recovery steps for common startup and provider issues
 - [FAQ.md](FAQ.md): AGPL, self-hosting, and commercial-boundary answers
+- [PROVIDER_SETUP.md](PROVIDER_SETUP.md): provider configuration, probe flow, and demo artifact path
+- [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md): short customer demo runbook for provider-backed evaluations
 - [DEPLOYMENT.md](DEPLOYMENT.md): public deployment guide
 - [KUBERNETES.md](KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [FEATURE_MATRIX.md](FEATURE_MATRIX.md): community vs commercial boundary

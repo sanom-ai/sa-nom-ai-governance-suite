@@ -15,6 +15,30 @@ DEFAULT_ANTHROPIC_VERSION = '2023-06-01'
 DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 DEFAULT_PROBE_PROMPT = 'Reply with PONG and no extra words.'
 
+PROVIDER_SETUP_GUIDANCE = {
+    'openai': {
+        'label': 'OpenAI',
+        'example_file': 'examples/.env.openai.example',
+        'recommended_for': 'Hosted evaluation, managed API access, and fast commercial discovery demos.',
+        'required_env_vars': ['SANOM_OPENAI_API_KEY', 'SANOM_OPENAI_MODEL'],
+        'optional_env_vars': ['SANOM_OPENAI_BASE_URL', 'SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS'],
+    },
+    'anthropic': {
+        'label': 'Claude (Anthropic)',
+        'example_file': 'examples/.env.claude.example',
+        'recommended_for': 'Hosted evaluation with Anthropic-managed Claude models and explicit vendor policy review.',
+        'required_env_vars': ['SANOM_ANTHROPIC_API_KEY', 'SANOM_ANTHROPIC_MODEL'],
+        'optional_env_vars': ['SANOM_ANTHROPIC_BASE_URL', 'SANOM_ANTHROPIC_VERSION', 'SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS'],
+    },
+    'ollama': {
+        'label': 'Ollama',
+        'example_file': 'examples/.env.ollama.example',
+        'recommended_for': 'Private or semi-air-gapped local inference lanes where model traffic should stay inside your environment.',
+        'required_env_vars': ['SANOM_OLLAMA_MODEL'],
+        'optional_env_vars': ['SANOM_OLLAMA_BASE_URL', 'SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS'],
+    },
+}
+
 
 @dataclass(slots=True)
 class ProviderConfig:
@@ -130,7 +154,7 @@ class ModelProviderRegistry:
         default_provider = (self.config.default_model_provider or '').strip().lower() or None
         providers = [provider.to_public_dict(default_provider=default_provider) for provider in self.providers.values()]
         configured_total = sum(1 for provider in self.providers.values() if provider.configured)
-        partial_total = sum(1 for provider in self.providers.values() if not provider.configured and provider.model)
+        partial_total = sum(1 for provider in self.providers.values() if self._is_partial_provider(provider))
         default_ready = bool(default_provider and default_provider in self.providers and self.providers[default_provider].configured)
         if configured_total == 0:
             status = 'disabled'
@@ -148,6 +172,141 @@ class ModelProviderRegistry:
             'partial_providers': partial_total,
             'providers': providers,
         }
+
+    def setup_report(self, *, provider_id: str | None = None) -> dict[str, object]:
+        health = self.health()
+        default_provider = health.get('default_provider')
+
+        if provider_id:
+            provider = self.providers.get(provider_id)
+            if provider is None:
+                raise ValueError(f'Unknown provider: {provider_id}')
+            providers = [self._provider_setup_entry(provider, default_provider=default_provider)]
+            configured_total = 1 if provider.configured else 0
+            partial_total = 1 if self._is_partial_provider(provider) else 0
+            status = 'ready' if provider.configured else ('partial' if partial_total else 'disabled')
+            recommended_provider = provider.provider_id if provider.configured else None
+            target_provider = provider.provider_id
+        else:
+            providers = [
+                self._provider_setup_entry(provider, default_provider=default_provider)
+                for provider in self.providers.values()
+            ]
+            configured_total = sum(1 for item in providers if item['configured'])
+            partial_total = sum(1 for item in providers if item['setup_status'] == 'partial')
+            recommended_provider = self._recommended_provider(default_provider)
+            if default_provider and health.get('default_provider_ready'):
+                status = 'ready'
+            elif configured_total > 0 or partial_total > 0:
+                status = 'partial'
+            else:
+                status = 'disabled'
+            target_provider = recommended_provider
+
+        return {
+            'status': status,
+            'default_provider': default_provider,
+            'recommended_provider': recommended_provider,
+            'providers_total': len(providers),
+            'configured_providers': configured_total,
+            'partial_providers': partial_total,
+            'providers': providers,
+            'next_actions': self._setup_next_actions(
+                providers=providers,
+                default_provider=default_provider,
+                recommended_provider=recommended_provider,
+                target_provider=target_provider,
+            ),
+        }
+
+    def _provider_setup_entry(self, provider: ProviderConfig, *, default_provider: str | None) -> dict[str, object]:
+        guidance = PROVIDER_SETUP_GUIDANCE[provider.provider_id]
+        setup_status = 'ready' if provider.configured else ('partial' if self._is_partial_provider(provider) else 'disabled')
+        return {
+            **provider.to_public_dict(default_provider=default_provider),
+            'label': guidance['label'],
+            'setup_status': setup_status,
+            'example_file': guidance['example_file'],
+            'recommended_for': guidance['recommended_for'],
+            'required_env_vars': list(guidance['required_env_vars']),
+            'optional_env_vars': list(guidance['optional_env_vars']),
+            'missing_env_vars': self._provider_missing_env_vars(provider.provider_id),
+            'smoke_test_command': f'python provider_smoke_test.py --provider {provider.provider_id}',
+            'demo_flow_command': f'python provider_demo_flow.py --provider {provider.provider_id} --probe',
+        }
+
+    def _provider_missing_env_vars(self, provider_id: str) -> list[str]:
+        missing: list[str] = []
+        if provider_id == 'openai':
+            if not self.config.openai_api_key:
+                missing.append('SANOM_OPENAI_API_KEY')
+            if not self.config.openai_model:
+                missing.append('SANOM_OPENAI_MODEL')
+            return missing
+        if provider_id == 'anthropic':
+            if not self.config.anthropic_api_key:
+                missing.append('SANOM_ANTHROPIC_API_KEY')
+            if not self.config.anthropic_model:
+                missing.append('SANOM_ANTHROPIC_MODEL')
+            return missing
+        if not self.config.ollama_model:
+            missing.append('SANOM_OLLAMA_MODEL')
+        return missing
+
+    def _is_partial_provider(self, provider: ProviderConfig) -> bool:
+        return not provider.configured and bool(provider.model or provider.api_key)
+
+    def _recommended_provider(self, default_provider: str | None) -> str | None:
+        if default_provider and default_provider in self.providers and self.providers[default_provider].configured:
+            return default_provider
+        for provider in self.providers.values():
+            if provider.configured:
+                return provider.provider_id
+        return None
+
+    def _setup_next_actions(
+        self,
+        *,
+        providers: list[dict[str, object]],
+        default_provider: str | None,
+        recommended_provider: str | None,
+        target_provider: str | None,
+    ) -> list[str]:
+        actions: list[str] = []
+        selected = next((item for item in providers if item['provider_id'] == target_provider), None) if target_provider else None
+        configured_total = sum(1 for item in providers if item['configured'])
+
+        if configured_total == 0:
+            if selected is not None:
+                actions.append(f"Start from {selected['example_file']} and fill {', '.join(selected['missing_env_vars'] or selected['required_env_vars'])}.")
+                actions.append(f"Set SANOM_MODEL_PROVIDER_DEFAULT={selected['provider_id']} for a stable runtime default.")
+                actions.append(f"Run `{selected['demo_flow_command']}` when the variables are in place.")
+            else:
+                actions.append('Choose one provider example file from examples/ and fill the matching required environment variables.')
+                actions.append('Set SANOM_MODEL_PROVIDER_DEFAULT to the provider you want operators and demos to use by default.')
+                actions.append('Run `python provider_demo_flow.py --provider <provider-id> --probe` after configuration.')
+            return actions
+
+        if not default_provider and recommended_provider:
+            actions.append(f'Set SANOM_MODEL_PROVIDER_DEFAULT={recommended_provider} so operators and demos use a consistent default provider.')
+
+        if selected is not None:
+            if selected['configured']:
+                actions.append(f"Run `{selected['smoke_test_command']}` to confirm provider reachability.")
+                actions.append('Run `python private_server_smoke_test.py` to validate the end-to-end runtime path.')
+                actions.append('Archive the provider probe result with the release or demo record.')
+            else:
+                actions.append(f"Complete the missing variables for {selected['provider_id']}: {', '.join(selected['missing_env_vars'])}.")
+                actions.append(f"Then run `{selected['demo_flow_command']}`.")
+            return actions
+
+        if recommended_provider:
+            actions.append(f'Use `{recommended_provider}` as the first demo lane because it is already configured.')
+            actions.append(f'Run `python provider_demo_flow.py --provider {recommended_provider} --probe` for a customer-facing readiness check.')
+            actions.append('Run `python private_server_smoke_test.py` after the provider probe passes.')
+        else:
+            actions.append('Review the partially configured provider entries and finish the missing environment variables before demoing the runtime.')
+        return actions
 
     def configured_providers(self) -> list[ProviderConfig]:
         return [provider for provider in self.providers.values() if provider.configured]
