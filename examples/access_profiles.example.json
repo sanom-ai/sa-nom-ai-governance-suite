@@ -1,30 +1,98 @@
 [
   {
-    "profile_id": "community-operator",
-    "display_name": "Community Operator",
+    "profile_id": "enterprise-operator",
+    "display_name": "Enterprise Operator",
     "role_name": "operator",
     "token_hash": "replace-with-sha256-hash",
+    "previous_token_hashes": [],
     "permissions": [
-      "dashboard.read",
-      "requests.read",
-      "request.create",
-      "studio.read",
-      "studio.create",
-      "human_ask.read",
-      "human_ask.create",
-      "session.manage",
-      "retention.manage",
       "audit.manage",
+      "audit.read",
+      "compliance.read",
+      "dashboard.read",
+      "health.read",
+      "locks.read",
       "ops.manage",
-      "studio.publish"
+      "override.review",
+      "overrides.read",
+      "request.create",
+      "requests.read",
+      "retention.manage",
+      "roles.read",
+      "session.manage",
+      "studio.create",
+      "studio.publish",
+      "studio.read"
     ],
+    "not_before": "2026-01-01T00:00:00+00:00",
     "rotate_after": "2026-06-01T00:00:00+00:00",
-    "expires_at": "2026-12-31T23:59:59+00:00"
+    "expires_at": "2026-12-31T23:59:59+00:00",
+    "description": "Operator profile for governed runtime execution and Role Private Studio authoring."
   },
   {
-    "profile_id": "community-reviewer",
-    "display_name": "Community Reviewer",
+    "profile_id": "enterprise-reviewer",
+    "display_name": "Enterprise Reviewer",
     "role_name": "reviewer",
-    "token_hash": "replace-with-sha256-hash"
+    "token_hash": "replace-with-sha256-hash",
+    "previous_token_hashes": [],
+    "permissions": [
+      "compliance.read",
+      "dashboard.read",
+      "health.read",
+      "locks.read",
+      "override.review",
+      "overrides.read",
+      "requests.read",
+      "roles.read",
+      "studio.read",
+      "studio.review"
+    ],
+    "not_before": "2026-01-01T00:00:00+00:00",
+    "rotate_after": "2026-06-01T00:00:00+00:00",
+    "expires_at": "2026-12-31T23:59:59+00:00",
+    "description": "Reviewer profile for override decisions and Role Private Studio approval."
+  },
+  {
+    "profile_id": "enterprise-auditor",
+    "display_name": "Enterprise Auditor",
+    "role_name": "auditor",
+    "token_hash": "replace-with-sha256-hash",
+    "previous_token_hashes": [],
+    "permissions": [
+      "audit.read",
+      "compliance.read",
+      "dashboard.read",
+      "evidence.export",
+      "evidence.read",
+      "health.read",
+      "locks.read",
+      "overrides.read",
+      "requests.read",
+      "roles.read",
+      "sessions.read",
+      "studio.read"
+    ],
+    "not_before": "2026-01-01T00:00:00+00:00",
+    "rotate_after": "2026-06-01T00:00:00+00:00",
+    "expires_at": "2026-12-31T23:59:59+00:00",
+    "description": "Auditor profile for evidence, audit, and runtime inspection."
+  },
+  {
+    "profile_id": "enterprise-viewer",
+    "display_name": "Enterprise Viewer",
+    "role_name": "viewer",
+    "token_hash": "replace-with-sha256-hash",
+    "previous_token_hashes": [],
+    "permissions": [
+      "dashboard.read",
+      "health.read",
+      "requests.read",
+      "roles.read",
+      "studio.read"
+    ],
+    "not_before": "2026-01-01T00:00:00+00:00",
+    "rotate_after": "2026-06-01T00:00:00+00:00",
+    "expires_at": "2026-12-31T23:59:59+00:00",
+    "description": "Viewer profile for read-only dashboard access."
   }
 ]

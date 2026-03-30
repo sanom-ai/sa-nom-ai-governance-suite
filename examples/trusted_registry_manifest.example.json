@@ -9,6 +9,14 @@
       "signed_by": "EXEC_OWNER",
       "signature_mode": "sha256_manifest_hmac",
       "registered_at": "2026-01-01T00:00:00+00:00"
+    },
+    "LEGAL": {
+      "file_name": "LEGAL.ptn",
+      "sha256": "replace-with-role-sha256",
+      "trust_status": "trusted",
+      "signed_by": "EXEC_OWNER",
+      "signature_mode": "sha256_manifest_hmac",
+      "registered_at": "2026-01-01T00:00:00+00:00"
     }
   },
   "signature": {

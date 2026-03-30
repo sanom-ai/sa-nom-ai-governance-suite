@@ -1,0 +1,154 @@
+{
+  "generated_at": "2026-01-01T00:10:00+00:00",
+  "registration_code": "DEMO-ORG",
+  "provider_probe_requested": false,
+  "provider_requested": null,
+  "steps": {
+    "public_resources": {
+      "status": "ok",
+      "action": "bundled",
+      "resources_dir": "resources",
+      "copied_files": 0,
+      "files": []
+    },
+    "owner_registration": {
+      "status": "ok",
+      "action": "created",
+      "path": "_runtime/owner_registration.json",
+      "organization_name": "Demo Organization",
+      "organization_id": "DEMO_ORG",
+      "executive_owner_id": "EXEC_OWNER",
+      "trusted_registry_signed_by": "EXEC_OWNER"
+    },
+    "access_profiles": {
+      "status": "ok",
+      "action": "created",
+      "path": "_runtime/access_profiles.json",
+      "tokens_output_path": "_runtime/generated_access_tokens.json",
+      "profiles_total": 4,
+      "token_export_status": "present"
+    },
+    "trusted_registry": {
+      "status": "ok",
+      "action": "refreshed",
+      "reasons": [
+        "trusted registry cache is missing"
+      ],
+      "manifest_path": "resources/config/trusted_registry_manifest.json",
+      "cache_path": "_runtime/trusted_registry_cache.json",
+      "roles_total": 2,
+      "role_ids": [
+        "GOV",
+        "LEGAL"
+      ]
+    }
+  },
+  "startup": {
+    "environment": "development",
+    "strict": false,
+    "ready": true,
+    "checks": [
+      {
+        "code": "OWNER_REGISTRATION_READY",
+        "status": "ok",
+        "message": "Owner registration loaded for Demo Organization with executive owner EXEC_OWNER."
+      },
+      {
+        "code": "ACCESS_PROFILES_READY",
+        "status": "ok",
+        "message": "Access profiles found at _runtime/access_profiles.json."
+      },
+      {
+        "code": "REGISTRY_MANIFEST_READY",
+        "status": "ok",
+        "message": "Trusted registry manifest found at resources/config/trusted_registry_manifest.json."
+      },
+      {
+        "code": "ACCESS_PROFILES_PRIVILEGED_PERMISSION_COVERAGE",
+        "status": "ok",
+        "message": "Delegated access profiles cover privileged runtime operations beyond the owner token."
+      }
+    ],
+    "errors": 0,
+    "warnings": 0
+  },
+  "provider": {
+    "generated_at": "2026-01-01T00:10:00+00:00",
+    "status": "disabled",
+    "default_provider": null,
+    "selected_provider": "ollama",
+    "recommended_provider": "ollama",
+    "setup": {
+      "status": "disabled",
+      "default_provider": null,
+      "recommended_provider": "ollama",
+      "providers_total": 3,
+      "configured_providers": 0,
+      "partial_providers": 0,
+      "providers": [],
+      "next_actions": [
+        "Start from examples/.env.ollama.example and fill SANOM_OLLAMA_MODEL.",
+        "Set SANOM_MODEL_PROVIDER_DEFAULT=ollama for the default demo lane."
+      ]
+    },
+    "demo_path": [
+      {
+        "step": 1,
+        "title": "Load the provider template",
+        "action": "Use examples/.env.ollama.example as the starting point for environment setup."
+      },
+      {
+        "step": 2,
+        "title": "Set the runtime default",
+        "action": "Set SANOM_MODEL_PROVIDER_DEFAULT=ollama."
+      }
+    ],
+    "probe": null
+  },
+  "runtime_smoke": {
+    "status": "passed",
+    "generated_at": "2026-01-01T00:10:30+00:00",
+    "passed": true,
+    "host": "127.0.0.1",
+    "port": 58080,
+    "checks": [
+      {
+        "code": "SESSION_LOGIN",
+        "status": "ok",
+        "message": "Session login succeeded."
+      },
+      {
+        "code": "DASHBOARD",
+        "status": "ok",
+        "message": "Dashboard payload loaded."
+      },
+      {
+        "code": "MODEL_PROVIDER_PROBE",
+        "status": "warning",
+        "message": "No model providers are configured for this runtime."
+      },
+      {
+        "code": "SESSION_LOGOUT",
+        "status": "ok",
+        "message": "Session logout succeeded."
+      }
+    ],
+    "errors": 0,
+    "warnings": 1
+  },
+  "artifacts": {
+    "owner_registration": "_runtime/owner_registration.json",
+    "access_profiles": "_runtime/access_profiles.json",
+    "access_tokens": "_runtime/generated_access_tokens.json",
+    "trusted_registry_manifest": "resources/config/trusted_registry_manifest.json",
+    "trusted_registry_cache": "_runtime/trusted_registry_cache.json",
+    "runtime_smoke_report": "_runtime/runtime_startup_smoke.json",
+    "guided_report": "_review/guided_smoke_test.json"
+  },
+  "next_actions": [
+    "For the default private demo lane, copy `examples/.env.ollama.example`, set `SANOM_OLLAMA_MODEL`, then run `python scripts/provider_demo_flow.py --provider ollama --probe` when Ollama is available.",
+    "OpenAI and Claude remain optional hosted evaluation lanes via `examples/.env.openai.example` and `examples/.env.claude.example`.",
+    "Start the local runtime with `python scripts/run_private_server.py --host 127.0.0.1 --port 8080` when you are ready to inspect the dashboard or API."
+  ],
+  "passed": true
+}

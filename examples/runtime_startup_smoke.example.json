@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-01-01T00:10:30+00:00",
+  "passed": true,
+  "host": "127.0.0.1",
+  "port": 58080,
+  "checks": [
+    {
+      "code": "SESSION_LOGIN",
+      "status": "ok",
+      "message": "Session login succeeded."
+    },
+    {
+      "code": "DASHBOARD",
+      "status": "ok",
+      "message": "Dashboard payload loaded."
+    },
+    {
+      "code": "HEALTH",
+      "status": "ok",
+      "message": "Health endpoint returned ok."
+    },
+    {
+      "code": "MODEL_PROVIDER_PROBE",
+      "status": "warning",
+      "message": "No model providers are configured for this runtime."
+    },
+    {
+      "code": "SESSION_LOGOUT",
+      "status": "ok",
+      "message": "Session logout succeeded."
+    }
+  ],
+  "errors": 0,
+  "warnings": 1
+}
