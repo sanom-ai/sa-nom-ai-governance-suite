@@ -25,6 +25,10 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Governed Document Numbering And Metadata Standard](GOVERNED_DOCUMENT_NUMBERING_METADATA.md)
 - [Governed Document Human Ask And Reporting](GOVERNED_DOCUMENT_HUMAN_ASK_REPORTING.md)
 - [Governed Document Retention And Records Governance](GOVERNED_DOCUMENT_RETENTION_RECORDS.md)
+<<<<<<< HEAD
 - [Governed Document Release And Change-Control Scenario](GOVERNED_DOCUMENT_RELEASE_SCENARIO.md)
+=======
+>>>>>>> origin/main
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
+
 
