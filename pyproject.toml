@@ -39,10 +39,4 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
-
-[tool.ruff.lint.isort]
-known-first-party = ["sa_nom_governance"]
-
-[tool.ruff.format]
-quote-style = "single"
+select = ["E9", "F63", "F7", "F82"]

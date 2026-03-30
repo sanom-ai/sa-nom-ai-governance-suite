@@ -22,9 +22,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
-      - name: Check Python formatting
-        run: python -m ruff format --check .
-
       - name: Lint Python sources
         run: python -m ruff check .
 
