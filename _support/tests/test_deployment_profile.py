@@ -4,9 +4,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from config import AppConfig
-from deployment_profile import build_deployment_report
-from owner_registration import OwnerRegistration, utc_now, write_owner_registration
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.deployment.deployment_profile import build_deployment_report
+from sa_nom_governance.utils.owner_registration import OwnerRegistration, utc_now, write_owner_registration
 
 
 @contextmanager

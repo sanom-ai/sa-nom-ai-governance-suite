@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sa-nom-ai-governance-suite
+description: Helm chart for the SA-NOM AI Governance Suite private runtime
+type: application
+version: 0.1.1
+appVersion: "0.1.1"

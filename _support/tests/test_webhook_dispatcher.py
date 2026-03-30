@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from config import AppConfig
-from integration_registry import IntegrationRegistry
-from webhook_dispatcher import WebhookDispatcher
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.integrations.integration_registry import IntegrationRegistry
+from sa_nom_governance.integrations.webhook_dispatcher import WebhookDispatcher
 
 
 def test_webhook_dispatcher_records_log_only_and_blocked_http_deliveries():

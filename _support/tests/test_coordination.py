@@ -2,8 +2,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from config import AppConfig
-from coordination import FileWorkQueue, build_work_queue, redact_secret_url
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.integrations.coordination import FileWorkQueue, build_work_queue, redact_secret_url
 
 
 def test_file_work_queue_round_trip():
@@ -45,7 +45,7 @@ def test_work_queue_enters_native_redis_mode_when_enabled_and_driver_present():
         config.redis_native_enabled = True
         config.redis_queue_namespace = "sanom_core"
 
-        with patch("coordination.detect_redis_driver", return_value="redis"):
+        with patch("sa_nom_governance.integrations.coordination.detect_redis_driver", return_value="redis"):
             queue = build_work_queue(config, Path(temp_dir) / "integration_outbox.json", logical_name="integration_outbox")
             descriptor = queue.descriptor()
 

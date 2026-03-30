@@ -1,0 +1,5 @@
+from sa_nom_governance.deployment.provider_smoke_test import *
+from sa_nom_governance.deployment.provider_smoke_test import main
+
+if __name__ == '__main__':
+    main()

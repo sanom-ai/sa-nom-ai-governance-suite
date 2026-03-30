@@ -3,9 +3,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from access_control import AccessControl
-from config import AppConfig
-from owner_registration import (
+from sa_nom_governance.guards.access_control import AccessControl
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.owner_registration import (
     OwnerRegistration,
     build_owner_registration,
     load_owner_registration,

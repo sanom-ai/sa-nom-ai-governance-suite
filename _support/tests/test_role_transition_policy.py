@@ -1,8 +1,8 @@
-﻿from role_transition_policy import RoleTransitionPolicyMatrix
-from config import AppConfig
-from registry import RoleRegistry
-from role_loader import RoleLoader
-from hierarchy_registry import HierarchyRegistry
+from sa_nom_governance.core.role_transition_policy import RoleTransitionPolicyMatrix
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.registry import RoleRegistry
+from sa_nom_governance.ptag.role_loader import RoleLoader
+from sa_nom_governance.core.hierarchy_registry import HierarchyRegistry
 
 
 def build_policy():

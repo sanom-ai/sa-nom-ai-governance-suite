@@ -3,10 +3,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from config import AppConfig
-from owner_registration import OwnerRegistration, utc_now, write_owner_registration
-from registry import RoleRegistry
-from role_private_studio_service import RolePrivateStudioService
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.owner_registration import OwnerRegistration, utc_now, write_owner_registration
+from sa_nom_governance.utils.registry import RoleRegistry
+from sa_nom_governance.studio.role_private_studio_service import RolePrivateStudioService
 
 
 BASE_PAYLOAD = {

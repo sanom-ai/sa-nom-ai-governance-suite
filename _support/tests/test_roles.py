@@ -1,12 +1,13 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import shutil
 
 import json
 import pytest
 
-from registry import RoleRegistry
-from role_loader import RoleLoader
-from trusted_registry import TrustedRegistryError, write_trusted_registry_files
+from sa_nom_governance.utils.registry import RoleRegistry
+from sa_nom_governance.ptag.role_loader import RoleLoader
+from sa_nom_governance.compliance.trusted_registry import TrustedRegistryError, write_trusted_registry_files
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -15,19 +16,29 @@ TEST_SIGNING_KEY = "test-registry-signing-key"
 TEST_KEY_ID = "TEST_REGISTRY"
 
 
+def _copy_registry_fixture(target_dir: Path) -> None:
+    for name in ("GOV.ptn", "trusted_registry_manifest.json", "trusted_registry_cache.json"):
+        shutil.copy2(BASE_DIR / name, target_dir / name)
+
+
 def test_role_loader_loads_gov_role() -> None:
-    registry = RoleRegistry(
-        BASE_DIR,
-        manifest_path=BASE_DIR / "trusted_registry_manifest.json",
-        cache_path=BASE_DIR / "trusted_registry_cache.json",
-        signing_key=DEV_SIGNING_KEY,
-    )
-    loader = RoleLoader(registry)
-    document = loader.load("GOV")
-    assert "GOV" in document.roles
-    assert "review_audit" in document.authorities["GOV"].allow
-    assert document.headers["trusted_source_origin"] == "trusted_registry"
-    assert document.headers["trusted_manifest_signature_status"] == "verified"
+    with TemporaryDirectory(dir=BASE_DIR) as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        _copy_registry_fixture(temp_dir)
+
+        registry = RoleRegistry(
+            temp_dir,
+            manifest_path=temp_dir / "trusted_registry_manifest.json",
+            cache_path=temp_dir / "trusted_registry_cache.json",
+            signing_key=DEV_SIGNING_KEY,
+        )
+        loader = RoleLoader(registry)
+        document = loader.load("GOV")
+
+        assert "GOV" in document.roles
+        assert "review_audit" in document.authorities["GOV"].allow
+        assert document.headers["trusted_source_origin"] == "trusted_registry"
+        assert document.headers["trusted_manifest_signature_status"] == "verified"
 
 
 def test_role_loader_uses_last_known_good_when_live_role_file_changes() -> None:

@@ -1,9 +1,9 @@
-﻿import json
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from config import AppConfig
-from retention_manager import RetentionManager
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.compliance.retention_manager import RetentionManager
 
 
 def test_retention_enforcement_archives_and_purges_expired_audit_records() -> None:

@@ -1,9 +1,9 @@
-services:
-  sanom-ai-director:
+﻿services:
+  sanom-ai-governance-suite:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sanom-ai-director
+    container_name: sanom-ai-governance-suite
     restart: unless-stopped
     ports:
       - "${SANOM_SERVER_PORT:-8080}:8080"
@@ -28,6 +28,31 @@ services:
       SANOM_RETENTION_SESSION_DAYS: "${SANOM_RETENTION_SESSION_DAYS:-90}"
       SANOM_RETENTION_ROLE_PRIVATE_STUDIO_DAYS: "${SANOM_RETENTION_ROLE_PRIVATE_STUDIO_DAYS:-2555}"
       SANOM_RETENTION_ARCHIVE_DIR: "${SANOM_RETENTION_ARCHIVE_DIR:-/app/_runtime/runtime_archive}"
+      SANOM_PERSISTENCE_BACKEND: "${SANOM_PERSISTENCE_BACKEND:-file}"
+      SANOM_POSTGRES_DSN: "${SANOM_POSTGRES_DSN:-postgresql://sanom:sanom-change-me@postgres:5432/sanom}"
+      SANOM_POSTGRES_SCHEMA: "${SANOM_POSTGRES_SCHEMA:-public}"
+      SANOM_POSTGRES_NATIVE_ENABLED: "${SANOM_POSTGRES_NATIVE_ENABLED:-false}"
+      SANOM_POSTGRES_CONNECT_TIMEOUT_SECONDS: "${SANOM_POSTGRES_CONNECT_TIMEOUT_SECONDS:-5}"
+      SANOM_COORDINATION_BACKEND: "${SANOM_COORDINATION_BACKEND:-file}"
+      SANOM_REDIS_URL: "${SANOM_REDIS_URL:-redis://default:sanom-change-me@redis:6379/0}"
+      SANOM_REDIS_NATIVE_ENABLED: "${SANOM_REDIS_NATIVE_ENABLED:-false}"
+      SANOM_REDIS_QUEUE_NAMESPACE: "${SANOM_REDIS_QUEUE_NAMESPACE:-sanom}"
+      SANOM_REDIS_CONNECT_TIMEOUT_SECONDS: "${SANOM_REDIS_CONNECT_TIMEOUT_SECONDS:-5}"
+      SANOM_OUTBOUND_HTTP_INTEGRATIONS_ENABLED: "${SANOM_OUTBOUND_HTTP_INTEGRATIONS_ENABLED:-false}"
+      SANOM_INTEGRATION_DELIVERY_TIMEOUT_SECONDS: "${SANOM_INTEGRATION_DELIVERY_TIMEOUT_SECONDS:-5}"
+      SANOM_INTEGRATION_DEFAULT_MAX_ATTEMPTS: "${SANOM_INTEGRATION_DEFAULT_MAX_ATTEMPTS:-3}"
+      SANOM_INTEGRATION_RETRY_BACKOFF_MS: "${SANOM_INTEGRATION_RETRY_BACKOFF_MS:-250}"
+      SANOM_MODEL_PROVIDER_DEFAULT: "${SANOM_MODEL_PROVIDER_DEFAULT:-}"
+      SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS: "${SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS:-15}"
+      SANOM_OPENAI_API_KEY: "${SANOM_OPENAI_API_KEY:-}"
+      SANOM_OPENAI_BASE_URL: "${SANOM_OPENAI_BASE_URL:-https://api.openai.com/v1}"
+      SANOM_OPENAI_MODEL: "${SANOM_OPENAI_MODEL:-}"
+      SANOM_ANTHROPIC_API_KEY: "${SANOM_ANTHROPIC_API_KEY:-}"
+      SANOM_ANTHROPIC_BASE_URL: "${SANOM_ANTHROPIC_BASE_URL:-https://api.anthropic.com}"
+      SANOM_ANTHROPIC_VERSION: "${SANOM_ANTHROPIC_VERSION:-2023-06-01}"
+      SANOM_ANTHROPIC_MODEL: "${SANOM_ANTHROPIC_MODEL:-}"
+      SANOM_OLLAMA_BASE_URL: "${SANOM_OLLAMA_BASE_URL:-http://ollama:11434}"
+      SANOM_OLLAMA_MODEL: "${SANOM_OLLAMA_MODEL:-}"
     volumes:
       - sanom_runtime:/app/_runtime
     healthcheck:
@@ -54,7 +79,16 @@ services:
     volumes:
       - sanom_redis:/data
 
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["local-llm"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - sanom_ollama:/root/.ollama
+
 volumes:
   sanom_runtime:
   sanom_postgres:
   sanom_redis:
+  sanom_ollama:

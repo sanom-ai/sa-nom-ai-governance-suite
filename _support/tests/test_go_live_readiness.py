@@ -3,8 +3,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from config import AppConfig
-from go_live_readiness import build_go_live_readiness, load_smoke_report, persist_smoke_report
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.deployment.go_live_readiness import build_go_live_readiness, load_smoke_report, persist_smoke_report
 
 
 @contextmanager

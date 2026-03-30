@@ -5,8 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
 
-from config import AppConfig
-from persistence import JsonLineLedger, JsonStateStore, build_line_ledger, build_state_store, redact_postgres_dsn
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.persistence import JsonLineLedger, JsonStateStore, build_line_ledger, build_state_store, redact_postgres_dsn
 
 
 @contextmanager
@@ -110,7 +110,7 @@ def test_state_store_enters_native_postgresql_mode_when_enabled_and_driver_prese
         config.postgres_schema = "sanom_core"
         config.postgres_native_enabled = True
 
-        with patch("persistence.detect_postgres_driver", return_value="psycopg"):
+        with patch("sa_nom_governance.utils.persistence.detect_postgres_driver", return_value="psycopg"):
             store = build_state_store(config, temp_path / "state.json", logical_name="sessions")
             descriptor = store.descriptor()
 

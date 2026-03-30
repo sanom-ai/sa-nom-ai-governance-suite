@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sanom-ai-governance-suite
+  namespace: sanom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sanom-ai-governance-suite
+  template:
+    metadata:
+      labels:
+        app: sanom-ai-governance-suite
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: sanom-ai-governance-suite
+          image: ghcr.io/sanom-ai/sa-nom-ai-governance-suite:v0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["python", "run_private_server.py", "--host", "0.0.0.0", "--port", "8080"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: sanom-config
+            - secretRef:
+                name: sanom-secrets
+          volumeMounts:
+            - name: runtime-data
+              mountPath: /app/_runtime
+          livenessProbe:
+            httpGet:
+              path: /dashboard_index.html
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          readinessProbe:
+            exec:
+              command: ["python", "dashboard_server.py", "--check-only"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+      volumes:
+        - name: runtime-data
+          persistentVolumeClaim:
+            claimName: sanom-runtime

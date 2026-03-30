@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sanom-config
+  namespace: sanom
+data:
+  SANOM_ENV: production
+  SANOM_SERVER_HOST: 0.0.0.0
+  SANOM_SERVER_PORT: "8080"
+  SANOM_SERVER_PUBLIC_BASE_URL: https://sanom.example.internal
+  SANOM_STRICT_STARTUP_VALIDATION: "true"
+  SANOM_ACCESS_PROFILES_REQUIRE_HASHES: "true"
+  SANOM_MODEL_PROVIDER_DEFAULT: openai
+  SANOM_MODEL_PROVIDER_TIMEOUT_SECONDS: "15"
+  SANOM_OPENAI_BASE_URL: https://api.openai.com/v1
+  SANOM_OPENAI_MODEL: gpt-5.4-mini

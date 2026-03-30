@@ -4,6 +4,8 @@
       "framework_id": "ISO_27001_BASELINE",
       "name": "ISO/IEC 27001 Alignment Baseline",
       "version": "internal-baseline",
+      "profile_type": "baseline",
+      "description": "Starter mapping for core governance, change control, auditability, and retention readiness.",
       "controls": [
         {
           "control_id": "ACCESS_BOUNDARY",
@@ -31,6 +33,8 @@
       "framework_id": "NIST_CSF_BASELINE",
       "name": "NIST Cybersecurity Framework Alignment Baseline",
       "version": "internal-baseline",
+      "profile_type": "baseline",
+      "description": "Starter mapping for role activation, event logging, session hardening, and recovery continuity.",
       "controls": [
         {
           "control_id": "GOVERNED_ROLE_ACTIVATION",
@@ -58,6 +62,8 @@
       "framework_id": "SOC2_BASELINE",
       "name": "SOC 2 Controls Alignment Baseline",
       "version": "internal-baseline",
+      "profile_type": "baseline",
+      "description": "Starter mapping for logical access, change management, oversight, and audit retention.",
       "controls": [
         {
           "control_id": "LOGICAL_ACCESS",
@@ -85,6 +91,8 @@
       "framework_id": "PDPA_BASELINE",
       "name": "PDPA Governance Baseline",
       "version": "internal-baseline",
+      "profile_type": "baseline",
+      "description": "Starter mapping for purpose boundaries, sensitive review, retention governance, and auditable processing.",
       "controls": [
         {
           "control_id": "PURPOSE_BOUNDARY",
@@ -105,6 +113,74 @@
           "control_id": "AUDITABLE_PROCESSING",
           "title": "Auditable processing and evidence export",
           "capabilities": ["audit_chain", "evidence_export"]
+        }
+      ]
+    },
+    {
+      "framework_id": "THAI_BANKING_BASELINE",
+      "name": "Thai Banking Governance Starter Profile",
+      "version": "starter-profile-2026",
+      "profile_type": "thai-sector-template",
+      "description": "Starter mapping for Thai financial institutions that need stronger cyber resilience, third-party model governance, and auditable approval boundaries.",
+      "advisory_notice": "Template only. Validate the final control set with internal compliance, legal, and regulator-facing teams before production use.",
+      "references": [
+        "https://www.bot.or.th/content/dam/bot/fipcs/documents/FOG/2562/ThaiPDF/25620189.pdf",
+        "https://gppc.pdpc.or.th/pdpa-course/"
+      ],
+      "controls": [
+        {
+          "control_id": "BANKING_APPROVAL_BOUNDARY",
+          "title": "Governed approval boundaries for sensitive banking workflows",
+          "capabilities": ["authority_boundaries", "human_oversight", "role_transition_governance"]
+        },
+        {
+          "control_id": "BANKING_PROVIDER_RISK",
+          "title": "Approved model-provider path with explicit runtime readiness",
+          "capabilities": ["ai_provider_connectivity", "session_security"]
+        },
+        {
+          "control_id": "BANKING_AUDIT_AND_EVIDENCE",
+          "title": "Auditable event chain and exportable evidence",
+          "capabilities": ["audit_chain", "evidence_export", "retention_lifecycle"]
+        },
+        {
+          "control_id": "BANKING_RESILIENCE",
+          "title": "Recovery continuity and runtime resilience",
+          "capabilities": ["recovery_continuity", "trusted_publication"]
+        }
+      ]
+    },
+    {
+      "framework_id": "THAI_GOVERNMENT_BASELINE",
+      "name": "Thai Government Governance Starter Profile",
+      "version": "starter-profile-2026",
+      "profile_type": "thai-sector-template",
+      "description": "Starter mapping for Thai government and public-sector deployments that need private hosting, audit exports, PDPA handling discipline, and approved provider paths.",
+      "advisory_notice": "Template only. Validate the final control set with information-security, data-protection, procurement, and agency approval owners before production use.",
+      "references": [
+        "https://www.dga.or.th/en/citizenportal/",
+        "https://gppc.pdpc.or.th/pdpa-course/"
+      ],
+      "controls": [
+        {
+          "control_id": "GOV_DATA_HANDLING",
+          "title": "Governed data handling and sensitive review paths",
+          "capabilities": ["authority_boundaries", "human_oversight", "retention_lifecycle"]
+        },
+        {
+          "control_id": "GOV_PUBLICATION_CONTROL",
+          "title": "Signed publication and traceable change governance",
+          "capabilities": ["trusted_publication", "audit_chain"]
+        },
+        {
+          "control_id": "GOV_PLATFORM_SECURITY",
+          "title": "Secure platform posture and recovery continuity",
+          "capabilities": ["session_security", "recovery_continuity"]
+        },
+        {
+          "control_id": "GOV_PROVIDER_GOVERNANCE",
+          "title": "Approved AI provider path with explicit runtime readiness",
+          "capabilities": ["ai_provider_connectivity", "evidence_export"]
         }
       ]
     }

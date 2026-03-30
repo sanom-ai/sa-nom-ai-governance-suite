@@ -1,8 +1,8 @@
 import pytest
 
-from ptag_ast import PTAGDocument, PTAGBlock
-from ptag_semantic import SemanticAnalyzer
-from ptag_validator import PTAGValidator
+from sa_nom_governance.ptag.ptag_ast import PTAGDocument, PTAGBlock
+from sa_nom_governance.ptag.ptag_semantic import SemanticAnalyzer
+from sa_nom_governance.ptag.ptag_validator import PTAGValidator
 
 
 def test_validator_requires_headers() -> None:

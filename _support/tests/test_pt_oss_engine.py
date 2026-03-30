@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from pt_oss_engine import PTOSSEngine
-from role_private_studio_models import NormalizedRoleSpec, StructuredJD
+from sa_nom_governance.ptag.pt_oss_engine import PTOSSEngine
+from sa_nom_governance.studio.role_private_studio_models import NormalizedRoleSpec, StructuredJD
 
 
 def test_pt_oss_engine_assesses_role_draft() -> None:

@@ -1,5 +1,5 @@
-﻿from api_engine import build_engine_app
-from config import AppConfig
+from sa_nom_governance.api.api_engine import build_engine_app
+from sa_nom_governance.utils.config import AppConfig
 
 
 def build_test_app():
