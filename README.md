@@ -112,7 +112,7 @@ See [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) for the intended open-core 
 Choose the path that matches your situation:
 - Guided evaluation path: run `python scripts/guided_smoke_test.py --registration-code DEMO-ORG` for the fastest first run, then use [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md) for the manual breakdown.
 - Self-managed community path: start with the quick start below, review [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), [docs/PROVIDER_SETUP.md](docs/PROVIDER_SETUP.md), [docs/OLLAMA_DEMO_ENVIRONMENT.md](docs/OLLAMA_DEMO_ENVIRONMENT.md), [docs/DISCOVERY_DEMO.md](docs/DISCOVERY_DEMO.md), [docs/LIVE_CUSTOMER_WALKTHROUGH.md](docs/LIVE_CUSTOMER_WALKTHROUGH.md), and [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
-- Commercial path: review [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md), use [docs/COMMERCIAL_DISCOVERY_CHECKLIST.md](docs/COMMERCIAL_DISCOVERY_CHECKLIST.md) and [docs/SALES_INTAKE_TEMPLATE.md](docs/SALES_INTAKE_TEMPLATE.md), then contact `sanomaiarch@gmail.com`.
+- Commercial path: review [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md), use [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md), [docs/COMMERCIAL_DISCOVERY_CHECKLIST.md](docs/COMMERCIAL_DISCOVERY_CHECKLIST.md), [docs/ROI_ONE_PAGER.md](docs/ROI_ONE_PAGER.md), and [docs/SALES_INTAKE_TEMPLATE.md](docs/SALES_INTAKE_TEMPLATE.md), then contact `sanomaiarch@gmail.com`.
 
 ## Quick Start
 
@@ -180,6 +180,8 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md): community vs commercial boundary
 - [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md): pricing, support tiers, and buying path
 - [docs/COMMERCIAL_DISCOVERY_CHECKLIST.md](docs/COMMERCIAL_DISCOVERY_CHECKLIST.md): qualification checklist for the first serious commercial conversation
+- [docs/DEMO_CHECKLIST.md](docs/DEMO_CHECKLIST.md): one-page checklist for running a live customer demo without losing the story
+- [docs/ROI_ONE_PAGER.md](docs/ROI_ONE_PAGER.md): executive-facing business-value framing for pilots, rollouts, and budget conversations
 - [CONTRIBUTING.md](CONTRIBUTING.md): development workflow and contribution rules
 - [SECURITY.md](SECURITY.md): vulnerability disclosure policy
 - [docs/SECURITY_AUDIT_CHECKLIST.md](docs/SECURITY_AUDIT_CHECKLIST.md): production security and release checklist
@@ -227,6 +229,8 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
+
 
 
 
