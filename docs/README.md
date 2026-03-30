@@ -23,6 +23,10 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Governed Document Template Model](GOVERNED_DOCUMENT_TEMPLATE_MODEL.md)
 - [Governed Document Authority And Approval Routing](GOVERNED_DOCUMENT_AUTHORITY_ROUTING.md)
 - [Governed Document Numbering And Metadata Standard](GOVERNED_DOCUMENT_NUMBERING_METADATA.md)
+<<<<<<< HEAD
 - [Governed Document Human Ask And Reporting](GOVERNED_DOCUMENT_HUMAN_ASK_REPORTING.md)
+=======
+>>>>>>> origin/main
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
+
 
