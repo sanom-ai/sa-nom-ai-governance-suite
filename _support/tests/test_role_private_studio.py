@@ -255,3 +255,50 @@ def test_role_private_studio_legal_review_pack_preserves_human_approval_boundary
         assert "sign_contract" in created["generated_ptag"]
         assert "require human_override for approve_contract_exception" in created["generated_ptag"]
         assert created["publish_readiness"]["gates"]["validation"] is True
+
+
+
+def test_role_private_studio_template_library_includes_hr_policy_escalation_pack():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        library = template["library"]
+        hr_pack = next(item for item in library if item["template_id"] == "hr_policy_escalation_pack")
+
+        assert hr_pack["category"] == "hr"
+        assert hr_pack["payload"]["role_name"] == "HR Policy Escalation Lead"
+        assert "approve_hr_policy_exception" in hr_pack["payload"]["allowed_actions"]
+        assert "approve_compensation_exception" in hr_pack["payload"]["wait_human_actions"]
+        assert "terminate_employee" in hr_pack["payload"]["forbidden_actions"]
+        assert "finalize_compensation_change" in hr_pack["payload"]["forbidden_actions"]
+
+
+def test_role_private_studio_examples_include_hr_policy_escalation_lead():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        examples = service.load_examples()
+        hr_example = next(item for item in examples if item["name"] == "HR Policy Escalation Lead")
+
+        assert hr_example["operating_mode"] == "indirect"
+        assert hr_example["reporting_line"] == "HR"
+        assert "approve_hr_policy_exception" in hr_example["wait_human_actions"]
+        assert "employee_case" in hr_example["handled_resources"]
+        assert "policy accommodation routing" in hr_example["sample_scenarios"]
+
+
+def test_role_private_studio_hr_policy_pack_preserves_human_hr_boundary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        template = service.load_template()
+        payload = next(item["payload"] for item in template["library"] if item["template_id"] == "hr_policy_escalation_pack")
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+
+        assert created["normalized_spec"]["role_id"] == "HR_POLICY_ESCALATION_LEAD"
+        assert "approve_hr_policy_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "approve_compensation_exception" in created["normalized_spec"]["wait_human_actions"]
+        assert "terminate_employee" in created["generated_ptag"]
+        assert "require human_override for approve_hr_policy_exception" in created["generated_ptag"]
+        assert created["publish_readiness"]["gates"]["validation"] is True
