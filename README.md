@@ -71,11 +71,10 @@ The same document layer should also support Human Ask reporting, so people can c
 
 Controlled document work also needs retention and records governance so archive, hold, disposal, and record-custody decisions stay explicit and auditable. See [docs/GOVERNED_DOCUMENT_RETENTION_RECORDS.md](docs/GOVERNED_DOCUMENT_RETENTION_RECORDS.md).
 
-<<<<<<< HEAD
+The module should also have a real role story, not only architecture. See [docs/DOCUMENT_GOVERNANCE_ROLE_PACK.md](docs/DOCUMENT_GOVERNANCE_ROLE_PACK.md) for a public-safe role pack that ties document drafting, routing, metadata, Human Ask, and retention work back to a governed AI role.
+
 A governed release scenario should also be visible, so readers can see how draft, review, approval, release, retained records, and Human Ask reporting fit together in one workflow. See [docs/GOVERNED_DOCUMENT_RELEASE_SCENARIO.md](docs/GOVERNED_DOCUMENT_RELEASE_SCENARIO.md).
 
-=======
->>>>>>> origin/main
 ## Why Teams Use SA-NOM
 
 Organizations do not only need AI governance. They need AI that can actually operate.
@@ -97,5 +96,4 @@ SA-NOM follows an operations-first model:
 - governance, compliance, and private deployment are built in from the start
 
 That means SA-NOM should be read as a governed AI operations system, not only as a governance utility.
-
 
