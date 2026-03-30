@@ -1,6 +1,18 @@
 # Thai Banking Compliance Starter Profile
 
+Label: `Starter support`
+
 Use this profile as a working template for banking or fintech deployments that need stronger governance, auditability, cyber resilience, and third-party model oversight.
+
+Legal review required.
+Regulator filing not included.
+
+For the broader baseline, read:
+- [Compliance Knowledge Baseline](../../docs/COMPLIANCE_KNOWLEDGE_BASELINE.md)
+- [ISO 42001 and NIST AI RMF Crosswalk](../../docs/ISO_42001_NIST_CROSSWALK.md)
+- [Thai AI Regulatory Gap Map](../../docs/THAI_AI_REGULATORY_GAP_MAP.md)
+- [PDPA AI Guideline Map](../../docs/PDPA_AI_GUIDELINE_MAP.md)
+- [Local Representative Readiness](../../docs/LOCAL_REPRESENTATIVE_READINESS.md)
 
 ## Regulatory Reference Points
 
