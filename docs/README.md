@@ -11,6 +11,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Ollama Demo Environment](OLLAMA_DEMO_ENVIRONMENT.md)
 - [Discovery Demo](DISCOVERY_DEMO.md)
 - [Live Customer Walkthrough](LIVE_CUSTOMER_WALKTHROUGH.md)
+- [Live Customer Walkthrough (TH)](LIVE_CUSTOMER_WALKTHROUGH_TH.md)
 - [Product Tour](PRODUCT_TOUR.md)
 
 ## Product And Commercial

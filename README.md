@@ -173,6 +173,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/OLLAMA_DEMO_ENVIRONMENT.md](docs/OLLAMA_DEMO_ENVIRONMENT.md): real private-model setup path for the default Ollama demo lane
 - [docs/DISCOVERY_DEMO.md](docs/DISCOVERY_DEMO.md): short customer demo runbook for provider-backed evaluations
 - [docs/LIVE_CUSTOMER_WALKTHROUGH.md](docs/LIVE_CUSTOMER_WALKTHROUGH.md): sales-oriented live talk track for customer demos using the default private Ollama lane
+- [docs/LIVE_CUSTOMER_WALKTHROUGH_TH.md](docs/LIVE_CUSTOMER_WALKTHROUGH_TH.md): Thai live talk track for customer demos using the default private Ollama lane
 - [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md): visual walkthrough of the operator journey, runtime shape, and first demo flow
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
 - [docs/KUBERNETES.md](docs/KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
@@ -226,6 +227,7 @@ GitHub Actions CI is configured in [`.github/workflows/ci.yml`](.github/workflow
 
 Community, commercial, security, and evaluation contact:
 `sanomaiarch@gmail.com`
+
 
 
 
