@@ -227,3 +227,16 @@ def test_production_line_exception_role_pack_example_preserves_human_production_
     serialized = json.dumps(payload)
     assert "TAWAN" not in serialized
     assert "D:\\" not in serialized
+
+
+def test_production_line_exception_scenario_example_preserves_human_production_boundary():
+    payload = json.loads((EXAMPLES_DIR / "production_line_exception_scenario.example.json").read_text(encoding="utf-8"))
+
+    assert payload["role_pack"] == "production_line_exception_pack"
+    assert payload["reporting_line"] == "PRODUCTION"
+    assert "approve_recovery_exception" in payload["wait_human_actions"]
+    assert "approve_schedule_override" in payload["wait_human_actions"]
+    assert "override_quality_hold" in payload["forbidden_actions"]
+    serialized = json.dumps(payload)
+    assert "TAWAN" not in serialized
+    assert "D:\\" not in serialized
