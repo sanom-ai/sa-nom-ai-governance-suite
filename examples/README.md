@@ -22,6 +22,7 @@ Use them as templates and replace every placeholder before a real deployment.
 - `runtime_startup_smoke.example.json`: example end-to-end smoke report written to `_runtime/runtime_startup_smoke.json`.
 - provider_demo_flow.ollama.example.json: sanitized example output for the default private demo lane.
 - legal_review_role_pack.example.json: sanitized example payload for the pilot-ready legal review role pack.
+- hr_policy_role_pack.example.json: sanitized example payload for the pilot-ready HR policy role pack.
 
 Use [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) and `python scripts/ollama_demo_environment.py` when you want a real local private-model setup path.
 
@@ -59,6 +60,7 @@ Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full fi
 - `python scripts/provider_demo_flow.py --provider ollama --probe`: build a demo artifact for a local Ollama lane.
 - provider_demo_flow.ollama.example.json: sanitized example output for the default private demo lane.
 - legal_review_role_pack.example.json: sanitized example payload for the pilot-ready legal review role pack.
+- hr_policy_role_pack.example.json: sanitized example payload for the pilot-ready HR policy role pack.
 
 See [../docs/PROVIDER_SETUP.md](../docs/PROVIDER_SETUP.md) for provider configuration details, [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) for the real private-model setup path, and [../docs/DISCOVERY_DEMO.md](../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.
 

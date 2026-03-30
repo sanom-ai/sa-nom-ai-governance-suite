@@ -13,6 +13,7 @@ JSON_EXAMPLES = [
     'provider_demo_flow.ollama.example.json',
     'legal_review_role_pack.example.json',
     'legal_review_scenario.example.json',
+    'hr_policy_role_pack.example.json',
 ]
 
 
@@ -60,3 +61,18 @@ def test_legal_review_scenario_example_matches_role_pack_story() -> None:
     encoded = json.dumps(payload)
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded
+
+
+
+def test_hr_policy_role_pack_example_preserves_human_hr_boundary() -> None:
+    payload = _load('hr_policy_role_pack.example.json')
+
+    assert payload['template_id'] == 'hr_policy_escalation_pack'
+    assert payload['reporting_line'] == 'HR'
+    assert 'approve_hr_policy_exception' in payload['wait_human_actions']
+    assert 'approve_compensation_exception' in payload['wait_human_actions']
+    assert 'terminate_employee' in payload['forbidden_actions']
+    encoded = json.dumps(payload)
+    assert 'TAWAN' not in encoded
+    assert 'D:\\' not in encoded
+
