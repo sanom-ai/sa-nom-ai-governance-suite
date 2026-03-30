@@ -172,3 +172,6 @@ Archive or send forward:
 
 For the shorter demo runbook, see [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md).
 For the operator setup path, see [OLLAMA_DEMO_ENVIRONMENT.md](OLLAMA_DEMO_ENVIRONMENT.md).
+
+For the Thai version, see [LIVE_CUSTOMER_WALKTHROUGH_TH.md](LIVE_CUSTOMER_WALKTHROUGH_TH.md).
+
