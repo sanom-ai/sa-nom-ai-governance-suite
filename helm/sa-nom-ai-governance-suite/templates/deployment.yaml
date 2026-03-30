@@ -20,7 +20,7 @@ spec:
         - name: sa-nom-ai-governance-suite
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["python", "run_private_server.py", "--host", "0.0.0.0", "--port", "8080"]
+          command: ["python", "../../../scripts/run_private_server.py", "--host", "0.0.0.0", "--port", "8080"]
           securityContext:
 {{ toYaml .Values.securityContext | indent 12 }}
           ports:
@@ -43,7 +43,7 @@ spec:
             periodSeconds: 20
           readinessProbe:
             exec:
-              command: ["python", "dashboard_server.py", "--check-only"]
+              command: ["python", "../../../scripts/dashboard_server.py", "--check-only"]
             initialDelaySeconds: 10
             periodSeconds: 20
           resources:

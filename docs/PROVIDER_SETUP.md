@@ -13,7 +13,7 @@ Optional hosted evaluation lanes:
 
 Run:
 
-- `python provider_demo_flow.py`
+- `python scripts/provider_demo_flow.py`
 
 This prints a setup report that shows:
 - which providers are configured
@@ -46,8 +46,8 @@ Required settings:
 - `SANOM_OLLAMA_MODEL`
 
 Typical command flow:
-- `python provider_demo_flow.py --provider ollama --probe`
-- `python provider_smoke_test.py --provider ollama`
+- `python scripts/provider_demo_flow.py --provider ollama --probe`
+- `python scripts/provider_smoke_test.py --provider ollama`
 
 ## OpenAI
 
@@ -63,8 +63,8 @@ Required settings:
 - `SANOM_OPENAI_MODEL`
 
 Typical command flow:
-- `python provider_demo_flow.py --provider openai --probe`
-- `python provider_smoke_test.py --provider openai`
+- `python scripts/provider_demo_flow.py --provider openai --probe`
+- `python scripts/provider_smoke_test.py --provider openai`
 
 ## Claude (Anthropic)
 
@@ -80,17 +80,17 @@ Required settings:
 - `SANOM_ANTHROPIC_MODEL`
 
 Typical command flow:
-- `python provider_demo_flow.py --provider anthropic --probe`
-- `python provider_smoke_test.py --provider anthropic`
+- `python scripts/provider_demo_flow.py --provider anthropic --probe`
+- `python scripts/provider_smoke_test.py --provider anthropic`
 
 ## Recommended Validation Order
 
 1. Configure Ollama completely if you want the default private demo lane.
 2. Set `SANOM_MODEL_PROVIDER_DEFAULT=ollama`.
-3. Run `python provider_demo_flow.py --provider ollama --probe`.
-4. Run `python provider_smoke_test.py --provider ollama`.
-5. Run `python dashboard_server.py --check-only`.
-6. Run `python private_server_smoke_test.py`.
+3. Run `python scripts/provider_demo_flow.py --provider ollama --probe`.
+4. Run `python scripts/provider_smoke_test.py --provider ollama`.
+5. Run `python scripts/dashboard_server.py --check-only`.
+6. Run `python scripts/private_server_smoke_test.py`.
 
 If you intentionally want a hosted evaluation lane, swap `ollama` for `openai` or `anthropic` in the commands above.
 
@@ -98,6 +98,6 @@ If you intentionally want a hosted evaluation lane, swap `ollama` for `openai` o
 
 For customer evaluation or internal rollout review, save the JSON output from:
 
-- `python provider_demo_flow.py --provider <provider-id> --probe --output _review/provider_demo_report.json`
+- `python scripts/provider_demo_flow.py --provider <provider-id> --probe --output _review/provider_demo_report.json`
 
 This gives you a public-safe artifact you can attach to discovery notes or release records.

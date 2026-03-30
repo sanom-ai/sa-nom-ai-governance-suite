@@ -24,16 +24,16 @@ If you want the shortest evaluator path first, use [GUIDED_EVALUATION.md](GUIDED
 
 1. Prepare environment variables from [`.env.production.example`](.env.production.example).
 2. Register an example organization owner:
-   - `python register_owner.py --registration-code DEMO-ORG`
+   - `python scripts/register_owner.py --registration-code DEMO-ORG`
 3. Generate delegated access profiles:
-   - `python bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json`
+   - `python scripts/bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json`
 4. Validate the deployment baseline:
-   - `python dashboard_server.py --check-only`
+   - `python scripts/dashboard_server.py --check-only`
 5. Run the runtime smoke tests:
-   - `python private_server_smoke_test.py`
-   - `python provider_smoke_test.py`
+   - `python scripts/private_server_smoke_test.py`
+   - `python scripts/provider_smoke_test.py`
 6. Start the runtime:
-   - `python run_private_server.py --host 127.0.0.1 --port 8080`
+   - `python scripts/run_private_server.py --host 127.0.0.1 --port 8080`
 
 ## Model Provider Setup
 
@@ -50,10 +50,10 @@ Use the example files in [examples/](examples/) to start quickly:
 - [examples/.env.ollama.example](examples/.env.ollama.example)
 
 Recommended commands:
-- `python provider_demo_flow.py --provider openai --probe`
-- `python provider_demo_flow.py --provider anthropic --probe`
-- `python provider_demo_flow.py --provider ollama --probe`
-- `python provider_smoke_test.py --provider <provider-id>`
+- `python scripts/provider_demo_flow.py --provider openai --probe`
+- `python scripts/provider_demo_flow.py --provider anthropic --probe`
+- `python scripts/provider_demo_flow.py --provider ollama --probe`
+- `python scripts/provider_smoke_test.py --provider <provider-id>`
 
 ## Docker Compose
 
@@ -110,4 +110,4 @@ The older [PRIVATE_SERVER_DEPLOYMENT.md](PRIVATE_SERVER_DEPLOYMENT.md) filename 
 - For common startup failures, use [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - For AGPL, self-hosting, and commercial-boundary questions, use [FAQ.md](FAQ.md).
 - For example artifacts, use [examples/README.md](examples/README.md).
-- `python provider_smoke_test.py` returning `disabled` is expected until a provider is configured.
+- `python scripts/provider_smoke_test.py` returning `disabled` is expected until a provider is configured.

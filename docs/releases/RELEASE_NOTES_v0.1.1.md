@@ -8,7 +8,7 @@ This release hardens SA-NOM AI Governance Suite into a stronger public community
 
 - Refactored the codebase into the `sa_nom_governance` package layout organized by domain
 - Added provider integration and evaluation support for OpenAI, Claude, and Ollama
-- Added `provider_demo_flow.py` plus operator-facing provider setup and discovery-demo guides
+- Added `scripts/provider_demo_flow.py` plus operator-facing provider setup and discovery-demo guides
 - Added Helm chart and Kubernetes manifests for self-managed deployment paths
 - Added security audit guidance and Thai banking / government compliance starter templates
 - Expanded evaluator onboarding with troubleshooting, FAQ, and guided evaluation docs
@@ -31,12 +31,12 @@ This release hardens SA-NOM AI Governance Suite into a stronger public community
 
 Commercial offerings remain separate from the AGPL community baseline and may include rollout support, enterprise controls, tailored compliance programs, air-gapped delivery, and custom integrations.
 
-See [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) for the current commercial positioning.
+See [../COMMERCIAL_LICENSE.md](../COMMERCIAL_LICENSE.md) for the current commercial positioning.
 
 ## Upgrade Notes
 
 - The repository now uses the `sa_nom_governance` package layout as the primary code organization model
-- Root entrypoints such as `dashboard_server.py`, `run_private_server.py`, `provider_smoke_test.py`, and `provider_demo_flow.py` remain available as compatibility wrappers
+- Root entrypoints such as `scripts/dashboard_server.py`, `scripts/run_private_server.py`, `scripts/provider_smoke_test.py`, and `scripts/provider_demo_flow.py` remain available as compatibility wrappers
 - The documented validation baseline now assumes Python 3.14
 - Provider probes may return `disabled` until real credentials or local-model endpoints are configured
 
@@ -45,10 +45,10 @@ See [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) for the current commercial po
 Validated during `v0.1.1` release preparation with:
 - `python -m compileall -q .`
 - `python -m pytest _support/tests`
-- `python dashboard_server.py --check-only`
-- `python private_server_smoke_test.py`
-- `python provider_smoke_test.py`
-- `python provider_demo_flow.py`
+- `python scripts/dashboard_server.py --check-only`
+- `python scripts/private_server_smoke_test.py`
+- `python scripts/provider_smoke_test.py`
+- `python scripts/provider_demo_flow.py`
 
 ## Post-Release Follow-Up
 

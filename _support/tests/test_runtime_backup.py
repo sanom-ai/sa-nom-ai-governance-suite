@@ -29,7 +29,8 @@ def test_runtime_backup_copies_runtime_files_and_role_packs() -> None:
             encoding='utf-8',
         )
 
-        role_path = base_dir / 'OPS.ptn'
+        role_path = config.roles_dir / 'OPS.ptn'
+        role_path.parent.mkdir(parents=True, exist_ok=True)
         role_path.write_text('role OPS\n  title: Operations\n', encoding='utf-8')
 
         manager = RuntimeBackupManager(config)

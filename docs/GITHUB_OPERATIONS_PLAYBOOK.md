@@ -46,7 +46,7 @@ Point visitors to these files first:
 - `ONE_PAGER.md`
 - `ONE_PAGER_TH.md`
 - `COMMERCIAL_LICENSE.md`
-- `RELEASE_NOTES_v0.1.0.md`
+- `releases/RELEASE_NOTES_v0.1.0.md`
 
 ## Suggested labels
 

@@ -5,9 +5,9 @@ Use this checklist before any production rollout, major provider change, or regu
 ## Release Gate
 
 - Run `python -m pytest _support/tests`.
-- Run `python private_server_smoke_test.py`.
-- Run `python provider_smoke_test.py --require-configured` if any external or local LLM provider will be used in production.
-- Verify `python dashboard_server.py --check-only` returns a ready deployment profile.
+- Run `python scripts/private_server_smoke_test.py`.
+- Run `python scripts/provider_smoke_test.py --require-configured` if any external or local LLM provider will be used in production.
+- Verify `python scripts/dashboard_server.py --check-only` returns a ready deployment profile.
 - Review the latest evidence export and confirm audit integrity remains verified.
 
 ## Secrets And Identity

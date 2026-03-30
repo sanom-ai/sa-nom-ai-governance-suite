@@ -96,10 +96,23 @@ class TransitionPolicyDecision:
 class RoleTransitionPolicyMatrix:
     def __init__(self, hierarchy_registry: HierarchyRegistry, matrix_path: Path | None = None) -> None:
         self.hierarchy_registry = hierarchy_registry
-        self.matrix_path = matrix_path or (self.hierarchy_registry.role_loader.registry.roles_dir / "role_transition_matrix.json")
+        self.matrix_path = matrix_path or self._default_matrix_path()
         self.defaults: dict[str, str] = {}
         self.rules: list[TransitionPolicyRule] = []
         self.reload()
+
+    def _default_matrix_path(self) -> Path:
+        roles_dir = self.hierarchy_registry.role_loader.registry.roles_dir
+        candidates = [
+            roles_dir / "role_transition_matrix.json",
+            roles_dir.parent / "config" / "role_transition_matrix.json",
+            roles_dir.parent / "role_transition_matrix.json",
+            roles_dir.parent.parent / "role_transition_matrix.json",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return candidates[1]
 
     def reload(self) -> None:
         payload = self._load_payload()

@@ -70,12 +70,12 @@ def _build_demo_path(selected_entry: dict[str, object] | None) -> list[dict[str,
             {
                 'step': 4,
                 'title': 'Run the provider probe',
-                'action': 'Run `python provider_demo_flow.py --provider <provider-id> --probe`.',
+                'action': 'Run `python scripts/provider_demo_flow.py --provider <provider-id> --probe`.',
             },
             {
                 'step': 5,
                 'title': 'Validate the runtime end-to-end',
-                'action': 'Run `python private_server_smoke_test.py` after the provider probe passes.',
+                'action': 'Run `python scripts/private_server_smoke_test.py` after the provider probe passes.',
             },
         ]
 
@@ -103,7 +103,7 @@ def _build_demo_path(selected_entry: dict[str, object] | None) -> list[dict[str,
         {
             'step': 5,
             'title': 'Validate the full runtime path',
-            'action': 'python private_server_smoke_test.py',
+            'action': 'python scripts/private_server_smoke_test.py',
         },
         {
             'step': 6,

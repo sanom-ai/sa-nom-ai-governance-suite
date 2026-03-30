@@ -20,7 +20,7 @@ Use this checklist before making the repository public or cutting a public relea
 
 - Run `python -m py_compile` on the touched Python files.
 - Run `python -m pytest _support/tests`.
-- Run `python dashboard_server.py --check-only`.
+- Run `python scripts/dashboard_server.py --check-only`.
 - Re-test the quick-start path from `README.md` and `DEPLOYMENT.md`.
 
 ## Commercial Readiness

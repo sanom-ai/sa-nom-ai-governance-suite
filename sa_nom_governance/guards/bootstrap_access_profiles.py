@@ -80,7 +80,7 @@ def build_profiles(days_valid: int, rotate_days: int) -> tuple[list[dict[str, ob
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Generate production-ready access_profiles.json with hashed tokens for SA-NOM private server deployment. Register the executive owner first with register_owner.py.')
+    parser = argparse.ArgumentParser(description='Generate production-ready access_profiles.json with hashed tokens for SA-NOM private server deployment. Register the executive owner first with scripts/register_owner.py.')
     parser.add_argument('--output', default='_runtime/access_profiles.json')
     parser.add_argument('--tokens-output', default='_runtime/generated_access_tokens.json')
     parser.add_argument('--days-valid', type=int, default=365)

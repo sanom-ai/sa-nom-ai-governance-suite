@@ -43,7 +43,7 @@ def workspace_temp_dir():
 
 
 def build_service(temp_path: Path) -> RolePrivateStudioService:
-    source_base = Path(__file__).resolve().parent
+    source_base = Path(__file__).resolve().parents[2]
     config = AppConfig(
         base_dir=temp_path,
         environment="development",
@@ -80,12 +80,14 @@ def build_service(temp_path: Path) -> RolePrivateStudioService:
         signing_key=config.trusted_registry_signing_key,
         signature_required=False,
     )
-    (temp_path / "role_private_studio_templates.json").write_text(
-        (source_base / "role_private_studio_templates.json").read_text(encoding="utf-8"),
+    studio_dir = temp_path / "resources" / "studio"
+    studio_dir.mkdir(parents=True, exist_ok=True)
+    (studio_dir / "role_private_studio_templates.json").write_text(
+        (source_base / "resources" / "studio" / "role_private_studio_templates.json").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
-    (temp_path / "role_private_studio_examples.json").write_text(
-        (source_base / "role_private_studio_examples.json").read_text(encoding="utf-8"),
+    (studio_dir / "role_private_studio_examples.json").write_text(
+        (source_base / "resources" / "studio" / "role_private_studio_examples.json").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
     return RolePrivateStudioService(config=config, registry=registry)
@@ -103,7 +105,7 @@ def test_role_private_studio_create_review_publish_flow():
         assert reviewed["publish_readiness"]["gates"]["review"] is True
         published = service.publish_request(created["request_id"], published_by="EXEC_OWNER")
         assert published["status"] == "published"
-        assert (temp_path / "CONTRACT_REVIEW_ANALYST.ptn").exists()
+        assert (temp_path / "resources" / "roles" / "CONTRACT_REVIEW_ANALYST.ptn").exists()
 
 
 def test_role_private_studio_update_creates_new_revision_and_resets_publish_readiness():

@@ -6,7 +6,7 @@ Use this guide when the quick start, startup validation, or smoke checks do not 
 
 Start with:
 
-- `python dashboard_server.py --check-only`
+- `python scripts/dashboard_server.py --check-only`
 
 This prints the deployment-readiness report without starting the runtime server.
 If a configuration gate is blocked, this is usually the fastest way to see why.
@@ -20,10 +20,10 @@ Typical symptom:
 
 Recovery:
 1. Register the executive owner:
-   - `python register_owner.py --registration-code DEMO-ORG`
+   - `python scripts/register_owner.py --registration-code DEMO-ORG`
 2. Confirm `_runtime/owner_registration.json` exists.
 3. Re-run:
-   - `python dashboard_server.py --check-only`
+   - `python scripts/dashboard_server.py --check-only`
 
 Reference example:
 - [examples/owner_registration.example.json](examples/owner_registration.example.json)
@@ -36,7 +36,7 @@ Typical symptom:
 
 Recovery:
 1. Regenerate profiles with hashed tokens:
-   - `python bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json --force`
+   - `python scripts/bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json --force`
 2. Store raw tokens from `_runtime/generated_access_tokens.json` in a secure secret manager.
 3. Keep only hashes in `_runtime/access_profiles.json`.
 4. Re-run startup validation.
@@ -61,7 +61,7 @@ Recovery:
 1. Set `SANOM_TRUSTED_REGISTRY_KEY` and `SANOM_TRUSTED_REGISTRY_KEY_ID`.
 2. Confirm `SANOM_TRUSTED_REGISTRY_SIGNED_BY` matches the executive owner identity.
 3. Refresh the manifest and cache:
-   - `python trusted_registry_refresh.py`
+   - `python scripts/trusted_registry_refresh.py`
 4. Re-run startup validation.
 
 Reference example:
@@ -70,7 +70,7 @@ Reference example:
 ### Provider probe returns disabled
 
 Typical symptom:
-- `python provider_smoke_test.py` reports `status: disabled`
+- `python scripts/provider_smoke_test.py` reports `status: disabled`
 
 This is expected when no provider is configured yet.
 
@@ -79,12 +79,12 @@ Recovery:
 2. Set `SANOM_MODEL_PROVIDER_DEFAULT`.
 3. Set the matching credentials and model fields.
 4. Re-run:
-   - `python provider_smoke_test.py`
+   - `python scripts/provider_smoke_test.py`
 
 ### Private server smoke test warns about model providers
 
 Typical symptom:
-- `python private_server_smoke_test.py` passes with a provider warning
+- `python scripts/private_server_smoke_test.py` passes with a provider warning
 
 Meaning:
 - the core runtime path is healthy
@@ -97,7 +97,7 @@ You can continue local evaluation if provider-backed behavior is not required fo
 - Placeholder secrets from [`.env.production.example`](.env.production.example) were not replaced.
 - `_runtime/` is missing, read-only, or contains stale local state from an older run.
 - Provider settings were mixed across OpenAI, Claude, and Ollama instead of choosing one default provider.
-- Trusted registry files were copied manually instead of refreshed with `python trusted_registry_refresh.py`.
+- Trusted registry files were copied manually instead of refreshed with `python scripts/trusted_registry_refresh.py`.
 
 ## Safe Reset Path For Local Evaluation
 
@@ -112,12 +112,12 @@ Do not use this reset path against a live production deployment.
 
 ## Recommended Recovery Order
 
-1. `python dashboard_server.py --check-only`
-2. `python register_owner.py --registration-code DEMO-ORG` if owner registration is missing
-3. `python bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json --force` if access profiles are invalid
-4. `python trusted_registry_refresh.py` if trusted registry artifacts are stale
-5. `python provider_smoke_test.py` after configuring a provider
-6. `python private_server_smoke_test.py`
+1. `python scripts/dashboard_server.py --check-only`
+2. `python scripts/register_owner.py --registration-code DEMO-ORG` if owner registration is missing
+3. `python scripts/bootstrap_access_profiles.py --output _runtime/access_profiles.json --tokens-output _runtime/generated_access_tokens.json --force` if access profiles are invalid
+4. `python scripts/trusted_registry_refresh.py` if trusted registry artifacts are stale
+5. `python scripts/provider_smoke_test.py` after configuring a provider
+6. `python scripts/private_server_smoke_test.py`
 
 ## Need Commercial Help?
 
