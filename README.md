@@ -41,7 +41,9 @@ See [docs/COMPLIANCE_KNOWLEDGE_BASELINE.md](docs/COMPLIANCE_KNOWLEDGE_BASELINE.m
 
 ## PT-OSS Structural Intelligence
 
-SA-NOM already includes PT-OSS as an embedded structural intelligence layer. It is used to assess dependency posture, structural fragility, key-person concentration, stability, human-override integrity, and power asymmetry before roles and workflows are treated as safely governed.
+SA-NOM includes PT-OSS as an embedded structural intelligence layer.
+
+PT-OSS is a proprietary framework developed by the creator and integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
 
 See [docs/PT_OSS_CORE.md](docs/PT_OSS_CORE.md) for the core explanation of what is already embedded in the codebase.
 
