@@ -67,6 +67,8 @@ Document routing should also stay governed. The right model is explicit authorit
 
 Controlled documents also need a rule-driven numbering and metadata standard so each release, revision, superseded reference, owner, approver, and retention posture stays identifiable and auditable. See [docs/GOVERNED_DOCUMENT_NUMBERING_METADATA.md](docs/GOVERNED_DOCUMENT_NUMBERING_METADATA.md).
 
+The same document layer should also support Human Ask reporting, so people can call AI to retrieve active versions, pending approvals, ownership, review gaps, and meeting-ready document posture without bypassing authority or confidentiality boundaries. See [docs/GOVERNED_DOCUMENT_HUMAN_ASK_REPORTING.md](docs/GOVERNED_DOCUMENT_HUMAN_ASK_REPORTING.md).
+
 ## Why Teams Use SA-NOM
 
 Organizations do not only need AI governance. They need AI that can actually operate.
