@@ -53,7 +53,7 @@ SA-NOM includes PT-OSS as an embedded structural intelligence layer.
 
 PT-OSS is a proprietary framework developed by the creator and integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
 
-See [docs/PT_OSS_CORE.md](docs/PT_OSS_CORE.md) for the core explanation of what is already embedded in the codebase.
+See [docs/PT_OSS_CORE.md](docs/PT_OSS_CORE.md) for the core explanation of what is already embedded in the codebase and [docs/PT_OSS_METRICS.md](docs/PT_OSS_METRICS.md) for the plain-language metric explainer.
 
 ## Why Teams Use SA-NOM
 

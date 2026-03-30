@@ -55,7 +55,7 @@ SA-NOM includes PT-OSS as an embedded structural intelligence layer.
 
 PT-OSS is a proprietary framework developed by the creator and integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
 
-See [PT_OSS_CORE.md](PT_OSS_CORE.md).
+See [PT_OSS_CORE.md](PT_OSS_CORE.md) and [PT_OSS_METRICS.md](PT_OSS_METRICS.md).
 
 ## 4. Trusted Registry And Startup Readiness
 
