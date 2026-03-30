@@ -185,6 +185,7 @@ If startup validation or smoke tests fail, go to [docs/TROUBLESHOOTING.md](docs/
 - [docs/NEW_MODEL_LAUNCH_READINESS_ROLE_PACK.md](docs/NEW_MODEL_LAUNCH_READINESS_ROLE_PACK.md): pilot-ready public-safe NPI role pack for launch readiness, trial-build exceptions, and governed new-model escalation
 - [docs/NEW_MODEL_LAUNCH_READINESS_SCENARIO.md](docs/NEW_MODEL_LAUNCH_READINESS_SCENARIO.md): guided NPI workflow story for launch readiness, APQP exceptions, and human-gated new-model release
 - [docs/WAREHOUSE_MATERIAL_SHORTAGE_ROLE_PACK.md](docs/WAREHOUSE_MATERIAL_SHORTAGE_ROLE_PACK.md): pilot-ready public-safe warehouse role pack for shortage posture, allocation exceptions, and governed stock-risk routing
+- [docs/PRODUCTION_LINE_EXCEPTION_ROLE_PACK.md](docs/PRODUCTION_LINE_EXCEPTION_ROLE_PACK.md): pilot-ready public-safe production role pack for line stoppage review, schedule-recovery routing, and governed manufacturing escalation
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): public deployment guide
 - [docs/KUBERNETES.md](docs/KUBERNETES.md): Helm chart and raw Kubernetes deployment guide
 - [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md): community vs commercial boundary

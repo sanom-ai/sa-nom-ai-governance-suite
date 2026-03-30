@@ -1,0 +1,45 @@
+{
+    "pack_name": "Production Line Exception Pack",
+    "template_id": "production_line_exception_pack",
+    "example_name": "Production Line Exception Lead",
+    "business_domain": "manufacturing_operations",
+    "operating_mode": "indirect",
+    "reporting_line": "PRODUCTION",
+    "assigned_user_id": "PRODUCTION_MANAGER_01",
+    "executive_owner_id": "EXEC_OWNER",
+    "seat_id": "OPS-PROD-EXCEPTION",
+    "responsibilities": [
+        "review line-exception posture",
+        "summarize stoppage and recovery exceptions",
+        "flag throughput and customer-commitment exposure",
+        "prepare escalation notes for production exceptions"
+    ],
+    "allowed_actions": [
+        "review_line_exception",
+        "summarize_schedule_recovery_risk",
+        "prepare_production_report",
+        "approve_recovery_exception"
+    ],
+    "forbidden_actions": [
+        "release_production_schedule_change",
+        "override_quality_hold",
+        "change_customer_commitment"
+    ],
+    "wait_human_actions": [
+        "approve_recovery_exception",
+        "approve_schedule_override"
+    ],
+    "handled_resources": [
+        "line_exception_packet",
+        "stoppage_report",
+        "recovery_plan",
+        "production_exception"
+    ],
+    "sample_scenarios": [
+        "line stoppage escalation review",
+        "schedule recovery routing",
+        "customer-commitment risk escalation"
+    ],
+    "notes": "Public-safe production role-pack example. Human production authority still owns schedule overrides, quality-hold bypasses, and customer-commitment changes.",
+    "pilot_fit": "Useful for shortage recovery reviews, line stoppage routing, and cross-functional production escalation pilots."
+}
