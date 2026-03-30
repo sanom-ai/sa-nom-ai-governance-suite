@@ -14,6 +14,7 @@ JSON_EXAMPLES = [
     'legal_review_role_pack.example.json',
     'legal_review_scenario.example.json',
     'hr_policy_role_pack.example.json',
+    'hr_policy_scenario.example.json',
 ]
 
 
@@ -72,6 +73,22 @@ def test_hr_policy_role_pack_example_preserves_human_hr_boundary() -> None:
     assert 'approve_hr_policy_exception' in payload['wait_human_actions']
     assert 'approve_compensation_exception' in payload['wait_human_actions']
     assert 'terminate_employee' in payload['forbidden_actions']
+    encoded = json.dumps(payload)
+    assert 'TAWAN' not in encoded
+    assert 'D:\\' not in encoded
+
+
+
+
+def test_hr_policy_scenario_example_matches_role_pack_story() -> None:
+    payload = _load('hr_policy_scenario.example.json')
+
+    assert payload['selected_provider'] == 'ollama'
+    assert payload['default_private_demo_lane'] == 'ollama'
+    assert payload['role_pack']['template_id'] == 'hr_policy_escalation_pack'
+    assert payload['review_result']['escalation_required'] is True
+    assert 'approve_hr_policy_exception' in payload['review_result']['wait_human_actions']
+    assert 'terminate_employee' in payload['review_result']['forbidden_actions_enforced']
     encoded = json.dumps(payload)
     assert 'TAWAN' not in encoded
     assert 'D:\\' not in encoded
