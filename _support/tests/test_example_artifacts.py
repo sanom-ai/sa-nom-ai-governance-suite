@@ -253,3 +253,16 @@ def test_quality_audit_readiness_role_pack_example_preserves_human_quality_bound
     serialized = json.dumps(payload)
     assert "TAWAN" not in serialized
     assert "D:\\" not in serialized
+
+
+def test_quality_audit_readiness_scenario_example_preserves_human_quality_boundary():
+    payload = json.loads((EXAMPLES_DIR / "quality_audit_readiness_scenario.example.json").read_text(encoding="utf-8"))
+
+    assert payload["role_pack"] == "quality_audit_readiness_pack"
+    assert payload["reporting_line"] == "QUALITY"
+    assert "approve_release_exception" in payload["wait_human_actions"]
+    assert "approve_deviation_waiver" in payload["wait_human_actions"]
+    assert "release_quality_hold" in payload["forbidden_actions"]
+    serialized = json.dumps(payload)
+    assert "TAWAN" not in serialized
+    assert "D:\\" not in serialized
