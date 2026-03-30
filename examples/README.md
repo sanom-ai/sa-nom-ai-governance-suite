@@ -24,6 +24,7 @@ Use them as templates and replace every placeholder before a real deployment.
 - legal_review_role_pack.example.json: sanitized example payload for the pilot-ready legal review role pack.
 - hr_policy_role_pack.example.json: sanitized example payload for the pilot-ready HR policy role pack.
 - purchasing_supplier_risk_role_pack.example.json: sanitized example payload for the pilot-ready purchasing supplier-risk role pack.
+- purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
 
 Use [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) and `python scripts/ollama_demo_environment.py` when you want a real local private-model setup path.
@@ -64,6 +65,7 @@ Use [../docs/GUIDED_EVALUATION.md](../docs/GUIDED_EVALUATION.md) for the full fi
 - legal_review_role_pack.example.json: sanitized example payload for the pilot-ready legal review role pack.
 - hr_policy_role_pack.example.json: sanitized example payload for the pilot-ready HR policy role pack.
 - purchasing_supplier_risk_role_pack.example.json: sanitized example payload for the pilot-ready purchasing supplier-risk role pack.
+- purchasing_supplier_risk_scenario.example.json: sanitized example output for the guided purchasing supplier-risk scenario.
 - hr_policy_scenario.example.json: sanitized example output for the guided HR policy scenario.
 
 See [../docs/PROVIDER_SETUP.md](../docs/PROVIDER_SETUP.md) for provider configuration details, [../docs/OLLAMA_DEMO_ENVIRONMENT.md](../docs/OLLAMA_DEMO_ENVIRONMENT.md) for the real private-model setup path, and [../docs/DISCOVERY_DEMO.md](../docs/DISCOVERY_DEMO.md) for a short customer-demo flow.

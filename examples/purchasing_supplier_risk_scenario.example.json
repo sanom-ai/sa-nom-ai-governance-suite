@@ -1,0 +1,37 @@
+{
+  "scenario_id": "purchasing-single-source-exception",
+  "selected_provider": "ollama",
+  "default_private_demo_lane": "ollama",
+  "role_pack": {
+    "template_id": "purchasing_supplier_risk_pack",
+    "example_name": "Purchasing Supplier Risk Lead",
+    "reporting_line": "PROCUREMENT",
+    "operating_mode": "indirect"
+  },
+  "case_context": {
+    "request_type": "single-source procurement exception",
+    "issue_type": "lead-time disruption plus approved-supplier override",
+    "assigned_human_owner": "PROCUREMENT_MANAGER_01"
+  },
+  "review_result": {
+    "summary": "The purchasing role identified single-source risk, long lead-time exposure, and a procurement policy exception that requires human approval.",
+    "escalation_required": true,
+    "wait_human_actions": [
+      "approve_procurement_exception",
+      "approve_supplier_override"
+    ],
+    "forbidden_actions_enforced": [
+      "appoint_supplier",
+      "release_funds"
+    ],
+    "recommended_next_step": "Prepare a procurement exception note and route final sourcing approval to the human procurement owner."
+  },
+  "evidence": {
+    "summary": "Evidence captures the supplier-risk summary, lead-time exposure, and the fact that sourcing approval stayed in the human procurement lane.",
+    "artifacts": [
+      "supplier_risk_summary",
+      "exception_note",
+      "procurement_exception_record"
+    ]
+  }
+}
