@@ -67,3 +67,6 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 
 
 
+
+See [docs/RELEASE_VERIFICATION_BASELINE.md](docs/RELEASE_VERIFICATION_BASELINE.md) for the current release-ready verification baseline.
+
