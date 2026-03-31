@@ -35,15 +35,17 @@ That means maintainers should prefer small, reviewable dependency changes, keep 
 
 See [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIENE.md) for the broader hygiene baseline.
 
-
 ## Security Automation Baseline
 
 The repository now includes a lightweight Python dependency audit in CI as an early security automation layer. See [docs/SECURITY_AUTOMATION_BASELINE.md](docs/SECURITY_AUTOMATION_BASELINE.md) for the current scope and limits, [docs/DEPENDENCY_REVIEW_WORKFLOW.md](docs/DEPENDENCY_REVIEW_WORKFLOW.md) for the dependency review response path, and [docs/SECURITY_EXCEPTION_WORKFLOW.md](docs/SECURITY_EXCEPTION_WORKFLOW.md) for accepted-exception handling.
 
-
-
-
 Security follow-up should remain visible after merge. See [docs/SECURITY_FOLLOW_UP_VISIBILITY.md](docs/SECURITY_FOLLOW_UP_VISIBILITY.md) for the follow-up path expected when findings are deferred.
 
+## Public Workflow Boundary
 
+If maintainers intentionally defer or temporarily accept a known security finding, they should prefer a structured public follow-up record rather than an ad hoc note.
 
+The repository now supports that path through the `Security exception` issue template in [`.github/ISSUE_TEMPLATE/security_exception.md`](.github/ISSUE_TEMPLATE/security_exception.md) and the `Security follow-up` issue template in [`.github/ISSUE_TEMPLATE/security_follow_up.md`](.github/ISSUE_TEMPLATE/security_follow_up.md).
+
+AI or automation may help surface findings and summarize context.
+Humans still decide whether a finding blocks merge, qualifies for temporary exception, requires escalation, or has an adequate follow-up path.
