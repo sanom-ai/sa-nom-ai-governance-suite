@@ -45,3 +45,4 @@ The repository now includes a lightweight Python dependency audit in CI as an ea
 
 Security follow-up should remain visible after merge. See [docs/SECURITY_FOLLOW_UP_VISIBILITY.md](docs/SECURITY_FOLLOW_UP_VISIBILITY.md) for the follow-up path expected when findings are deferred.
 
+
