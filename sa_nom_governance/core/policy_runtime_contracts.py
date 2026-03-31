@@ -368,11 +368,14 @@ class RuntimeContractGuard:
         if not isinstance(execution_plan, dict) and not isinstance(task_packet, dict):
             return None
 
-        packet = task_packet if isinstance(task_packet, dict) else {}
-        plan = execution_plan if isinstance(execution_plan, dict) else {}
-        correlation = packet.get('correlation') if isinstance(packet.get('correlation'), dict) else {}
-        decision_queue = context.metadata.get('decision_queue') if isinstance(context.metadata.get('decision_queue'), dict) else {}
-        authority_gate = context.metadata.get('authority_gate') if isinstance(context.metadata.get('authority_gate'), dict) else {}
+        packet: dict[str, object] = dict(task_packet) if isinstance(task_packet, dict) else {}
+        plan: dict[str, object] = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+        decision_queue_value = context.metadata.get('decision_queue')
+        decision_queue: dict[str, object] = dict(decision_queue_value) if isinstance(decision_queue_value, dict) else {}
+        authority_gate_value = context.metadata.get('authority_gate')
+        authority_gate: dict[str, object] = dict(authority_gate_value) if isinstance(authority_gate_value, dict) else {}
+        correlation_value = packet.get('correlation')
+        correlation: dict[str, object] = dict(correlation_value) if isinstance(correlation_value, dict) else {}
 
         source_role = str(packet.get('source_role') or context.role_id)
         target_role = str(packet.get('target_role') or plan.get('handoff_target_role') or context.role_id)
@@ -394,7 +397,8 @@ class RuntimeContractGuard:
         if not isinstance(policy_basis_ref, str):
             policy_basis_ref = authority_gate.get('reason') if isinstance(authority_gate.get('reason'), str) else None
 
-        evidence_refs = packet.get('evidence_refs') if isinstance(packet.get('evidence_refs'), list) else []
+        evidence_refs_value = packet.get('evidence_refs')
+        evidence_refs: list[object] = evidence_refs_value if isinstance(evidence_refs_value, list) else []
         valid_evidence_refs = [item for item in evidence_refs if isinstance(item, str) and item.strip()]
         if context.request_id not in valid_evidence_refs:
             valid_evidence_refs.append(context.request_id)
