@@ -968,6 +968,7 @@ function renderPermissionNotice(permission) {
 
 function renderOverview(snapshot) {
   const readiness = snapshot.go_live_readiness || {};
+  const operationalReadiness = snapshot.operational_readiness || {};
   const latestBackup = snapshot.operations?.summary?.latest_backup || null;
   const runtimeHealth = snapshot.runtime_health || {};
   const auditIntegrity = runtimeHealth.audit_integrity || {};
@@ -1011,11 +1012,11 @@ function renderOverview(snapshot) {
           <p class="card-subtitle">Backup continuity, runtime pressure points, and publish readiness for the next governed role.</p>
         </div>
         ${keyValue([
-          ['Pending overrides', String(snapshot.summary.pending_overrides)],
-          ['Active locks', String(snapshot.summary.active_locks)],
-          ['Studio ready', String(snapshot.summary.studio_ready_to_publish_total || 0)],
-          ['Backups total', String(snapshot.summary.backups_total || 0)],
-          ['Integration targets', String(integrationSummary.targets_total || 0)],
+          ['Operational readiness', operationalReadiness.status || snapshot.summary.operational_readiness_status || 'unknown'],
+          ['Workflow backlog', String(snapshot.summary.workflow_backlog_total || 0)],
+          ['Human inbox open', String(snapshot.summary.human_inbox_open_total || 0)],
+          ['Recovery pending', String(snapshot.summary.recovery_pending_total || 0)],
+          ['Dead letters', String(snapshot.summary.dead_letter_total || 0)],
         ])}
         <div class="trace-box"><strong>Latest backup</strong><p class="muted">${escapeHtml(backupLabel)}</p></div>
       </article>
@@ -1029,6 +1030,7 @@ function renderOverview(snapshot) {
         ${metricCard('Studio requests', snapshot.summary.studio_requests_total || 0, 'default', 'Role Private Studio drafts under review.')}
         ${metricCard('Studio ready', snapshot.summary.studio_ready_to_publish_total || 0, 'success', 'Role drafts ready for trusted publication.')}
         ${metricCard('Go-live', readiness.status || snapshot.summary.go_live_status || 'blocked', 'accent', 'Combined deployment gate across trust, smoke, and audit.')}
+        ${metricCard('Operational readiness', operationalReadiness.status || snapshot.summary.operational_readiness_status || 'unknown', (operationalReadiness.status || snapshot.summary.operational_readiness_status) === 'ready' ? 'success' : ((operationalReadiness.status || snapshot.summary.operational_readiness_status) === 'monitoring' ? 'warning' : 'danger'), 'Operator-facing runtime posture across backlog, inbox, and recovery queues.')}
         ${metricCard('Backups', snapshot.summary.backups_total || 0, 'default', 'Operational recovery bundles captured from the private runtime.')}
         ${metricCard('Integrations', snapshot.summary.integration_targets_total || 0, 'accent', 'Configured outbound targets across webhook, SIEM, and ticketing lanes.')}
         ${metricCard('Outbound deliveries', snapshot.summary.integration_deliveries_total || 0, snapshot.summary.integration_failures_total ? 'warning' : 'success', 'Outbound integration delivery records currently visible in the runtime ledger.')}

@@ -33,6 +33,7 @@ class DashboardSnapshotBuilder:
         role_private_studio = self.role_private_studio()
         human_ask = self.human_ask()
         go_live_readiness = self.go_live_readiness()
+        operational_readiness = self.app.operational_readiness(limit=50)
         operations = self.operations()
         compliance = self.compliance_snapshot()
         evidence_exports = self.evidence_exports()
@@ -72,6 +73,11 @@ class DashboardSnapshotBuilder:
                 'runtime_alert_critical_total': sum(
                     1 for item in runtime_alerts if item.get('tone') == 'danger'
                 ),
+                'operational_readiness_status': operational_readiness.get('status', 'unknown'),
+                'workflow_backlog_total': operational_readiness.get('workflow', {}).get('backlog_total', 0),
+                'human_inbox_open_total': operational_readiness.get('human_inbox', {}).get('open_total', 0),
+                'recovery_pending_total': operational_readiness.get('runtime_recovery', {}).get('pending_total', 0),
+                'dead_letter_total': operational_readiness.get('runtime_recovery', {}).get('dead_letter_total', 0),
                 'backups_total': operations.get('summary', {}).get('backups_total', 0),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
@@ -97,6 +103,7 @@ class DashboardSnapshotBuilder:
             'integrations': integrations,
             'model_providers': model_providers,
             'go_live_readiness': go_live_readiness,
+            'operational_readiness': operational_readiness,
             'runtime_alerts': runtime_alerts,
             'runtime_health': self.runtime_health(roles=roles, go_live_readiness=go_live_readiness),
         }
