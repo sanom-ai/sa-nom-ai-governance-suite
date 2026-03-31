@@ -5,6 +5,7 @@ from sa_nom_governance.api.api_schemas import DecisionResult, OverrideReviewResu
 from sa_nom_governance.audit.audit_logger import AuditLogger
 from sa_nom_governance.guards.authority_guard import AuthorityGuard
 from sa_nom_governance.core.decision_engine import DecisionEngine
+from sa_nom_governance.core.authority_policy_engine import AuthorityPolicyEngine
 from sa_nom_governance.core.decision_models import DecisionComputation, DecisionTrace
 from sa_nom_governance.core.dispatcher import RequestDispatcher
 from sa_nom_governance.guards.ethics_guard import EthicsGuard
@@ -42,6 +43,7 @@ class CoreEngine:
         self.authority_guard = AuthorityGuard()
         self.risk_scorer = RiskScorer()
         self.runtime_contract_guard = RuntimeContractGuard()
+        self.authority_policy_engine = AuthorityPolicyEngine()
         self.decision_engine = DecisionEngine()
         self.human_override = HumanOverrideGateway(store_path=override_store_path, config=config)
         self.lock_manager = ResourceLockManager(store_path=lock_store_path, config=config)
@@ -360,26 +362,51 @@ class CoreEngine:
         context.risk_score = self.risk_scorer.score(context)
         self.ethics_guard.ensure_allowed(context)
 
-        hierarchy_escalation = self._transition_policy_escalation(context) or self.hierarchy_registry.evaluate_escalation(context)
-        if hierarchy_escalation is not None:
-            context.role_transition["escalated_to"] = hierarchy_escalation.escalated_to
-            context.metadata["role_transition"] = dict(context.role_transition)
-            context.metadata["role_hierarchy_escalation"] = {
-                "rule_id": hierarchy_escalation.rule_id,
-                "escalated_to": hierarchy_escalation.escalated_to,
-                "reason": hierarchy_escalation.reason,
-                "notes": list(hierarchy_escalation.notes),
-            }
-            computation = self._resolve_hierarchy_escalation(
-                context=context,
-                hierarchy_escalation=hierarchy_escalation,
-                approved_override=approved_override,
+        authority_violation = self.authority_policy_engine.contract_violation(context)
+        if authority_violation is not None:
+            return build_result(
+                context,
+                self.authority_policy_engine.to_computation(authority_violation),
             )
+
+        hierarchy_escalation = None
+        authority_decision = self.authority_policy_engine.evaluate(context)
+        if authority_decision is not None:
+            if self._authority_override_matches(context, authority_decision, approved_override):
+                computation = DecisionComputation(
+                    outcome='approved',
+                    reason='Action resumed after authority contract approval.',
+                    policy_basis='runtime.authority_contract',
+                    trace=DecisionTrace(
+                        source_type='human_override_resume',
+                        source_id=approved_override.request_id if approved_override is not None else 'runtime.authority_contract',
+                        notes=['Authority contract approval resumed execution.'],
+                    ),
+                    human_override=approved_override,
+                )
+            else:
+                computation = authority_decision
         else:
-            computation = self.decision_engine.decide(context, role_document, approved_override=approved_override)
+            hierarchy_escalation = self._transition_policy_escalation(context) or self.hierarchy_registry.evaluate_escalation(context)
+            if hierarchy_escalation is not None:
+                context.role_transition['escalated_to'] = hierarchy_escalation.escalated_to
+                context.metadata['role_transition'] = dict(context.role_transition)
+                context.metadata['role_hierarchy_escalation'] = {
+                    'rule_id': hierarchy_escalation.rule_id,
+                    'escalated_to': hierarchy_escalation.escalated_to,
+                    'reason': hierarchy_escalation.reason,
+                    'notes': list(hierarchy_escalation.notes),
+                }
+                computation = self._resolve_hierarchy_escalation(
+                    context=context,
+                    hierarchy_escalation=hierarchy_escalation,
+                    approved_override=approved_override,
+                )
+            else:
+                computation = self.decision_engine.decide(context, role_document, approved_override=approved_override)
 
         approver_role = self._override_approver_role(context, hierarchy_escalation)
-        if computation.outcome == "waiting_human" and computation.human_override is None and approved_override is None:
+        if computation.outcome in {'waiting_human', 'human_required'} and computation.human_override is None and approved_override is None:
             computation.human_override = self.human_override.create_state(
                 context=context,
                 required_by=computation.policy_basis,
@@ -395,7 +422,7 @@ class CoreEngine:
 
         lock_state = self.lock_manager.get_by_request(context.request_id)
         if lock_state is not None:
-            context.metadata["resource_lock"] = lock_state.to_dict()
+            context.metadata['resource_lock'] = lock_state.to_dict()
 
         return build_result(
             context,
@@ -466,12 +493,27 @@ class CoreEngine:
             return hierarchy_escalation.escalated_to
         return self.hierarchy_registry.default_escalation_target(context.role_id)
 
+    def _authority_override_matches(
+        self,
+        context,
+        authority_decision: DecisionComputation,
+        approved_override: HumanOverrideState | None,
+    ) -> bool:
+        if authority_decision.outcome != 'human_required' or approved_override is None:
+            return False
+        return (
+            approved_override.status == 'approved'
+            and approved_override.active_role == context.role_id
+            and approved_override.action == context.action
+            and approved_override.required_by == 'runtime.authority_contract'
+        )
+
     def _sync_lock_state(self, result, request_id: str):
         lock_state = self.lock_manager.get_by_request(request_id)
         if lock_state is None:
             return result
 
-        if result.outcome == "waiting_human":
+        if result.outcome in {"waiting_human", "human_required"}:
             lock_state = self.lock_manager.mark_waiting(request_id) or lock_state
             result.resource_lock = lock_state.to_dict()
         else:

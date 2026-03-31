@@ -503,3 +503,93 @@ def test_runtime_reliability_marks_unhandled_errors_as_blocked() -> None:
     reliability = result.metadata['metadata']['runtime_reliability']
     assert reliability['retry_exhausted'] is True
     assert reliability['error_type'] == 'RuntimeError'
+
+
+def test_authority_contract_blocks_request_via_gate() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-BLOCK-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'blocked'}},
+    )
+
+    assert result.outcome == 'blocked'
+    assert result.policy_basis == 'runtime.authority_contract'
+    assert result.decision_trace['source_type'] == 'authority_contract'
+    assert result.decision_trace['source_id'] == 'approval_gate'
+
+
+def test_authority_contract_requires_human_via_gate() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-HUMAN-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'human_required'}},
+    )
+
+    assert result.outcome == 'human_required'
+    assert result.human_override is not None
+    assert result.human_override['status'] == 'pending'
+    assert result.policy_basis == 'runtime.authority_contract'
+
+
+def test_authority_contract_invalid_shape_fails_closed() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-INVALID-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'unknown_gate'}},
+    )
+
+    assert result.outcome == 'blocked'
+    assert result.policy_basis == 'runtime.authority_contract'
+    assert result.decision_trace['source_id'] == 'authority_contract_invalid_gate'
+
+
+def test_authority_contract_allow_actions_enforced() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='flag_risk',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-ALLOW-1', 'amount': 1000000},
+        metadata={'authority_contract': {'allow_actions': ['review_contract']}},
+    )
+
+    assert result.outcome == 'blocked'
+    assert result.policy_basis == 'runtime.authority_contract'
+    assert result.decision_trace['source_id'] == 'allow_actions'
+
+
+def test_authority_contract_human_required_can_resume_after_override() -> None:
+    app = build_test_app()
+
+    pending = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-RESUME-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'human_required'}},
+    )
+    assert pending.outcome == 'human_required'
+    assert pending.human_override is not None
+
+    reviewed = app.approve_override(
+        pending.human_override['request_id'],
+        resolved_by='EXEC_OWNER',
+        note='Approved authority contract gate.',
+    )
+
+    assert reviewed.status == 'approved'
+    assert reviewed.execution_result is not None
+    assert reviewed.execution_result['outcome'] == 'approved'
