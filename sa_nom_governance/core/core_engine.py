@@ -14,6 +14,7 @@ from sa_nom_governance.core.lock_manager import ResourceConflictError, ResourceL
 from sa_nom_governance.core.request_consistency import IdempotencyReplay, RequestConsistencyError, RequestConsistencyManager
 from sa_nom_governance.core.result_builder import build_result
 from sa_nom_governance.core.risk_scorer import RiskScorer
+from sa_nom_governance.core.policy_runtime_contracts import RuntimeContractGuard
 from sa_nom_governance.core.role_activation_router import RoleActivationError, RoleActivationRouter
 from sa_nom_governance.ptag.role_loader import RoleLoader
 from sa_nom_governance.utils.config import AppConfig
@@ -36,6 +37,7 @@ class CoreEngine:
         self.ethics_guard = EthicsGuard()
         self.authority_guard = AuthorityGuard()
         self.risk_scorer = RiskScorer()
+        self.runtime_contract_guard = RuntimeContractGuard()
         self.decision_engine = DecisionEngine()
         self.human_override = HumanOverrideGateway(store_path=override_store_path, config=config)
         self.lock_manager = ResourceLockManager(store_path=lock_store_path, config=config)
@@ -49,6 +51,28 @@ class CoreEngine:
         self.role_transition_policy = self.role_activation_router.transition_policy
 
     def process(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
+        request_violation = self.runtime_contract_guard.request_violation(
+            requester=requester,
+            action=action,
+            role_id=role_id,
+            payload=payload,
+            metadata=metadata,
+        )
+        if request_violation is not None:
+            context = self.dispatcher.dispatch(
+                requester=requester,
+                action=action,
+                role_id=role_id or 'UNRESOLVED',
+                payload=payload if isinstance(payload, dict) else {'raw_payload_type': type(payload).__name__},
+                metadata=metadata if isinstance(metadata, dict) else {},
+            )
+            result = build_result(
+                context,
+                self.runtime_contract_guard.to_computation(request_violation, phase='request'),
+            )
+            self.audit_logger.record(result)
+            return result
+
         context, activation_error = self._build_activation_context(
             requester=requester,
             action=action,
@@ -154,6 +178,13 @@ class CoreEngine:
             return context, error
 
     def _evaluate_context(self, context, approved_override: HumanOverrideState | None = None):
+        context_violation = self.runtime_contract_guard.context_violation(context)
+        if context_violation is not None:
+            return build_result(
+                context,
+                self.runtime_contract_guard.to_computation(context_violation, phase='context'),
+            )
+
         role_document = self.role_loader.load(context.role_id)
         self.authority_guard.ensure_action_allowed(role_document, context.action)
         context.risk_score = self.risk_scorer.score(context)
@@ -187,6 +218,10 @@ class CoreEngine:
             )
         elif approved_override is not None and computation.human_override is None:
             computation.human_override = approved_override
+
+        decision_violation = self.runtime_contract_guard.decision_violation(computation)
+        if decision_violation is not None:
+            computation = self.runtime_contract_guard.to_computation(decision_violation, phase='decision')
 
         lock_state = self.lock_manager.get_by_request(context.request_id)
         if lock_state is not None:
@@ -424,3 +459,5 @@ class CoreEngine:
                 "hierarchy_escalation": escalation,
             },
         )
+
+

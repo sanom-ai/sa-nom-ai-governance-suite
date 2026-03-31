@@ -371,3 +371,33 @@ def test_role_activation_fails_closed_when_no_candidate_exists() -> None:
     assert result.decision_trace["source_id"] == "no_candidate_role"
     assert result.role_transition is not None
     assert result.role_transition["new_role"] == "UNRESOLVED"
+
+def test_runtime_contract_rejects_non_object_payload() -> None:
+    app = build_test_app()
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload=['invalid_payload_shape'],
+    )
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.request'
+    assert result.decision_trace['source_type'] == 'runtime_contract'
+    assert result.decision_trace['source_id'] == 'payload_invalid'
+
+
+def test_runtime_contract_rejects_negative_amount() -> None:
+    app = build_test_app()
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'amount': -1, 'resource': 'contract', 'resource_id': 'C-NEGATIVE'},
+    )
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.context'
+    assert result.decision_trace['source_type'] == 'runtime_contract'
+    assert result.decision_trace['source_id'] == 'amount_negative'
+
+
+
