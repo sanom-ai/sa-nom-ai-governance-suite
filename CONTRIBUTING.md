@@ -59,6 +59,9 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 - treat CI audit findings as prompts for human review, not as noise to bypass
 - follow [docs/DEPENDENCY_REVIEW_WORKFLOW.md](docs/DEPENDENCY_REVIEW_WORKFLOW.md) when a pull request changes dependencies or audit results
 - document accepted exceptions explicitly when a flagged issue is not fixed immediately, and follow [docs/SECURITY_EXCEPTION_WORKFLOW.md](docs/SECURITY_EXCEPTION_WORKFLOW.md)
+- keep deferred security work visible through the follow-up path in [docs/SECURITY_FOLLOW_UP_VISIBILITY.md](docs/SECURITY_FOLLOW_UP_VISIBILITY.md)
+
+
 
 
 
