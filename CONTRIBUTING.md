@@ -56,5 +56,5 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 
 - expect dependency-related pull requests to trigger additional review
 - explain why any new package or version change is needed
-- treat dependency-review warnings as prompts for human review, not as noise to bypass
+- treat CI audit findings as prompts for human review, not as noise to bypass
 

@@ -38,5 +38,5 @@ See [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIE
 
 ## Security Automation Baseline
 
-The repository now includes a lightweight pull-request dependency review check as an early security automation layer. See [docs/SECURITY_AUTOMATION_BASELINE.md](docs/SECURITY_AUTOMATION_BASELINE.md) for the current scope and limits.
+The repository now includes a lightweight Python dependency audit in CI as an early security automation layer. See [docs/SECURITY_AUTOMATION_BASELINE.md](docs/SECURITY_AUTOMATION_BASELINE.md) for the current scope and limits.
 
