@@ -43,6 +43,9 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Planning And Release Notes
 
+- [Roadmap v0.2.5](ROADMAP_v0.2.5.md)
+- [Issue Drafts v0.2.5](ISSUE_DRAFTS_v0.2.5.md)
+- [Release Notes v0.2.5](releases/RELEASE_NOTES_v0.2.5.md)
 - [Roadmap v0.2.4](ROADMAP_v0.2.4.md)
 - [Issue Drafts v0.2.4](ISSUE_DRAFTS_v0.2.4.md)
 - [Release Notes v0.2.4](releases/RELEASE_NOTES_v0.2.4.md)
