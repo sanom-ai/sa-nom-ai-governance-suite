@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sa_nom_governance.api.api_schemas import DecisionResult
-from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.core.execution_context import ExecutionContext
+from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.utils.persistence import build_state_store
 
 

@@ -40,6 +40,9 @@ jobs:
       - name: Lint Python sources
         run: python -m ruff check .
 
+      - name: Lint core modules with strict rule set
+        run: python -m ruff check sa_nom_governance/core --select E,F,I --ignore E501
+
       - name: Run static type checks
         run: python -m mypy
 

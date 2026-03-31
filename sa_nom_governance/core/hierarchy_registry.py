@@ -1,8 +1,12 @@
 from dataclasses import dataclass, field
 
 from sa_nom_governance.core.execution_context import ExecutionContext
-from sa_nom_governance.utils.owner_identity import DEFAULT_EXECUTIVE_OWNER_ID, is_default_owner_alias, normalize_executive_owner_id
 from sa_nom_governance.ptag.role_loader import RoleLoader
+from sa_nom_governance.utils.owner_identity import (
+    DEFAULT_EXECUTIVE_OWNER_ID,
+    is_default_owner_alias,
+    normalize_executive_owner_id,
+)
 
 
 def _normalize_token(value: object | None) -> str | None:

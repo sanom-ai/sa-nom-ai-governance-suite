@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from sa_nom_governance.core.hierarchy_registry import HierarchyRegistry
 from sa_nom_governance.core.role_transition_policy import RoleTransitionPolicyMatrix
 
-
 AUTO_ROLE_TOKENS = {"", "AUTO", "auto", "AUTO_ROLE", "context"}
 
 
