@@ -8,9 +8,9 @@ class RequestDispatcher:
         requester: str,
         action: str,
         role_id: str,
-        payload: dict,
+        payload: dict[str, object],
         request_id: str | None = None,
-        metadata: dict | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> ExecutionContext:
         metadata_copy = dict(metadata or {})
         role_transition = metadata_copy.get("role_transition", {})

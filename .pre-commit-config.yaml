@@ -14,6 +14,14 @@ repos:
 
   - repo: local
     hooks:
+      - id: ruff-core-strict
+        name: ruff core strict
+        entry: python -m ruff check sa_nom_governance/core --select E,F,I --ignore E501
+        language: system
+        pass_filenames: false
+
+  - repo: local
+    hooks:
       - id: pytest-smoke
         name: pytest smoke
         entry: python -m pytest _support/tests/test_decision_flow.py -q

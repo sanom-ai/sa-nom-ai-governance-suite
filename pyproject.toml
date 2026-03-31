@@ -40,7 +40,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["_support/tests"]
-addopts = "--cov=sa_nom_governance --cov-report=term-missing --cov-report=xml"
+addopts = "--cov=sa_nom_governance --cov-report=term-missing --cov-report=xml --cov-fail-under=75"
 
 [tool.ruff]
 line-length = 120
@@ -64,4 +64,8 @@ files = [
   "sa_nom_governance/guards/session_manager.py",
   "sa_nom_governance/core/authority_policy_engine.py",
   "sa_nom_governance/core/policy_runtime_contracts.py",
+  "sa_nom_governance/core/dispatcher.py",
+  "sa_nom_governance/core/execution_context.py",
+  "sa_nom_governance/core/result_builder.py",
+  "sa_nom_governance/core/risk_scorer.py",
 ]

@@ -2,10 +2,9 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.core.execution_context import ExecutionContext
+from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.utils.persistence import build_state_store
-
 
 RESOURCE_ID_KEYS = ("resource_id", "target_id", "contract_id", "tenant_id", "entity_id", "record_id", "id")
 
