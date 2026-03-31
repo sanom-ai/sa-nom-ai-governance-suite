@@ -93,8 +93,7 @@ jobs:
         if: always()
         run: |
           if [ "${{ steps.ptoss.outcome }}" = "success" ]; then
-            echo "## PT-OSS Advisory" >> "$GITHUB_STEP_SUMMARY"
-            echo "PT-OSS advisory check passed." >> "$GITHUB_STEP_SUMMARY"
+            python scripts/pt_oss_advisory_report.py >> "$GITHUB_STEP_SUMMARY"
           else
             echo "## PT-OSS Advisory" >> "$GITHUB_STEP_SUMMARY"
             echo "PT-OSS advisory check reported findings or execution issues (non-blocking)." >> "$GITHUB_STEP_SUMMARY"
