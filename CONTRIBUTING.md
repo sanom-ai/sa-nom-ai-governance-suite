@@ -51,3 +51,10 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 - prefer local-only secret injection or deployment-managed secret stores
 - rotate or replace credentials quickly if exposure is suspected
 - do not treat AI as the autonomous owner of real deployment credentials
+
+## Dependency Review Signals
+
+- expect dependency-related pull requests to trigger additional review
+- explain why any new package or version change is needed
+- treat CI audit findings as prompts for human review, not as noise to bypass
+

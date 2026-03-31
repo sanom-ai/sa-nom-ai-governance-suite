@@ -35,3 +35,8 @@ That means maintainers should prefer small, reviewable dependency changes, keep 
 
 See [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIENE.md) for the broader hygiene baseline.
 
+
+## Security Automation Baseline
+
+The repository now includes a lightweight Python dependency audit in CI as an early security automation layer. See [docs/SECURITY_AUTOMATION_BASELINE.md](docs/SECURITY_AUTOMATION_BASELINE.md) for the current scope and limits.
+
