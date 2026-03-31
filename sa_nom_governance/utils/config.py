@@ -85,6 +85,7 @@ class AppConfig:
     override_store_path: Path | None = field(init=False, default=None)
     lock_store_path: Path | None = field(init=False, default=None)
     consistency_store_path: Path | None = field(init=False, default=None)
+    workflow_state_store_path: Path | None = field(init=False, default=None)
     session_store_path: Path | None = field(init=False, default=None)
     role_private_studio_store_path: Path | None = field(init=False, default=None)
     human_ask_store_path: Path | None = field(init=False, default=None)
@@ -144,6 +145,7 @@ class AppConfig:
             self.override_store_path = self.runtime_dir / "runtime_override_store.json"
             self.lock_store_path = self.runtime_dir / "runtime_lock_store.json"
             self.consistency_store_path = self.runtime_dir / "runtime_consistency_store.json"
+            self.workflow_state_store_path = self.runtime_dir / "runtime_workflow_state_store.json"
             self.session_store_path = self.runtime_dir / "runtime_session_store.json"
             self.role_private_studio_store_path = self.runtime_dir / "runtime_role_private_studio_store.json"
             self.human_ask_store_path = self.runtime_dir / "runtime_human_ask_store.json"

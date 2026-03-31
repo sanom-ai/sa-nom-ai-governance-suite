@@ -19,6 +19,7 @@ from sa_nom_governance.core.result_builder import build_result
 from sa_nom_governance.core.risk_scorer import RiskScorer
 from sa_nom_governance.core.role_activation_router import RoleActivationError, RoleActivationRouter
 from sa_nom_governance.core.state_flow_engine import RuntimeStateFlowEngine
+from sa_nom_governance.core.workflow_state_store import WorkflowStateStore
 from sa_nom_governance.guards.authority_guard import AuthorityGuard
 from sa_nom_governance.guards.ethics_guard import EthicsGuard
 from sa_nom_governance.guards.human_override import HumanOverrideGateway, HumanOverrideState
@@ -41,6 +42,7 @@ class CoreEngine:
         override_store_path: Path | None = None,
         lock_store_path: Path | None = None,
         consistency_store_path: Path | None = None,
+        workflow_state_store_path: Path | None = None,
     ) -> None:
         self.dispatcher = RequestDispatcher()
         self.role_loader = role_loader
@@ -54,6 +56,7 @@ class CoreEngine:
         self.human_override = HumanOverrideGateway(store_path=override_store_path, config=config)
         self.lock_manager = ResourceLockManager(store_path=lock_store_path, config=config)
         self.request_consistency = RequestConsistencyManager(store_path=consistency_store_path, config=config)
+        self.workflow_state_store = WorkflowStateStore(config=config, store_path=workflow_state_store_path)
         self.audit_logger = AuditLogger(log_path=audit_log_path, config=config)
         default_executive_owner_id = (
             config.executive_owner_id() if config is not None else DEFAULT_EXECUTIVE_OWNER_ID
@@ -150,6 +153,7 @@ class CoreEngine:
             outcome_state='in_progress',
         )
         self.state_flow_engine.bootstrap(context)
+        self._sync_workflow_state_store(context, source='runtime_bootstrap')
 
         try:
             self.request_consistency.prepare(context)
@@ -338,12 +342,17 @@ class CoreEngine:
     def _set_reasoning_control_metadata(self, context) -> None:
         context.metadata['reasoning_control'] = self.runtime_contract_guard.reasoning_profile(context)
 
+    def _normalize_resume_contract_metadata(self, context) -> None:
+        execution_plan = self.runtime_contract_guard.normalized_execution_plan_contract(context.metadata.get('execution_plan'))
+        if execution_plan is not None:
+            context.metadata['execution_plan'] = execution_plan
+
     def _set_execution_plan_metadata(self, context) -> None:
         execution_plan = self.runtime_contract_guard.execution_plan_profile(context)
         if execution_plan is not None:
             context.metadata['execution_plan'] = execution_plan
 
-    def _sync_state_flow_result_metadata(self, result: DecisionResult, context) -> None:
+    def _sync_state_flow_result_metadata(self, result: DecisionResult, context, *, source: str = 'runtime_result') -> None:
         self.state_flow_engine.bootstrap(context)
         self.state_flow_engine.apply_outcome(context, result)
         envelope = result.metadata.setdefault('metadata', {})
@@ -359,6 +368,12 @@ class CoreEngine:
         execution_plan = context.metadata.get('execution_plan')
         if isinstance(execution_plan, dict):
             envelope['execution_plan'] = dict(execution_plan)
+        workflow_state = self._sync_workflow_state_store(context, result=result, source=source)
+        if isinstance(workflow_state, dict):
+            envelope['workflow_state'] = dict(workflow_state)
+
+    def _sync_workflow_state_store(self, context, *, result: DecisionResult | None = None, source: str = 'runtime_result') -> dict[str, object]:
+        return self.workflow_state_store.save_runtime_state(context, result=result, source=source)
 
     def _build_activation_context(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         try:
@@ -667,6 +682,17 @@ class CoreEngine:
     def list_audit_entries(self, limit: int | None = None) -> list[dict[str, object]]:
         return [entry.to_dict() for entry in self.audit_logger.list_entries(limit=limit)]
 
+    def list_workflow_states(
+        self,
+        *,
+        current_state: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, object]]:
+        return self.workflow_state_store.list_workflows(current_state=current_state, limit=limit)
+
+    def get_workflow_state(self, workflow_id: str) -> dict[str, object]:
+        return self.workflow_state_store.get_workflow(workflow_id)
+
     def list_runtime_evidence(
         self,
         *,
@@ -744,11 +770,12 @@ class CoreEngine:
 
         self.lock_manager.mark_active(state.origin_request_id)
         self.state_flow_engine.resume_after_human_confirmation(context)
+        self._normalize_resume_contract_metadata(context)
         self._set_reasoning_control_metadata(context)
-        self._set_execution_plan_metadata(context)
+        self._sync_workflow_state_store(context, source='override_resume')
         result = self._evaluate_context(context, approved_override=state)
         result = self._sync_lock_state(result, request_id=context.request_id)
-        self._sync_state_flow_result_metadata(result, context)
+        self._sync_state_flow_result_metadata(result, context, source='override_review')
         self.request_consistency.complete(context, result)
         self.audit_logger.record(result)
         return result

@@ -72,6 +72,7 @@ class EngineApplication:
             'sessions': self.access_control.session_manager.store.descriptor().to_dict(),
             'role_private_studio': self.role_private_studio.store.store.descriptor().to_dict(),
             'human_ask': self.human_ask.store.store.descriptor().to_dict(),
+            'workflow_state': self.engine.workflow_state_store.store.descriptor().to_dict(),
             'integration_deliveries': self.integration_dispatcher.ledger.descriptor().to_dict(),
             'integration_dead_letters': self.integration_dispatcher.dead_letter_ledger.descriptor().to_dict(),
         }
@@ -119,6 +120,7 @@ class EngineApplication:
             'model_providers': self.model_provider_registry.health(),
             'integration_deliveries': self.integration_dispatcher.health(),
             'coordination_layer': self.integration_dispatcher.health().get('coordination', {}),
+            'workflow_state': self.engine.workflow_state_store.summary(),
             'role_library': {
                 'roles_total': len(known_roles),
                 'trusted_verified': sum(1 for role in known_roles if role.get('trusted_manifest_signature_status') == 'verified'),
@@ -164,6 +166,12 @@ class EngineApplication:
             metadata={'request_id': result.metadata.get('request_id'), 'business_domain': result.metadata.get('business_domain')},
         )
         return result
+
+    def list_workflow_states(self, current_state: str | None = None, limit: int | None = None) -> list[dict[str, object]]:
+        return self.engine.list_workflow_states(current_state=current_state, limit=limit)
+
+    def get_workflow_state(self, workflow_id: str) -> dict[str, object]:
+        return self.engine.get_workflow_state(workflow_id)
 
     def list_overrides(self, status: str | None = None) -> list[dict[str, object]]:
         return self.engine.list_override_requests(status=status)
@@ -658,7 +666,7 @@ class EngineApplication:
 def build_engine_app(config: AppConfig) -> EngineApplication:
     registry = RoleRegistry(config.roles_dir, manifest_path=config.trusted_registry_manifest_path, cache_path=config.trusted_registry_cache_path, signing_key=config.trusted_registry_signing_key, signature_required=config.trusted_registry_signature_required)
     loader = RoleLoader(registry)
-    engine = CoreEngine(loader, config=config, audit_log_path=config.audit_log_path, override_store_path=config.override_store_path, lock_store_path=config.lock_store_path, consistency_store_path=config.consistency_store_path)
+    engine = CoreEngine(loader, config=config, audit_log_path=config.audit_log_path, override_store_path=config.override_store_path, lock_store_path=config.lock_store_path, consistency_store_path=config.consistency_store_path, workflow_state_store_path=config.workflow_state_store_path)
     retention_manager = RetentionManager(config)
     access_control = AccessControl(config)
     role_private_studio = RolePrivateStudioService(config=config, registry=registry, audit_logger=engine.audit_logger)
