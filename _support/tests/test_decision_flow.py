@@ -830,3 +830,89 @@ def test_policy_contract_enforces_policy_basis_prefix() -> None:
     assert result.outcome == 'escalated'
     assert result.policy_basis == 'runtime.contract.decision'
     assert result.decision_trace['source_id'] == 'policy_contract_policy_basis_prefix_mismatch'
+
+def test_policy_contract_rejects_invalid_reasoning_mode() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-RC-INVALID-MODE-1', 'amount': 1000000},
+        metadata={'policy_contract': {'reasoning_mode': 'ultra_think'}},
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.request'
+    assert result.decision_trace['source_id'] == 'policy_contract_reasoning_mode_invalid'
+
+
+def test_policy_contract_rejects_invalid_reasoning_budget() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-RC-INVALID-BUDGET-1', 'amount': 1000000},
+        metadata={'policy_contract': {'reasoning_mode': 'think', 'max_reasoning_steps': 0}},
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.request'
+    assert result.decision_trace['source_id'] == 'policy_contract_max_reasoning_steps_invalid'
+
+
+def test_deep_think_requires_human_confirmation_when_contract_demands_it() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-RC-DEEP-1', 'amount': 1000000},
+        metadata={
+            'policy_contract': {
+                'reasoning_mode': 'deep_think',
+                'max_reasoning_steps': 12,
+                'max_runtime_ms': 1500,
+                'requires_human_for_deep_think': True,
+            }
+        },
+    )
+
+    assert result.outcome == 'human_required'
+    assert result.policy_basis == 'runtime.reasoning_control'
+    assert result.decision_trace['source_type'] == 'reasoning_control'
+    assert result.decision_trace['source_id'] == 'deep_think_human_gate'
+    assert result.human_override is not None
+    reasoning_control = result.metadata['metadata']['reasoning_control']
+    assert reasoning_control['reasoning_mode'] == 'deep_think'
+    assert reasoning_control['max_reasoning_steps'] == 12
+    assert reasoning_control['max_runtime_ms'] == 1500
+    assert reasoning_control['requires_human_confirmation'] is True
+
+
+def test_think_mode_emits_reasoning_control_metadata_without_blocking() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-RC-THINK-1', 'amount': 3000000},
+        metadata={
+            'policy_contract': {
+                'reasoning_mode': 'think',
+                'max_reasoning_steps': 6,
+                'max_runtime_ms': 900,
+            }
+        },
+    )
+
+    assert result.outcome == 'approved'
+    reasoning_control = result.metadata['metadata']['reasoning_control']
+    assert reasoning_control['reasoning_mode'] == 'think'
+    assert reasoning_control['max_reasoning_steps'] == 6
+    assert reasoning_control['max_runtime_ms'] == 900
+    assert reasoning_control['requires_human_confirmation'] is False

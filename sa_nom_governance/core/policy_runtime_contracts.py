@@ -35,7 +35,12 @@ class RuntimeContractGuard:
         'allowed_outcomes',
         'required_policy_basis_prefix',
         'required_trace_sources',
+        'reasoning_mode',
+        'max_reasoning_steps',
+        'max_runtime_ms',
+        'requires_human_for_deep_think',
     }
+    _ALLOWED_REASONING_MODES = {'standard', 'think', 'deep_think'}
 
     def request_violation(
         self,
@@ -191,6 +196,30 @@ class RuntimeContractGuard:
             ),
         )
 
+    def reasoning_profile(self, context: ExecutionContext) -> dict[str, object]:
+        policy_contract = context.metadata.get('policy_contract')
+        if not isinstance(policy_contract, dict):
+            return {
+                'reasoning_mode': 'standard',
+                'max_reasoning_steps': 1,
+                'max_runtime_ms': None,
+                'requires_human_confirmation': False,
+            }
+
+        reasoning_mode = str(policy_contract.get('reasoning_mode') or 'standard')
+        max_reasoning_steps = int(policy_contract.get('max_reasoning_steps', 1 if reasoning_mode == 'standard' else 8))
+        max_runtime_ms = policy_contract.get('max_runtime_ms')
+        requires_human_confirmation = (
+            reasoning_mode == 'deep_think' and bool(policy_contract.get('requires_human_for_deep_think', False))
+        )
+
+        return {
+            'reasoning_mode': reasoning_mode,
+            'max_reasoning_steps': max_reasoning_steps,
+            'max_runtime_ms': int(max_runtime_ms) if isinstance(max_runtime_ms, int) else None,
+            'requires_human_confirmation': requires_human_confirmation,
+        }
+
     def _policy_contract_shape_violation(self, policy_contract: object) -> RuntimeContractViolation | None:
         if policy_contract is None:
             return None
@@ -236,6 +265,29 @@ class RuntimeContractGuard:
                     reason=f'Runtime contract violation: policy_contract.{key} must be a list of non-empty strings.',
                     notes=[f'metadata.policy_contract.{key} has invalid shape.'],
                 )
+        reasoning_mode = policy_contract.get('reasoning_mode')
+        if reasoning_mode is not None and reasoning_mode not in self._ALLOWED_REASONING_MODES:
+            return RuntimeContractViolation(
+                code='policy_contract_reasoning_mode_invalid',
+                reason='Runtime contract violation: policy_contract.reasoning_mode must be standard, think, or deep_think.',
+                notes=['metadata.policy_contract.reasoning_mode is invalid.'],
+            )
+        for key in ('max_reasoning_steps', 'max_runtime_ms'):
+            if key in policy_contract:
+                value = policy_contract[key]
+                if not isinstance(value, int) or value <= 0:
+                    return RuntimeContractViolation(
+                        code=f'policy_contract_{key}_invalid',
+                        reason=f'Runtime contract violation: policy_contract.{key} must be a positive integer.',
+                        notes=[f'metadata.policy_contract.{key} is invalid.'],
+                    )
+        requires_human_for_deep_think = policy_contract.get('requires_human_for_deep_think')
+        if requires_human_for_deep_think is not None and not isinstance(requires_human_for_deep_think, bool):
+            return RuntimeContractViolation(
+                code='policy_contract_requires_human_for_deep_think_invalid',
+                reason='Runtime contract violation: policy_contract.requires_human_for_deep_think must be boolean when provided.',
+                notes=['metadata.policy_contract.requires_human_for_deep_think is invalid.'],
+            )
         return None
 
     def _policy_contract_context_boundary_violation(

@@ -335,6 +335,9 @@ class CoreEngine:
         envelope = result.metadata.setdefault('metadata', {})
         envelope['runtime_reliability'] = dict(runtime_metadata)
 
+    def _set_reasoning_control_metadata(self, context) -> None:
+        context.metadata['reasoning_control'] = self.runtime_contract_guard.reasoning_profile(context)
+
     def _sync_state_flow_result_metadata(self, result: DecisionResult, context) -> None:
         self.state_flow_engine.bootstrap(context)
         self.state_flow_engine.apply_outcome(context, result)
@@ -345,6 +348,9 @@ class CoreEngine:
         role_lifecycle = context.metadata.get('role_execution_lifecycle')
         if isinstance(role_lifecycle, dict):
             envelope['role_execution_lifecycle'] = dict(role_lifecycle)
+        reasoning_control = context.metadata.get('reasoning_control')
+        if isinstance(reasoning_control, dict):
+            envelope['reasoning_control'] = dict(reasoning_control)
 
     def _build_activation_context(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         try:
@@ -383,13 +389,40 @@ class CoreEngine:
                 self.runtime_contract_guard.to_computation(context_violation, phase='context'),
             )
 
+        self._set_reasoning_control_metadata(context)
+        reasoning_profile = context.metadata['reasoning_control']
+        if reasoning_profile['requires_human_confirmation']:
+            computation = DecisionComputation(
+                outcome='human_required',
+                reason='Deep-think reasoning mode requires explicit human confirmation by runtime contract.',
+                policy_basis='runtime.reasoning_control',
+                trace=DecisionTrace(
+                    source_type='reasoning_control',
+                    source_id='deep_think_human_gate',
+                    notes=[
+                        f"reasoning_mode={reasoning_profile['reasoning_mode']}",
+                        f"max_reasoning_steps={reasoning_profile['max_reasoning_steps']}",
+                    ],
+                ),
+            )
+        else:
+            computation = None
+
         role_document = self.role_loader.load(context.role_id)
         self.authority_guard.ensure_action_allowed(role_document, context.action)
         context.risk_score = self.risk_scorer.score(context)
         self.ethics_guard.ensure_allowed(context)
 
         authority_violation = self.authority_policy_engine.contract_violation(context)
-        if authority_violation is not None:
+        if computation is not None:
+            self._set_authority_gate_metadata(
+                context,
+                outcome=computation.outcome,
+                source_id=computation.trace.source_id,
+                reason=computation.reason,
+                requires_human_confirmation=True,
+            )
+        elif authority_violation is not None:
             self._set_authority_gate_metadata(
                 context,
                 outcome='blocked',
@@ -403,8 +436,10 @@ class CoreEngine:
             )
 
         hierarchy_escalation = None
-        authority_decision = self.authority_policy_engine.evaluate(context)
-        if authority_decision is not None:
+        authority_decision = self.authority_policy_engine.evaluate(context) if computation is None else None
+        if computation is not None:
+            pass
+        elif authority_decision is not None:
             if self._authority_override_matches(context, authority_decision, approved_override):
                 computation = DecisionComputation(
                     outcome='approved',
