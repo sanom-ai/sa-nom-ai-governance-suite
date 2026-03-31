@@ -1,4 +1,4 @@
-from dataclasses import asdict
+﻿from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -89,6 +89,7 @@ class DashboardSnapshotBuilder:
                 'usability_proof_available': bool(operations.get('usability_proof', {}).get('available', False)),
                 'usability_proof_criteria_total': int(operations.get('usability_proof', {}).get('criteria_total', 0) or 0),
                 'usability_proof_criteria_passed_total': int(operations.get('usability_proof', {}).get('criteria_passed_total', 0) or 0),
+                'usability_proof_criteria_failed_total': int(operations.get('usability_proof', {}).get('criteria_failed_total', 0) or 0),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
                 'integration_targets_total': integrations.get('summary', {}).get('targets_total', 0),
@@ -284,6 +285,7 @@ class DashboardSnapshotBuilder:
                     'passed': bool(item.get('passed', False)),
                 }
             )
+        failed_criteria = [str(row.get('criterion', 'criterion')) for row in criteria_rows if not row.get('passed')]
         return {
             'status': result.get('status', 'missing'),
             'available': bool(result.get('available', False)),
@@ -293,6 +295,8 @@ class DashboardSnapshotBuilder:
             'milestone': str(result.get('milestone', 'v0.3.0')),
             'criteria_total': len(criteria_rows),
             'criteria_passed_total': sum(1 for row in criteria_rows if row.get('passed')),
+            'criteria_failed_total': len(failed_criteria),
+            'failed_criteria': failed_criteria,
             'pass_criteria': criteria_rows,
         }
 
@@ -583,3 +587,4 @@ class DashboardSnapshotBuilder:
 
 def build_dashboard_snapshot() -> dict[str, object]:
     return DashboardSnapshotBuilder().build()
+

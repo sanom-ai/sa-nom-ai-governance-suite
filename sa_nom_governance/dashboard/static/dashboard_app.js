@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js';
+ï»¿import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js';
 
 import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js';
 
@@ -1077,6 +1077,7 @@ function renderOverview(snapshot) {
           ['Usability proof', snapshot.summary.usability_proof_status || 'missing'],
           ['Proof available', String(Boolean(snapshot.summary.usability_proof_available))],
           ['Proof criteria passed', `${snapshot.summary.usability_proof_criteria_passed_total || 0}/${snapshot.summary.usability_proof_criteria_total || 0}`],
+          ['Proof criteria failed', `${snapshot.summary.usability_proof_criteria_failed_total || 0}`],
         ])}
         ${can('ops.manage') ? '<div class="inline-actions"><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button></div>' : ''}
       </article>
@@ -2018,7 +2019,7 @@ function renderReviewTimeline(timeline) {
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(titleCase(item.decision || 'review'))}</strong>
-          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} · ${item.reviewer || '-'}`)}</p>
+          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} Â· ${item.reviewer || '-'}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.decision || 'review')}</div>
       </div>
@@ -2035,7 +2036,7 @@ function renderSimulationHistory(history) {
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(`Revision ${item.revision_number || 0}`)}</strong>
-          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} · ${shortTime(item.generated_at)}`)}</p>
+          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} Â· ${shortTime(item.generated_at)}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.status || 'not_run')}</div>
       </div>
@@ -2468,12 +2469,16 @@ function renderOperationsSection(operations) {
   const usabilityProof = operations.usability_proof || {};
   const criteria = Array.isArray(usabilityProof.pass_criteria) ? usabilityProof.pass_criteria : [];
   const criteriaRows = criteria.length
-    ? criteria.map((row) => `${statusBadge(row.passed ? 'passed' : 'pending')} ${escapeHtml(row.criterion || 'criterion')}`).join('<br>')
+    ? criteria.map((row) => `${statusBadge(row.passed ? 'passed' : 'failed')} ${escapeHtml(row.criterion || 'criterion')}`).join('<br>')
     : 'No criteria loaded yet.';
+  const failedCriteria = Array.isArray(usabilityProof.failed_criteria) ? usabilityProof.failed_criteria : [];
+  const failedHint = failedCriteria.length
+    ? `Failing criteria: ${escapeHtml(failedCriteria.join(', '))}`
+    : 'All loaded criteria are currently passing.';
   const action = can('ops.manage')
     ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button></div>`
     : '';
-  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}, Criteria: ${escapeHtml(String(usabilityProof.criteria_passed_total || 0))}/${escapeHtml(String(usabilityProof.criteria_total || 0))}</p><p class="muted">${criteriaRows}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
+  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}, Criteria: ${escapeHtml(String(usabilityProof.criteria_passed_total || 0))}/${escapeHtml(String(usabilityProof.criteria_total || 0))}, Failed: ${escapeHtml(String(usabilityProof.criteria_failed_total || 0))}</p><p class="muted">${failedHint}</p><p class="muted">${criteriaRows}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
 }
 
 function renderIntegrationSection(integrations) {
@@ -2661,7 +2666,7 @@ function renderStudioRevisionSelector(requestId, availableRevisions, currentRevi
   if (!availableRevisions.length) return '';
   const buildOptions = (selectedRevisionNumber) => availableRevisions.map((revision) => {
     const revisionNumber = revision.revision_number || 0;
-    const label = `Revision ${revisionNumber} · ${revision.trigger || 'refresh'} · ${shortTime(revision.generated_at)}`;
+    const label = `Revision ${revisionNumber} Â· ${revision.trigger || 'refresh'} Â· ${shortTime(revision.generated_at)}`;
     const selected = revisionNumber === selectedRevisionNumber ? ' selected' : '';
     return `<option value="${escapeHtml(String(revisionNumber))}"${selected}>${escapeHtml(label)}</option>`;
   }).join('');
@@ -3099,5 +3104,7 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
+
 
 
