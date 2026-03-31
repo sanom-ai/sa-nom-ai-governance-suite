@@ -1017,6 +1017,8 @@ function renderOverview(snapshot) {
           ['Human inbox open', String(snapshot.summary.human_inbox_open_total || 0)],
           ['Recovery pending', String(snapshot.summary.recovery_pending_total || 0)],
           ['Dead letters', String(snapshot.summary.dead_letter_total || 0)],
+          ['Human-required lanes', String(snapshot.summary.operator_human_required_total || 0)],
+          ['Blocked lanes', String(snapshot.summary.operator_blocked_total || 0)],
         ])}
         <div class="trace-box"><strong>Latest backup</strong><p class="muted">${escapeHtml(backupLabel)}</p></div>
       </article>
@@ -1035,6 +1037,7 @@ function renderOverview(snapshot) {
         ${metricCard('Integrations', snapshot.summary.integration_targets_total || 0, 'accent', 'Configured outbound targets across webhook, SIEM, and ticketing lanes.')}
         ${metricCard('Outbound deliveries', snapshot.summary.integration_deliveries_total || 0, snapshot.summary.integration_failures_total ? 'warning' : 'success', 'Outbound integration delivery records currently visible in the runtime ledger.')}
       </section>
+      ${renderOperatorDecisionLanes(snapshot.operator_decision_lanes || [])}
       ${renderNotificationCenter(runtimeAlerts)}
       <section class="split-grid">
         ${wrapTableCard('Recent Requests', requestTable((snapshot.requests || []).slice(0, 8)), 'Live governed requests with policy basis and consistency trace.') }
@@ -1052,6 +1055,36 @@ function renderOverview(snapshot) {
       ${renderIntegrationSection(integrations)}
     `;
   }
+
+
+function renderOperatorDecisionLanes(lanes) {
+  const items = Array.isArray(lanes) ? lanes.slice(0, 6) : [];
+  if (!items.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Human Required Control Plane</div>
+          <h3 class="card-title">Deterministic operator decision lanes</h3>
+          <p class="card-subtitle">Each lane maps runtime state to the next explicit operator action. Unknown states stay fail-closed.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${items.length} lanes`)}</div>
+      </div>
+      <div class="view-prelude-grid">
+        ${items.map((lane) => `
+          <article class="view-prelude-card${lane.disposition === 'blocked' ? ' view-prelude-card-danger' : lane.disposition === 'human_required' ? ' view-prelude-card-warning' : ''}">
+            <span class="view-prelude-label">${escapeHtml(titleCase(lane.lane_id || 'lane'))}</span>
+            <strong>${escapeHtml(lane.title || 'Operator lane')}</strong>
+            <p class="muted">${escapeHtml(lane.operator_action || 'Review runtime posture before continuing.')}</p>
+            <div class="hero-chip-row">${statusBadge(lane.disposition || 'monitoring')}</div>
+            <p class="muted">${escapeHtml(lane.governance_outcome || '')}</p>
+            ${lane.default_view ? `<div class="inline-actions"><button class="action-button" data-view-jump="${escapeHtml(lane.default_view)}">Open ${escapeHtml(titleCase(lane.default_view))}</button></div>` : ''}
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
 
 function renderNotificationCenter(alerts) {
   if (!alerts.length) return '';
