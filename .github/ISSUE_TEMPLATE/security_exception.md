@@ -5,45 +5,46 @@ title: "[Security Exception] "
 labels: security, security-exception
 ---
 
-## Summary
+## AI-Prepared Context
 
-Describe the finding or risk in one short paragraph.
+Use this section for summary material that AI or automation may help prepare.
 
-## Source Signal
-
+- Finding summary:
 - Signal type: `pip-audit` / code review / dependency change / manual review / other
 - Related PR:
 - Related commit or release:
 - Related package, file, or workflow area:
+- Trust-boundary signals observed:
 
-## Why This Is Not Fixed Immediately
+## Deferral Context
 
-Explain why the issue is not being fixed in the current change.
+- Why this is not fixed immediately:
+- Current mitigation or reason the risk is considered temporarily tolerable:
 
-## Current Risk Position
+## Human-Confirmed Decision Fields
 
-- Trust-critical area affected: yes / no
-- Affects auth, token, session, audit, backup, recovery, deployment, or secrets path: yes / no
-- Why the current risk is considered temporarily tolerable:
-
-## Required Human Decision
+Use this section for decisions that a human maintainer must confirm directly.
 
 - Decision type: accept temporarily / escalate / block merge / other
-- Human owner making the decision:
-- AI or automation assistance used for summarization or context prep: yes / no
+- Human decision owner:
+- Escalation owner if stronger review is required:
+- Trust-critical area affected: yes / no
+- Affects auth, token, session, audit, backup, recovery, deployment, or secrets path: yes / no
+- Escalation required: yes / no
+- Why this decision is acceptable:
 
-## Follow-Up Owner And Revisit Point
+## Follow-Up Ownership
 
 - Follow-up owner:
 - Linked follow-up issue or milestone:
 - Revisit by release, milestone, or date:
 
-## Escalation Check
+## AI Assistance Boundary
 
-Explain whether this finding should be escalated for stronger human review and why.
+- AI or automation helped summarize or prefill this issue: yes / no
+- Human maintainer confirmed the final decision fields: yes / no
 
 ## Notes
 
 Use this template only for accepted or deferred security findings that remain visible for later review.
 Do not use it to report a new suspected vulnerability publicly. For private disclosure, follow `SECURITY.md`.
-
