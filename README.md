@@ -97,3 +97,12 @@ SA-NOM follows an operations-first model:
 
 That means SA-NOM should be read as a governed AI operations system, not only as a governance utility.
 
+
+## Security And Operational Posture
+
+SA-NOM is designed for private, self-managed, and air-gapped deployment scenarios where operators keep control of infrastructure and secrets.
+
+That means the public repository should be read as a governance and operational baseline, not as a place where real credentials, emergency access material, or deployment secrets belong.
+
+See [docs/SECRETS_AND_CREDENTIALS_HANDLING.md](docs/SECRETS_AND_CREDENTIALS_HANDLING.md) for the first public handling guide.
+
