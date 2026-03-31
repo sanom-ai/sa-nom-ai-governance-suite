@@ -27,6 +27,7 @@ class RuntimeContractGuard:
         'conflicted',
         'out_of_order',
     }
+    _EXCEPTION_OUTCOMES = {'rejected', 'retryable', 'blocked', 'escalated', 'conflicted', 'out_of_order'}
     _POLICY_CONTRACT_KEYS = {
         'required_role',
         'allowed_roles',
@@ -39,8 +40,14 @@ class RuntimeContractGuard:
         'max_reasoning_steps',
         'max_runtime_ms',
         'requires_human_for_deep_think',
+        'human_required',
+        'exception',
+        'override_path',
     }
     _ALLOWED_REASONING_MODES = {'standard', 'think', 'deep_think'}
+    _HUMAN_REQUIRED_KEYS = {'required', 'required_policy_basis_prefix'}
+    _EXCEPTION_KEYS = {'allowed_outcomes', 'required_trace_sources'}
+    _OVERRIDE_PATH_KEYS = {'required', 'required_policy_basis_prefix', 'required_approver_role'}
 
     def request_violation(
         self,
@@ -142,6 +149,71 @@ class RuntimeContractGuard:
         boundary_violation = self._policy_contract_context_boundary_violation(context, policy_contract)
         if boundary_violation is not None:
             return boundary_violation
+
+        return None
+
+    def preflight_violation(
+        self,
+        context: ExecutionContext,
+        *,
+        expected_override_approver_role: str | None = None,
+    ) -> RuntimeContractViolation | None:
+        policy_contract = context.metadata.get('policy_contract')
+        if not isinstance(policy_contract, dict):
+            return None
+
+        supported_human_required_bases = self._supported_human_required_bases(context, policy_contract)
+
+        human_required_contract = policy_contract.get('human_required')
+        if isinstance(human_required_contract, dict):
+            required = human_required_contract.get('required') is True
+            required_prefix = human_required_contract.get('required_policy_basis_prefix')
+            if required and not supported_human_required_bases:
+                return RuntimeContractViolation(
+                    code='policy_contract_human_required_unavailable',
+                    reason='Runtime contract violation: policy contract requires a human-required path, but runtime metadata does not expose one.',
+                    notes=['No compatible human-required path is configured for this request.'],
+                )
+            if isinstance(required_prefix, str) and supported_human_required_bases and not any(
+                basis.startswith(required_prefix) for basis in supported_human_required_bases
+            ):
+                return RuntimeContractViolation(
+                    code='policy_contract_human_required_policy_basis_mismatch',
+                    reason='Runtime contract violation: configured human-required path does not match policy contract required policy basis prefix.',
+                    notes=[f"required prefix: {required_prefix}", f"available paths: {', '.join(supported_human_required_bases)}"],
+                )
+
+        override_path_contract = policy_contract.get('override_path')
+        if isinstance(override_path_contract, dict) and override_path_contract.get('required') is True:
+            if not supported_human_required_bases:
+                return RuntimeContractViolation(
+                    code='policy_contract_override_path_unavailable',
+                    reason='Runtime contract violation: policy contract requires an override path, but runtime metadata does not expose a resumable human-confirmed path.',
+                    notes=['Override path requires a compatible human-required runtime boundary.'],
+                )
+            required_prefix = override_path_contract.get('required_policy_basis_prefix')
+            if isinstance(required_prefix, str) and not any(
+                basis.startswith(required_prefix) for basis in supported_human_required_bases
+            ):
+                return RuntimeContractViolation(
+                    code='policy_contract_override_policy_basis_mismatch',
+                    reason='Runtime contract violation: configured override path does not match policy contract required policy basis prefix.',
+                    notes=[f"required prefix: {required_prefix}", f"available paths: {', '.join(supported_human_required_bases)}"],
+                )
+            required_approver_role = override_path_contract.get('required_approver_role')
+            if (
+                isinstance(required_approver_role, str)
+                and expected_override_approver_role is not None
+                and required_approver_role != expected_override_approver_role
+            ):
+                return RuntimeContractViolation(
+                    code='policy_contract_override_approver_role_mismatch',
+                    reason='Runtime contract violation: override path approver role does not match policy contract requirement.',
+                    notes=[
+                        f'required approver role: {required_approver_role}',
+                        f'actual approver role: {expected_override_approver_role}',
+                    ],
+                )
 
         return None
 
@@ -288,6 +360,96 @@ class RuntimeContractGuard:
                 reason='Runtime contract violation: policy_contract.requires_human_for_deep_think must be boolean when provided.',
                 notes=['metadata.policy_contract.requires_human_for_deep_think is invalid.'],
             )
+
+        nested_violation = self._nested_policy_contract_shape_violation(
+            'human_required',
+            policy_contract.get('human_required'),
+            self._HUMAN_REQUIRED_KEYS,
+        )
+        if nested_violation is not None:
+            return nested_violation
+        nested_violation = self._nested_policy_contract_shape_violation(
+            'exception',
+            policy_contract.get('exception'),
+            self._EXCEPTION_KEYS,
+        )
+        if nested_violation is not None:
+            return nested_violation
+        nested_violation = self._nested_policy_contract_shape_violation(
+            'override_path',
+            policy_contract.get('override_path'),
+            self._OVERRIDE_PATH_KEYS,
+        )
+        if nested_violation is not None:
+            return nested_violation
+
+        human_required_contract = policy_contract.get('human_required')
+        if isinstance(human_required_contract, dict):
+            required = human_required_contract.get('required')
+            if required is not None and not isinstance(required, bool):
+                return RuntimeContractViolation(
+                    code='policy_contract_human_required_required_invalid',
+                    reason='Runtime contract violation: policy_contract.human_required.required must be boolean when provided.',
+                    notes=['metadata.policy_contract.human_required.required is invalid.'],
+                )
+            required_prefix = human_required_contract.get('required_policy_basis_prefix')
+            if required_prefix is not None and (not isinstance(required_prefix, str) or not required_prefix.strip()):
+                return RuntimeContractViolation(
+                    code='policy_contract_human_required_policy_prefix_invalid',
+                    reason='Runtime contract violation: policy_contract.human_required.required_policy_basis_prefix must be a non-empty string.',
+                    notes=['metadata.policy_contract.human_required.required_policy_basis_prefix is invalid.'],
+                )
+
+        exception_contract = policy_contract.get('exception')
+        if isinstance(exception_contract, dict):
+            allowed_outcomes = exception_contract.get('allowed_outcomes')
+            if allowed_outcomes is not None:
+                if not self._string_list(allowed_outcomes):
+                    return RuntimeContractViolation(
+                        code='policy_contract_exception_allowed_outcomes_invalid',
+                        reason='Runtime contract violation: policy_contract.exception.allowed_outcomes must be a list of non-empty strings.',
+                        notes=['metadata.policy_contract.exception.allowed_outcomes has invalid shape.'],
+                    )
+                invalid_outcomes = sorted(outcome for outcome in allowed_outcomes if outcome not in self._EXCEPTION_OUTCOMES)
+                if invalid_outcomes:
+                    return RuntimeContractViolation(
+                        code='policy_contract_exception_allowed_outcomes_unsupported',
+                        reason='Runtime contract violation: policy_contract.exception.allowed_outcomes may only contain exception outcomes.',
+                        notes=[f"unsupported outcomes: {', '.join(invalid_outcomes)}"],
+                    )
+            required_trace_sources = exception_contract.get('required_trace_sources')
+            if required_trace_sources is not None and not self._string_list(required_trace_sources):
+                return RuntimeContractViolation(
+                    code='policy_contract_exception_required_trace_sources_invalid',
+                    reason='Runtime contract violation: policy_contract.exception.required_trace_sources must be a list of non-empty strings.',
+                    notes=['metadata.policy_contract.exception.required_trace_sources has invalid shape.'],
+                )
+
+        override_path_contract = policy_contract.get('override_path')
+        if isinstance(override_path_contract, dict):
+            required = override_path_contract.get('required')
+            if required is not None and not isinstance(required, bool):
+                return RuntimeContractViolation(
+                    code='policy_contract_override_required_invalid',
+                    reason='Runtime contract violation: policy_contract.override_path.required must be boolean when provided.',
+                    notes=['metadata.policy_contract.override_path.required is invalid.'],
+                )
+            required_prefix = override_path_contract.get('required_policy_basis_prefix')
+            if required_prefix is not None and (not isinstance(required_prefix, str) or not required_prefix.strip()):
+                return RuntimeContractViolation(
+                    code='policy_contract_override_policy_prefix_invalid',
+                    reason='Runtime contract violation: policy_contract.override_path.required_policy_basis_prefix must be a non-empty string.',
+                    notes=['metadata.policy_contract.override_path.required_policy_basis_prefix is invalid.'],
+                )
+            required_approver_role = override_path_contract.get('required_approver_role')
+            if required_approver_role is not None and (
+                not isinstance(required_approver_role, str) or not required_approver_role.strip()
+            ):
+                return RuntimeContractViolation(
+                    code='policy_contract_override_approver_role_invalid',
+                    reason='Runtime contract violation: policy_contract.override_path.required_approver_role must be a non-empty string.',
+                    notes=['metadata.policy_contract.override_path.required_approver_role is invalid.'],
+                )
         return None
 
     def _policy_contract_context_boundary_violation(
@@ -366,6 +528,115 @@ class RuntimeContractGuard:
                 notes=['Decision trace source_type is outside required_trace_sources boundary.'],
             )
 
+        human_required_contract = policy_contract.get('human_required')
+        if isinstance(human_required_contract, dict) and human_required_contract.get('required') is True:
+            if computation.outcome not in {'waiting_human', 'human_required'}:
+                return RuntimeContractViolation(
+                    code='policy_contract_human_required_not_triggered',
+                    reason='Runtime contract violation: policy contract required a human-required outcome, but runtime completed without entering that boundary.',
+                    notes=[f"actual outcome: {computation.outcome}"],
+                )
+            required_human_prefix = human_required_contract.get('required_policy_basis_prefix')
+            if isinstance(required_human_prefix, str) and not computation.policy_basis.startswith(required_human_prefix):
+                return RuntimeContractViolation(
+                    code='policy_contract_human_required_policy_basis_mismatch',
+                    reason='Runtime contract violation: human-required outcome does not match the required policy basis prefix.',
+                    notes=[f"required prefix: {required_human_prefix}", f"actual policy_basis: {computation.policy_basis}"],
+                )
+
+        exception_contract = policy_contract.get('exception')
+        if isinstance(exception_contract, dict) and computation.outcome in self._EXCEPTION_OUTCOMES:
+            exception_allowed_outcomes = exception_contract.get('allowed_outcomes')
+            if isinstance(exception_allowed_outcomes, list) and computation.outcome not in exception_allowed_outcomes:
+                return RuntimeContractViolation(
+                    code='policy_contract_exception_outcome_outside_allowlist',
+                    reason=f"Runtime contract violation: exception outcome '{computation.outcome}' is outside policy contract exception.allowed_outcomes.",
+                    notes=['Exception outcome is outside exception.allowed_outcomes boundary.'],
+                )
+            exception_trace_sources = exception_contract.get('required_trace_sources')
+            if isinstance(exception_trace_sources, list) and computation.trace.source_type not in exception_trace_sources:
+                return RuntimeContractViolation(
+                    code='policy_contract_exception_trace_source_outside_allowlist',
+                    reason=f"Runtime contract violation: exception trace source_type '{computation.trace.source_type}' is outside policy contract exception.required_trace_sources.",
+                    notes=['Exception trace source_type is outside exception.required_trace_sources boundary.'],
+                )
+
+        override_path_contract = policy_contract.get('override_path')
+        if isinstance(override_path_contract, dict) and override_path_contract.get('required') is True:
+            if computation.outcome not in {'waiting_human', 'human_required'}:
+                return RuntimeContractViolation(
+                    code='policy_contract_override_path_not_triggered',
+                    reason='Runtime contract violation: policy contract required an override path, but runtime did not enter a resumable human-confirmed state.',
+                    notes=[f"actual outcome: {computation.outcome}"],
+                )
+            required_override_prefix = override_path_contract.get('required_policy_basis_prefix')
+            if isinstance(required_override_prefix, str) and not computation.policy_basis.startswith(required_override_prefix):
+                return RuntimeContractViolation(
+                    code='policy_contract_override_policy_basis_mismatch',
+                    reason='Runtime contract violation: override path does not match the required policy basis prefix.',
+                    notes=[f"required prefix: {required_override_prefix}", f"actual policy_basis: {computation.policy_basis}"],
+                )
+            required_approver_role = override_path_contract.get('required_approver_role')
+            actual_approver_role = self._human_override_approver_role(computation)
+            if isinstance(required_approver_role, str) and actual_approver_role != required_approver_role:
+                return RuntimeContractViolation(
+                    code='policy_contract_override_approver_role_mismatch',
+                    reason='Runtime contract violation: created override path approver role does not match policy contract requirement.',
+                    notes=[
+                        f'required approver role: {required_approver_role}',
+                        f'actual approver role: {actual_approver_role or "missing"}',
+                    ],
+                )
+
+        return None
+
+    def _supported_human_required_bases(
+        self,
+        context: ExecutionContext,
+        policy_contract: dict[str, object],
+    ) -> list[str]:
+        supported: list[str] = []
+        authority_contract = context.metadata.get('authority_contract')
+        if isinstance(authority_contract, dict) and authority_contract.get('approval_gate') == 'human_required':
+            supported.append('runtime.authority_contract')
+
+        reasoning_mode = policy_contract.get('reasoning_mode')
+        requires_human_for_deep_think = policy_contract.get('requires_human_for_deep_think') is True
+        if reasoning_mode == 'deep_think' and requires_human_for_deep_think:
+            supported.append('runtime.reasoning_control')
+
+        return supported
+
+    def _nested_policy_contract_shape_violation(
+        self,
+        name: str,
+        value: object,
+        allowed_keys: set[str],
+    ) -> RuntimeContractViolation | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            return RuntimeContractViolation(
+                code=f'policy_contract_{name}_invalid_type',
+                reason=f'Runtime contract violation: policy_contract.{name} must be an object map when provided.',
+                notes=[f'metadata.policy_contract.{name} is present but not a dictionary.'],
+            )
+        unknown_keys = sorted(key for key in value if key not in allowed_keys)
+        if unknown_keys:
+            return RuntimeContractViolation(
+                code=f'policy_contract_{name}_unknown_keys',
+                reason=f'Runtime contract violation: policy_contract.{name} contains unsupported keys.',
+                notes=[f"unsupported keys: {', '.join(unknown_keys)}"],
+            )
+        return None
+
+    def _human_override_approver_role(self, computation: DecisionComputation) -> str | None:
+        override = computation.human_override
+        if override is None:
+            return None
+        approver_role = getattr(override, 'approver_role', None)
+        if isinstance(approver_role, str) and approver_role.strip():
+            return approver_role
         return None
 
     def _string_list(self, value: object) -> bool:

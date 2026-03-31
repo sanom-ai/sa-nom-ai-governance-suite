@@ -390,6 +390,16 @@ class CoreEngine:
             )
 
         self._set_reasoning_control_metadata(context)
+        preflight_violation = self.runtime_contract_guard.preflight_violation(
+            context,
+            expected_override_approver_role=self.hierarchy_registry.default_escalation_target(context.role_id),
+        )
+        if preflight_violation is not None:
+            return build_result(
+                context,
+                self.runtime_contract_guard.to_computation(preflight_violation, phase='preflight'),
+            )
+
         reasoning_profile = context.metadata['reasoning_control']
         if reasoning_profile['requires_human_confirmation']:
             computation = DecisionComputation(
