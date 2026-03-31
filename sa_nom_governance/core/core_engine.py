@@ -1,4 +1,4 @@
-﻿from dataclasses import asdict
+from dataclasses import asdict
 from pathlib import Path
 
 from sa_nom_governance.api.api_schemas import DecisionResult, OverrideReviewResult
@@ -465,7 +465,7 @@ class CoreEngine:
         elif approved_override is not None and computation.human_override is None:
             computation.human_override = approved_override
 
-        decision_violation = self.runtime_contract_guard.decision_violation(computation)
+        decision_violation = self.runtime_contract_guard.decision_violation(computation, context=context)
         if decision_violation is not None:
             computation = self.runtime_contract_guard.to_computation(decision_violation, phase='decision')
 
