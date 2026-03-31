@@ -1,7 +1,12 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from sa_nom_governance.deployment.quick_start_path import build_quick_start_doctor, build_quick_start_path
+from sa_nom_governance.deployment.quick_start_path import (
+    build_quick_start_doctor,
+    build_quick_start_path,
+    export_quick_start_doctor,
+    read_quick_start_doctor,
+)
 from sa_nom_governance.utils.config import AppConfig
 
 
@@ -55,3 +60,27 @@ def test_quick_start_doctor_reports_warn_or_pass_after_quick_start_bootstrap() -
         assert report['status'] in {'warn', 'pass'}
         assert report['summary']['required_failed_total'] == 0
         assert report['summary']['checks_total'] >= 8
+
+
+def test_quick_start_doctor_export_and_read_roundtrip() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        output_path = config.review_dir / 'quick_start_doctor.json'
+        exported = export_quick_start_doctor(config=config, output_path=output_path)
+        loaded = read_quick_start_doctor(config=config, output_path=output_path)
+
+        assert exported['artifact_path'] == str(output_path)
+        assert loaded['available'] is True
+        assert loaded['artifact_path'] == str(output_path)
+        assert loaded['status'] in {'fail', 'warn', 'pass'}
+
+
+def test_quick_start_doctor_read_missing_report() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        output_path = config.review_dir / 'doctor_missing.json'
+        loaded = read_quick_start_doctor(config=config, output_path=output_path)
+
+        assert loaded['status'] == 'missing'
+        assert loaded['available'] is False
+        assert loaded['artifact_path'] == str(output_path)

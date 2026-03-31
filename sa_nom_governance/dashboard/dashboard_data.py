@@ -97,6 +97,7 @@ class DashboardSnapshotBuilder:
                 'usability_proof_criteria_total': int(operations.get('usability_proof', {}).get('criteria_total', 0) or 0),
                 'usability_proof_criteria_passed_total': int(operations.get('usability_proof', {}).get('criteria_passed_total', 0) or 0),
                 'usability_proof_criteria_failed_total': int(operations.get('usability_proof', {}).get('criteria_failed_total', 0) or 0),
+                'quick_start_doctor_status': str(operations.get('quick_start_doctor', {}).get('status', 'missing')),
                 'first_run_readiness_status': str(first_run_readiness.get('status', 'blocked')),
                 'first_run_blockers_total': int(first_run_readiness.get('blockers_total', 0) or 0),
                 'first_run_advisories_total': int(first_run_readiness.get('advisories_total', 0) or 0),
@@ -278,6 +279,7 @@ class DashboardSnapshotBuilder:
             'summary': self.app.runtime_backup_summary(),
             'backups': self.app.list_runtime_backups(limit=limit),
             'usability_proof': self.usability_proof_summary(),
+            'quick_start_doctor': self.quick_start_doctor_summary(),
         }
 
     def first_run_readiness(
@@ -365,6 +367,22 @@ class DashboardSnapshotBuilder:
             'advisories_total': len(advisories),
             'ready': not blockers,
             'recommended_view': str((blockers[0] if blockers else advisories[0]).get('view', 'overview')) if (blockers or advisories) else 'overview',
+        }
+
+    def quick_start_doctor_summary(self) -> dict[str, object]:
+        from sa_nom_governance.deployment.quick_start_path import read_quick_start_doctor
+
+        result = read_quick_start_doctor(config=self.config)
+        summary = result.get('summary', {}) if isinstance(result.get('summary'), dict) else {}
+        return {
+            'status': str(result.get('status', 'missing')),
+            'available': bool(result.get('available', False)),
+            'artifact_path': str(result.get('artifact_path', self.config.review_dir / 'quick_start_doctor.json')),
+            'generated_at': result.get('generated_at'),
+            'checks_total': int(summary.get('checks_total', 0) or 0),
+            'required_failed_total': int(summary.get('required_failed_total', 0) or 0),
+            'advisory_failed_total': int(summary.get('advisory_failed_total', 0) or 0),
+            'next_actions': result.get('next_actions', []) if isinstance(result.get('next_actions'), list) else [],
         }
 
     def usability_proof_summary(self) -> dict[str, object]:

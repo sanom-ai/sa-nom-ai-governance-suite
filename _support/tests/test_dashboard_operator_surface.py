@@ -61,12 +61,15 @@ def test_dashboard_snapshot_exposes_missing_usability_proof_status() -> None:
 
         operations = snapshot.get('operations', {})
         proof = operations.get('usability_proof', {}) if isinstance(operations, dict) else {}
+        doctor = operations.get('quick_start_doctor', {}) if isinstance(operations, dict) else {}
         summary = snapshot.get('summary', {})
 
         assert proof.get('status') == 'missing'
         assert proof.get('available') is False
         assert summary.get('usability_proof_status') == 'missing'
         assert summary.get('usability_proof_available') is False
+        assert summary.get('quick_start_doctor_status') == 'missing'
+        assert doctor.get('status') == 'missing'
 
 
 def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
@@ -82,6 +85,7 @@ def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
         snapshot = DashboardSnapshotBuilder(config=config).build()
         operations = snapshot.get('operations', {})
         proof = operations.get('usability_proof', {}) if isinstance(operations, dict) else {}
+        doctor = operations.get('quick_start_doctor', {}) if isinstance(operations, dict) else {}
         summary = snapshot.get('summary', {})
 
         assert proof.get('status') == 'ready'
