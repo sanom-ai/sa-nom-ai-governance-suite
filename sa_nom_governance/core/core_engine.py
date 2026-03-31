@@ -19,6 +19,7 @@ from sa_nom_governance.core.result_builder import build_result
 from sa_nom_governance.core.risk_scorer import RiskScorer
 from sa_nom_governance.core.role_activation_router import RoleActivationError, RoleActivationRouter
 from sa_nom_governance.core.state_flow_engine import RuntimeStateFlowEngine
+from sa_nom_governance.core.runtime_recovery_store import RuntimeRecoveryStore
 from sa_nom_governance.core.workflow_state_store import WorkflowStateStore
 from sa_nom_governance.guards.authority_guard import AuthorityGuard
 from sa_nom_governance.guards.ethics_guard import EthicsGuard
@@ -43,6 +44,8 @@ class CoreEngine:
         lock_store_path: Path | None = None,
         consistency_store_path: Path | None = None,
         workflow_state_store_path: Path | None = None,
+        runtime_recovery_store_path: Path | None = None,
+        runtime_dead_letter_path: Path | None = None,
     ) -> None:
         self.dispatcher = RequestDispatcher()
         self.role_loader = role_loader
@@ -57,6 +60,11 @@ class CoreEngine:
         self.lock_manager = ResourceLockManager(store_path=lock_store_path, config=config)
         self.request_consistency = RequestConsistencyManager(store_path=consistency_store_path, config=config)
         self.workflow_state_store = WorkflowStateStore(config=config, store_path=workflow_state_store_path)
+        self.runtime_recovery_store = RuntimeRecoveryStore(
+            config=config,
+            store_path=runtime_recovery_store_path,
+            dead_letter_path=runtime_dead_letter_path,
+        )
         self.audit_logger = AuditLogger(log_path=audit_log_path, config=config)
         default_executive_owner_id = (
             config.executive_owner_id() if config is not None else DEFAULT_EXECUTIVE_OWNER_ID
@@ -90,6 +98,29 @@ class CoreEngine:
                     role_id=role_id,
                     payload=payload,
                     metadata=metadata,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    error=error,
+                    outcome=outcome,
+                )
+                failure_context = self.dispatcher.dispatch(
+                    requester=requester,
+                    action=action,
+                    role_id=role_id or 'UNRESOLVED',
+                    payload=payload if isinstance(payload, dict) else {'raw_payload_type': type(payload).__name__},
+                    request_id=str(result.metadata.get('request_id', '')) or None,
+                    metadata=metadata if isinstance(metadata, dict) else {},
+                )
+                self._set_runtime_reliability_metadata(
+                    failure_context.metadata,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    outcome_state=outcome,
+                    error=error,
+                )
+                self._record_runtime_recovery(
+                    failure_context,
+                    result,
                     attempt=attempt,
                     max_attempts=max_attempts,
                     error=error,
@@ -374,6 +405,42 @@ class CoreEngine:
 
     def _sync_workflow_state_store(self, context, *, result: DecisionResult | None = None, source: str = 'runtime_result') -> dict[str, object]:
         return self.workflow_state_store.save_runtime_state(context, result=result, source=source)
+
+    def _record_runtime_recovery(
+        self,
+        context,
+        result: DecisionResult,
+        *,
+        attempt: int,
+        max_attempts: int,
+        error: Exception,
+        outcome: str,
+    ) -> None:
+        failure_classification = 'retry_exhausted' if outcome == 'retryable' and attempt >= max_attempts else 'runtime_failure'
+        self.runtime_recovery_store.save_failure(
+            context,
+            outcome=result.outcome,
+            policy_basis=result.policy_basis or 'runtime.orchestration.reliability',
+            reason=result.reason,
+            attempts_used=attempt,
+            max_attempts=max_attempts,
+            failure_classification=failure_classification,
+        )
+
+        self.audit_logger.record_event(
+            active_role=context.role_id,
+            action='runtime_dead_letter',
+            outcome='dead_letter',
+            reason='Runtime failure captured into governed dead-letter recovery store.',
+            metadata={
+                'request_id': context.request_id,
+                'error_type': type(error).__name__,
+                'failure_classification': failure_classification,
+                'attempts_used': attempt,
+                'max_attempts': max_attempts,
+                'result_outcome': result.outcome,
+            },
+        )
 
     def _build_activation_context(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         try:
@@ -692,6 +759,57 @@ class CoreEngine:
 
     def get_workflow_state(self, workflow_id: str) -> dict[str, object]:
         return self.workflow_state_store.get_workflow(workflow_id)
+
+    def list_runtime_recovery_records(
+        self,
+        *,
+        status: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict[str, object]]:
+        return self.runtime_recovery_store.list_records(status=status, limit=limit)
+
+    def list_runtime_dead_letters(self, *, limit: int | None = None) -> list[dict[str, object]]:
+        return self.runtime_recovery_store.list_dead_letters(limit=limit)
+
+    def resume_runtime_recovery(self, request_id: str, resumed_by: str):
+        record = self.runtime_recovery_store.get_record(request_id)
+        if record.status != 'dead_letter':
+            raise ValueError('Recovery resume is fail-closed: record is not in dead_letter status.')
+        if record.outcome not in {'retryable', 'blocked'}:
+            raise ValueError('Recovery resume is fail-closed: only retryable or blocked runtime outcomes are resumable.')
+
+        metadata = dict(record.metadata)
+        metadata['recovery_resume_of'] = record.request_id
+        metadata['recovery_resumed_by'] = resumed_by
+        metadata['recovery_attempt'] = int(metadata.get('recovery_attempt', 0)) + 1
+
+        result = self.process(
+            requester=record.requester,
+            role_id=record.role_id,
+            action=record.action,
+            payload=dict(record.payload),
+            metadata=metadata,
+        )
+        resumed_request_id = str(result.metadata.get('request_id', ''))
+        self.runtime_recovery_store.mark_resumed(
+            record.request_id,
+            resumed_by=resumed_by,
+            resumed_request_id=resumed_request_id,
+            resumed_outcome=result.outcome,
+        )
+        self.audit_logger.record_event(
+            active_role=record.role_id,
+            action='runtime_recovery_resume',
+            outcome=result.outcome,
+            reason='Runtime dead-letter request resumed through governed recovery path.',
+            metadata={
+                'origin_request_id': record.request_id,
+                'resumed_request_id': resumed_request_id,
+                'resumed_by': resumed_by,
+                'previous_outcome': record.outcome,
+            },
+        )
+        return result
 
     def list_runtime_evidence(
         self,
