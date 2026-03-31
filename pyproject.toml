@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sa-nom-ai-governance-suite"
-version = "0.1.1"
+version = "0.1.10.dev0"
 description = "Open-core governance and orchestration toolkit for structured AI operations on private infrastructure."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -20,6 +20,13 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Operating System :: OS Independent",
 ]
+
+[project.urls]
+Homepage = "https://github.com/sanom-ai/sa-nom-ai-governance-suite"
+Repository = "https://github.com/sanom-ai/sa-nom-ai-governance-suite"
+Documentation = "https://github.com/sanom-ai/sa-nom-ai-governance-suite/tree/main/docs"
+Releases = "https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases"
+Issues = "https://github.com/sanom-ai/sa-nom-ai-governance-suite/issues"
 
 [project.optional-dependencies]
 dev = [
