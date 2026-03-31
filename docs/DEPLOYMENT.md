@@ -20,7 +20,22 @@ If you want the shortest evaluator path first, use [GUIDED_EVALUATION.md](GUIDED
 - a secure value for `SANOM_API_TOKEN`
 - a secure value for `SANOM_TRUSTED_REGISTRY_KEY`
 
+## Quick Start Path (5-10 Minutes)
+
+If you want the fastest real first run, start with the private local lane:
+
+1. Apply [examples/.env.ollama.example](examples/.env.ollama.example) to your local environment.
+2. Run the one-command bootstrap and validation path:
+   - `python scripts/quick_start_path.py`
+3. Review the generated report in `_runtime/review/quick_start_path.json`.
+4. Start the runtime if the quick-start report passes:
+   - `python scripts/run_private_server.py --host 127.0.0.1 --port 8080`
+
+The quick-start path performs resource seeding, owner registration, delegated access-profile generation, trusted-registry refresh, startup validation, and the local runtime smoke test in one guided flow.
+
 ## Minimal Local Run
+
+If you want the explicit step-by-step deployment path instead of the one-command quick start:
 
 1. Prepare environment variables from [`.env.production.example`](.env.production.example).
 2. Register an example organization owner:

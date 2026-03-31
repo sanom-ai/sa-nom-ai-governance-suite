@@ -8,6 +8,17 @@ SA-NOM is a private AI operations platform for organizations that want AI in rea
 
 Instead of treating AI as a loose chatbot or an unsafe automation layer, SA-NOM lets teams define governed AI roles, route work through authority boundaries, let humans pull reports and meetings through Human Ask, keep escalation and override paths explicit, and retain evidence for every important decision.
 
+## Quick Start
+
+If you want the shortest real first run, start with the private local lane and let SA-NOM bootstrap the runtime artifacts for you:
+- copy `examples/.env.ollama.example` into your local environment setup
+- run `python scripts/quick_start_path.py`
+- if the quick-start report passes, start the runtime with `python scripts/run_private_server.py --host 127.0.0.1 --port 8080`
+
+The quick-start path seeds public resources, owner registration, access profiles, trusted registry files, startup validation, and an end-to-end runtime smoke test in one guided command.
+
+For the longer deployment path, use [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). For the shortest evaluator path, use [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md).
+
 ## What SA-NOM Actually Does
 
 SA-NOM helps organizations move from "AI that answers" to "AI that works inside the business."
