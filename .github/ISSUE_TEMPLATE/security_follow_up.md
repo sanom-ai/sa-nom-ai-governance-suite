@@ -2,7 +2,7 @@
 name: Security follow-up
 about: Track deferred security work so accepted risk remains visible after merge
 title: "[Security Follow-Up] "
-labels: security, follow-up
+labels: security, security-follow-up
 ---
 
 ## Summary
@@ -45,3 +45,4 @@ Describe any current mitigation, boundary, or reason the risk was considered tem
 
 Use this template when a security-related fix or review path is intentionally deferred after merge.
 Do not use it to report a new suspected vulnerability publicly. For private disclosure, follow `SECURITY.md`.
+

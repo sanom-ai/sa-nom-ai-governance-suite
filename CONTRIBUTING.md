@@ -64,3 +64,4 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 - AI may help summarize the finding and prepare issue context, but human maintainers still decide exception, escalation, merge-blocking outcomes, and whether follow-up visibility is adequate
 - when deferred work needs to stay visible after merge, prefer opening the `Security follow-up` issue template so ownership and revisit timing stay linked to the accepted risk
 - use [docs/SECURITY_ESCALATION_RULES.md](docs/SECURITY_ESCALATION_RULES.md) when deciding whether a finding should block merge, require stronger human review, or stay as routine follow-up
+
