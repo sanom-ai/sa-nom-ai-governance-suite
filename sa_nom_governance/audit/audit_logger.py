@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sa_nom_governance.api.api_schemas import DecisionResult
@@ -9,7 +10,7 @@ from sa_nom_governance.utils.persistence import build_line_ledger
 
 class AuditLogger:
     def __init__(self, log_path: Path | None = None, *, config: AppConfig | None = None) -> None:
-        self.ledger = build_line_ledger(config, log_path, logical_name="audit")
+        self.ledger = build_line_ledger(config, log_path, logical_name='audit')
         self.log_path = self.ledger.path
         self.entries: list[AuditEntry] = []
         self.chain = AuditChain()
@@ -17,11 +18,12 @@ class AuditLogger:
 
     def record(self, result: DecisionResult) -> None:
         metadata = {
-            "context": result.metadata,
-            "decision_trace": result.decision_trace,
-            "human_override": result.human_override,
-            "resource_lock": result.resource_lock,
-            "conflict_lock": result.conflict_lock,
+            'context': result.metadata,
+            'decision_trace': result.decision_trace,
+            'human_override': result.human_override,
+            'resource_lock': result.resource_lock,
+            'conflict_lock': result.conflict_lock,
+            'runtime_evidence': self._build_runtime_evidence(result),
         }
         self._append_entry(
             AuditEntry.create(
@@ -58,13 +60,35 @@ class AuditLogger:
             return list(self.entries)
         return self.entries[-limit:]
 
+    def list_runtime_evidence(
+        self,
+        *,
+        limit: int | None = None,
+        outcome: str | None = None,
+        source_type: str | None = None,
+    ) -> list[dict[str, object]]:
+        evidence_rows: list[dict[str, object]] = []
+        for entry in self.entries:
+            runtime_evidence = entry.metadata.get('runtime_evidence')
+            if not isinstance(runtime_evidence, dict):
+                continue
+            if outcome is not None and runtime_evidence.get('outcome') != outcome:
+                continue
+            if source_type is not None and runtime_evidence.get('trace_source_type') != source_type:
+                continue
+            evidence_rows.append(runtime_evidence)
+
+        if limit is None:
+            return evidence_rows
+        return evidence_rows[-limit:]
+
     def verify_integrity(self) -> dict[str, object]:
         return self.chain.verify(self.entries).to_dict()
 
     def health(self) -> dict[str, object]:
         return {
             **self.verify_integrity(),
-            "persistence_backend": self.ledger.descriptor().backend,
+            'persistence_backend': self.ledger.descriptor().backend,
         }
 
     def reload(self) -> None:
@@ -73,32 +97,49 @@ class AuditLogger:
 
     def reseal_legacy_entries(self) -> dict[str, object]:
         before = self.verify_integrity()
-        if before["status"] == "broken":
+        if before['status'] == 'broken':
             return {
-                "status": "blocked",
-                "resealed": False,
-                "reason": "broken_chain",
-                "before_integrity": before,
-                "after_integrity": before,
+                'status': 'blocked',
+                'resealed': False,
+                'reason': 'broken_chain',
+                'before_integrity': before,
+                'after_integrity': before,
             }
-        if before["status"] == "verified":
+        if before['status'] == 'verified':
             return {
-                "status": "noop",
-                "resealed": False,
-                "reason": "already_verified",
-                "before_integrity": before,
-                "after_integrity": before,
+                'status': 'noop',
+                'resealed': False,
+                'reason': 'already_verified',
+                'before_integrity': before,
+                'after_integrity': before,
             }
 
         self.entries = self.chain.reseal_entries(self.entries)
         self._write_entries()
         after = self.verify_integrity()
         return {
-            "status": "resealed",
-            "resealed": True,
-            "reason": "legacy_entries_resealed",
-            "before_integrity": before,
-            "after_integrity": after,
+            'status': 'resealed',
+            'resealed': True,
+            'reason': 'legacy_entries_resealed',
+            'before_integrity': before,
+            'after_integrity': after,
+        }
+
+    def _build_runtime_evidence(self, result: DecisionResult) -> dict[str, object]:
+        decision_trace = result.decision_trace if isinstance(result.decision_trace, dict) else {}
+        metadata = result.metadata if isinstance(result.metadata, dict) else {}
+        return {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'request_id': metadata.get('request_id'),
+            'requester': result.requester,
+            'action': result.action,
+            'active_role': result.active_role,
+            'outcome': result.outcome,
+            'policy_basis': result.policy_basis,
+            'trace_source_type': decision_trace.get('source_type'),
+            'trace_source_id': decision_trace.get('source_id'),
+            'has_human_override': bool(result.human_override),
+            'has_exception_surface': result.outcome in {'waiting_human', 'escalated', 'rejected'},
         }
 
     def _append_entry(self, entry: AuditEntry) -> None:
@@ -112,3 +153,5 @@ class AuditLogger:
     def _load_existing(self) -> None:
         for item in self.ledger.read_records():
             self.entries.append(AuditEntry.from_dict(item))
+
+

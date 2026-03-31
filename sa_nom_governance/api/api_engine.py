@@ -214,6 +214,18 @@ class EngineApplication:
     def list_audit(self, limit: int | None = None) -> list[dict[str, object]]:
         return self.engine.list_audit_entries(limit=limit)
 
+    def list_runtime_evidence(
+        self,
+        *,
+        limit: int | None = None,
+        outcome: str | None = None,
+        source_type: str | None = None,
+    ) -> list[dict[str, object]]:
+        return self.engine.list_runtime_evidence(
+            limit=limit,
+            outcome=outcome,
+            source_type=source_type,
+        )
     def list_runtime_backups(self, limit: int = 20) -> list[dict[str, object]]:
         return self.backup_manager.list_backups(limit=limit)
 
@@ -658,3 +670,4 @@ def build_engine_app(config: AppConfig) -> EngineApplication:
     model_provider_registry = ModelProviderRegistry(config)
     integration_dispatcher = WebhookDispatcher(config, integration_registry)
     return EngineApplication(engine, loader=loader, registry=registry, retention_manager=retention_manager, access_control=access_control, role_private_studio=role_private_studio, human_ask=human_ask, backup_manager=backup_manager, compliance_registry=compliance_registry, evidence_builder=evidence_builder, integration_registry=integration_registry, model_provider_registry=model_provider_registry, integration_dispatcher=integration_dispatcher)
+

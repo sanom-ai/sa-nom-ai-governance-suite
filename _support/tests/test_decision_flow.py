@@ -401,3 +401,35 @@ def test_runtime_contract_rejects_negative_amount() -> None:
 
 
 
+
+def test_runtime_evidence_trace_is_emitted_and_queryable() -> None:
+    app = build_test_app()
+
+    approved = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-TRACE-1', 'amount': 3000000},
+    )
+    waiting = app.request(
+        requester='AUDITOR',
+        role_id='GOV',
+        action='approve_policy',
+        payload={'resource': 'contract', 'resource_id': 'C-TRACE-2'},
+    )
+
+    assert approved.outcome == 'approved'
+    assert waiting.outcome == 'waiting_human'
+
+    traces = app.list_runtime_evidence(limit=10)
+    assert len(traces) >= 2
+    latest = traces[-1]
+    assert latest['request_id'] is not None
+    assert latest['trace_source_type'] is not None
+
+    waiting_only = app.list_runtime_evidence(outcome='waiting_human')
+    assert any(item['request_id'] == waiting.metadata['request_id'] for item in waiting_only)
+
+    policy_source = app.list_runtime_evidence(source_type='policy')
+    assert any(item['trace_source_type'] == 'policy' for item in policy_source)
+
