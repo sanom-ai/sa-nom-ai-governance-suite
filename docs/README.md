@@ -37,6 +37,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Security Automation Baseline](SECURITY_AUTOMATION_BASELINE.md)
 - [Dependency Review Workflow](DEPENDENCY_REVIEW_WORKFLOW.md)
 - [Security Exception Workflow](SECURITY_EXCEPTION_WORKFLOW.md)
+- [Security Follow-Up Visibility](SECURITY_FOLLOW_UP_VISIBILITY.md)
 
 ## Planning And Release Notes
 
@@ -53,6 +54,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Issue Drafts v0.1.10](ISSUE_DRAFTS_v0.1.10.md)
 - [Release Notes v0.1.9](releases/RELEASE_NOTES_v0.1.9.md)
 - [Release Notes v0.1.8](releases/RELEASE_NOTES_v0.1.8.md)
+
 
 
 
