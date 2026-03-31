@@ -67,3 +67,6 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 
 
 
+
+See [docs/QUALITY_CHECK_MATRIX.md](docs/QUALITY_CHECK_MATRIX.md) for the current quality baseline and when each check is expected.
+
