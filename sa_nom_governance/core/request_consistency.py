@@ -2,6 +2,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from sa_nom_governance.api.api_schemas import DecisionResult
@@ -86,7 +87,7 @@ class RequestConsistencyError(Exception):
 
 
 class RequestConsistencyManager:
-    def __init__(self, store_path=None, *, config: AppConfig | None = None) -> None:
+    def __init__(self, store_path: Path | None = None, *, config: AppConfig | None = None) -> None:
         self.store = build_state_store(config, store_path, logical_name="request_consistency")
         self.store_path = self.store.path
         self._idempotency_records: dict[str, IdempotencyRecord] = {}
@@ -289,7 +290,13 @@ class RequestConsistencyManager:
         value = context.metadata.get("event_sequence")
         if value in (None, ""):
             return None
-        return int(value)
+        if isinstance(value, bool):
+            raise ValueError("Boolean event_sequence values are not allowed.")
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            return int(value)
+        raise ValueError("event_sequence must be an integer or numeric string.")
 
     def _fingerprint(self, context: ExecutionContext) -> str:
         payload = {

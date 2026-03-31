@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 from sa_nom_governance.core.decision_models import DecisionComputation, DecisionTrace
 from sa_nom_governance.core.execution_context import ExecutionContext
@@ -187,7 +188,7 @@ class DecisionEngine:
                 return self._compare(actual, expected, operator)
         return False
 
-    def _resolve_operand(self, operand: str, context: ExecutionContext):
+    def _resolve_operand(self, operand: str, context: ExecutionContext) -> Any | None:
         if operand == "action":
             return context.action
         if operand == "requester":
@@ -203,7 +204,7 @@ class DecisionEngine:
             return context.payload.get(key)
         return None
 
-    def _coerce_literal(self, value: str):
+    def _coerce_literal(self, value: str) -> Any:
         stripped = value.strip()
         if stripped.startswith('"') and stripped.endswith('"'):
             return stripped[1:-1]
@@ -218,13 +219,13 @@ class DecisionEngine:
         except ValueError:
             return stripped
 
-    def _compare(self, actual, expected, operator: str) -> bool:
+    def _compare(self, actual: Any, expected: Any, operator: str) -> bool:
         if actual is None:
             return False
         if operator == "==":
-            return actual == expected
+            return bool(actual == expected)
         if operator == "!=":
-            return actual != expected
+            return bool(actual != expected)
 
         try:
             actual_num = float(actual)

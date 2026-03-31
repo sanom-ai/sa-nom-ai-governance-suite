@@ -52,6 +52,9 @@ jobs:
       - name: Run test suite with coverage
         run: python -m pytest _support/tests
 
+      - name: Enforce core module coverage floor
+        run: python scripts/check_core_coverage.py coverage.xml 82
+
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
@@ -95,6 +98,44 @@ jobs:
           else
             echo "## PT-OSS Advisory" >> "$GITHUB_STEP_SUMMARY"
             echo "PT-OSS advisory check reported findings or execution issues (non-blocking)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+
+  scripts_lint_advisory:
+    name: scripts-lint-advisory
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            pyproject.toml
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run scripts lint advisory (non-blocking)
+        id: scriptslint
+        continue-on-error: true
+        run: python -m ruff check scripts --select E402,F403
+
+      - name: Publish scripts lint advisory summary
+        if: always()
+        run: |
+          if [ "${{ steps.scriptslint.outcome }}" = "success" ]; then
+            echo "## Scripts Lint Advisory" >> "$GITHUB_STEP_SUMMARY"
+            echo "scripts/ wrapper lint advisory passed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Scripts Lint Advisory" >> "$GITHUB_STEP_SUMMARY"
+            echo "scripts/ wrapper lint advisory found debt (non-blocking)." >> "$GITHUB_STEP_SUMMARY"
           fi
 
 
