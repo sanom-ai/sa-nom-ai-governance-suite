@@ -45,3 +45,9 @@ The current `v0.1.10` hardening work is intentionally incremental. Ruff starts w
 
 Open an issue for bug reports, feature requests, or design discussion before large changes.
 For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+## Secrets Hygiene
+- keep real secrets out of tracked files, examples, and docs
+- use placeholders in public-safe examples and screenshots
+- prefer local-only secret injection or deployment-managed secret stores
+- rotate or replace credentials quickly if exposure is suspected
+- do not treat AI as the autonomous owner of real deployment credentials
