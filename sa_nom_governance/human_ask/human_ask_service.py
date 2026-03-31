@@ -89,7 +89,11 @@ class HumanAskService:
         directory = self.callable_directory(limit=limit)
         statuses = [item["status"] for item in sessions]
         modes = [item.get("mode", "report") for item in sessions]
-        dispositions = [item.get("summary", {}).get("director_disposition", "ready_to_proceed") for item in sessions]
+        summaries = [item.get("summary", {}) for item in sessions]
+        dispositions = [item.get("director_disposition", "ready_to_proceed") for item in summaries]
+        queue_states = [item.get("queue_state", "not_queued") for item in summaries]
+        queue_lanes = [item.get("queue_lane", "autonomy") for item in summaries]
+        queue_priorities = [item.get("queue_priority", "normal") for item in summaries]
         return {
             "summary": {
                 "sessions_total": len(sessions),
@@ -100,11 +104,19 @@ class HumanAskService:
                 "report_total": modes.count("report"),
                 "meeting_total": modes.count("meeting"),
                 "recorded_total": len(sessions),
-                "follow_up_total": sum(1 for item in sessions if item.get("summary", {}).get("follow_up")),
-                "multi_participant_total": sum(1 for item in sessions if int(item.get("summary", {}).get("participant_total", 1)) > 1),
+                "follow_up_total": sum(1 for item in summaries if item.get("follow_up")),
+                "multi_participant_total": sum(1 for item in summaries if int(item.get("participant_total", 1)) > 1),
                 "ready_to_proceed_total": dispositions.count("ready_to_proceed"),
                 "guarded_follow_up_total": dispositions.count("guarded_follow_up"),
                 "hold_for_clearance_total": dispositions.count("hold_for_clearance"),
+                "decision_queue_total": sum(1 for item in queue_states if item != "not_queued"),
+                "human_queue_total": sum(1 for item in summaries if item.get("queue_human_required")),
+                "autonomy_queue_total": queue_lanes.count("autonomy"),
+                "human_review_queue_total": queue_lanes.count("human_review"),
+                "clearance_queue_total": queue_lanes.count("clearance"),
+                "guarded_queue_total": queue_lanes.count("guarded_follow_up"),
+                "high_priority_queue_total": sum(1 for item in queue_priorities if item in {"high", "critical"}),
+                "execution_plan_linked_total": sum(1 for item in summaries if item.get("queue_execution_plan_id")),
                 "callable_total": directory["summary"]["callable_total"],
                 "studio_callable_total": directory["summary"]["studio_callable_total"],
                 "published_callable_total": directory["summary"]["published_callable_total"],
@@ -151,6 +163,11 @@ class HumanAskService:
         metadata = payload.get("metadata", {}) if isinstance(payload.get("metadata", {}), dict) else {}
         request_metadata = {**metadata, "mode": mode}
         decision_summary = self._build_decision_summary(prompt=prompt, entry=participant_entry, metadata=request_metadata)
+        decision_queue = self._build_decision_queue(
+            entry=participant_entry,
+            decision_summary=decision_summary,
+            metadata=request_metadata,
+        )
         participant_summaries = self._build_participant_summaries(
             entries=participant_entries,
             decision_summary=decision_summary,
@@ -213,6 +230,7 @@ class HumanAskService:
                 "recorded_from_studio": participant_entry.source == "studio_draft",
                 "human_ask_phase": "A",
                 "participant_total": len(participant_entries),
+                "decision_queue": decision_queue,
                 "participants": [self._participant_payload(item) for item in participant_entries],
                 "participant_summaries": [item.to_dict() for item in participant_summaries],
                 "participant_decisions": [item.to_dict() for item in participant_decisions],
@@ -244,6 +262,7 @@ class HumanAskService:
                 "meeting_overview": meeting_overview,
                 "director_disposition": director_disposition,
                 "decision_summary": decision_summary.to_dict(),
+                "decision_queue": decision_queue,
                 "parent_session_id": parent_session_id,
             },
         )
@@ -525,6 +544,68 @@ class HumanAskService:
                 "pt_oss_readiness_score": entry.pt_oss_readiness_score,
             },
         )
+
+    def _build_decision_queue(
+        self,
+        *,
+        entry: CallableDirectoryEntry,
+        decision_summary: AskDecisionSummary,
+        metadata: dict[str, object],
+    ) -> dict[str, object]:
+        execution_plan = metadata.get("execution_plan") if isinstance(metadata.get("execution_plan"), dict) else {}
+        queue_lane = self._decision_queue_lane(decision_summary)
+        queue_state = self._decision_queue_state(decision_summary, queue_lane)
+        priority = self._decision_queue_priority(decision_summary, metadata)
+        human_required = queue_lane in {"human_review", "clearance"}
+        queue_owner = decision_summary.escalated_to if decision_summary.escalated else None
+        return {
+            "queue_id": f"dq_{uuid4().hex[:10]}",
+            "queue_lane": queue_lane,
+            "queue_state": queue_state,
+            "priority": priority,
+            "human_required": human_required,
+            "queue_owner": queue_owner,
+            "automation_state": decision_summary.automation_state,
+            "policy_basis": decision_summary.policy_basis,
+            "queue_reason": decision_summary.escalation_reason or (decision_summary.notes[0] if decision_summary.notes else "Autonomy can continue inside governed boundaries."),
+            "execution_plan": {
+                "plan_id": str(execution_plan.get("plan_id", "")),
+                "step_id": str(execution_plan.get("step_id", "")),
+                "previous_step_id": str(execution_plan.get("previous_step_id", "")),
+                "handoff_target_role": str(execution_plan.get("handoff_target_role", "")),
+            },
+            "correlation": {
+                "origin_request_id": str(metadata.get("origin_request_id", metadata.get("request_id", ""))),
+                "parent_session_id": str(metadata.get("parent_session_id", "")),
+            },
+        }
+
+    def _decision_queue_lane(self, decision_summary: AskDecisionSummary) -> str:
+        if decision_summary.outcome == "blocked":
+            return "clearance"
+        if decision_summary.outcome in {"waiting_human", "escalated"} or decision_summary.escalated:
+            return "human_review"
+        if str(decision_summary.metadata.get("pt_oss_gate", "clear")) in {"guarded", "watch"}:
+            return "guarded_follow_up"
+        return "autonomy"
+
+    def _decision_queue_state(self, decision_summary: AskDecisionSummary, queue_lane: str) -> str:
+        if queue_lane == "clearance":
+            return "blocked"
+        if queue_lane == "human_review":
+            return "queued_human_review"
+        if queue_lane == "guarded_follow_up":
+            return "queued_guarded_follow_up"
+        return "ready_for_autonomy"
+
+    def _decision_queue_priority(self, decision_summary: AskDecisionSummary, metadata: dict[str, object]) -> str:
+        if metadata.get("force_human_review") is True or decision_summary.outcome == "blocked":
+            return "critical"
+        if decision_summary.risk_score >= 0.85 or decision_summary.outcome in {"waiting_human", "escalated"}:
+            return "high"
+        if str(decision_summary.metadata.get("pt_oss_gate", "clear")) in {"guarded", "watch"}:
+            return "medium"
+        return "normal"
 
     def _build_transcript(
         self,
