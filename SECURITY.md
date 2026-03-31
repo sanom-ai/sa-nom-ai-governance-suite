@@ -50,4 +50,3 @@ The repository now supports that path through the `Security exception` issue tem
 AI or automation may help surface findings and summarize context.
 Humans still decide whether a finding blocks merge, qualifies for temporary exception, requires escalation, or has an adequate follow-up path.
 See [docs/SECURITY_ESCALATION_RULES.md](docs/SECURITY_ESCALATION_RULES.md) for the reviewer-facing escalation baseline.
-
