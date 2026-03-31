@@ -1,7 +1,8 @@
-import json
+﻿import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from sa_nom_governance.api.api_schemas import DecisionResult
 from sa_nom_governance.audit.audit_logger import AuditLogger
 
 
@@ -99,3 +100,76 @@ def test_audit_reseal_converts_legacy_entries_into_verified_chain() -> None:
         health = reloaded.health()
         assert health["status"] == "verified"
         assert health["sealed_entries"] == 2
+
+
+def test_audit_event_contract_is_emitted_for_record_event() -> None:
+    with TemporaryDirectory() as temp_dir:
+        log_path = Path(temp_dir) / 'audit.jsonl'
+        logger = AuditLogger(log_path=log_path)
+
+        logger.record_event(
+            active_role='SYSTEM',
+            action='contract_probe',
+            outcome='completed',
+            reason='Validate evidence event contract for plain audit event.',
+            metadata={'scope': 'contract_test'},
+        )
+
+        latest = logger.list_entries(limit=1)[0]
+        evidence_event = latest.metadata['evidence_event']
+
+        assert evidence_event['contract_version'] == 'v0.2.2'
+        assert evidence_event['event_kind'] == 'action'
+        assert evidence_event['active_role'] == 'SYSTEM'
+        assert evidence_event['action'] == 'contract_probe'
+        assert evidence_event['outcome'] == 'completed'
+        assert evidence_event['requires_human_confirmation'] is False
+
+
+def test_audit_event_contract_is_emitted_for_decision_result() -> None:
+    with TemporaryDirectory() as temp_dir:
+        log_path = Path(temp_dir) / 'audit.jsonl'
+        logger = AuditLogger(log_path=log_path)
+
+        result = DecisionResult(
+            requester='tester',
+            action='review_contract',
+            active_role='LEGAL',
+            outcome='human_required',
+            reason='Authority gate requires human confirmation.',
+            risk_score=0.7,
+            policy_basis='runtime.authority_contract',
+            decision_trace={'source_type': 'authority_contract', 'source_id': 'approval_gate'},
+            metadata={
+                'request_id': 'req-audit-contract-1',
+                'metadata': {
+                    'authority_gate': {
+                        'gate_triggered': True,
+                        'outcome': 'human_required',
+                        'source_id': 'approval_gate',
+                        'reason': 'Request paused for human approval by authority gate.',
+                        'requires_human_confirmation': True,
+                        'decision_mode': 'ai_prepared_human_confirmed',
+                    },
+                    'runtime_state_flow': {
+                        'current_state': 'awaiting_human_confirmation',
+                        'history': [],
+                    },
+                },
+            },
+        )
+
+        logger.record(result)
+
+        latest = logger.list_entries(limit=1)[0]
+        evidence_event = latest.metadata['evidence_event']
+
+        assert evidence_event['contract_version'] == 'v0.2.2'
+        assert evidence_event['event_kind'] == 'authority_gate'
+        assert evidence_event['requires_human_confirmation'] is True
+        assert isinstance(evidence_event['authority_gate'], dict)
+        assert evidence_event['authority_gate']['gate_triggered'] is True
+        assert isinstance(evidence_event['runtime_state_flow'], dict)
+
+
+
