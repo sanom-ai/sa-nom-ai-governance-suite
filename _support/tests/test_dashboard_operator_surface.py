@@ -46,3 +46,41 @@ def test_build_operator_decision_lanes_falls_back_to_autonomy_ready() -> None:
     assert len(lanes) == 1
     assert lanes[0]['lane_id'] == 'autonomy_ready'
     assert lanes[0]['disposition'] == 'autonomy_ready'
+
+
+
+def test_dashboard_snapshot_exposes_missing_usability_proof_status() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        snapshot = DashboardSnapshotBuilder(config=config).build()
+
+        operations = snapshot.get('operations', {})
+        proof = operations.get('usability_proof', {}) if isinstance(operations, dict) else {}
+        summary = snapshot.get('summary', {})
+
+        assert proof.get('status') == 'missing'
+        assert proof.get('available') is False
+        assert summary.get('usability_proof_status') == 'missing'
+        assert summary.get('usability_proof_available') is False
+
+
+def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        config.review_dir.mkdir(parents=True, exist_ok=True)
+        proof_path = config.review_dir / 'usability_proof_bundle.json'
+        proof_path.write_text(
+            '{"milestone":"v0.3.0","status":"ready","passed":true,"generated_at":"2026-04-01T00:00:00+00:00"}\n',
+            encoding='utf-8',
+        )
+
+        snapshot = DashboardSnapshotBuilder(config=config).build()
+        operations = snapshot.get('operations', {})
+        proof = operations.get('usability_proof', {}) if isinstance(operations, dict) else {}
+        summary = snapshot.get('summary', {})
+
+        assert proof.get('status') == 'ready'
+        assert proof.get('available') is True
+        assert proof.get('passed') is True
+        assert summary.get('usability_proof_status') == 'ready'
+        assert summary.get('usability_proof_available') is True
