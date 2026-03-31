@@ -115,3 +115,4 @@ This guide clarifies ownership and workflow signals.
 The right public message is:
 
 SA-NOM lets AI do the operational work of surfacing and organizing security context, but humans still own the decisions that determine accountability, escalation, and trust-sensitive outcomes.
+
