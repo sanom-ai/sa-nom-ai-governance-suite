@@ -377,11 +377,19 @@ class CoreEngine:
         execution_plan = self.runtime_contract_guard.normalized_execution_plan_contract(context.metadata.get('execution_plan'))
         if execution_plan is not None:
             context.metadata['execution_plan'] = execution_plan
+        task_packet = self.runtime_contract_guard.normalized_task_packet_contract(context.metadata.get('task_packet'))
+        if task_packet is not None:
+            context.metadata['task_packet'] = task_packet
 
     def _set_execution_plan_metadata(self, context) -> None:
         execution_plan = self.runtime_contract_guard.execution_plan_profile(context)
         if execution_plan is not None:
             context.metadata['execution_plan'] = execution_plan
+
+    def _set_task_packet_metadata(self, context) -> None:
+        task_packet = self.runtime_contract_guard.task_packet_profile(context)
+        if task_packet is not None:
+            context.metadata['task_packet'] = task_packet
 
     def _sync_state_flow_result_metadata(self, result: DecisionResult, context, *, source: str = 'runtime_result') -> None:
         self.state_flow_engine.bootstrap(context)
@@ -399,6 +407,9 @@ class CoreEngine:
         execution_plan = context.metadata.get('execution_plan')
         if isinstance(execution_plan, dict):
             envelope['execution_plan'] = dict(execution_plan)
+        task_packet = context.metadata.get('task_packet')
+        if isinstance(task_packet, dict):
+            envelope['task_packet'] = dict(task_packet)
         workflow_state = self._sync_workflow_state_store(context, result=result, source=source)
         if isinstance(workflow_state, dict):
             envelope['workflow_state'] = dict(workflow_state)
@@ -481,6 +492,7 @@ class CoreEngine:
 
         self._set_reasoning_control_metadata(context)
         self._set_execution_plan_metadata(context)
+        self._set_task_packet_metadata(context)
         preflight_violation = self.runtime_contract_guard.preflight_violation(
             context,
             expected_override_approver_role=self.hierarchy_registry.default_escalation_target(context.role_id),
