@@ -109,7 +109,9 @@ The older [PRIVATE_SERVER_DEPLOYMENT.md](PRIVATE_SERVER_DEPLOYMENT.md) filename 
 
 - For common startup failures, use [TROUBLESHOOTING.md](TROUBLESHOOTING.md).
 - For broader runtime failure and operator-led recovery posture, use [RUNTIME_FAILURE_AND_RECOVERY.md](RUNTIME_FAILURE_AND_RECOVERY.md).
+- For backup scope and restore validation posture, use [BACKUP_AND_RESTORE_VALIDATION.md](BACKUP_AND_RESTORE_VALIDATION.md).
 - For AGPL, self-hosting, and commercial-boundary questions, use [FAQ.md](FAQ.md).
 - For example artifacts, use [examples/README.md](examples/README.md).
 - `python scripts/provider_smoke_test.py` returning `disabled` is expected until a provider is configured.
+
 

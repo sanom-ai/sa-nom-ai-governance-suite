@@ -33,6 +33,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Secrets And Credentials Handling](SECRETS_AND_CREDENTIALS_HANDLING.md)
 - [Security And Dependency Hygiene](SECURITY_AND_DEPENDENCY_HYGIENE.md)
 - [Runtime Failure And Recovery](RUNTIME_FAILURE_AND_RECOVERY.md)
+- [Backup And Restore Validation](BACKUP_AND_RESTORE_VALIDATION.md)
 
 ## Planning And Release Notes
 
@@ -43,6 +44,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Issue Drafts v0.1.10](ISSUE_DRAFTS_v0.1.10.md)
 - [Release Notes v0.1.9](releases/RELEASE_NOTES_v0.1.9.md)
 - [Release Notes v0.1.8](releases/RELEASE_NOTES_v0.1.8.md)
+
 
 
 
