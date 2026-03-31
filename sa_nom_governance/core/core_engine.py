@@ -338,6 +338,11 @@ class CoreEngine:
     def _set_reasoning_control_metadata(self, context) -> None:
         context.metadata['reasoning_control'] = self.runtime_contract_guard.reasoning_profile(context)
 
+    def _set_execution_plan_metadata(self, context) -> None:
+        execution_plan = self.runtime_contract_guard.execution_plan_profile(context)
+        if execution_plan is not None:
+            context.metadata['execution_plan'] = execution_plan
+
     def _sync_state_flow_result_metadata(self, result: DecisionResult, context) -> None:
         self.state_flow_engine.bootstrap(context)
         self.state_flow_engine.apply_outcome(context, result)
@@ -351,6 +356,9 @@ class CoreEngine:
         reasoning_control = context.metadata.get('reasoning_control')
         if isinstance(reasoning_control, dict):
             envelope['reasoning_control'] = dict(reasoning_control)
+        execution_plan = context.metadata.get('execution_plan')
+        if isinstance(execution_plan, dict):
+            envelope['execution_plan'] = dict(execution_plan)
 
     def _build_activation_context(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         try:
@@ -390,6 +398,7 @@ class CoreEngine:
             )
 
         self._set_reasoning_control_metadata(context)
+        self._set_execution_plan_metadata(context)
         preflight_violation = self.runtime_contract_guard.preflight_violation(
             context,
             expected_override_approver_role=self.hierarchy_registry.default_escalation_target(context.role_id),
@@ -727,6 +736,7 @@ class CoreEngine:
         transition_violation = self._authority_transition_violation(context, state)
         if transition_violation is not None:
             self._set_reasoning_control_metadata(context)
+            self._set_execution_plan_metadata(context)
             self._sync_state_flow_result_metadata(transition_violation, context)
             self.request_consistency.complete(context, transition_violation)
             self.audit_logger.record(transition_violation)
@@ -735,6 +745,7 @@ class CoreEngine:
         self.lock_manager.mark_active(state.origin_request_id)
         self.state_flow_engine.resume_after_human_confirmation(context)
         self._set_reasoning_control_metadata(context)
+        self._set_execution_plan_metadata(context)
         result = self._evaluate_context(context, approved_override=state)
         result = self._sync_lock_state(result, request_id=context.request_id)
         self._sync_state_flow_result_metadata(result, context)
