@@ -147,6 +147,81 @@ class EngineApplication:
             'evidence_exports': evidence_summary,
         }
 
+    def operational_readiness(self, *, limit: int = 50) -> dict[str, object]:
+        def inbox_state(item: dict[str, object]) -> str:
+            inbox = item.get('human_decision_inbox')
+            if isinstance(inbox, dict):
+                return str(inbox.get('inbox_state', 'autonomy_ready'))
+            return 'autonomy_ready'
+
+        health = self.health()
+        workflow_items = self.list_workflow_states(limit=limit)
+        recovery_items = self.list_runtime_recovery_records(limit=limit)
+        dead_letters = self.list_runtime_dead_letters(limit=limit)
+        inbox_items = self.list_human_decision_inbox(limit=limit)
+
+        blocked_workflows = [
+            item
+            for item in workflow_items
+            if str(item.get('current_state', '')) in {'blocked', 'awaiting_human_confirmation'}
+        ]
+        active_workflows = [
+            item
+            for item in workflow_items
+            if str(item.get('current_state', '')) not in {'completed', 'rejected'}
+        ]
+        dead_letter_records = [item for item in recovery_items if str(item.get('status', '')) == 'dead_letter']
+        human_action_items = [item for item in inbox_items if inbox_state(item) == 'human_action_required']
+        clearance_items = [item for item in inbox_items if inbox_state(item) == 'clearance_required']
+        guarded_items = [item for item in inbox_items if inbox_state(item) == 'guarded_follow_up']
+
+        status = 'ready'
+        if dead_letter_records or clearance_items:
+            status = 'attention_required'
+        elif human_action_items or guarded_items or blocked_workflows:
+            status = 'monitoring'
+
+        action_required: list[str] = []
+        if clearance_items:
+            action_required.append('clearance_review')
+        if human_action_items:
+            action_required.append('human_decision')
+        if dead_letter_records:
+            action_required.append('recovery_resume')
+        if guarded_items:
+            action_required.append('guarded_follow_up')
+
+        return {
+            'status': status,
+            'summary': {
+                'workflow_total': len(workflow_items),
+                'active_workflow_total': len(active_workflows),
+                'blocked_workflow_total': len(blocked_workflows),
+                'human_inbox_total': len(inbox_items),
+                'human_action_total': len(human_action_items),
+                'clearance_total': len(clearance_items),
+                'guarded_follow_up_total': len(guarded_items),
+                'recovery_total': len(recovery_items),
+                'dead_letter_total': len(dead_letter_records),
+                'dead_letter_event_total': len(dead_letters),
+                'action_required_total': len(action_required),
+            },
+            'action_required': action_required,
+            'health': {
+                'status': health.get('status', 'unknown'),
+                'persistence_layer': health.get('persistence_layer', {}),
+                'workflow_state': health.get('workflow_state', {}),
+                'runtime_recovery': health.get('runtime_recovery', {}),
+                'human_ask': health.get('human_ask', {}),
+            },
+            'operator_visibility': {
+                'workflow_backlog': workflow_items,
+                'human_decision_inbox': inbox_items,
+                'runtime_recovery_backlog': recovery_items,
+                'runtime_dead_letters': dead_letters,
+            },
+        }
+
     def request(self, requester: str, role_id: str | None, action: str, payload: dict, metadata: dict | None = None):
         result = self.engine.process(requester=requester, role_id=role_id, action=action, payload=payload, metadata=metadata)
         self._dispatch_integration_event(
