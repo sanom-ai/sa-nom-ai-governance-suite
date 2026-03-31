@@ -1,9 +1,10 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from pathlib import Path
 
 from sa_nom_governance.api.api_schemas import DecisionResult
 from sa_nom_governance.audit.audit_integrity import AuditChain
 from sa_nom_governance.audit.audit_schemas import AuditEntry
+from sa_nom_governance.audit.event_contract import build_evidence_event_contract
 from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.utils.persistence import build_line_ledger
 
@@ -31,7 +32,13 @@ class AuditLogger:
                 action=result.action,
                 outcome=result.outcome,
                 reason=result.reason,
-                metadata=metadata,
+                metadata=self._with_event_contract(
+                    active_role=result.active_role,
+                    action=result.action,
+                    outcome=result.outcome,
+                    reason=result.reason,
+                    metadata=metadata,
+                ),
             )
         )
 
@@ -42,7 +49,13 @@ class AuditLogger:
                 action=action,
                 outcome=outcome,
                 reason=reason,
-                metadata=metadata,
+                metadata=self._with_event_contract(
+                    active_role=active_role,
+                    action=action,
+                    outcome=outcome,
+                    reason=reason,
+                    metadata=metadata,
+                ),
             )
         )
 
@@ -128,6 +141,7 @@ class AuditLogger:
     def _build_runtime_evidence(self, result: DecisionResult) -> dict[str, object]:
         decision_trace = result.decision_trace if isinstance(result.decision_trace, dict) else {}
         metadata = result.metadata if isinstance(result.metadata, dict) else {}
+        runtime_metadata = metadata.get('metadata') if isinstance(metadata.get('metadata'), dict) else {}
         return {
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'request_id': metadata.get('request_id'),
@@ -139,8 +153,29 @@ class AuditLogger:
             'trace_source_type': decision_trace.get('source_type'),
             'trace_source_id': decision_trace.get('source_id'),
             'has_human_override': bool(result.human_override),
-            'has_exception_surface': result.outcome in {'waiting_human', 'escalated', 'rejected'},
+            'has_exception_surface': result.outcome in {'waiting_human', 'human_required', 'escalated', 'rejected', 'blocked'},
+            'authority_gate_triggered': bool(runtime_metadata.get('authority_gate', {}).get('gate_triggered')) if isinstance(runtime_metadata.get('authority_gate'), dict) else False,
+            'runtime_state': runtime_metadata.get('runtime_state_flow', {}).get('current_state') if isinstance(runtime_metadata.get('runtime_state_flow'), dict) else None,
         }
+
+    def _with_event_contract(
+        self,
+        *,
+        active_role: str,
+        action: str,
+        outcome: str,
+        reason: str,
+        metadata: dict[str, object],
+    ) -> dict[str, object]:
+        payload = dict(metadata)
+        payload['evidence_event'] = build_evidence_event_contract(
+            active_role=active_role,
+            action=action,
+            outcome=outcome,
+            reason=reason,
+            metadata=payload,
+        )
+        return payload
 
     def _append_entry(self, entry: AuditEntry) -> None:
         sealed_entry = self.chain.seal(entry, self.entries)
@@ -153,5 +188,3 @@ class AuditLogger:
     def _load_existing(self) -> None:
         for item in self.ledger.read_records():
             self.entries.append(AuditEntry.from_dict(item))
-
-
