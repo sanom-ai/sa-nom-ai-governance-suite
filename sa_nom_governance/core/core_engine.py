@@ -21,6 +21,10 @@ from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.utils.owner_identity import DEFAULT_EXECUTIVE_OWNER_ID
 
 
+class HumanRequiredError(Exception):
+    """Runtime signal for trust-sensitive decisions that must pause for human input."""
+
+
 class CoreEngine:
     def __init__(
         self,
@@ -51,6 +55,49 @@ class CoreEngine:
         self.role_transition_policy = self.role_activation_router.transition_policy
 
     def process(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
+        max_attempts = self._runtime_retry_max_attempts(metadata)
+        attempt = 1
+        while True:
+            try:
+                return self._process_once(
+                    requester=requester,
+                    action=action,
+                    role_id=role_id,
+                    payload=payload,
+                    metadata=metadata,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                )
+            except Exception as error:
+                outcome = self._classify_runtime_error(error)
+                if outcome == 'retryable' and attempt < max_attempts:
+                    attempt += 1
+                    continue
+                result = self._build_runtime_failure_result(
+                    requester=requester,
+                    action=action,
+                    role_id=role_id,
+                    payload=payload,
+                    metadata=metadata,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    error=error,
+                    outcome=outcome,
+                )
+                self.audit_logger.record(result)
+                return result
+
+    def _process_once(
+        self,
+        *,
+        requester: str,
+        action: str,
+        role_id: str | None,
+        payload: dict,
+        metadata: dict | None,
+        attempt: int,
+        max_attempts: int,
+    ):
         request_violation = self.runtime_contract_guard.request_violation(
             requester=requester,
             action=action,
@@ -66,10 +113,17 @@ class CoreEngine:
                 payload=payload if isinstance(payload, dict) else {'raw_payload_type': type(payload).__name__},
                 metadata=metadata if isinstance(metadata, dict) else {},
             )
+            self._set_runtime_reliability_metadata(
+                context.metadata,
+                attempt=attempt,
+                max_attempts=max_attempts,
+                outcome_state='request_violation',
+            )
             result = build_result(
                 context,
                 self.runtime_contract_guard.to_computation(request_violation, phase='request'),
             )
+            self._sync_runtime_reliability_result_metadata(result, context)
             self.audit_logger.record(result)
             return result
 
@@ -80,15 +134,21 @@ class CoreEngine:
             payload=payload,
             metadata=metadata,
         )
+        self._set_runtime_reliability_metadata(
+            context.metadata,
+            attempt=attempt,
+            max_attempts=max_attempts,
+            outcome_state='in_progress',
+        )
 
         try:
             self.request_consistency.prepare(context)
         except IdempotencyReplay as replay:
             self.audit_logger.record_event(
                 active_role=context.role_id,
-                action="runtime_idempotent_replay",
-                outcome="replayed",
-                reason="Request replayed from idempotency store.",
+                action='runtime_idempotent_replay',
+                outcome='replayed',
+                reason='Request replayed from idempotency store.',
                 metadata=replay.audit_metadata,
             )
             return replay.result
@@ -100,6 +160,13 @@ class CoreEngine:
         self._record_role_transition(context, activation_error=activation_error)
         if activation_error is not None:
             result = self._build_activation_failure_result(context, activation_error)
+            self._set_runtime_reliability_metadata(
+                context.metadata,
+                attempt=attempt,
+                max_attempts=max_attempts,
+                outcome_state=result.outcome,
+            )
+            self._sync_runtime_reliability_result_metadata(result, context)
             self.request_consistency.complete(context, result)
             self.audit_logger.record(result)
             return result
@@ -107,30 +174,37 @@ class CoreEngine:
         try:
             lock_state = self.lock_manager.acquire(context)
         except ResourceConflictError as conflict:
-            context.metadata["resource_conflict"] = conflict.existing_lock.to_dict()
+            context.metadata['resource_conflict'] = conflict.existing_lock.to_dict()
             result = build_result(
                 context,
                 DecisionComputation(
-                    outcome="conflicted",
-                    reason=f"Request blocked by active resource lock on {conflict.requested_key}.",
-                    policy_basis="runtime.resource_lock",
+                    outcome='conflicted',
+                    reason=f'Request blocked by active resource lock on {conflict.requested_key}.',
+                    policy_basis='runtime.resource_lock',
                     trace=DecisionTrace(
-                        source_type="runtime_conflict",
+                        source_type='runtime_conflict',
                         source_id=conflict.requested_key,
                         notes=[
-                            "Resource conflict detected before decision execution.",
-                            f"Lock owned by request {conflict.existing_lock.owner_request_id}.",
+                            'Resource conflict detected before decision execution.',
+                            f'Lock owned by request {conflict.existing_lock.owner_request_id}.',
                         ],
                     ),
                 ),
                 conflict_lock=conflict.existing_lock.to_dict(),
             )
+            self._set_runtime_reliability_metadata(
+                context.metadata,
+                attempt=attempt,
+                max_attempts=max_attempts,
+                outcome_state=result.outcome,
+            )
+            self._sync_runtime_reliability_result_metadata(result, context)
             self.request_consistency.complete(context, result)
             self.audit_logger.record(result)
             return result
 
         if lock_state is not None:
-            context.metadata["resource_lock"] = lock_state.to_dict()
+            context.metadata['resource_lock'] = lock_state.to_dict()
 
         try:
             result = self._evaluate_context(context)
@@ -141,12 +215,108 @@ class CoreEngine:
                 self.lock_manager.release_by_request(context.request_id)
             raise
 
-        if result.outcome == "waiting_human" and context.metadata.get("role_hierarchy_escalation"):
+        if result.outcome == 'waiting_human' and context.metadata.get('role_hierarchy_escalation'):
             self._record_role_escalation(context, result.reason)
 
+        self._set_runtime_reliability_metadata(
+            context.metadata,
+            attempt=attempt,
+            max_attempts=max_attempts,
+            outcome_state=result.outcome,
+        )
+        self._sync_runtime_reliability_result_metadata(result, context)
         self.request_consistency.complete(context, result)
         self.audit_logger.record(result)
         return result
+
+    def _runtime_retry_max_attempts(self, metadata: dict | None) -> int:
+        if not isinstance(metadata, dict):
+            return 2
+        raw_value = metadata.get('runtime_retry_max_attempts', 2)
+        try:
+            return min(3, max(1, int(raw_value)))
+        except (TypeError, ValueError):
+            return 2
+
+    def _classify_runtime_error(self, error: Exception) -> str:
+        if isinstance(error, HumanRequiredError):
+            return 'human_required'
+        if isinstance(error, PermissionError):
+            return 'rejected'
+        if isinstance(error, (TimeoutError, ConnectionError, OSError)):
+            return 'retryable'
+        return 'blocked'
+
+    def _build_runtime_failure_result(
+        self,
+        *,
+        requester: str,
+        action: str,
+        role_id: str | None,
+        payload: dict,
+        metadata: dict | None,
+        attempt: int,
+        max_attempts: int,
+        error: Exception,
+        outcome: str,
+    ) -> DecisionResult:
+        context = self.dispatcher.dispatch(
+            requester=requester,
+            action=action,
+            role_id=role_id or 'UNRESOLVED',
+            payload=payload if isinstance(payload, dict) else {'raw_payload_type': type(payload).__name__},
+            metadata=metadata if isinstance(metadata, dict) else {},
+        )
+        self._set_runtime_reliability_metadata(
+            context.metadata,
+            attempt=attempt,
+            max_attempts=max_attempts,
+            outcome_state=outcome,
+            error=error,
+        )
+        return build_result(
+            context,
+            DecisionComputation(
+                outcome=outcome,
+                reason=f'Runtime orchestration intercepted {type(error).__name__}: {error}',
+                policy_basis='runtime.orchestration.reliability',
+                trace=DecisionTrace(
+                    source_type='runtime_reliability',
+                    source_id=type(error).__name__,
+                    notes=[
+                        'Exception captured by reliability orchestration layer.',
+                        f'attempt={attempt}/{max_attempts}',
+                    ],
+                ),
+            ),
+        )
+
+    def _set_runtime_reliability_metadata(
+        self,
+        metadata: dict[str, object],
+        *,
+        attempt: int,
+        max_attempts: int,
+        outcome_state: str,
+        error: Exception | None = None,
+    ) -> None:
+        runtime_metadata: dict[str, object] = {
+            'attempts_used': attempt,
+            'max_attempts': max_attempts,
+            'outcome_state': outcome_state,
+            'retry_exhausted': attempt >= max_attempts,
+        }
+        if error is not None:
+            runtime_metadata['error_type'] = type(error).__name__
+            runtime_metadata['error_message'] = str(error)
+        metadata['runtime_reliability'] = runtime_metadata
+
+    def _sync_runtime_reliability_result_metadata(self, result: DecisionResult, context) -> None:
+        runtime_metadata = context.metadata.get('runtime_reliability')
+        if not isinstance(runtime_metadata, dict):
+            return
+        envelope = result.metadata.setdefault('metadata', {})
+        envelope['runtime_reliability'] = dict(runtime_metadata)
 
     def _build_activation_context(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         try:

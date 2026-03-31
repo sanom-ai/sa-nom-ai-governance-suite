@@ -1,4 +1,6 @@
+from unittest.mock import patch
 from sa_nom_governance.api.api_engine import build_engine_app
+from sa_nom_governance.core.core_engine import HumanRequiredError
 from sa_nom_governance.utils.config import AppConfig
 
 
@@ -433,3 +435,71 @@ def test_runtime_evidence_trace_is_emitted_and_queryable() -> None:
     policy_source = app.list_runtime_evidence(source_type='policy')
     assert any(item['trace_source_type'] == 'policy' for item in policy_source)
 
+
+
+def test_runtime_reliability_retries_transient_timeout() -> None:
+    app = build_test_app()
+    original = app.engine._evaluate_context
+    attempts = {'count': 0}
+
+    def flaky_eval(context, approved_override=None):
+        attempts['count'] += 1
+        if attempts['count'] == 1:
+            raise TimeoutError('temporary runtime timeout')
+        return original(context, approved_override=approved_override)
+
+    with patch.object(app.engine, '_evaluate_context', side_effect=flaky_eval):
+        result = app.request(
+            requester='tester',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'C-RETRY-1', 'amount': 3000000},
+            metadata={'runtime_retry_max_attempts': 2},
+        )
+
+    assert attempts['count'] == 2
+    assert result.outcome == 'approved'
+    reliability = result.metadata['metadata']['runtime_reliability']
+    assert reliability['attempts_used'] == 2
+    assert reliability['max_attempts'] == 2
+    assert reliability['outcome_state'] == 'approved'
+
+
+def test_runtime_reliability_marks_human_required_signal() -> None:
+    app = build_test_app()
+
+    with patch.object(app.engine, '_evaluate_context', side_effect=HumanRequiredError('human approval boundary reached')):
+        result = app.request(
+            requester='tester',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'C-HUMAN-1', 'amount': 3000000},
+            metadata={'runtime_retry_max_attempts': 1},
+        )
+
+    assert result.outcome == 'human_required'
+    assert result.policy_basis == 'runtime.orchestration.reliability'
+    assert result.decision_trace['source_type'] == 'runtime_reliability'
+    reliability = result.metadata['metadata']['runtime_reliability']
+    assert reliability['outcome_state'] == 'human_required'
+    assert reliability['error_type'] == 'HumanRequiredError'
+
+
+def test_runtime_reliability_marks_unhandled_errors_as_blocked() -> None:
+    app = build_test_app()
+
+    with patch.object(app.engine, '_evaluate_context', side_effect=RuntimeError('unexpected crash')):
+        result = app.request(
+            requester='tester',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'C-BLOCKED-1', 'amount': 3000000},
+            metadata={'runtime_retry_max_attempts': 1},
+        )
+
+    assert result.outcome == 'blocked'
+    assert result.policy_basis == 'runtime.orchestration.reliability'
+    assert result.decision_trace['source_id'] == 'RuntimeError'
+    reliability = result.metadata['metadata']['runtime_reliability']
+    assert reliability['retry_exhausted'] is True
+    assert reliability['error_type'] == 'RuntimeError'
