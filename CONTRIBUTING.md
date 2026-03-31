@@ -66,3 +66,4 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 - use [docs/SECURITY_ESCALATION_RULES.md](docs/SECURITY_ESCALATION_RULES.md) when deciding whether a finding should block merge, require stronger human review, or stay as routine follow-up
 
 
+

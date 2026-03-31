@@ -1,9 +1,11 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
+  - name: Security disclosure
+    url: mailto:sanomaiarch@gmail.com
+    about: Please report suspected vulnerabilities privately by email instead of opening a public issue.
+  - name: Security workflow guidance
+    url: https://github.com/sanom-ai/sa-nom-ai-governance-suite/blob/main/docs/SECURITY_OWNERSHIP_AND_LABELS.md
+    about: Review the public security workflow before opening a security exception or follow-up issue.
   - name: Commercial licensing and rollout
     url: mailto:sanomaiarch@gmail.com
     about: Contact SA-NOM directly for pricing, enterprise features, rollout work, or tailored deployment support.
-  - name: Security disclosure
-    url: mailto:sanomaiarch@gmail.com
-    about: Please report security issues privately by email instead of opening a public issue.
-
