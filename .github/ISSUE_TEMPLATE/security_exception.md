@@ -2,7 +2,7 @@
 name: Security exception
 about: Record an accepted or deferred security finding that needs explicit ownership and follow-up
 title: "[Security Exception] "
-labels: security, triage
+labels: security, security-exception
 ---
 
 ## Summary
@@ -46,3 +46,4 @@ Explain whether this finding should be escalated for stronger human review and w
 
 Use this template only for accepted or deferred security findings that remain visible for later review.
 Do not use it to report a new suspected vulnerability publicly. For private disclosure, follow `SECURITY.md`.
+
