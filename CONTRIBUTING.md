@@ -65,8 +65,5 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 - when deferred work needs to stay visible after merge, prefer opening the `Security follow-up` issue template so ownership and revisit timing stay linked to the accepted risk
 - use [docs/SECURITY_ESCALATION_RULES.md](docs/SECURITY_ESCALATION_RULES.md) when deciding whether a finding should block merge, require stronger human review, or stay as routine follow-up
 
-
-
-
+See [docs/QUALITY_CHECK_MATRIX.md](docs/QUALITY_CHECK_MATRIX.md) for the current quality baseline and when each check is expected.
 See [docs/RELEASE_VERIFICATION_BASELINE.md](docs/RELEASE_VERIFICATION_BASELINE.md) for the current release-ready verification baseline.
-
