@@ -1,4 +1,4 @@
-from dataclasses import asdict
+﻿from dataclasses import asdict
 from pathlib import Path
 
 from sa_nom_governance.api.api_schemas import DecisionResult, OverrideReviewResult
@@ -18,6 +18,7 @@ from sa_nom_governance.core.request_consistency import (
 from sa_nom_governance.core.result_builder import build_result
 from sa_nom_governance.core.risk_scorer import RiskScorer
 from sa_nom_governance.core.role_activation_router import RoleActivationError, RoleActivationRouter
+from sa_nom_governance.core.state_flow_engine import RuntimeStateFlowEngine
 from sa_nom_governance.guards.authority_guard import AuthorityGuard
 from sa_nom_governance.guards.ethics_guard import EthicsGuard
 from sa_nom_governance.guards.human_override import HumanOverrideGateway, HumanOverrideState
@@ -49,6 +50,7 @@ class CoreEngine:
         self.runtime_contract_guard = RuntimeContractGuard()
         self.authority_policy_engine = AuthorityPolicyEngine()
         self.decision_engine = DecisionEngine()
+        self.state_flow_engine = RuntimeStateFlowEngine()
         self.human_override = HumanOverrideGateway(store_path=override_store_path, config=config)
         self.lock_manager = ResourceLockManager(store_path=lock_store_path, config=config)
         self.request_consistency = RequestConsistencyManager(store_path=consistency_store_path, config=config)
@@ -130,6 +132,7 @@ class CoreEngine:
                 self.runtime_contract_guard.to_computation(request_violation, phase='request'),
             )
             self._sync_runtime_reliability_result_metadata(result, context)
+            self._sync_state_flow_result_metadata(result, context)
             self.audit_logger.record(result)
             return result
 
@@ -146,6 +149,7 @@ class CoreEngine:
             max_attempts=max_attempts,
             outcome_state='in_progress',
         )
+        self.state_flow_engine.bootstrap(context)
 
         try:
             self.request_consistency.prepare(context)
@@ -160,6 +164,7 @@ class CoreEngine:
             return replay.result
         except RequestConsistencyError as error:
             result = self._build_consistency_result(context, error)
+            self._sync_state_flow_result_metadata(result, context)
             self.audit_logger.record(result)
             return result
 
@@ -173,6 +178,7 @@ class CoreEngine:
                 outcome_state=result.outcome,
             )
             self._sync_runtime_reliability_result_metadata(result, context)
+            self._sync_state_flow_result_metadata(result, context)
             self.request_consistency.complete(context, result)
             self.audit_logger.record(result)
             return result
@@ -205,6 +211,7 @@ class CoreEngine:
                 outcome_state=result.outcome,
             )
             self._sync_runtime_reliability_result_metadata(result, context)
+            self._sync_state_flow_result_metadata(result, context)
             self.request_consistency.complete(context, result)
             self.audit_logger.record(result)
             return result
@@ -231,6 +238,7 @@ class CoreEngine:
             outcome_state=result.outcome,
         )
         self._sync_runtime_reliability_result_metadata(result, context)
+        self._sync_state_flow_result_metadata(result, context)
         self.request_consistency.complete(context, result)
         self.audit_logger.record(result)
         return result
@@ -280,7 +288,7 @@ class CoreEngine:
             outcome_state=outcome,
             error=error,
         )
-        return build_result(
+        result = build_result(
             context,
             DecisionComputation(
                 outcome=outcome,
@@ -296,6 +304,9 @@ class CoreEngine:
                 ),
             ),
         )
+        self._sync_runtime_reliability_result_metadata(result, context)
+        self._sync_state_flow_result_metadata(result, context)
+        return result
 
     def _set_runtime_reliability_metadata(
         self,
@@ -323,6 +334,17 @@ class CoreEngine:
             return
         envelope = result.metadata.setdefault('metadata', {})
         envelope['runtime_reliability'] = dict(runtime_metadata)
+
+    def _sync_state_flow_result_metadata(self, result: DecisionResult, context) -> None:
+        self.state_flow_engine.bootstrap(context)
+        self.state_flow_engine.apply_outcome(context, result)
+        envelope = result.metadata.setdefault('metadata', {})
+        runtime_flow = context.metadata.get('runtime_state_flow')
+        if isinstance(runtime_flow, dict):
+            envelope['runtime_state_flow'] = dict(runtime_flow)
+        role_lifecycle = context.metadata.get('role_execution_lifecycle')
+        if isinstance(role_lifecycle, dict):
+            envelope['role_execution_lifecycle'] = dict(role_lifecycle)
 
     def _build_activation_context(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         try:
@@ -604,8 +626,10 @@ class CoreEngine:
             request_id=state.origin_request_id,
             metadata=state.context_metadata_snapshot,
         )
+        self.state_flow_engine.resume_after_human_confirmation(context)
         result = self._evaluate_context(context, approved_override=state)
         result = self._sync_lock_state(result, request_id=context.request_id)
+        self._sync_state_flow_result_metadata(result, context)
         self.request_consistency.complete(context, result)
         self.audit_logger.record(result)
         return result
@@ -688,6 +712,17 @@ class CoreEngine:
                 "hierarchy_escalation": escalation,
             },
         )
+
+
+
+
+
+
+
+
+
+
+
 
 
 

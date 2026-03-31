@@ -593,3 +593,91 @@ def test_authority_contract_human_required_can_resume_after_override() -> None:
     assert reviewed.status == 'approved'
     assert reviewed.execution_result is not None
     assert reviewed.execution_result['outcome'] == 'approved'
+
+
+def test_runtime_state_flow_completed_for_approved_request() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-STATE-APPROVED-1', 'amount': 3000000},
+    )
+
+    runtime_flow = result.metadata['metadata']['runtime_state_flow']
+    role_lifecycle = result.metadata['metadata']['role_execution_lifecycle']
+
+    assert result.outcome == 'approved'
+    assert runtime_flow['current_state'] == 'completed'
+    assert any(item['to_state'] == 'received' for item in runtime_flow['history'])
+    assert any(item['to_state'] == 'in_progress_ai' for item in runtime_flow['history'])
+    assert any(item['to_state'] == 'approved' for item in runtime_flow['history'])
+    assert any(item['to_state'] == 'completed' for item in runtime_flow['history'])
+    assert role_lifecycle['current_state'] == 'completed'
+
+
+def test_runtime_state_flow_pauses_for_human_confirmation() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='GOV',
+        action='approve_group_policy',
+        payload={'resource': 'contract', 'resource_id': 'C-STATE-HUMAN-1'},
+    )
+
+    runtime_flow = result.metadata['metadata']['runtime_state_flow']
+    role_lifecycle = result.metadata['metadata']['role_execution_lifecycle']
+
+    assert result.outcome == 'waiting_human'
+    assert runtime_flow['current_state'] == 'awaiting_human_confirmation'
+    assert role_lifecycle['current_state'] == 'paused_for_human'
+
+
+def test_runtime_state_flow_marks_blocked_terminal() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-STATE-BLOCK-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'blocked'}},
+    )
+
+    runtime_flow = result.metadata['metadata']['runtime_state_flow']
+    role_lifecycle = result.metadata['metadata']['role_execution_lifecycle']
+
+    assert result.outcome == 'blocked'
+    assert runtime_flow['current_state'] == 'blocked'
+    assert role_lifecycle['current_state'] == 'stopped'
+
+
+def test_runtime_state_flow_resumes_after_override_approval() -> None:
+    app = build_test_app()
+
+    pending = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-STATE-RESUME-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'human_required'}},
+    )
+    reviewed = app.approve_override(
+        pending.human_override['request_id'],
+        resolved_by='EXEC_OWNER',
+        note='Resume runtime after authority decision.',
+    )
+
+    execution_result = reviewed.execution_result
+    assert execution_result is not None
+
+    runtime_flow = execution_result['metadata']['metadata']['runtime_state_flow']
+    role_lifecycle = execution_result['metadata']['metadata']['role_execution_lifecycle']
+
+    assert execution_result['outcome'] == 'approved'
+    assert runtime_flow['current_state'] == 'completed'
+    assert any(item['to_state'] == 'in_progress_ai' and item['event'] == 'ai_execution_resumed' for item in runtime_flow['history'])
+    assert any(item['to_state'] == 'resumed' for item in role_lifecycle['history'])
+    assert role_lifecycle['current_state'] == 'completed'
