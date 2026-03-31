@@ -87,6 +87,8 @@ class DashboardSnapshotBuilder:
                 'backups_total': operations.get('summary', {}).get('backups_total', 0),
                 'usability_proof_status': operations.get('usability_proof', {}).get('status', 'missing'),
                 'usability_proof_available': bool(operations.get('usability_proof', {}).get('available', False)),
+                'usability_proof_criteria_total': int(operations.get('usability_proof', {}).get('criteria_total', 0) or 0),
+                'usability_proof_criteria_passed_total': int(operations.get('usability_proof', {}).get('criteria_passed_total', 0) or 0),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
                 'integration_targets_total': integrations.get('summary', {}).get('targets_total', 0),
@@ -270,6 +272,18 @@ class DashboardSnapshotBuilder:
         from sa_nom_governance.deployment.usability_proof_bundle import read_usability_proof_bundle
 
         result = read_usability_proof_bundle(config=self.config)
+        report = result.get('report') if isinstance(result.get('report'), dict) else {}
+        pass_criteria = report.get('pass_criteria', []) if isinstance(report.get('pass_criteria'), list) else []
+        criteria_rows: list[dict[str, object]] = []
+        for item in pass_criteria:
+            if not isinstance(item, dict):
+                continue
+            criteria_rows.append(
+                {
+                    'criterion': str(item.get('criterion', 'criterion')),
+                    'passed': bool(item.get('passed', False)),
+                }
+            )
         return {
             'status': result.get('status', 'missing'),
             'available': bool(result.get('available', False)),
@@ -277,6 +291,9 @@ class DashboardSnapshotBuilder:
             'generated_at': result.get('generated_at'),
             'passed': bool(result.get('passed', False)),
             'milestone': str(result.get('milestone', 'v0.3.0')),
+            'criteria_total': len(criteria_rows),
+            'criteria_passed_total': sum(1 for row in criteria_rows if row.get('passed')),
+            'pass_criteria': criteria_rows,
         }
 
     def retention_report(self) -> dict[str, object]:
