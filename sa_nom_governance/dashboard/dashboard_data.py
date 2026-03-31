@@ -1,7 +1,6 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from pathlib import Path
 
 from sa_nom_governance.api.api_engine import EngineApplication, build_engine_app
 from sa_nom_governance.utils.config import AppConfig
@@ -34,6 +33,7 @@ class DashboardSnapshotBuilder:
         human_ask = self.human_ask()
         go_live_readiness = self.go_live_readiness()
         operational_readiness = self.app.operational_readiness(limit=50)
+        operator_decision_lanes = self.build_operator_decision_lanes(operational_readiness)
         operations = self.operations()
         compliance = self.compliance_snapshot()
         evidence_exports = self.evidence_exports()
@@ -78,6 +78,12 @@ class DashboardSnapshotBuilder:
                 'human_inbox_open_total': operational_readiness.get('human_inbox', {}).get('open_total', 0),
                 'recovery_pending_total': operational_readiness.get('runtime_recovery', {}).get('pending_total', 0),
                 'dead_letter_total': operational_readiness.get('runtime_recovery', {}).get('dead_letter_total', 0),
+                'operator_human_required_total': sum(
+                    1 for lane in operator_decision_lanes if lane.get('disposition') == 'human_required'
+                ),
+                'operator_blocked_total': sum(
+                    1 for lane in operator_decision_lanes if lane.get('disposition') == 'blocked'
+                ),
                 'backups_total': operations.get('summary', {}).get('backups_total', 0),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
@@ -104,9 +110,87 @@ class DashboardSnapshotBuilder:
             'model_providers': model_providers,
             'go_live_readiness': go_live_readiness,
             'operational_readiness': operational_readiness,
+            'operator_decision_lanes': operator_decision_lanes,
             'runtime_alerts': runtime_alerts,
             'runtime_health': self.runtime_health(roles=roles, go_live_readiness=go_live_readiness),
         }
+
+
+    @staticmethod
+    def build_operator_decision_lanes(operational_readiness: dict[str, object]) -> list[dict[str, object]]:
+        actions = operational_readiness.get('action_required', [])
+        action_list = [str(item) for item in actions if str(item)]
+        action_set = set(action_list)
+
+        lane_map = {
+            'clearance_review': {
+                'lane_id': 'clearance_review',
+                'disposition': 'human_required',
+                'priority': 1,
+                'title': 'Clearance review required',
+                'operator_action': 'Review clearance-bound decisions before runtime continues.',
+                'default_view': 'human_ask',
+                'governance_outcome': 'AI remains paused until a human grants or denies clearance.',
+            },
+            'human_decision': {
+                'lane_id': 'human_decision',
+                'disposition': 'human_required',
+                'priority': 2,
+                'title': 'Human decision required',
+                'operator_action': 'Decide on queued human-only boundaries in the inbox.',
+                'default_view': 'human_ask',
+                'governance_outcome': 'AI resumes only after the decision is recorded.',
+            },
+            'recovery_resume': {
+                'lane_id': 'recovery_resume',
+                'disposition': 'blocked',
+                'priority': 3,
+                'title': 'Recovery resume required',
+                'operator_action': 'Inspect failed/dead-letter recovery records and resume safely.',
+                'default_view': 'conflicts',
+                'governance_outcome': 'Runtime remains fail-closed on the affected path until recovered.',
+            },
+            'guarded_follow_up': {
+                'lane_id': 'guarded_follow_up',
+                'disposition': 'monitoring',
+                'priority': 4,
+                'title': 'Guarded follow-up pending',
+                'operator_action': 'Review guarded follow-ups and confirm acceptable risk posture.',
+                'default_view': 'overview',
+                'governance_outcome': 'AI can continue within constraints while follow-up remains visible.',
+            },
+        }
+
+        lanes = [lane_map[action] for action in action_list if action in lane_map]
+        if not lanes:
+            lanes.append(
+                {
+                    'lane_id': 'autonomy_ready',
+                    'disposition': 'autonomy_ready',
+                    'priority': 99,
+                    'title': 'Autonomy ready',
+                    'operator_action': 'No immediate human gate is open; continue governed execution.',
+                    'default_view': 'overview',
+                    'governance_outcome': 'AI continues inside policy contracts without human interruption.',
+                }
+            )
+
+        # Keep any unknown runtime actions visible instead of silently dropping them.
+        for action in sorted(action_set - set(lane_map.keys())):
+            lanes.append(
+                {
+                    'lane_id': action,
+                    'disposition': 'blocked',
+                    'priority': 5,
+                    'title': f'Unknown action: {action}',
+                    'operator_action': 'Review runtime posture before continuing; this action is not mapped yet.',
+                    'default_view': 'health',
+                    'governance_outcome': 'Fail-closed posture: unknown action requires explicit human review.',
+                }
+            )
+
+        lanes.sort(key=lambda item: (int(item.get('priority', 99)), str(item.get('lane_id', ''))))
+        return lanes
 
     def list_requests(self, audit_entries: list[dict[str, object]] | None = None, limit: int = 200) -> list[dict[str, object]]:
         entries = audit_entries if audit_entries is not None else self.list_audit(limit=max(limit * 3, 100))
