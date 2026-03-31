@@ -319,6 +319,50 @@ class AskDecisionSummary:
 
 
 @dataclass(slots=True)
+class HumanDecisionInboxContract:
+    inbox_id: str
+    inbox_state: str
+    queue_lane: str
+    queue_state: str
+    priority: str
+    human_required: bool
+    required_action: str
+    queue_owner: str | None = None
+    decision_context: dict[str, Any] = field(default_factory=dict)
+    authority: dict[str, Any] = field(default_factory=dict)
+    execution_plan: dict[str, Any] = field(default_factory=dict)
+    task_packet: dict[str, Any] = field(default_factory=dict)
+    correlation: dict[str, Any] = field(default_factory=dict)
+    evidence_refs: list[str] = field(default_factory=list)
+    operator_actions: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> "HumanDecisionInboxContract | None":
+        if not data:
+            return None
+        return cls(
+            inbox_id=str(data.get("inbox_id", "")),
+            inbox_state=str(data.get("inbox_state", "autonomy_ready")),
+            queue_lane=str(data.get("queue_lane", "autonomy")),
+            queue_state=str(data.get("queue_state", "ready_for_autonomy")),
+            priority=str(data.get("priority", "normal")),
+            human_required=bool(data.get("human_required", False)),
+            required_action=str(data.get("required_action", "observe")),
+            queue_owner=str(data.get("queue_owner")) if data.get("queue_owner") else None,
+            decision_context=data.get("decision_context", {}) if isinstance(data.get("decision_context", {}), dict) else {},
+            authority=data.get("authority", {}) if isinstance(data.get("authority", {}), dict) else {},
+            execution_plan=data.get("execution_plan", {}) if isinstance(data.get("execution_plan", {}), dict) else {},
+            task_packet=data.get("task_packet", {}) if isinstance(data.get("task_packet", {}), dict) else {},
+            correlation=data.get("correlation", {}) if isinstance(data.get("correlation", {}), dict) else {},
+            evidence_refs=[str(item) for item in data.get("evidence_refs", [])],
+            operator_actions=[str(item) for item in data.get("operator_actions", [])],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class HumanAskSession:
     session_id: str
     requested_by: str
@@ -372,6 +416,7 @@ class HumanAskSession:
             "metadata": self.metadata,
         }
         decision_queue = self.metadata.get("decision_queue", {}) if isinstance(self.metadata.get("decision_queue", {}), dict) else {}
+        inbox_contract = self.metadata.get("human_decision_inbox", {}) if isinstance(self.metadata.get("human_decision_inbox", {}), dict) else {}
         execution_plan = decision_queue.get("execution_plan", {}) if isinstance(decision_queue.get("execution_plan", {}), dict) else {}
         payload["summary"] = {
             "participant": self.participant.display_name,
@@ -396,6 +441,9 @@ class HumanAskSession:
             "queue_human_required": bool(decision_queue.get("human_required", False)),
             "queue_execution_plan_id": str(execution_plan.get("plan_id", "")),
             "queue_step_id": str(execution_plan.get("step_id", "")),
+            "inbox_state": str(inbox_contract.get("inbox_state", "autonomy_ready")),
+            "inbox_required_action": str(inbox_contract.get("required_action", "observe")),
+            "inbox_owner": str(inbox_contract.get("queue_owner", "")),
         }
         if compact:
             payload["transcript"] = []

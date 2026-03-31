@@ -26,6 +26,7 @@ from sa_nom_governance.human_ask.human_ask_models import (
     AskParticipantSummary,
     CallableDirectoryEntry,
     HumanAskSession,
+    HumanDecisionInboxContract,
     utc_now,
 )
 from sa_nom_governance.human_ask.human_ask_scope import assess_prompt_scope
@@ -94,6 +95,7 @@ class HumanAskService:
         queue_states = [item.get("queue_state", "not_queued") for item in summaries]
         queue_lanes = [item.get("queue_lane", "autonomy") for item in summaries]
         queue_priorities = [item.get("queue_priority", "normal") for item in summaries]
+        inbox_states = [item.get("inbox_state", "autonomy_ready") for item in summaries]
         return {
             "summary": {
                 "sessions_total": len(sessions),
@@ -117,6 +119,10 @@ class HumanAskService:
                 "guarded_queue_total": queue_lanes.count("guarded_follow_up"),
                 "high_priority_queue_total": sum(1 for item in queue_priorities if item in {"high", "critical"}),
                 "execution_plan_linked_total": sum(1 for item in summaries if item.get("queue_execution_plan_id")),
+                "inbox_total": sum(1 for item in inbox_states if item != "autonomy_ready"),
+                "inbox_human_action_total": inbox_states.count("human_action_required"),
+                "inbox_clearance_total": inbox_states.count("clearance_required"),
+                "inbox_guarded_total": inbox_states.count("guarded_follow_up"),
                 "callable_total": directory["summary"]["callable_total"],
                 "studio_callable_total": directory["summary"]["studio_callable_total"],
                 "published_callable_total": directory["summary"]["published_callable_total"],
@@ -127,6 +133,36 @@ class HumanAskService:
 
     def list_sessions(self, status: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         return [item.to_dict(compact=True) for item in self.store.list_sessions(status=status)[:limit]]
+
+    def list_human_decision_inbox(
+        self,
+        *,
+        inbox_state: str | None = None,
+        queue_lane: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, object]]:
+        sessions = self.store.list_sessions()
+        items: list[dict[str, object]] = []
+        for session in sessions:
+            inbox = session.metadata.get("human_decision_inbox", {}) if isinstance(session.metadata.get("human_decision_inbox", {}), dict) else {}
+            if not inbox:
+                continue
+            if inbox_state is not None and inbox.get("inbox_state") != inbox_state:
+                continue
+            if queue_lane is not None and inbox.get("queue_lane") != queue_lane:
+                continue
+            item = {
+                "session_id": session.session_id,
+                "status": session.status,
+                "requested_by": session.requested_by,
+                "participant": session.participant.display_name,
+                "role_id": session.participant.role_id,
+                "mode": session.mode,
+                "director_disposition": str(session.metadata.get("director_disposition", "ready_to_proceed")),
+                "human_decision_inbox": inbox,
+            }
+            items.append(item)
+        return items[:limit]
 
     def get_session(self, session_id: str) -> dict[str, object]:
         return self.store.get_session(session_id).to_dict()
@@ -200,8 +236,18 @@ class HumanAskService:
             participant_decisions=participant_decisions,
         )
         participant = self._participant_from_entry(participant_entry)
+        session_id = f"ask_{uuid4().hex[:12]}"
+        human_decision_inbox = self._build_human_decision_inbox(
+            session_id=session_id,
+            prompt=prompt,
+            entry=participant_entry,
+            decision_summary=decision_summary,
+            decision_queue=decision_queue,
+            metadata=request_metadata,
+            director_disposition=director_disposition,
+        )
         session = HumanAskSession(
-            session_id=f"ask_{uuid4().hex[:12]}",
+            session_id=session_id,
             requested_by=requested_by,
             created_at=utc_now(),
             updated_at=utc_now(),
@@ -231,6 +277,7 @@ class HumanAskService:
                 "human_ask_phase": "A",
                 "participant_total": len(participant_entries),
                 "decision_queue": decision_queue,
+                "human_decision_inbox": human_decision_inbox.to_dict(),
                 "participants": [self._participant_payload(item) for item in participant_entries],
                 "participant_summaries": [item.to_dict() for item in participant_summaries],
                 "participant_decisions": [item.to_dict() for item in participant_decisions],
@@ -263,6 +310,7 @@ class HumanAskService:
                 "director_disposition": director_disposition,
                 "decision_summary": decision_summary.to_dict(),
                 "decision_queue": decision_queue,
+                "human_decision_inbox": human_decision_inbox.to_dict(),
                 "parent_session_id": parent_session_id,
             },
         )
@@ -606,6 +654,102 @@ class HumanAskService:
         if str(decision_summary.metadata.get("pt_oss_gate", "clear")) in {"guarded", "watch"}:
             return "medium"
         return "normal"
+
+    def _build_human_decision_inbox(
+        self,
+        *,
+        session_id: str,
+        prompt: str,
+        entry: CallableDirectoryEntry,
+        decision_summary: AskDecisionSummary,
+        decision_queue: dict[str, object],
+        metadata: dict[str, object],
+        director_disposition: str,
+    ) -> HumanDecisionInboxContract:
+        queue_lane = str(decision_queue.get("queue_lane", "autonomy"))
+        if queue_lane == "clearance":
+            inbox_state = "clearance_required"
+        elif queue_lane == "human_review":
+            inbox_state = "human_action_required"
+        elif queue_lane == "guarded_follow_up":
+            inbox_state = "guarded_follow_up"
+        else:
+            inbox_state = "autonomy_ready"
+
+        required_action = self._inbox_required_action(queue_lane, decision_summary, metadata)
+        operator_actions = self._inbox_operator_actions(queue_lane)
+        task_packet = metadata.get("task_packet") if isinstance(metadata.get("task_packet"), dict) else {}
+        origin_request_id = str(metadata.get("origin_request_id", metadata.get("request_id", "")))
+        evidence_refs = [session_id]
+        if origin_request_id:
+            evidence_refs.append(origin_request_id)
+        task_packet_id = str(task_packet.get("packet_id", ""))
+        if task_packet_id:
+            evidence_refs.append(task_packet_id)
+
+        return HumanDecisionInboxContract(
+            inbox_id=f"inbox_{session_id}",
+            inbox_state=inbox_state,
+            queue_lane=queue_lane,
+            queue_state=str(decision_queue.get("queue_state", "ready_for_autonomy")),
+            priority=str(decision_queue.get("priority", "normal")),
+            human_required=bool(decision_queue.get("human_required", False)),
+            required_action=required_action,
+            queue_owner=str(decision_queue.get("queue_owner")) if decision_queue.get("queue_owner") else None,
+            decision_context={
+                "participant": entry.display_name,
+                "role_id": entry.role_id,
+                "prompt": prompt,
+                "automation_state": decision_summary.automation_state,
+                "policy_basis": decision_summary.policy_basis,
+                "queue_reason": str(decision_queue.get("queue_reason", "")),
+                "director_disposition": director_disposition,
+                "confidence_score": decision_summary.confidence_score,
+                "risk_score": decision_summary.risk_score,
+            },
+            authority={
+                "escalated": decision_summary.escalated,
+                "escalated_to": decision_summary.escalated_to,
+                "escalation_reason": decision_summary.escalation_reason,
+                "human_required": bool(decision_queue.get("human_required", False)),
+            },
+            execution_plan=dict(decision_queue.get("execution_plan", {})) if isinstance(decision_queue.get("execution_plan", {}), dict) else {},
+            task_packet=dict(task_packet),
+            correlation={
+                "session_id": session_id,
+                "origin_request_id": origin_request_id,
+                "parent_session_id": str(metadata.get("parent_session_id", "")),
+            },
+            evidence_refs=evidence_refs,
+            operator_actions=operator_actions,
+        )
+
+    def _inbox_required_action(
+        self,
+        queue_lane: str,
+        decision_summary: AskDecisionSummary,
+        metadata: dict[str, object],
+    ) -> str:
+        if queue_lane == "clearance":
+            return "clearance_review"
+        if queue_lane == "human_review":
+            if metadata.get("force_human_review") is True:
+                return "manual_review"
+            if decision_summary.metadata.get("scope_status") == "human_only_boundary":
+                return "human_decision"
+            return "approve_or_escalate"
+        if queue_lane == "guarded_follow_up":
+            return "guarded_follow_up"
+        return "observe"
+
+    def _inbox_operator_actions(self, queue_lane: str) -> list[str]:
+        if queue_lane == "clearance":
+            return ["clear", "request_follow_up", "escalate"]
+        if queue_lane == "human_review":
+            return ["approve", "request_follow_up", "escalate"]
+        if queue_lane == "guarded_follow_up":
+            return ["acknowledge", "request_follow_up"]
+        return ["observe"]
 
     def _build_transcript(
         self,

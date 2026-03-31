@@ -469,6 +469,18 @@ class EngineApplication:
     def list_human_ask_sessions(self, status: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         return self.human_ask.list_sessions(status=status, limit=limit)
 
+    def list_human_decision_inbox(
+        self,
+        inbox_state: str | None = None,
+        queue_lane: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, object]]:
+        return self.human_ask.list_human_decision_inbox(
+            inbox_state=inbox_state,
+            queue_lane=queue_lane,
+            limit=limit,
+        )
+
     def get_human_ask_session(self, session_id: str) -> dict[str, object]:
         return self.human_ask.get_session(session_id)
 
