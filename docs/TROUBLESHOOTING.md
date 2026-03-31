@@ -122,3 +122,8 @@ Do not use this reset path against a live production deployment.
 ## Need Commercial Help?
 
 If you need rollout hardening, regulated deployment support, or a guided production path, contact `sanomaiarch@gmail.com`.
+
+## Recovery Posture
+
+For a broader explanation of what SA-NOM should look like under runtime failure conditions, and how operators should think about readiness-first recovery, see [RUNTIME_FAILURE_AND_RECOVERY.md](RUNTIME_FAILURE_AND_RECOVERY.md).
+
