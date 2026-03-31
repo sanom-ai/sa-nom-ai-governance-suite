@@ -142,6 +142,8 @@ class AuditLogger:
         decision_trace = result.decision_trace if isinstance(result.decision_trace, dict) else {}
         metadata = result.metadata if isinstance(result.metadata, dict) else {}
         runtime_metadata = metadata.get('metadata') if isinstance(metadata.get('metadata'), dict) else {}
+        execution_plan = runtime_metadata.get('execution_plan') if isinstance(runtime_metadata.get('execution_plan'), dict) else {}
+        decision_queue = runtime_metadata.get('decision_queue') if isinstance(runtime_metadata.get('decision_queue'), dict) else {}
         return {
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'request_id': metadata.get('request_id'),
@@ -158,6 +160,14 @@ class AuditLogger:
             'runtime_state': runtime_metadata.get('runtime_state_flow', {}).get('current_state') if isinstance(runtime_metadata.get('runtime_state_flow'), dict) else None,
             'exception_kind': self._exception_kind(result.outcome),
             'authority_decision': self._authority_decision_evidence(result, runtime_metadata, decision_trace),
+            'workflow_bundle_summary': {
+                'execution_plan_id': execution_plan.get('plan_id'),
+                'execution_step_id': execution_plan.get('step_id'),
+                'routing_status': execution_plan.get('routing_status'),
+                'decision_queue_id': decision_queue.get('queue_id'),
+                'decision_queue_lane': decision_queue.get('queue_lane'),
+                'decision_queue_state': decision_queue.get('queue_state'),
+            },
         }
 
     def _exception_kind(self, outcome: str) -> str | None:
