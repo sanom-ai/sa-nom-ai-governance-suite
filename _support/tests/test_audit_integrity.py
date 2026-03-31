@@ -118,7 +118,7 @@ def test_audit_event_contract_is_emitted_for_record_event() -> None:
         latest = logger.list_entries(limit=1)[0]
         evidence_event = latest.metadata['evidence_event']
 
-        assert evidence_event['contract_version'] == 'v0.2.4'
+        assert evidence_event['contract_version'] == 'v0.2.5'
         assert evidence_event['event_kind'] == 'action'
         assert evidence_event['active_role'] == 'SYSTEM'
         assert evidence_event['action'] == 'contract_probe'
@@ -164,7 +164,7 @@ def test_audit_event_contract_is_emitted_for_decision_result() -> None:
         latest = logger.list_entries(limit=1)[0]
         evidence_event = latest.metadata['evidence_event']
 
-        assert evidence_event['contract_version'] == 'v0.2.4'
+        assert evidence_event['contract_version'] == 'v0.2.5'
         assert evidence_event['event_kind'] == 'authority_gate'
         assert evidence_event['requires_human_confirmation'] is True
         assert isinstance(evidence_event['authority_gate'], dict)
@@ -292,3 +292,133 @@ def test_audit_event_contract_override_resolution_chain_is_emitted() -> None:
         assert evidence_event['correlation']['override_request_id'] == 'override-1'
         assert evidence_event['correlation']['origin_request_id'] == 'request-123'
         assert evidence_event['authority_decision']['policy_basis'] == 'runtime.authority_contract'
+
+
+
+def test_audit_event_contract_emits_workflow_bundle_for_runtime_result() -> None:
+    with TemporaryDirectory() as temp_dir:
+        log_path = Path(temp_dir) / 'audit.jsonl'
+        logger = AuditLogger(log_path=log_path)
+
+        result = DecisionResult(
+            requester='tester',
+            action='review_contract',
+            active_role='LEGAL',
+            outcome='human_required',
+            reason='Workflow step requires human queue review.',
+            risk_score=0.82,
+            policy_basis='runtime.authority_contract',
+            decision_trace={'source_type': 'authority_contract', 'source_id': 'approval_gate'},
+            metadata={
+                'request_id': 'req-workflow-1',
+                'metadata': {
+                    'authority_gate': {
+                        'gate_triggered': True,
+                        'outcome': 'human_required',
+                        'source_id': 'approval_gate',
+                        'reason': 'Request paused for human approval by authority gate.',
+                        'requires_human_confirmation': True,
+                        'decision_mode': 'ai_prepared_human_confirmed',
+                    },
+                    'runtime_state_flow': {
+                        'current_state': 'awaiting_human_confirmation',
+                        'history': [],
+                    },
+                    'execution_plan': {
+                        'plan_id': 'plan-workflow-1',
+                        'step_id': 'step-human-review',
+                        'previous_step_id': 'step-routing',
+                        'routing_status': 'handoff_active',
+                        'plan_status': 'handoff_active',
+                        'handoff_required': True,
+                        'handoff_target_role': 'LEGAL',
+                    },
+                    'decision_queue': {
+                        'queue_id': 'dq-workflow-1',
+                        'queue_lane': 'human_review',
+                        'queue_state': 'queued_human_review',
+                        'priority': 'high',
+                        'human_required': True,
+                        'queue_owner': 'EXEC_OWNER',
+                        'execution_plan': {
+                            'plan_id': 'plan-workflow-1',
+                            'step_id': 'step-human-review',
+                        },
+                    },
+                },
+            },
+        )
+
+        logger.record(result)
+
+        latest = logger.list_entries(limit=1)[0]
+        evidence_event = latest.metadata['evidence_event']
+        workflow_bundle = evidence_event['workflow_bundle']
+        runtime_evidence = latest.metadata['runtime_evidence']
+
+        assert evidence_event['contract_version'] == 'v0.2.5'
+        assert isinstance(workflow_bundle, dict)
+        assert workflow_bundle['bundle_version'] == 'v0.2.5'
+        assert workflow_bundle['execution_plan']['plan_id'] == 'plan-workflow-1'
+        assert workflow_bundle['execution_plan']['step_id'] == 'step-human-review'
+        assert workflow_bundle['routing']['routing_status'] == 'handoff_active'
+        assert workflow_bundle['decision_queue']['queue_id'] == 'dq-workflow-1'
+        assert workflow_bundle['decision_queue']['queue_lane'] == 'human_review'
+        assert workflow_bundle['correlation']['execution_plan_id'] == 'plan-workflow-1'
+        assert workflow_bundle['correlation']['decision_queue_id'] == 'dq-workflow-1'
+        assert evidence_event['correlation']['execution_step_id'] == 'step-human-review'
+        assert evidence_event['correlation']['decision_queue_lane'] == 'human_review'
+        assert runtime_evidence['workflow_bundle_summary']['execution_plan_id'] == 'plan-workflow-1'
+        assert runtime_evidence['workflow_bundle_summary']['decision_queue_lane'] == 'human_review'
+
+
+def test_audit_event_contract_emits_workflow_bundle_for_override_resolution_chain() -> None:
+    with TemporaryDirectory() as temp_dir:
+        log_path = Path(temp_dir) / 'audit.jsonl'
+        logger = AuditLogger(log_path=log_path)
+
+        logger.record_override_event(
+            active_role='LEGAL',
+            action='override_approve',
+            outcome='approved',
+            reason='Human override request override-2 resolved by EXEC_OWNER.',
+            metadata={
+                'request_id': 'override-2',
+                'origin_request_id': 'request-456',
+                'status': 'approved',
+                'approver_role': 'EXEC_OWNER',
+                'required_by': 'runtime.authority_contract',
+                'resolved_by': 'EXEC_OWNER',
+                'resolution_note': 'Approved after workflow queue review.',
+                'execution_result': {
+                    'outcome': 'approved',
+                    'policy_basis': 'runtime.authority_contract',
+                    'reason': 'Action resumed after authority contract approval.',
+                    'metadata': {
+                        'request_id': 'request-456',
+                        'metadata': {
+                            'execution_plan': {
+                                'plan_id': 'plan-workflow-2',
+                                'step_id': 'step-override-resolution',
+                                'routing_status': 'handoff_active',
+                            },
+                            'decision_queue': {
+                                'queue_id': 'dq-workflow-2',
+                                'queue_lane': 'human_review',
+                                'queue_state': 'queued_human_review',
+                            },
+                        },
+                    },
+                },
+            },
+        )
+
+        evidence_event = logger.list_entries(limit=1)[0].metadata['evidence_event']
+        workflow_bundle = evidence_event['workflow_bundle']
+
+        assert evidence_event['contract_version'] == 'v0.2.5'
+        assert workflow_bundle['execution_plan']['plan_id'] == 'plan-workflow-2'
+        assert workflow_bundle['decision_queue']['queue_id'] == 'dq-workflow-2'
+        assert workflow_bundle['correlation']['origin_request_id'] == 'request-456'
+        assert evidence_event['correlation']['execution_plan_id'] == 'plan-workflow-2'
+        assert evidence_event['correlation']['decision_queue_id'] == 'dq-workflow-2'

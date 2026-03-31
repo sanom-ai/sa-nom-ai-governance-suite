@@ -47,6 +47,16 @@ def build_evidence_event_contract(
         trace_source_type=trace_source_type,
         trace_source_id=trace_source_id,
         override_resolution=override_resolution,
+        metadata=metadata,
+        runtime_metadata=runtime_metadata,
+    )
+    workflow_bundle = _workflow_bundle(
+        metadata=metadata,
+        runtime_metadata=runtime_metadata,
+        authority_decision=authority_decision,
+        override_resolution=override_resolution,
+        state_flow=state_flow,
+        correlation=correlation,
     )
     exception_trace = _exception_trace(
         outcome=outcome,
@@ -63,7 +73,7 @@ def build_evidence_event_contract(
 
     return {
         'event_id': event_id,
-        'contract_version': 'v0.2.4',
+        'contract_version': 'v0.2.5',
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'event_kind': _event_kind(action=action, outcome=outcome, authority_gate=authority_gate, decision_trace=decision_trace),
         'outcome_class': outcome_class,
@@ -82,6 +92,7 @@ def build_evidence_event_contract(
         'authority_decision': authority_decision,
         'override_resolution': override_resolution,
         'runtime_state_flow': state_flow,
+        'workflow_bundle': workflow_bundle,
         'exception_trace': exception_trace,
     }
 
@@ -218,6 +229,7 @@ def _override_resolution(metadata: dict[str, object]) -> dict[str, object] | Non
         'execution_policy_basis': _string_or_none(metadata.get('execution_policy_basis')) or _string_or_none(execution_result_dict.get('policy_basis')) if isinstance(execution_result_dict, dict) else _string_or_none(metadata.get('execution_policy_basis')),
         'execution_reason': _string_or_none(metadata.get('execution_reason')) or _string_or_none(execution_result_dict.get('reason')) if isinstance(execution_result_dict, dict) else _string_or_none(metadata.get('execution_reason')),
         'executed_at': _string_or_none(metadata.get('executed_at')),
+        '_execution_result': execution_result_dict,
     }
 
 
@@ -229,13 +241,21 @@ def _correlation(
     trace_source_type: str | None,
     trace_source_id: str | None,
     override_resolution: dict[str, object] | None,
+    metadata: dict[str, object],
+    runtime_metadata: dict[str, object],
 ) -> dict[str, object]:
+    execution_plan = _execution_plan(metadata, runtime_metadata, override_resolution)
+    decision_queue = _decision_queue(metadata, runtime_metadata, override_resolution)
     return {
         'request_id': request_id,
         'event_id': event_id,
         'policy_basis': policy_basis,
         'override_request_id': _string_or_none(override_resolution.get('override_request_id')) if isinstance(override_resolution, dict) else None,
         'origin_request_id': _string_or_none(override_resolution.get('origin_request_id')) if isinstance(override_resolution, dict) else None,
+        'execution_plan_id': _string_or_none(execution_plan.get('plan_id')) if isinstance(execution_plan, dict) else None,
+        'execution_step_id': _string_or_none(execution_plan.get('step_id')) if isinstance(execution_plan, dict) else None,
+        'decision_queue_id': _string_or_none(decision_queue.get('queue_id')) if isinstance(decision_queue, dict) else None,
+        'decision_queue_lane': _string_or_none(decision_queue.get('queue_lane')) if isinstance(decision_queue, dict) else None,
         'trace_source': {
             'type': trace_source_type,
             'id': trace_source_id,
@@ -285,6 +305,106 @@ def _state_flow(metadata: dict[str, object], runtime_metadata: dict[str, object]
     if isinstance(state_flow, dict):
         return dict(state_flow)
     return None
+
+
+def _workflow_bundle(
+    *,
+    metadata: dict[str, object],
+    runtime_metadata: dict[str, object],
+    authority_decision: dict[str, object],
+    override_resolution: dict[str, object] | None,
+    state_flow: dict[str, object] | None,
+    correlation: dict[str, object],
+) -> dict[str, object]:
+    execution_plan = _execution_plan(metadata, runtime_metadata, override_resolution)
+    decision_queue = _decision_queue(metadata, runtime_metadata, override_resolution)
+    routing = _workflow_routing(execution_plan=execution_plan, state_flow=state_flow)
+    return {
+        'bundle_version': 'v0.2.5',
+        'execution_plan': execution_plan,
+        'routing': routing,
+        'decision_queue': decision_queue,
+        'authority_decision': dict(authority_decision),
+        'override_resolution': dict(override_resolution) if isinstance(override_resolution, dict) else None,
+        'state_flow': dict(state_flow) if isinstance(state_flow, dict) else None,
+        'correlation': dict(correlation),
+    }
+
+
+def _execution_plan(
+    metadata: dict[str, object],
+    runtime_metadata: dict[str, object],
+    override_resolution: dict[str, object] | None,
+) -> dict[str, object] | None:
+    execution_plan = runtime_metadata.get('execution_plan')
+    if isinstance(execution_plan, dict):
+        return dict(execution_plan)
+
+    execution_result_metadata = _override_execution_runtime_metadata(override_resolution)
+    execution_plan = execution_result_metadata.get('execution_plan') if isinstance(execution_result_metadata, dict) else None
+    if isinstance(execution_plan, dict):
+        return dict(execution_plan)
+
+    execution_plan = metadata.get('execution_plan')
+    if isinstance(execution_plan, dict):
+        return dict(execution_plan)
+    return None
+
+
+def _decision_queue(
+    metadata: dict[str, object],
+    runtime_metadata: dict[str, object],
+    override_resolution: dict[str, object] | None,
+) -> dict[str, object] | None:
+    decision_queue = runtime_metadata.get('decision_queue')
+    if isinstance(decision_queue, dict):
+        return dict(decision_queue)
+
+    execution_result_metadata = _override_execution_runtime_metadata(override_resolution)
+    decision_queue = execution_result_metadata.get('decision_queue') if isinstance(execution_result_metadata, dict) else None
+    if isinstance(decision_queue, dict):
+        return dict(decision_queue)
+
+    decision_queue = metadata.get('decision_queue')
+    if isinstance(decision_queue, dict):
+        return dict(decision_queue)
+    return None
+
+
+def _workflow_routing(
+    *,
+    execution_plan: dict[str, object] | None,
+    state_flow: dict[str, object] | None,
+) -> dict[str, object] | None:
+    if not isinstance(execution_plan, dict) and not isinstance(state_flow, dict):
+        return None
+
+    routing_status = execution_plan.get('routing_status') if isinstance(execution_plan, dict) else None
+    plan_status = execution_plan.get('plan_status') if isinstance(execution_plan, dict) else None
+    handoff_required = execution_plan.get('handoff_required') is True if isinstance(execution_plan, dict) else False
+    handoff_target_role = _string_or_none(execution_plan.get('handoff_target_role')) if isinstance(execution_plan, dict) else None
+    return {
+        'routing_status': routing_status,
+        'plan_status': plan_status,
+        'handoff_required': handoff_required,
+        'handoff_target_role': handoff_target_role,
+        'runtime_state': state_flow.get('current_state') if isinstance(state_flow, dict) else None,
+    }
+
+
+def _override_execution_runtime_metadata(override_resolution: dict[str, object] | None) -> dict[str, object]:
+    if not isinstance(override_resolution, dict):
+        return {}
+    execution_result = override_resolution.get('_execution_result')
+    if not isinstance(execution_result, dict):
+        return {}
+    execution_metadata = execution_result.get('metadata')
+    if not isinstance(execution_metadata, dict):
+        return {}
+    runtime_metadata = execution_metadata.get('metadata')
+    if isinstance(runtime_metadata, dict):
+        return runtime_metadata
+    return {}
 
 
 def _requires_human_confirmation(outcome: str, authority_gate: dict[str, object] | None) -> bool:
