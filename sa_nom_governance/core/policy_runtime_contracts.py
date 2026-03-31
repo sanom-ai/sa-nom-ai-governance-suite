@@ -329,6 +329,11 @@ class RuntimeContractGuard:
             'requires_human_confirmation': requires_human_confirmation,
         }
 
+    def normalized_execution_plan_contract(self, execution_plan: object) -> dict[str, object] | None:
+        if not isinstance(execution_plan, dict):
+            return None
+        return {key: execution_plan[key] for key in self._EXECUTION_PLAN_KEYS if key in execution_plan}
+
     def execution_plan_profile(self, context: ExecutionContext) -> dict[str, object] | None:
         execution_plan = context.metadata.get('execution_plan')
         if not isinstance(execution_plan, dict):
