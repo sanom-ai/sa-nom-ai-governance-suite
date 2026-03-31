@@ -118,7 +118,7 @@ def test_audit_event_contract_is_emitted_for_record_event() -> None:
         latest = logger.list_entries(limit=1)[0]
         evidence_event = latest.metadata['evidence_event']
 
-        assert evidence_event['contract_version'] == 'v0.2.2'
+        assert evidence_event['contract_version'] == 'v0.2.4'
         assert evidence_event['event_kind'] == 'action'
         assert evidence_event['active_role'] == 'SYSTEM'
         assert evidence_event['action'] == 'contract_probe'
@@ -164,11 +164,14 @@ def test_audit_event_contract_is_emitted_for_decision_result() -> None:
         latest = logger.list_entries(limit=1)[0]
         evidence_event = latest.metadata['evidence_event']
 
-        assert evidence_event['contract_version'] == 'v0.2.2'
+        assert evidence_event['contract_version'] == 'v0.2.4'
         assert evidence_event['event_kind'] == 'authority_gate'
         assert evidence_event['requires_human_confirmation'] is True
         assert isinstance(evidence_event['authority_gate'], dict)
         assert evidence_event['authority_gate']['gate_triggered'] is True
+        assert isinstance(evidence_event['authority_decision'], dict)
+        assert evidence_event['authority_decision']['policy_basis'] == 'runtime.authority_contract'
+        assert evidence_event['authority_decision']['requires_human_confirmation'] is True
         assert isinstance(evidence_event['runtime_state_flow'], dict)
 
 
@@ -247,3 +250,45 @@ def test_audit_event_contract_non_exception_has_null_exception_trace() -> None:
         evidence_event = logger.list_entries(limit=1)[0].metadata['evidence_event']
         assert evidence_event['event_kind'] == 'action'
         assert evidence_event['exception_trace'] is None
+
+
+def test_audit_event_contract_override_resolution_chain_is_emitted() -> None:
+    with TemporaryDirectory() as temp_dir:
+        log_path = Path(temp_dir) / 'audit.jsonl'
+        logger = AuditLogger(log_path=log_path)
+
+        logger.record_override_event(
+            active_role='LEGAL',
+            action='override_approve',
+            outcome='approved',
+            reason='Human override request override-1 resolved by EXEC_OWNER.',
+            metadata={
+                'request_id': 'override-1',
+                'origin_request_id': 'request-123',
+                'status': 'approved',
+                'approver_role': 'EXEC_OWNER',
+                'required_by': 'runtime.authority_contract',
+                'resolved_by': 'EXEC_OWNER',
+                'resolution_note': 'Approved after review.',
+                'execution_result': {
+                    'outcome': 'approved',
+                    'policy_basis': 'runtime.authority_contract',
+                    'reason': 'Action resumed after authority contract approval.',
+                    'metadata': {'request_id': 'request-123'},
+                },
+            },
+        )
+
+        evidence_event = logger.list_entries(limit=1)[0].metadata['evidence_event']
+        override_resolution = evidence_event['override_resolution']
+
+        assert evidence_event['event_kind'] == 'override'
+        assert evidence_event['request_id'] == 'request-123'
+        assert isinstance(override_resolution, dict)
+        assert override_resolution['override_request_id'] == 'override-1'
+        assert override_resolution['origin_request_id'] == 'request-123'
+        assert override_resolution['execution_outcome'] == 'approved'
+        assert override_resolution['execution_policy_basis'] == 'runtime.authority_contract'
+        assert evidence_event['correlation']['override_request_id'] == 'override-1'
+        assert evidence_event['correlation']['origin_request_id'] == 'request-123'
+        assert evidence_event['authority_decision']['policy_basis'] == 'runtime.authority_contract'

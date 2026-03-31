@@ -157,6 +157,7 @@ class AuditLogger:
             'authority_gate_triggered': bool(runtime_metadata.get('authority_gate', {}).get('gate_triggered')) if isinstance(runtime_metadata.get('authority_gate'), dict) else False,
             'runtime_state': runtime_metadata.get('runtime_state_flow', {}).get('current_state') if isinstance(runtime_metadata.get('runtime_state_flow'), dict) else None,
             'exception_kind': self._exception_kind(result.outcome),
+            'authority_decision': self._authority_decision_evidence(result, runtime_metadata, decision_trace),
         }
 
     def _exception_kind(self, outcome: str) -> str | None:
@@ -168,6 +169,23 @@ class AuditLogger:
             'out_of_order': 'out_of_order',
         }
         return mapping.get(outcome)
+
+    def _authority_decision_evidence(
+        self,
+        result: DecisionResult,
+        runtime_metadata: dict[str, object],
+        decision_trace: dict[str, object],
+    ) -> dict[str, object]:
+        authority_gate = runtime_metadata.get('authority_gate') if isinstance(runtime_metadata.get('authority_gate'), dict) else {}
+        return {
+            'outcome': result.outcome,
+            'policy_basis': result.policy_basis,
+            'trace_source_type': decision_trace.get('source_type'),
+            'trace_source_id': decision_trace.get('source_id'),
+            'gate_triggered': authority_gate.get('gate_triggered') is True,
+            'decision_mode': authority_gate.get('decision_mode'),
+            'requires_human_confirmation': authority_gate.get('requires_human_confirmation') if isinstance(authority_gate.get('requires_human_confirmation'), bool) else result.outcome in {'waiting_human', 'human_required'},
+        }
     def _with_event_contract(
         self,
         *,
