@@ -60,10 +60,6 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 - follow [docs/DEPENDENCY_REVIEW_WORKFLOW.md](docs/DEPENDENCY_REVIEW_WORKFLOW.md) when a pull request changes dependencies or audit results
 - document accepted exceptions explicitly when a flagged issue is not fixed immediately, and follow [docs/SECURITY_EXCEPTION_WORKFLOW.md](docs/SECURITY_EXCEPTION_WORKFLOW.md)
 - keep deferred security work visible through the follow-up path in [docs/SECURITY_FOLLOW_UP_VISIBILITY.md](docs/SECURITY_FOLLOW_UP_VISIBILITY.md)
-
-
-
-
-
-
-
+- when a temporary exception is accepted, prefer opening the `Security exception` issue template so ownership, revisit timing, and escalation posture stay visible
+- AI may help summarize the finding and prepare issue context, but human maintainers still decide exception, escalation, merge-blocking outcomes, and whether follow-up visibility is adequate
+- when deferred work needs to stay visible after merge, prefer opening the `Security follow-up` issue template so ownership and revisit timing stay linked to the accepted risk

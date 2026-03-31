@@ -92,3 +92,4 @@ This guide explains how that acceptance stays visible after merge.
 The right public message is:
 
 SA-NOM does not only document accepted security exceptions. It also expects deferred risk to stay visible through an explicit follow-up path.
+
