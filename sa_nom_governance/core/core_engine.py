@@ -666,7 +666,6 @@ class CoreEngine:
         released_lock = None
         if decision == "approve":
             state = self.human_override.approve(request_id=request_id, resolved_by=resolved_by, note=note)
-            self.lock_manager.mark_active(state.origin_request_id)
             execution_result = self._resume_override(state)
             self.human_override.record_execution(
                 request_id=request_id,
@@ -713,13 +712,96 @@ class CoreEngine:
             request_id=state.origin_request_id,
             metadata=state.context_metadata_snapshot,
         )
+        transition_violation = self._authority_transition_violation(context, state)
+        if transition_violation is not None:
+            self._set_reasoning_control_metadata(context)
+            self._sync_state_flow_result_metadata(transition_violation, context)
+            self.request_consistency.complete(context, transition_violation)
+            self.audit_logger.record(transition_violation)
+            return transition_violation
+
+        self.lock_manager.mark_active(state.origin_request_id)
         self.state_flow_engine.resume_after_human_confirmation(context)
+        self._set_reasoning_control_metadata(context)
         result = self._evaluate_context(context, approved_override=state)
         result = self._sync_lock_state(result, request_id=context.request_id)
         self._sync_state_flow_result_metadata(result, context)
         self.request_consistency.complete(context, result)
         self.audit_logger.record(result)
         return result
+
+    def _authority_transition_violation(self, context, state: HumanOverrideState) -> DecisionResult | None:
+        runtime_flow = context.metadata.get('runtime_state_flow')
+        lifecycle = context.metadata.get('role_execution_lifecycle')
+        authority_gate = context.metadata.get('authority_gate')
+        reasoning_control = context.metadata.get('reasoning_control')
+
+        current_runtime_state = runtime_flow.get('current_state') if isinstance(runtime_flow, dict) else None
+        current_role_state = lifecycle.get('current_state') if isinstance(lifecycle, dict) else None
+
+        if current_runtime_state not in {'awaiting_human_confirmation', 'escalated'}:
+            return build_result(
+                context,
+                DecisionComputation(
+                    outcome='out_of_order',
+                    reason='Override approval is out of order because runtime is not awaiting human confirmation.',
+                    policy_basis='runtime.authority_transition',
+                    trace=DecisionTrace(
+                        source_type='authority_transition',
+                        source_id='runtime_state_invalid_for_resume',
+                        notes=[f'current_runtime_state={current_runtime_state or "unknown"}'],
+                    ),
+                ),
+            )
+
+        if current_role_state != 'paused_for_human':
+            return build_result(
+                context,
+                DecisionComputation(
+                    outcome='out_of_order',
+                    reason='Override approval is out of order because role lifecycle is not paused for human review.',
+                    policy_basis='runtime.authority_transition',
+                    trace=DecisionTrace(
+                        source_type='authority_transition',
+                        source_id='role_state_invalid_for_resume',
+                        notes=[f'current_role_state={current_role_state or "unknown"}'],
+                    ),
+                ),
+            )
+
+        if state.required_by == 'runtime.authority_contract':
+            if not (isinstance(authority_gate, dict) and authority_gate.get('requires_human_confirmation') is True):
+                return build_result(
+                    context,
+                    DecisionComputation(
+                        outcome='blocked',
+                        reason='Override approval is blocked because authority-gate metadata does not support human-confirmed resume.',
+                        policy_basis='runtime.authority_transition',
+                        trace=DecisionTrace(
+                            source_type='authority_transition',
+                            source_id='authority_gate_resume_not_allowed',
+                            notes=['Authority gate metadata is missing or not human-confirmed.'],
+                        ),
+                    ),
+                )
+
+        if state.required_by == 'runtime.reasoning_control':
+            if not (isinstance(reasoning_control, dict) and reasoning_control.get('requires_human_confirmation') is True):
+                return build_result(
+                    context,
+                    DecisionComputation(
+                        outcome='blocked',
+                        reason='Override approval is blocked because reasoning-control metadata does not support human-confirmed deep-think resume.',
+                        policy_basis='runtime.authority_transition',
+                        trace=DecisionTrace(
+                            source_type='authority_transition',
+                            source_id='reasoning_control_resume_not_allowed',
+                            notes=['Reasoning control metadata is missing or not human-confirmed.'],
+                        ),
+                    ),
+                )
+
+        return None
 
     def _build_consistency_result(self, context, error: RequestConsistencyError) -> DecisionResult:
         context.metadata.setdefault("request_consistency", {})["consistency_status"] = error.consistency_status

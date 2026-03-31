@@ -916,3 +916,89 @@ def test_think_mode_emits_reasoning_control_metadata_without_blocking() -> None:
     assert reasoning_control['max_reasoning_steps'] == 6
     assert reasoning_control['max_runtime_ms'] == 900
     assert reasoning_control['requires_human_confirmation'] is False
+
+def test_override_approval_fails_closed_when_runtime_state_is_not_waiting() -> None:
+    app = build_test_app()
+
+    pending = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-ORDER-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'human_required'}},
+    )
+    state = app.engine.human_override.get_request(pending.human_override['request_id'])
+    state.context_metadata_snapshot['runtime_state_flow']['current_state'] = 'completed'
+    app.engine.human_override._persist()
+
+    reviewed = app.approve_override(
+        pending.human_override['request_id'],
+        resolved_by='EXEC_OWNER',
+        note='Attempted invalid resume order.',
+    )
+
+    assert reviewed.status == 'approved'
+    assert reviewed.execution_result is not None
+    assert reviewed.execution_result['outcome'] == 'out_of_order'
+    assert reviewed.execution_result['policy_basis'] == 'runtime.authority_transition'
+    assert reviewed.execution_result['decision_trace']['source_id'] == 'runtime_state_invalid_for_resume'
+
+
+def test_override_approval_blocks_when_authority_gate_metadata_is_missing() -> None:
+    app = build_test_app()
+
+    pending = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-ORDER-2', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'human_required'}},
+    )
+    state = app.engine.human_override.get_request(pending.human_override['request_id'])
+    state.context_metadata_snapshot.pop('authority_gate', None)
+    app.engine.human_override._persist()
+
+    reviewed = app.approve_override(
+        pending.human_override['request_id'],
+        resolved_by='EXEC_OWNER',
+        note='Missing authority gate metadata.',
+    )
+
+    assert reviewed.status == 'approved'
+    assert reviewed.execution_result is not None
+    assert reviewed.execution_result['outcome'] == 'blocked'
+    assert reviewed.execution_result['policy_basis'] == 'runtime.authority_transition'
+    assert reviewed.execution_result['decision_trace']['source_id'] == 'authority_gate_resume_not_allowed'
+
+
+def test_deep_think_override_blocks_when_reasoning_metadata_is_missing() -> None:
+    app = build_test_app()
+
+    pending = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-ORDER-3', 'amount': 1000000},
+        metadata={
+            'policy_contract': {
+                'reasoning_mode': 'deep_think',
+                'max_reasoning_steps': 12,
+                'requires_human_for_deep_think': True,
+            }
+        },
+    )
+    state = app.engine.human_override.get_request(pending.human_override['request_id'])
+    state.context_metadata_snapshot.pop('reasoning_control', None)
+    app.engine.human_override._persist()
+
+    reviewed = app.approve_override(
+        pending.human_override['request_id'],
+        resolved_by='EXEC_OWNER',
+        note='Missing reasoning control metadata.',
+    )
+
+    assert reviewed.status == 'approved'
+    assert reviewed.execution_result is not None
+    assert reviewed.execution_result['outcome'] == 'blocked'
+    assert reviewed.execution_result['policy_basis'] == 'runtime.authority_transition'
+    assert reviewed.execution_result['decision_trace']['source_id'] == 'reasoning_control_resume_not_allowed'
