@@ -323,6 +323,19 @@ class CoreEngine:
     def list_audit_entries(self, limit: int | None = None) -> list[dict[str, object]]:
         return [entry.to_dict() for entry in self.audit_logger.list_entries(limit=limit)]
 
+    def list_runtime_evidence(
+        self,
+        *,
+        limit: int | None = None,
+        outcome: str | None = None,
+        source_type: str | None = None,
+    ) -> list[dict[str, object]]:
+        return self.audit_logger.list_runtime_evidence(
+            limit=limit,
+            outcome=outcome,
+            source_type=source_type,
+        )
+
     def review_override(self, request_id: str, resolved_by: str, decision: str, note: str | None = None) -> OverrideReviewResult:
         execution_result = None
         released_lock = None
@@ -459,5 +472,6 @@ class CoreEngine:
                 "hierarchy_escalation": escalation,
             },
         )
+
 
 
