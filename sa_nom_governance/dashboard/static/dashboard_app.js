@@ -400,6 +400,21 @@ root.addEventListener('click', async (event) => {
         render();
       }
     }
+    if (action === 'usability-proof') {
+      const confirmed = window.confirm('Generate the v0.3.0 usability proof bundle now?');
+      if (!confirmed) return;
+      try {
+        const response = await apiFetch('/api/operations/usability-proof', { method: 'POST', body: JSON.stringify({}) });
+        const result = response.result || {};
+        state.lastError = result.output_path
+          ? `Usability proof generated: ${result.status || 'unknown'} at ${result.output_path}`
+          : 'Usability proof bundle generation completed.';
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
     return;
   }
 
@@ -1049,6 +1064,7 @@ function renderOverview(snapshot) {
           ['Review pack status', readiness.gates?.review_pack_present ? 'present' : 'missing'],
           ['Startup smoke', readiness.smoke_report?.status || '-'],
         ])}
+        ${can('ops.manage') ? '<div class="inline-actions"><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button></div>' : ''}
       </article>
     </section>
       ${renderOwnerRegistrationPanel(snapshot.owner_registration || {}, { compact: true })}

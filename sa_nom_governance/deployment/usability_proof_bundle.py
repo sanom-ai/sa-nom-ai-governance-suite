@@ -116,6 +116,33 @@ def build_usability_proof_bundle(
     }
 
 
+def export_usability_proof_bundle(
+    config: AppConfig | None = None,
+    *,
+    output_path: Path | None = None,
+    run_quick_start: bool = False,
+    quick_start_options: dict[str, object] | None = None,
+) -> dict[str, object]:
+    runtime_config = config or AppConfig()
+    resolved_output = output_path or (runtime_config.review_dir / 'usability_proof_bundle.json')
+
+    report = build_usability_proof_bundle(
+        config=runtime_config,
+        run_quick_start=run_quick_start,
+        quick_start_options=quick_start_options,
+    )
+    resolved_output.parent.mkdir(parents=True, exist_ok=True)
+    encoded = json.dumps(report, ensure_ascii=False, indent=2)
+    resolved_output.write_text(encoded + '\n', encoding='utf-8')
+
+    return {
+        'status': report.get('status', 'attention_required'),
+        'passed': bool(report.get('passed', False)),
+        'output_path': str(resolved_output),
+        'report': report,
+    }
+
+
 def main() -> None:
     config = AppConfig()
     parser = argparse.ArgumentParser(description='Build a v0.3.0 usability proof bundle from quick-start, demo, and dashboard surfaces.')
@@ -123,17 +150,14 @@ def main() -> None:
     parser.add_argument('--output', default=str(config.review_dir / 'usability_proof_bundle.json'))
     args = parser.parse_args()
 
-    report = build_usability_proof_bundle(
+    result = export_usability_proof_bundle(
         config=config,
+        output_path=Path(args.output),
         run_quick_start=args.run_quick_start,
     )
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    encoded = json.dumps(report, ensure_ascii=False, indent=2)
-    output_path.write_text(encoded + '\n', encoding='utf-8')
-    print(encoded)
+    print(json.dumps(result.get('report', {}), ensure_ascii=False, indent=2))
 
-    if not report.get('passed', False):
+    if not result.get('passed', False):
         raise SystemExit(1)
 
 
