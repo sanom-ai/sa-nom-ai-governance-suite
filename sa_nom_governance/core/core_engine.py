@@ -390,6 +390,13 @@ class CoreEngine:
 
         authority_violation = self.authority_policy_engine.contract_violation(context)
         if authority_violation is not None:
+            self._set_authority_gate_metadata(
+                context,
+                outcome='blocked',
+                source_id=authority_violation.code,
+                reason=authority_violation.reason,
+                requires_human_confirmation=False,
+            )
             return build_result(
                 context,
                 self.authority_policy_engine.to_computation(authority_violation),
@@ -410,9 +417,25 @@ class CoreEngine:
                     ),
                     human_override=approved_override,
                 )
+                self._set_authority_gate_metadata(
+                    context,
+                    outcome='approved',
+                    source_id='human_override_resume',
+                    reason=computation.reason,
+                    requires_human_confirmation=False,
+                    resumed_override=approved_override,
+                )
             else:
                 computation = authority_decision
+                self._set_authority_gate_metadata(
+                    context,
+                    outcome=computation.outcome,
+                    source_id=computation.trace.source_id,
+                    reason=computation.reason,
+                    requires_human_confirmation=computation.outcome in {'waiting_human', 'human_required'},
+                )
         else:
+            self._set_authority_gate_passthrough(context)
             hierarchy_escalation = self._transition_policy_escalation(context) or self.hierarchy_registry.evaluate_escalation(context)
             if hierarchy_escalation is not None:
                 context.role_transition['escalated_to'] = hierarchy_escalation.escalated_to
@@ -533,6 +556,35 @@ class CoreEngine:
             and approved_override.action == context.action
             and approved_override.required_by == 'runtime.authority_contract'
         )
+
+    def _set_authority_gate_metadata(
+        self,
+        context,
+        *,
+        outcome: str,
+        source_id: str,
+        reason: str,
+        requires_human_confirmation: bool,
+        resumed_override: HumanOverrideState | None = None,
+    ) -> None:
+        metadata: dict[str, object] = {
+            'gate_triggered': True,
+            'outcome': outcome,
+            'source_id': source_id,
+            'reason': reason,
+            'requires_human_confirmation': requires_human_confirmation,
+            'decision_mode': 'ai_prepared_human_confirmed' if requires_human_confirmation else 'ai_autonomous',
+        }
+        if resumed_override is not None:
+            metadata['resumed_from_override_request_id'] = resumed_override.request_id
+        context.metadata['authority_gate'] = metadata
+
+    def _set_authority_gate_passthrough(self, context) -> None:
+        context.metadata['authority_gate'] = {
+            'gate_triggered': False,
+            'decision_mode': 'policy_fallback',
+            'reason': 'Authority contract gate not triggered for this request.',
+        }
 
     def _sync_lock_state(self, result, request_id: str):
         lock_state = self.lock_manager.get_by_request(request_id)
@@ -712,6 +764,9 @@ class CoreEngine:
                 "hierarchy_escalation": escalation,
             },
         )
+
+
+
 
 
 

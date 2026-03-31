@@ -681,3 +681,83 @@ def test_runtime_state_flow_resumes_after_override_approval() -> None:
     assert any(item['to_state'] == 'in_progress_ai' and item['event'] == 'ai_execution_resumed' for item in runtime_flow['history'])
     assert any(item['to_state'] == 'resumed' for item in role_lifecycle['history'])
     assert role_lifecycle['current_state'] == 'completed'
+
+
+def test_authority_gate_metadata_emitted_for_blocked_gate() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-META-BLOCK-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'blocked'}},
+    )
+
+    authority_gate = result.metadata['metadata']['authority_gate']
+    assert result.outcome == 'blocked'
+    assert authority_gate['gate_triggered'] is True
+    assert authority_gate['source_id'] == 'approval_gate'
+    assert authority_gate['decision_mode'] == 'ai_autonomous'
+    assert authority_gate['requires_human_confirmation'] is False
+
+
+def test_authority_gate_metadata_marks_human_confirm_required() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-META-HUMAN-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'human_required'}},
+    )
+
+    authority_gate = result.metadata['metadata']['authority_gate']
+    assert result.outcome == 'human_required'
+    assert authority_gate['gate_triggered'] is True
+    assert authority_gate['source_id'] == 'approval_gate'
+    assert authority_gate['decision_mode'] == 'ai_prepared_human_confirmed'
+    assert authority_gate['requires_human_confirmation'] is True
+
+
+def test_authority_gate_metadata_passthrough_when_no_contract() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-META-PASS-1', 'amount': 3000000},
+    )
+
+    authority_gate = result.metadata['metadata']['authority_gate']
+    assert result.outcome == 'approved'
+    assert authority_gate['gate_triggered'] is False
+    assert authority_gate['decision_mode'] == 'policy_fallback'
+
+
+def test_authority_gate_metadata_records_resume_request_id() -> None:
+    app = build_test_app()
+
+    pending = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-AUTH-META-RESUME-1', 'amount': 1000000},
+        metadata={'authority_contract': {'approval_gate': 'human_required'}},
+    )
+    reviewed = app.approve_override(
+        pending.human_override['request_id'],
+        resolved_by='EXEC_OWNER',
+        note='Approve authority gate metadata resume.',
+    )
+
+    execution_result = reviewed.execution_result
+    assert execution_result is not None
+
+    authority_gate = execution_result['metadata']['metadata']['authority_gate']
+    assert execution_result['outcome'] == 'approved'
+    assert authority_gate['gate_triggered'] is True
+    assert authority_gate['source_id'] == 'human_override_resume'
+    assert authority_gate['resumed_from_override_request_id'] == pending.human_override['request_id']
