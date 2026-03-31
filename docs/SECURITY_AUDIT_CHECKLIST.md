@@ -55,3 +55,8 @@ Use this checklist before any production rollout, major provider change, or regu
 - Deployment profile / go-live readiness output
 - Access-control health snapshot
 - Backup summary
+
+## Restore Validation Reference
+
+For the broader public baseline on backup scope, restore discipline, and post-restore validation expectations, see [BACKUP_AND_RESTORE_VALIDATION.md](BACKUP_AND_RESTORE_VALIDATION.md).
+
