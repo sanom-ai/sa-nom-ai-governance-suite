@@ -761,3 +761,72 @@ def test_authority_gate_metadata_records_resume_request_id() -> None:
     assert authority_gate['gate_triggered'] is True
     assert authority_gate['source_id'] == 'human_override_resume'
     assert authority_gate['resumed_from_override_request_id'] == pending.human_override['request_id']
+
+def test_policy_contract_rejects_unknown_contract_keys() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-SHAPE-1', 'amount': 1000000},
+        metadata={'policy_contract': {'unsupported_key': 'x'}},
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.request'
+    assert result.decision_trace['source_id'] == 'policy_contract_unknown_keys'
+
+
+def test_policy_contract_enforces_context_boundaries() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-CONTEXT-1', 'amount': 1000000},
+        metadata={
+            'policy_contract': {
+                'allowed_roles': ['GOV'],
+                'allowed_actions': ['approve_policy'],
+                'required_payload_fields': ['contract_id'],
+            }
+        },
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.context'
+    assert result.decision_trace['source_id'] == 'policy_contract_role_outside_allowlist'
+
+
+def test_policy_contract_enforces_allowed_outcomes() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-OUTCOME-1', 'amount': 3000000},
+        metadata={'policy_contract': {'allowed_outcomes': ['blocked']}},
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.decision'
+    assert result.decision_trace['source_id'] == 'policy_contract_outcome_outside_allowlist'
+
+
+def test_policy_contract_enforces_policy_basis_prefix() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-POLICY-1', 'amount': 3000000},
+        metadata={'policy_contract': {'required_policy_basis_prefix': 'runtime.authority_contract'}},
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.decision'
+    assert result.decision_trace['source_id'] == 'policy_contract_policy_basis_prefix_mismatch'
