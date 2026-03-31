@@ -3,7 +3,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from sa_nom_governance.utils.config import AppConfig
-from sa_nom_governance.integrations.coordination import FileWorkQueue, build_work_queue, redact_secret_url
+from sa_nom_governance.integrations.coordination import FileWorkQueue, build_enterprise_execution_hook, build_work_queue, redact_secret_url
 
 
 def test_file_work_queue_round_trip():
@@ -60,3 +60,56 @@ def test_work_queue_enters_native_redis_mode_when_enabled_and_driver_present():
 def test_redact_secret_url_masks_password():
     masked = redact_secret_url("redis://default:super-secret@redis.internal:6379/0")
     assert masked == "redis://default:***@redis.internal:6379/0"
+
+
+
+def test_build_enterprise_execution_hook_preserves_workflow_correlation():
+    config = AppConfig(environment="production")
+
+    hook = build_enterprise_execution_hook(
+        config,
+        logical_name="integration_outbox",
+        channel="integration_delivery",
+        payload={
+            "event_id": "evt-hook-1",
+            "request_id": "req-hook-1",
+        },
+        metadata={
+            "tenant_id": "SANOM-TH",
+            "release_version": "v0.2.5",
+            "workflow_bundle": {
+                "execution_plan": {
+                    "plan_id": "plan-hook-1",
+                    "step_id": "step-enterprise-delivery",
+                    "routing_status": "handoff_active",
+                    "plan_status": "handoff_active",
+                },
+                "decision_queue": {
+                    "queue_id": "dq-hook-1",
+                    "queue_lane": "human_review",
+                    "queue_state": "queued_human_review",
+                    "queue_owner": "EXEC_OWNER",
+                },
+                "correlation": {
+                    "request_id": "req-hook-1",
+                    "event_id": "evt-hook-1",
+                    "execution_plan_id": "plan-hook-1",
+                    "execution_step_id": "step-enterprise-delivery",
+                    "decision_queue_id": "dq-hook-1",
+                    "decision_queue_lane": "human_review",
+                },
+            },
+        },
+    )
+
+    assert hook["logical_name"] == "integration_outbox"
+    assert hook["channel"] == "integration_delivery"
+    assert hook["environment"] == "production"
+    assert hook["tenant_id"] == "SANOM-TH"
+    assert hook["release_version"] == "v0.2.5"
+    assert hook["correlation"]["event_id"] == "evt-hook-1"
+    assert hook["correlation"]["request_id"] == "req-hook-1"
+    assert hook["correlation"]["execution_plan_id"] == "plan-hook-1"
+    assert hook["correlation"]["decision_queue_id"] == "dq-hook-1"
+    assert hook["workflow"]["routing_status"] == "handoff_active"
+    assert hook["workflow"]["queue_state"] == "queued_human_review"
