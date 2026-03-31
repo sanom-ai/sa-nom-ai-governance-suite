@@ -160,6 +160,18 @@ class DashboardService:
     def create_backup(self, profile: AccessProfile):
         return self.app.create_runtime_backup(requested_by=profile.display_name)
 
+    def create_usability_proof_bundle(self, profile: AccessProfile, payload: dict[str, object]):
+        from sa_nom_governance.deployment.usability_proof_bundle import export_usability_proof_bundle
+
+        run_quick_start = bool(payload.get('run_quick_start', False))
+        output_raw = str(payload.get('output_path', '')).strip()
+        output_path = Path(output_raw) if output_raw else None
+        return export_usability_proof_bundle(
+            config=self.config,
+            output_path=output_path,
+            run_quick_start=run_quick_start,
+        )
+
     def go_live_readiness(self):
         return self.snapshot_builder.go_live_readiness()
 
@@ -390,6 +402,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('audit.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.reseal_audit(profile), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/operations/backup':
             return self._require_and_run('ops.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.create_backup(profile), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/operations/usability-proof':
+            return self._require_and_run('ops.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.create_usability_proof_bundle(profile, payload), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/evidence/export':
             return self._require_and_run('evidence.export', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.create_evidence_export(profile), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/integrations/test-event':
