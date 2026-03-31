@@ -48,6 +48,18 @@ class RuntimeContractGuard:
     _HUMAN_REQUIRED_KEYS = {'required', 'required_policy_basis_prefix'}
     _EXCEPTION_KEYS = {'allowed_outcomes', 'required_trace_sources'}
     _OVERRIDE_PATH_KEYS = {'required', 'required_policy_basis_prefix', 'required_approver_role'}
+    _EXECUTION_PLAN_KEYS = {
+        'plan_id',
+        'step_id',
+        'intent',
+        'expected_output',
+        'stop_condition',
+        'step_index',
+        'total_steps',
+        'allowed_next_steps',
+        'checkpoint_required',
+        'checkpoint_policy_basis_prefix',
+    }
 
     def request_violation(
         self,
@@ -92,6 +104,9 @@ class RuntimeContractGuard:
             policy_contract_violation = self._policy_contract_shape_violation(metadata.get('policy_contract'))
             if policy_contract_violation is not None:
                 return policy_contract_violation
+            execution_plan_violation = self._execution_plan_shape_violation(metadata.get('execution_plan'))
+            if execution_plan_violation is not None:
+                return execution_plan_violation
         return None
 
     def context_violation(self, context: ExecutionContext) -> RuntimeContractViolation | None:
@@ -131,6 +146,11 @@ class RuntimeContractGuard:
         if shape_violation is not None:
             return shape_violation
 
+        execution_plan = context.metadata.get('execution_plan')
+        execution_plan_violation = self._execution_plan_shape_violation(execution_plan)
+        if execution_plan_violation is not None:
+            return execution_plan_violation
+
         amount = context.payload.get('amount')
         if amount is not None:
             if not isinstance(amount, Real):
@@ -159,10 +179,21 @@ class RuntimeContractGuard:
         expected_override_approver_role: str | None = None,
     ) -> RuntimeContractViolation | None:
         policy_contract = context.metadata.get('policy_contract')
-        if not isinstance(policy_contract, dict):
+        execution_plan = context.metadata.get('execution_plan')
+        if not isinstance(policy_contract, dict) and not isinstance(execution_plan, dict):
             return None
 
-        supported_human_required_bases = self._supported_human_required_bases(context, policy_contract)
+        supported_human_required_bases = self._supported_human_required_bases(context, policy_contract if isinstance(policy_contract, dict) else None)
+
+        execution_plan_violation = self._execution_plan_preflight_violation(
+            execution_plan,
+            supported_human_required_bases=supported_human_required_bases,
+        )
+        if execution_plan_violation is not None:
+            return execution_plan_violation
+
+        if not isinstance(policy_contract, dict):
+            return None
 
         human_required_contract = policy_contract.get('human_required')
         if isinstance(human_required_contract, dict):
@@ -290,6 +321,27 @@ class RuntimeContractGuard:
             'max_reasoning_steps': max_reasoning_steps,
             'max_runtime_ms': int(max_runtime_ms) if isinstance(max_runtime_ms, int) else None,
             'requires_human_confirmation': requires_human_confirmation,
+        }
+
+    def execution_plan_profile(self, context: ExecutionContext) -> dict[str, object] | None:
+        execution_plan = context.metadata.get('execution_plan')
+        if not isinstance(execution_plan, dict):
+            return None
+
+        step_index = execution_plan.get('step_index')
+        total_steps = execution_plan.get('total_steps')
+        return {
+            'plan_id': str(execution_plan['plan_id']),
+            'step_id': str(execution_plan['step_id']),
+            'intent': str(execution_plan['intent']),
+            'expected_output': str(execution_plan['expected_output']),
+            'stop_condition': str(execution_plan['stop_condition']),
+            'step_index': int(step_index) if isinstance(step_index, int) else 1,
+            'total_steps': int(total_steps) if isinstance(total_steps, int) else None,
+            'allowed_next_steps': list(execution_plan.get('allowed_next_steps', [])) if isinstance(execution_plan.get('allowed_next_steps'), list) else [],
+            'checkpoint_required': execution_plan.get('checkpoint_required') is True,
+            'checkpoint_policy_basis_prefix': execution_plan.get('checkpoint_policy_basis_prefix') if isinstance(execution_plan.get('checkpoint_policy_basis_prefix'), str) else None,
+            'plan_status': 'active_step',
         }
 
     def _policy_contract_shape_violation(self, policy_contract: object) -> RuntimeContractViolation | None:
@@ -452,6 +504,108 @@ class RuntimeContractGuard:
                 )
         return None
 
+    def _execution_plan_shape_violation(self, execution_plan: object) -> RuntimeContractViolation | None:
+        if execution_plan is None:
+            return None
+        if not isinstance(execution_plan, dict):
+            return RuntimeContractViolation(
+                code='execution_plan_invalid_type',
+                reason='Runtime contract violation: metadata.execution_plan must be an object map when provided.',
+                notes=['metadata.execution_plan is present but not a dictionary.'],
+            )
+
+        unknown_keys = sorted(key for key in execution_plan if key not in self._EXECUTION_PLAN_KEYS)
+        if unknown_keys:
+            return RuntimeContractViolation(
+                code='execution_plan_unknown_keys',
+                reason='Runtime contract violation: metadata.execution_plan contains unsupported keys.',
+                notes=[f"unsupported keys: {', '.join(unknown_keys)}"],
+            )
+
+        for key in ('plan_id', 'step_id', 'intent', 'expected_output', 'stop_condition'):
+            value = execution_plan.get(key)
+            if not isinstance(value, str) or not value.strip():
+                return RuntimeContractViolation(
+                    code=f'execution_plan_{key}_invalid',
+                    reason=f'Runtime contract violation: execution_plan.{key} must be a non-empty string.',
+                    notes=[f'metadata.execution_plan.{key} is invalid.'],
+                )
+
+        for key in ('step_index', 'total_steps'):
+            value = execution_plan.get(key)
+            if value is not None and (not isinstance(value, int) or value <= 0):
+                return RuntimeContractViolation(
+                    code=f'execution_plan_{key}_invalid',
+                    reason=f'Runtime contract violation: execution_plan.{key} must be a positive integer when provided.',
+                    notes=[f'metadata.execution_plan.{key} is invalid.'],
+                )
+
+        step_index = execution_plan.get('step_index')
+        total_steps = execution_plan.get('total_steps')
+        if isinstance(step_index, int) and isinstance(total_steps, int) and step_index > total_steps:
+            return RuntimeContractViolation(
+                code='execution_plan_step_index_out_of_range',
+                reason='Runtime contract violation: execution_plan.step_index cannot exceed execution_plan.total_steps.',
+                notes=[f'step_index={step_index}', f'total_steps={total_steps}'],
+            )
+
+        allowed_next_steps = execution_plan.get('allowed_next_steps')
+        if allowed_next_steps is not None and not self._string_list(allowed_next_steps):
+            return RuntimeContractViolation(
+                code='execution_plan_allowed_next_steps_invalid',
+                reason='Runtime contract violation: execution_plan.allowed_next_steps must be a list of non-empty strings when provided.',
+                notes=['metadata.execution_plan.allowed_next_steps has invalid shape.'],
+            )
+
+        checkpoint_required = execution_plan.get('checkpoint_required')
+        if checkpoint_required is not None and not isinstance(checkpoint_required, bool):
+            return RuntimeContractViolation(
+                code='execution_plan_checkpoint_required_invalid',
+                reason='Runtime contract violation: execution_plan.checkpoint_required must be boolean when provided.',
+                notes=['metadata.execution_plan.checkpoint_required is invalid.'],
+            )
+
+        checkpoint_prefix = execution_plan.get('checkpoint_policy_basis_prefix')
+        if checkpoint_prefix is not None and (not isinstance(checkpoint_prefix, str) or not checkpoint_prefix.strip()):
+            return RuntimeContractViolation(
+                code='execution_plan_checkpoint_policy_basis_prefix_invalid',
+                reason='Runtime contract violation: execution_plan.checkpoint_policy_basis_prefix must be a non-empty string when provided.',
+                notes=['metadata.execution_plan.checkpoint_policy_basis_prefix is invalid.'],
+            )
+
+        return None
+
+    def _execution_plan_preflight_violation(
+        self,
+        execution_plan: object,
+        *,
+        supported_human_required_bases: list[str],
+    ) -> RuntimeContractViolation | None:
+        if not isinstance(execution_plan, dict):
+            return None
+
+        if execution_plan.get('checkpoint_required') is not True:
+            return None
+
+        if not supported_human_required_bases:
+            return RuntimeContractViolation(
+                code='execution_plan_checkpoint_unavailable',
+                reason='Runtime contract violation: execution_plan requires a governed human checkpoint, but no compatible human-required runtime path is available.',
+                notes=['execution_plan.checkpoint_required is true without a compatible human boundary.'],
+            )
+
+        required_prefix = execution_plan.get('checkpoint_policy_basis_prefix')
+        if isinstance(required_prefix, str) and not any(
+            basis.startswith(required_prefix) for basis in supported_human_required_bases
+        ):
+            return RuntimeContractViolation(
+                code='execution_plan_checkpoint_policy_basis_mismatch',
+                reason='Runtime contract violation: execution_plan checkpoint policy basis does not match the available human-required runtime path.',
+                notes=[f"required prefix: {required_prefix}", f"available paths: {', '.join(supported_human_required_bases)}"],
+            )
+
+        return None
+
     def _policy_contract_context_boundary_violation(
         self,
         context: ExecutionContext,
@@ -595,15 +749,15 @@ class RuntimeContractGuard:
     def _supported_human_required_bases(
         self,
         context: ExecutionContext,
-        policy_contract: dict[str, object],
+        policy_contract: dict[str, object] | None,
     ) -> list[str]:
         supported: list[str] = []
         authority_contract = context.metadata.get('authority_contract')
         if isinstance(authority_contract, dict) and authority_contract.get('approval_gate') == 'human_required':
             supported.append('runtime.authority_contract')
 
-        reasoning_mode = policy_contract.get('reasoning_mode')
-        requires_human_for_deep_think = policy_contract.get('requires_human_for_deep_think') is True
+        reasoning_mode = policy_contract.get('reasoning_mode') if isinstance(policy_contract, dict) else None
+        requires_human_for_deep_think = policy_contract.get('requires_human_for_deep_think') is True if isinstance(policy_contract, dict) else False
         if reasoning_mode == 'deep_think' and requires_human_for_deep_think:
             supported.append('runtime.reasoning_control')
 
