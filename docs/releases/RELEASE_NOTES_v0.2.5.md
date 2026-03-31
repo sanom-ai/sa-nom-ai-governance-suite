@@ -2,23 +2,35 @@
 
 ## Release Focus
 
-`v0.2.5` will move SA-NOM from governed execution control toward governed multi-step execution.
+`v0.2.5` completes SA-NOM's first governed multi-step execution baseline.
 
-## Planned Direction
+## Included Implementation
 
-This milestone is expected to focus on:
+This release now includes all five completed workstreams:
 
-- execution-plan contracts for step-based runtime work
+- execution-plan contract baseline
 - stateful task routing and role handoffs
-- human-minimized decision queues
-- workflow-level evidence bundles
-- enterprise execution hooks for longer-running private workflows
+- human-minimized decision queue
+- workflow evidence bundle
+- enterprise execution hooks
 
 ## Why This Release Matters
 
-After `v0.2.4` hardened reasoning, authority, contracts, evidence, and CI gates, the next maturity step is to prove that AI can execute more of the workflow body itself while humans only decide the trust-sensitive checkpoints.
+After `v0.2.4` hardened runtime control, `v0.2.5` proves that SA-NOM can carry real multi-step governed workflow structure in code, not just in documents.
+
+AI can now keep working across execution steps, routed handoffs, queue boundaries, workflow evidence chains, and enterprise delivery hooks while humans stay focused on explicit trust-sensitive checkpoints.
+
+## Validation Snapshot
+
+The completed `v0.2.5` implementation line was validated across the merged runtime slices with:
+
+- full local test-suite passes on each merged implementation slice
+- coverage gate maintained above the repository threshold
+- `ruff` and `mypy` passing on touched runtime modules
+- workflow, queue, routing, evidence, and enterprise-hook behavior covered by targeted tests
 
 ## Notes
 
-- this release note starts as a planning baseline
-- implementation PRs should fill in the concrete runtime slices before the release is finalized
+- this release marks the implementation-complete close of the `v0.2.5` milestone
+- release publication should happen after the final phase-close merge and tag creation
+- the next line can now move forward from governed multi-step execution into the next enterprise runtime milestone
