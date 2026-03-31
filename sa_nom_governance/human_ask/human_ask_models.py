@@ -371,6 +371,8 @@ class HumanAskSession:
             "transcript_summary": self.transcript_summary,
             "metadata": self.metadata,
         }
+        decision_queue = self.metadata.get("decision_queue", {}) if isinstance(self.metadata.get("decision_queue", {}), dict) else {}
+        execution_plan = decision_queue.get("execution_plan", {}) if isinstance(decision_queue.get("execution_plan", {}), dict) else {}
         payload["summary"] = {
             "participant": self.participant.display_name,
             "role_id": self.participant.role_id,
@@ -388,6 +390,12 @@ class HumanAskSession:
             "action_item_total": len(self.action_items),
             "transcript_entries": len(self.transcript),
             "follow_up": bool(self.context_chain.parent_session_id),
+            "queue_state": str(decision_queue.get("queue_state", "not_queued")),
+            "queue_lane": str(decision_queue.get("queue_lane", "autonomy")),
+            "queue_priority": str(decision_queue.get("priority", "normal")),
+            "queue_human_required": bool(decision_queue.get("human_required", False)),
+            "queue_execution_plan_id": str(execution_plan.get("plan_id", "")),
+            "queue_step_id": str(execution_plan.get("step_id", "")),
         }
         if compact:
             payload["transcript"] = []

@@ -482,3 +482,94 @@ def test_human_ask_pt_oss_block_stops_record_request() -> None:
         assert session["metadata"]["director_disposition"] == "hold_for_clearance"
         assert session["decision_summary"]["automation_state"] == "blocked"
         assert session["decision_summary"]["metadata"]["pt_oss_gate"] == "blocked"
+
+
+def test_human_ask_session_emits_machine_readable_decision_queue() -> None:
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        session = service.create_session(
+            {
+                "role_id": "GOV",
+                "prompt": "Approve this governance policy for release.",
+                "metadata": {
+                    "execution_plan": {
+                        "plan_id": "plan-queue-001",
+                        "step_id": "step-human-review",
+                        "previous_step_id": "step-routing",
+                    },
+                    "origin_request_id": "req-queue-001",
+                },
+            },
+            requested_by="EXEC_OWNER",
+        )
+
+        decision_queue = session["metadata"]["decision_queue"]
+        assert decision_queue["queue_lane"] == "human_review"
+        assert decision_queue["queue_state"] == "queued_human_review"
+        assert decision_queue["priority"] == "high"
+        assert decision_queue["human_required"] is True
+        assert decision_queue["queue_owner"] == "EXEC_OWNER"
+        assert decision_queue["execution_plan"]["plan_id"] == "plan-queue-001"
+        assert decision_queue["execution_plan"]["step_id"] == "step-human-review"
+        assert decision_queue["correlation"]["origin_request_id"] == "req-queue-001"
+        assert session["summary"]["queue_lane"] == "human_review"
+        assert session["summary"]["queue_state"] == "queued_human_review"
+        assert session["summary"]["queue_execution_plan_id"] == "plan-queue-001"
+
+
+def test_human_ask_snapshot_reports_decision_queue_totals() -> None:
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        service.create_session(
+            {
+                "role_id": "GOV",
+                "prompt": "Summarize the current governance posture.",
+                "metadata": {
+                    "execution_plan": {
+                        "plan_id": "plan-queue-002",
+                        "step_id": "step-autonomy",
+                    }
+                },
+            },
+            requested_by="EXEC_OWNER",
+        )
+        service.create_session(
+            {
+                "role_id": "GOV",
+                "prompt": "Approve this governance policy for release.",
+                "metadata": {
+                    "execution_plan": {
+                        "plan_id": "plan-queue-003",
+                        "step_id": "step-human-review",
+                    }
+                },
+            },
+            requested_by="EXEC_OWNER",
+        )
+        service.create_session(
+            {
+                "role_id": "GOV",
+                "prompt": "Summarize the current governance posture.",
+                "metadata": {
+                    "force_human_review": True,
+                    "execution_plan": {
+                        "plan_id": "plan-queue-004",
+                        "step_id": "step-forced-review",
+                    }
+                },
+            },
+            requested_by="EXEC_OWNER",
+        )
+
+        snapshot = service.human_ask_snapshot(limit=10)
+        summary = snapshot["summary"]
+
+        assert summary["decision_queue_total"] == 3
+        assert summary["human_queue_total"] == 2
+        assert summary["autonomy_queue_total"] == 1
+        assert summary["human_review_queue_total"] == 2
+        assert summary["clearance_queue_total"] == 0
+        assert summary["high_priority_queue_total"] == 2
+        assert summary["execution_plan_linked_total"] == 3
