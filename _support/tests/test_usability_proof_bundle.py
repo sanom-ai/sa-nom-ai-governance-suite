@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sa_nom_governance.deployment.usability_proof_bundle import build_usability_proof_bundle, export_usability_proof_bundle
+from sa_nom_governance.deployment.usability_proof_bundle import build_usability_proof_bundle, export_usability_proof_bundle, read_usability_proof_bundle
 from sa_nom_governance.utils.config import AppConfig
 
 
@@ -38,3 +38,27 @@ def test_export_usability_proof_bundle_writes_output(tmp_path: Path) -> None:
     assert output_path.exists() is True
     assert isinstance(result.get('report', {}), dict)
     assert result.get('report', {}).get('milestone') == 'v0.3.0'
+
+
+
+def test_read_usability_proof_bundle_returns_missing_when_not_generated(tmp_path: Path) -> None:
+    config = AppConfig(base_dir=tmp_path, persist_runtime=True, environment='development')
+
+    result = read_usability_proof_bundle(config=config)
+
+    assert result['status'] == 'missing'
+    assert result['available'] is False
+    assert result['report'] is None
+
+
+def test_read_usability_proof_bundle_returns_latest_report(tmp_path: Path) -> None:
+    config = AppConfig(base_dir=tmp_path, persist_runtime=True, environment='development')
+    output_path = tmp_path / '_review' / 'usability_proof_bundle.json'
+    export_usability_proof_bundle(config=config, output_path=output_path)
+
+    result = read_usability_proof_bundle(config=config, output_path=output_path)
+
+    assert result['available'] is True
+    assert result['status'] in {'ready', 'attention_required'}
+    assert isinstance(result['report'], dict)
+    assert result['report'].get('milestone') == 'v0.3.0'
