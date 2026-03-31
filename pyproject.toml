@@ -31,15 +31,19 @@ Issues = "https://github.com/sanom-ai/sa-nom-ai-governance-suite/issues"
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",
+  "pytest-cov>=7.0.0",
+  "pytest-mock>=3.14.0",
   "ruff>=0.11.0",
   "mypy>=1.19.0",
+  "pre-commit>=4.0.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["_support/tests"]
+addopts = "--cov=sa_nom_governance --cov-report=term-missing --cov-report=xml"
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py314"
 extend-exclude = [
   "_runtime",
@@ -52,9 +56,12 @@ select = ["E9", "F63", "F7", "F82"]
 [tool.mypy]
 python_version = "3.14"
 follow_imports = "silent"
+strict = true
 check_untyped_defs = true
 warn_unused_ignores = true
 files = [
   "sa_nom_governance/guards/bootstrap_access_profiles.py",
   "sa_nom_governance/guards/session_manager.py",
+  "sa_nom_governance/core/authority_policy_engine.py",
+  "sa_nom_governance/core/policy_runtime_contracts.py",
 ]
