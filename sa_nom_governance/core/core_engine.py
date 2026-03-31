@@ -18,8 +18,8 @@ from sa_nom_governance.core.request_consistency import (
 from sa_nom_governance.core.result_builder import build_result
 from sa_nom_governance.core.risk_scorer import RiskScorer
 from sa_nom_governance.core.role_activation_router import RoleActivationError, RoleActivationRouter
-from sa_nom_governance.core.state_flow_engine import RuntimeStateFlowEngine
 from sa_nom_governance.core.runtime_recovery_store import RuntimeRecoveryStore
+from sa_nom_governance.core.state_flow_engine import RuntimeStateFlowEngine
 from sa_nom_governance.core.workflow_state_store import WorkflowStateStore
 from sa_nom_governance.guards.authority_guard import AuthorityGuard
 from sa_nom_governance.guards.ethics_guard import EthicsGuard
