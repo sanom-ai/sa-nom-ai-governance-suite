@@ -84,8 +84,11 @@ def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
         assert proof.get('passed') is True
         assert proof.get('criteria_total') == 2
         assert proof.get('criteria_passed_total') == 1
+        assert proof.get('criteria_failed_total') == 1
+        assert proof.get('failed_criteria') == ['demo_script_available']
         assert isinstance(proof.get('pass_criteria'), list)
         assert summary.get('usability_proof_status') == 'ready'
         assert summary.get('usability_proof_available') is True
         assert summary.get('usability_proof_criteria_total') == 2
         assert summary.get('usability_proof_criteria_passed_total') == 1
+        assert summary.get('usability_proof_criteria_failed_total') == 1
