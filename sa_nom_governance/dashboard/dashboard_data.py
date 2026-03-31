@@ -1,6 +1,5 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 
 from sa_nom_governance.api.api_engine import EngineApplication, build_engine_app
@@ -268,34 +267,16 @@ class DashboardSnapshotBuilder:
         }
 
     def usability_proof_summary(self) -> dict[str, object]:
-        proof_path = self.config.review_dir / 'usability_proof_bundle.json'
-        if not proof_path.exists():
-            return {
-                'status': 'missing',
-                'available': False,
-                'path': str(proof_path),
-                'generated_at': None,
-                'passed': False,
-            }
+        from sa_nom_governance.deployment.usability_proof_bundle import read_usability_proof_bundle
 
-        try:
-            payload = json.loads(proof_path.read_text(encoding='utf-8'))
-        except (OSError, json.JSONDecodeError):
-            return {
-                'status': 'invalid',
-                'available': True,
-                'path': str(proof_path),
-                'generated_at': None,
-                'passed': False,
-            }
-
+        result = read_usability_proof_bundle(config=self.config)
         return {
-            'status': str(payload.get('status', 'unknown')),
-            'available': True,
-            'path': str(proof_path),
-            'generated_at': payload.get('generated_at'),
-            'passed': bool(payload.get('passed', False)),
-            'milestone': str(payload.get('milestone', 'v0.3.0')),
+            'status': result.get('status', 'missing'),
+            'available': bool(result.get('available', False)),
+            'path': str(result.get('output_path', self.config.review_dir / 'usability_proof_bundle.json')),
+            'generated_at': result.get('generated_at'),
+            'passed': bool(result.get('passed', False)),
+            'milestone': str(result.get('milestone', 'v0.3.0')),
         }
 
     def retention_report(self) -> dict[str, object]:

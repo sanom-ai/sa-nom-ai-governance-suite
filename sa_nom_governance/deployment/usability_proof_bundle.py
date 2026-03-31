@@ -116,6 +116,49 @@ def build_usability_proof_bundle(
     }
 
 
+def read_usability_proof_bundle(
+    config: AppConfig | None = None,
+    *,
+    output_path: Path | None = None,
+) -> dict[str, object]:
+    runtime_config = config or AppConfig()
+    resolved_output = output_path or (runtime_config.review_dir / 'usability_proof_bundle.json')
+
+    if not resolved_output.exists():
+        return {
+            'status': 'missing',
+            'available': False,
+            'output_path': str(resolved_output),
+            'generated_at': None,
+            'passed': False,
+            'milestone': 'v0.3.0',
+            'report': None,
+        }
+
+    try:
+        report = json.loads(resolved_output.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError):
+        return {
+            'status': 'invalid',
+            'available': True,
+            'output_path': str(resolved_output),
+            'generated_at': None,
+            'passed': False,
+            'milestone': 'v0.3.0',
+            'report': None,
+        }
+
+    return {
+        'status': str(report.get('status', 'unknown')),
+        'available': True,
+        'output_path': str(resolved_output),
+        'generated_at': report.get('generated_at'),
+        'passed': bool(report.get('passed', False)),
+        'milestone': str(report.get('milestone', 'v0.3.0')),
+        'report': report,
+    }
+
+
 def export_usability_proof_bundle(
     config: AppConfig | None = None,
     *,

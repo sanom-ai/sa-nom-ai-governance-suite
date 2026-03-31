@@ -415,6 +415,17 @@ root.addEventListener('click', async (event) => {
         render();
       }
     }
+    if (action === 'usability-proof-refresh') {
+      try {
+        const response = await apiFetch('/api/operations/usability-proof');
+        const item = response.item || {};
+        state.lastError = `Latest proof status: ${item.status || 'unknown'} (available: ${String(Boolean(item.available))})`;
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
     return;
   }
 
@@ -1066,7 +1077,7 @@ function renderOverview(snapshot) {
           ['Usability proof', snapshot.summary.usability_proof_status || 'missing'],
           ['Proof available', String(Boolean(snapshot.summary.usability_proof_available))],
         ])}
-        ${can('ops.manage') ? '<div class="inline-actions"><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button></div>' : ''}
+        ${can('ops.manage') ? '<div class="inline-actions"><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button></div>' : ''}
       </article>
     </section>
       ${renderOwnerRegistrationPanel(snapshot.owner_registration || {}, { compact: true })}
@@ -2455,7 +2466,7 @@ function renderOperationsSection(operations) {
   const backups = Array.isArray(operations.backups) ? operations.backups : [];
   const usabilityProof = operations.usability_proof || {};
   const action = can('ops.manage')
-    ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button></div>`
+    ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button></div>`
     : '';
   return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
 }

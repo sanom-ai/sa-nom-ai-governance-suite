@@ -155,7 +155,11 @@ class DashboardService:
         return {'report': self.app.retention_report(), 'plan': self.app.retention_plan()}
 
     def operations(self, limit: int = 20):
-        return {'summary': self.app.runtime_backup_summary(), 'backups': self.app.list_runtime_backups(limit=limit)}
+        return {
+            'summary': self.app.runtime_backup_summary(),
+            'backups': self.app.list_runtime_backups(limit=limit),
+            'usability_proof': self.snapshot_builder.usability_proof_summary(),
+        }
 
     def create_backup(self, profile: AccessProfile):
         return self.app.create_runtime_backup(requested_by=profile.display_name)
@@ -171,6 +175,11 @@ class DashboardService:
             output_path=output_path,
             run_quick_start=run_quick_start,
         )
+
+    def get_usability_proof_bundle(self):
+        from sa_nom_governance.deployment.usability_proof_bundle import read_usability_proof_bundle
+
+        return read_usability_proof_bundle(config=self.config)
 
     def go_live_readiness(self):
         return self.snapshot_builder.go_live_readiness()
@@ -339,6 +348,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {**self.service.retention(), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/operations/backups':
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.operations(limit=limit), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/operations/usability-proof':
+            return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.get_usability_proof_bundle(), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/go-live-readiness':
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.go_live_readiness(), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/owner-registration':
