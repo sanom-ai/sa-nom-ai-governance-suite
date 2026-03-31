@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from time import perf_counter
 from uuid import uuid4
 
-from sa_nom_governance.integrations.coordination import build_work_queue
+from sa_nom_governance.integrations.coordination import build_enterprise_execution_hook, build_work_queue
 from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.integrations.integration_registry import IntegrationRegistry, IntegrationTarget
 from sa_nom_governance.utils.persistence import build_line_ledger
@@ -200,6 +200,27 @@ class WebhookDispatcher:
         deliveries: list[DeliveryRecord] = []
         dead_letters: list[DeadLetterRecord] = []
         for target in targets:
+            job_metadata = {
+                "category": target.category,
+                "endpoint_url": target.endpoint_url,
+                "request_id": payload.get("request_id"),
+                "tenant_id": (metadata or {}).get("tenant_id") if isinstance(metadata, dict) else None,
+                "release_version": (metadata or {}).get("release_version") if isinstance(metadata, dict) else None,
+                "hook_stage": "delivery_dispatch",
+                "evidence_event": payload.get("evidence_event") if isinstance(payload.get("evidence_event"), dict) else None,
+                "workflow_bundle": payload.get("workflow_bundle") if isinstance(payload.get("workflow_bundle"), dict) else None,
+            }
+            job_metadata["enterprise_hook"] = build_enterprise_execution_hook(
+                self.config,
+                logical_name="integration_outbox",
+                channel="integration_delivery",
+                payload={
+                    "event_id": event_id,
+                    "event_type": event_type,
+                    "request_id": payload.get("request_id"),
+                },
+                metadata=job_metadata,
+            )
             outbox_job = self.outbox.enqueue(
                 "integration_delivery",
                 {
@@ -211,10 +232,7 @@ class WebhookDispatcher:
                     "source": source,
                     "requested_by": requested_by,
                 },
-                metadata={
-                    "category": target.category,
-                    "endpoint_url": target.endpoint_url,
-                },
+                metadata=job_metadata,
             )
             self.outbox.mark_processing(outbox_job.job_id, worker_id="inline_dispatch")
             target_deliveries, target_dead_letter = self._deliver(target, envelope, payload_bytes, payload_digest, queue_job_id=outbox_job.job_id)

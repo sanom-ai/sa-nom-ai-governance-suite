@@ -401,6 +401,72 @@ def redact_secret_url(url: str) -> str:
     return urlunsplit((split.scheme, netloc, split.path, split.query, split.fragment))
 
 
+def build_enterprise_execution_hook(
+    config: "AppConfig | None",
+    *,
+    logical_name: str,
+    channel: str,
+    payload: dict[str, object],
+    metadata: dict[str, object] | None = None,
+) -> dict[str, object]:
+    metadata = dict(metadata or {})
+    workflow_bundle = metadata.get("workflow_bundle") if isinstance(metadata.get("workflow_bundle"), dict) else {}
+    evidence_event = metadata.get("evidence_event") if isinstance(metadata.get("evidence_event"), dict) else {}
+    execution_plan = workflow_bundle.get("execution_plan") if isinstance(workflow_bundle.get("execution_plan"), dict) else {}
+    decision_queue = workflow_bundle.get("decision_queue") if isinstance(workflow_bundle.get("decision_queue"), dict) else {}
+    correlation = workflow_bundle.get("correlation") if isinstance(workflow_bundle.get("correlation"), dict) else {}
+
+    request_id = _hook_string(
+        correlation.get("request_id"),
+        evidence_event.get("request_id"),
+        metadata.get("request_id"),
+        payload.get("request_id"),
+    )
+    event_id = _hook_string(
+        payload.get("event_id"),
+        correlation.get("event_id"),
+        evidence_event.get("event_id"),
+    )
+    release_version = _hook_string(metadata.get("release_version"), metadata.get("release_tag"))
+
+    configured_backend = normalize_coordination_backend(getattr(config, "coordination_backend", "file") if config is not None else "file")
+    environment = getattr(config, "environment", "development") if config is not None else "development"
+    executive_owner_id = config.executive_owner_id() if config is not None else None
+
+    return {
+        "hook_id": f"hook_{uuid4().hex[:12]}",
+        "hook_stage": _hook_string(metadata.get("hook_stage")) or "delivery_dispatch",
+        "logical_name": logical_name,
+        "channel": channel,
+        "environment": environment,
+        "coordination_backend": configured_backend,
+        "tenant_id": _hook_string(metadata.get("tenant_id")) or executive_owner_id or "SANOM",
+        "executive_owner_id": executive_owner_id,
+        "release_version": release_version,
+        "correlation": {
+            "event_id": event_id,
+            "request_id": request_id,
+            "execution_plan_id": _hook_string(correlation.get("execution_plan_id"), execution_plan.get("plan_id")),
+            "execution_step_id": _hook_string(correlation.get("execution_step_id"), execution_plan.get("step_id")),
+            "decision_queue_id": _hook_string(correlation.get("decision_queue_id"), decision_queue.get("queue_id")),
+            "decision_queue_lane": _hook_string(correlation.get("decision_queue_lane"), decision_queue.get("queue_lane")),
+        },
+        "workflow": {
+            "routing_status": _hook_string(execution_plan.get("routing_status"), workflow_bundle.get("routing", {}).get("routing_status") if isinstance(workflow_bundle.get("routing"), dict) else None),
+            "plan_status": _hook_string(execution_plan.get("plan_status")),
+            "queue_state": _hook_string(decision_queue.get("queue_state")),
+            "queue_owner": _hook_string(decision_queue.get("queue_owner")),
+        },
+    }
+
+
+def _hook_string(*values: object) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
 def _build_selection(config: "AppConfig | None", *, logical_name: str) -> CoordinationSelection:
     if config is None:
         return CoordinationSelection(
