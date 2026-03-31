@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 
 from sa_nom_governance.api.api_engine import EngineApplication, build_engine_app
@@ -85,6 +86,8 @@ class DashboardSnapshotBuilder:
                     1 for lane in operator_decision_lanes if lane.get('disposition') == 'blocked'
                 ),
                 'backups_total': operations.get('summary', {}).get('backups_total', 0),
+                'usability_proof_status': operations.get('usability_proof', {}).get('status', 'missing'),
+                'usability_proof_available': bool(operations.get('usability_proof', {}).get('available', False)),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
                 'integration_targets_total': integrations.get('summary', {}).get('targets_total', 0),
@@ -261,6 +264,38 @@ class DashboardSnapshotBuilder:
         return {
             'summary': self.app.runtime_backup_summary(),
             'backups': self.app.list_runtime_backups(limit=limit),
+            'usability_proof': self.usability_proof_summary(),
+        }
+
+    def usability_proof_summary(self) -> dict[str, object]:
+        proof_path = self.config.review_dir / 'usability_proof_bundle.json'
+        if not proof_path.exists():
+            return {
+                'status': 'missing',
+                'available': False,
+                'path': str(proof_path),
+                'generated_at': None,
+                'passed': False,
+            }
+
+        try:
+            payload = json.loads(proof_path.read_text(encoding='utf-8'))
+        except (OSError, json.JSONDecodeError):
+            return {
+                'status': 'invalid',
+                'available': True,
+                'path': str(proof_path),
+                'generated_at': None,
+                'passed': False,
+            }
+
+        return {
+            'status': str(payload.get('status', 'unknown')),
+            'available': True,
+            'path': str(proof_path),
+            'generated_at': payload.get('generated_at'),
+            'passed': bool(payload.get('passed', False)),
+            'milestone': str(payload.get('milestone', 'v0.3.0')),
         }
 
     def retention_report(self) -> dict[str, object]:
