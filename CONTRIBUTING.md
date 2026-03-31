@@ -63,3 +63,4 @@ For security issues, follow [SECURITY.md](SECURITY.md) instead of opening a publ
 - when a temporary exception is accepted, prefer opening the `Security exception` issue template so ownership, revisit timing, and escalation posture stay visible
 - AI may help summarize the finding and prepare issue context, but human maintainers still decide exception, escalation, merge-blocking outcomes, and whether follow-up visibility is adequate
 - when deferred work needs to stay visible after merge, prefer opening the `Security follow-up` issue template so ownership and revisit timing stay linked to the accepted risk
+
