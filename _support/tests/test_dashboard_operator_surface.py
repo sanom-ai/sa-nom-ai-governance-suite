@@ -70,7 +70,7 @@ def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
         config.review_dir.mkdir(parents=True, exist_ok=True)
         proof_path = config.review_dir / 'usability_proof_bundle.json'
         proof_path.write_text(
-            '{"milestone":"v0.3.0","status":"ready","passed":true,"generated_at":"2026-04-01T00:00:00+00:00"}\n',
+            '{"milestone":"v0.3.0","status":"ready","passed":true,"generated_at":"2026-04-01T00:00:00+00:00","pass_criteria":[{"criterion":"quick_start_path_exists","passed":true},{"criterion":"demo_script_available","passed":false}]}\n',
             encoding='utf-8',
         )
 
@@ -82,5 +82,10 @@ def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
         assert proof.get('status') == 'ready'
         assert proof.get('available') is True
         assert proof.get('passed') is True
+        assert proof.get('criteria_total') == 2
+        assert proof.get('criteria_passed_total') == 1
+        assert isinstance(proof.get('pass_criteria'), list)
         assert summary.get('usability_proof_status') == 'ready'
         assert summary.get('usability_proof_available') is True
+        assert summary.get('usability_proof_criteria_total') == 2
+        assert summary.get('usability_proof_criteria_passed_total') == 1

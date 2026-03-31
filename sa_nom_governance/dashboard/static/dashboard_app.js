@@ -1076,6 +1076,7 @@ function renderOverview(snapshot) {
           ['Startup smoke', readiness.smoke_report?.status || '-'],
           ['Usability proof', snapshot.summary.usability_proof_status || 'missing'],
           ['Proof available', String(Boolean(snapshot.summary.usability_proof_available))],
+          ['Proof criteria passed', `${snapshot.summary.usability_proof_criteria_passed_total || 0}/${snapshot.summary.usability_proof_criteria_total || 0}`],
         ])}
         ${can('ops.manage') ? '<div class="inline-actions"><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button></div>' : ''}
       </article>
@@ -2465,10 +2466,14 @@ function renderOperationsSection(operations) {
   const summary = operations.summary || {};
   const backups = Array.isArray(operations.backups) ? operations.backups : [];
   const usabilityProof = operations.usability_proof || {};
+  const criteria = Array.isArray(usabilityProof.pass_criteria) ? usabilityProof.pass_criteria : [];
+  const criteriaRows = criteria.length
+    ? criteria.map((row) => `${statusBadge(row.passed ? 'passed' : 'pending')} ${escapeHtml(row.criterion || 'criterion')}`).join('<br>')
+    : 'No criteria loaded yet.';
   const action = can('ops.manage')
     ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button></div>`
     : '';
-  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
+  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}, Criteria: ${escapeHtml(String(usabilityProof.criteria_passed_total || 0))}/${escapeHtml(String(usabilityProof.criteria_total || 0))}</p><p class="muted">${criteriaRows}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
 }
 
 function renderIntegrationSection(integrations) {
