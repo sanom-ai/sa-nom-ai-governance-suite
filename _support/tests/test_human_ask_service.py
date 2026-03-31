@@ -573,3 +573,121 @@ def test_human_ask_snapshot_reports_decision_queue_totals() -> None:
         assert summary["clearance_queue_total"] == 0
         assert summary["high_priority_queue_total"] == 2
         assert summary["execution_plan_linked_total"] == 3
+
+
+def test_human_ask_session_emits_human_decision_inbox_contract() -> None:
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        session = service.create_session(
+            {
+                "role_id": "GOV",
+                "prompt": "Approve this governance policy for release.",
+                "metadata": {
+                    "execution_plan": {
+                        "plan_id": "plan-inbox-001",
+                        "step_id": "step-human-review",
+                        "previous_step_id": "step-routing",
+                    },
+                    "origin_request_id": "req-inbox-001",
+                    "task_packet": {
+                        "packet_id": "packet-inbox-001",
+                        "packet_type": "runtime_step",
+                        "source_role": "GOV",
+                        "target_role": "EXEC_OWNER",
+                        "workflow_id": "plan-inbox-001",
+                        "step_id": "step-human-review",
+                        "packet_status": "prepared",
+                    },
+                },
+            },
+            requested_by="EXEC_OWNER",
+        )
+
+        inbox = session["metadata"]["human_decision_inbox"]
+        assert inbox["inbox_state"] == "human_action_required"
+        assert inbox["queue_lane"] == "human_review"
+        assert inbox["required_action"] == "human_decision"
+        assert inbox["decision_context"]["director_disposition"] == "guarded_follow_up"
+        assert inbox["decision_context"]["policy_basis"] == session["decision_summary"]["policy_basis"]
+        assert inbox["authority"]["human_required"] is True
+        assert inbox["execution_plan"]["plan_id"] == "plan-inbox-001"
+        assert inbox["task_packet"]["packet_id"] == "packet-inbox-001"
+        assert inbox["correlation"]["origin_request_id"] == "req-inbox-001"
+        assert session["session_id"] in inbox["evidence_refs"]
+        assert "approve" in inbox["operator_actions"]
+        assert session["summary"]["inbox_state"] == "human_action_required"
+        assert session["summary"]["inbox_required_action"] == "human_decision"
+
+
+def test_human_decision_inbox_list_filters_human_required_items() -> None:
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        service.create_session(
+            {
+                "role_id": "GOV",
+                "prompt": "Summarize the current governance posture.",
+                "metadata": {
+                    "execution_plan": {
+                        "plan_id": "plan-inbox-002",
+                        "step_id": "step-autonomy",
+                    }
+                },
+            },
+            requested_by="EXEC_OWNER",
+        )
+        review_session = service.create_session(
+            {
+                "role_id": "GOV",
+                "prompt": "Approve this governance policy for release.",
+                "metadata": {
+                    "execution_plan": {
+                        "plan_id": "plan-inbox-003",
+                        "step_id": "step-human-review",
+                    }
+                },
+            },
+            requested_by="EXEC_OWNER",
+        )
+        original_assess_runtime_role = service._assess_runtime_role
+        service._assess_runtime_role = lambda entry: PTOSSAssessment(
+            assessment_id="ptoss-blocked-inbox",
+            generated_at="2026-01-01T00:00:00+00:00",
+            mode="PT_OSS_FULL",
+            posture="critical",
+            readiness_score=20,
+            metrics=[],
+            blockers=[PTOSSIssue(category="fragility", severity="critical", message="Structural fragility is above the safe threshold.", blocks_publish=True)],
+            recommendations=["Pause runtime use of this hat until fragility is reduced."],
+            context={},
+        )
+        try:
+            clearance_session = service.create_session(
+                {
+                    "role_id": "GOV",
+                    "prompt": "Please report the current governance posture and next safe action.",
+                },
+                requested_by="EXEC_OWNER",
+            )
+        finally:
+            service._assess_runtime_role = original_assess_runtime_role
+
+        inbox = service.list_human_decision_inbox(limit=10)
+        human_review_only = service.list_human_decision_inbox(queue_lane="human_review", limit=10)
+        clearance_only = service.list_human_decision_inbox(inbox_state="clearance_required", limit=10)
+        snapshot = service.human_ask_snapshot(limit=10)
+
+        assert len(inbox) == 3
+        assert {item["human_decision_inbox"]["inbox_state"] for item in inbox} == {
+            "autonomy_ready",
+            "human_action_required",
+            "clearance_required",
+        }
+        assert len(human_review_only) == 1
+        assert human_review_only[0]["session_id"] == review_session["session_id"]
+        assert len(clearance_only) == 1
+        assert clearance_only[0]["session_id"] == clearance_session["session_id"]
+        assert snapshot["summary"]["inbox_total"] == 2
+        assert snapshot["summary"]["inbox_human_action_total"] == 1
+        assert snapshot["summary"]["inbox_clearance_total"] == 1
