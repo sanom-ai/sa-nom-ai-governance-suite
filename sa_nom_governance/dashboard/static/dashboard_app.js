@@ -995,6 +995,7 @@ function renderPermissionNotice(permission) {
 function renderOverview(snapshot) {
   const readiness = snapshot.go_live_readiness || {};
   const operationalReadiness = snapshot.operational_readiness || {};
+  const firstRunReadiness = snapshot.first_run_readiness || {};
   const latestBackup = snapshot.operations?.summary?.latest_backup || null;
   const runtimeHealth = snapshot.runtime_health || {};
   const auditIntegrity = runtimeHealth.audit_integrity || {};
@@ -1039,6 +1040,7 @@ function renderOverview(snapshot) {
         </div>
         ${keyValue([
           ['Operational readiness', operationalReadiness.status || snapshot.summary.operational_readiness_status || 'unknown'],
+          ['First-run readiness', firstRunReadiness.status || snapshot.summary.first_run_readiness_status || 'blocked'],
           ['Workflow backlog', String(snapshot.summary.workflow_backlog_total || 0)],
           ['Human inbox open', String(snapshot.summary.human_inbox_open_total || 0)],
           ['Recovery pending', String(snapshot.summary.recovery_pending_total || 0)],
@@ -1059,10 +1061,12 @@ function renderOverview(snapshot) {
         ${metricCard('Studio ready', snapshot.summary.studio_ready_to_publish_total || 0, 'success', 'Role drafts ready for trusted publication.')}
         ${metricCard('Go-live', readiness.status || snapshot.summary.go_live_status || 'blocked', 'accent', 'Combined deployment gate across trust, smoke, and audit.')}
         ${metricCard('Operational readiness', operationalReadiness.status || snapshot.summary.operational_readiness_status || 'unknown', (operationalReadiness.status || snapshot.summary.operational_readiness_status) === 'ready' ? 'success' : ((operationalReadiness.status || snapshot.summary.operational_readiness_status) === 'monitoring' ? 'warning' : 'danger'), 'Operator-facing runtime posture across backlog, inbox, and recovery queues.')}
+        ${metricCard('First-run blockers', snapshot.summary.first_run_blockers_total || 0, (snapshot.summary.first_run_blockers_total || 0) ? 'danger' : ((snapshot.summary.first_run_advisories_total || 0) ? 'warning' : 'success'), 'Blocking checks that still prevent a clean 5-10 minute first run.')}
         ${metricCard('Backups', snapshot.summary.backups_total || 0, 'default', 'Operational recovery bundles captured from the private runtime.')}
         ${metricCard('Integrations', snapshot.summary.integration_targets_total || 0, 'accent', 'Configured outbound targets across webhook, SIEM, and ticketing lanes.')}
         ${metricCard('Outbound deliveries', snapshot.summary.integration_deliveries_total || 0, snapshot.summary.integration_failures_total ? 'warning' : 'success', 'Outbound integration delivery records currently visible in the runtime ledger.')}
       </section>
+      ${renderFirstRunReadinessCard(firstRunReadiness)}
       ${renderOperatorDecisionLanes(snapshot.operator_decision_lanes || [])}
       ${renderNotificationCenter(runtimeAlerts)}
       <section class="split-grid">
@@ -1086,6 +1090,39 @@ function renderOverview(snapshot) {
       ${renderIntegrationSection(integrations)}
     `;
   }
+
+
+function renderFirstRunReadinessCard(firstRunReadiness) {
+  if (!firstRunReadiness || typeof firstRunReadiness !== 'object') return '';
+  const checks = Array.isArray(firstRunReadiness.checks) ? firstRunReadiness.checks : [];
+  const blockers = checks.filter((item) => item.required && !item.passed);
+  const advisories = checks.filter((item) => !item.required && !item.passed);
+  const highlighted = blockers.length ? blockers.slice(0, 3) : advisories.slice(0, 3);
+  const recommendedView = firstRunReadiness.recommended_view || 'overview';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">First-Run Control Plane</div>
+          <h3 class="card-title">5-10 minute readiness gate</h3>
+          <p class="card-subtitle">Deterministic startup checks for non-technical operators before they run live demo actions.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(firstRunReadiness.status || 'blocked')}</div>
+      </div>
+      ${keyValue([
+        ['Status', String(firstRunReadiness.status || 'blocked')],
+        ['Blockers', String(firstRunReadiness.blockers_total || blockers.length)],
+        ['Advisories', String(firstRunReadiness.advisories_total || advisories.length)],
+        ['Checks', String(checks.length)],
+      ])}
+      <div class="trace-box"><strong>Action focus</strong><p class="muted">${highlighted.length ? escapeHtml(highlighted.map((item) => `${item.title} (${item.detail || 'review required'})`).join(' | ')) : 'All first-run checks are green.'}</p></div>
+      <div class="inline-actions">
+        <button class="action-button" data-view-jump="${escapeHtml(recommendedView)}">Open ${escapeHtml(titleCase(recommendedView))}</button>
+        ${can('ops.manage') ? '<button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button>' : ''}
+      </div>
+    </section>
+  `;
+}
 
 
 function renderOperatorDecisionLanes(lanes) {
