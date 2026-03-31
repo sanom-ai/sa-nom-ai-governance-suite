@@ -86,6 +86,8 @@ class AppConfig:
     lock_store_path: Path | None = field(init=False, default=None)
     consistency_store_path: Path | None = field(init=False, default=None)
     workflow_state_store_path: Path | None = field(init=False, default=None)
+    runtime_recovery_store_path: Path | None = field(init=False, default=None)
+    runtime_dead_letter_path: Path | None = field(init=False, default=None)
     session_store_path: Path | None = field(init=False, default=None)
     role_private_studio_store_path: Path | None = field(init=False, default=None)
     human_ask_store_path: Path | None = field(init=False, default=None)
@@ -146,6 +148,8 @@ class AppConfig:
             self.lock_store_path = self.runtime_dir / "runtime_lock_store.json"
             self.consistency_store_path = self.runtime_dir / "runtime_consistency_store.json"
             self.workflow_state_store_path = self.runtime_dir / "runtime_workflow_state_store.json"
+            self.runtime_recovery_store_path = self.runtime_dir / "runtime_recovery_store.json"
+            self.runtime_dead_letter_path = self.runtime_dir / "runtime_dead_letter_log.jsonl"
             self.session_store_path = self.runtime_dir / "runtime_session_store.json"
             self.role_private_studio_store_path = self.runtime_dir / "runtime_role_private_studio_store.json"
             self.human_ask_store_path = self.runtime_dir / "runtime_human_ask_store.json"

@@ -48,6 +48,22 @@ class RuntimeContractGuard:
     _HUMAN_REQUIRED_KEYS = {'required', 'required_policy_basis_prefix'}
     _EXCEPTION_KEYS = {'allowed_outcomes', 'required_trace_sources'}
     _OVERRIDE_PATH_KEYS = {'required', 'required_policy_basis_prefix', 'required_approver_role'}
+    _TASK_PACKET_KEYS = {
+        'packet_id',
+        'packet_type',
+        'source_role',
+        'target_role',
+        'workflow_id',
+        'step_id',
+        'queue_lane',
+        'authority_ref',
+        'policy_basis_ref',
+        'correlation',
+        'evidence_refs',
+        'packet_status',
+    }
+    _TASK_PACKET_CORRELATION_KEYS = {'request_id', 'origin_request_id', 'parent_packet_id'}
+    _TASK_PACKET_STATUSES = {'prepared', 'dispatched', 'received', 'failed', 'dead_letter', 'resumed'}
     _EXECUTION_PLAN_KEYS = {
         'plan_id',
         'step_id',
@@ -112,6 +128,9 @@ class RuntimeContractGuard:
             execution_plan_violation = self._execution_plan_shape_violation(metadata.get('execution_plan'))
             if execution_plan_violation is not None:
                 return execution_plan_violation
+            task_packet_violation = self._task_packet_shape_violation(metadata.get('task_packet'))
+            if task_packet_violation is not None:
+                return task_packet_violation
         return None
 
     def context_violation(self, context: ExecutionContext) -> RuntimeContractViolation | None:
@@ -155,6 +174,10 @@ class RuntimeContractGuard:
         execution_plan_violation = self._execution_plan_shape_violation(execution_plan)
         if execution_plan_violation is not None:
             return execution_plan_violation
+        task_packet = context.metadata.get('task_packet')
+        task_packet_violation = self._task_packet_shape_violation(task_packet)
+        if task_packet_violation is not None:
+            return task_packet_violation
 
         amount = context.payload.get('amount')
         if amount is not None:
@@ -333,6 +356,79 @@ class RuntimeContractGuard:
         if not isinstance(execution_plan, dict):
             return None
         return {key: execution_plan[key] for key in self._EXECUTION_PLAN_KEYS if key in execution_plan}
+
+    def normalized_task_packet_contract(self, task_packet: object) -> dict[str, object] | None:
+        if not isinstance(task_packet, dict):
+            return None
+        return {key: task_packet[key] for key in self._TASK_PACKET_KEYS if key in task_packet}
+
+    def task_packet_profile(self, context: ExecutionContext) -> dict[str, object] | None:
+        execution_plan = context.metadata.get('execution_plan')
+        task_packet = context.metadata.get('task_packet')
+        if not isinstance(execution_plan, dict) and not isinstance(task_packet, dict):
+            return None
+
+        packet: dict[str, object] = dict(task_packet) if isinstance(task_packet, dict) else {}
+        plan: dict[str, object] = dict(execution_plan) if isinstance(execution_plan, dict) else {}
+        decision_queue_value = context.metadata.get('decision_queue')
+        decision_queue: dict[str, object] = dict(decision_queue_value) if isinstance(decision_queue_value, dict) else {}
+        authority_gate_value = context.metadata.get('authority_gate')
+        authority_gate: dict[str, object] = dict(authority_gate_value) if isinstance(authority_gate_value, dict) else {}
+        correlation_value = packet.get('correlation')
+        correlation: dict[str, object] = dict(correlation_value) if isinstance(correlation_value, dict) else {}
+
+        source_role = str(packet.get('source_role') or context.role_id)
+        target_role = str(packet.get('target_role') or plan.get('handoff_target_role') or context.role_id)
+        workflow_id = str(packet.get('workflow_id') or plan.get('plan_id') or context.request_id)
+        step_id = str(packet.get('step_id') or plan.get('step_id') or context.action)
+        packet_status = packet.get('packet_status')
+        if not isinstance(packet_status, str):
+            packet_status = 'dispatched' if target_role != source_role else 'prepared'
+
+        queue_lane = packet.get('queue_lane')
+        if not isinstance(queue_lane, str):
+            queue_lane = decision_queue.get('queue_lane') if isinstance(decision_queue.get('queue_lane'), str) else None
+
+        authority_ref = packet.get('authority_ref')
+        if not isinstance(authority_ref, str):
+            authority_ref = authority_gate.get('source_id') if isinstance(authority_gate.get('source_id'), str) else None
+
+        policy_basis_ref = packet.get('policy_basis_ref')
+        if not isinstance(policy_basis_ref, str):
+            policy_basis_ref = authority_gate.get('reason') if isinstance(authority_gate.get('reason'), str) else None
+
+        evidence_refs_value = packet.get('evidence_refs')
+        evidence_refs: list[object] = evidence_refs_value if isinstance(evidence_refs_value, list) else []
+        valid_evidence_refs = [item for item in evidence_refs if isinstance(item, str) and item.strip()]
+        if context.request_id not in valid_evidence_refs:
+            valid_evidence_refs.append(context.request_id)
+
+        packet_id = packet.get('packet_id')
+        if not isinstance(packet_id, str) or not packet_id.strip():
+            packet_id = f'packet-{context.request_id}'
+
+        packet_type = packet.get('packet_type')
+        if not isinstance(packet_type, str) or not packet_type.strip():
+            packet_type = 'runtime_step'
+
+        return {
+            'packet_id': packet_id,
+            'packet_type': packet_type,
+            'source_role': source_role,
+            'target_role': target_role,
+            'workflow_id': workflow_id,
+            'step_id': step_id,
+            'queue_lane': queue_lane,
+            'authority_ref': authority_ref,
+            'policy_basis_ref': policy_basis_ref,
+            'correlation': {
+                'request_id': str(correlation.get('request_id') or context.request_id),
+                'origin_request_id': self._optional_str(correlation.get('origin_request_id') or context.metadata.get('recovery_resume_of')),
+                'parent_packet_id': self._optional_str(correlation.get('parent_packet_id')),
+            },
+            'evidence_refs': valid_evidence_refs,
+            'packet_status': packet_status,
+        }
 
     def execution_plan_profile(self, context: ExecutionContext) -> dict[str, object] | None:
         execution_plan = context.metadata.get('execution_plan')
@@ -637,6 +733,90 @@ class RuntimeContractGuard:
 
         return None
 
+    def _task_packet_shape_violation(self, task_packet: object) -> RuntimeContractViolation | None:
+        if task_packet is None:
+            return None
+        if not isinstance(task_packet, dict):
+            return RuntimeContractViolation(
+                code='task_packet_invalid_type',
+                reason='Runtime contract violation: metadata.task_packet must be an object map when provided.',
+                notes=['metadata.task_packet is present but not a dictionary.'],
+            )
+
+        unknown_keys = sorted(key for key in task_packet if key not in self._TASK_PACKET_KEYS)
+        if unknown_keys:
+            return RuntimeContractViolation(
+                code='task_packet_unknown_keys',
+                reason='Runtime contract violation: metadata.task_packet contains unsupported keys.',
+                notes=[f"unsupported keys: {', '.join(unknown_keys)}"],
+            )
+
+        for key in ('packet_id', 'packet_type', 'source_role', 'target_role', 'workflow_id', 'step_id'):
+            value = task_packet.get(key)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                return RuntimeContractViolation(
+                    code=f'task_packet_{key}_invalid',
+                    reason=f'Runtime contract violation: task_packet.{key} must be a non-empty string when provided.',
+                    notes=[f'metadata.task_packet.{key} is invalid.'],
+                )
+
+        queue_lane = task_packet.get('queue_lane')
+        if queue_lane is not None and (not isinstance(queue_lane, str) or not queue_lane.strip()):
+            return RuntimeContractViolation(
+                code='task_packet_queue_lane_invalid',
+                reason='Runtime contract violation: task_packet.queue_lane must be a non-empty string when provided.',
+                notes=['metadata.task_packet.queue_lane is invalid.'],
+            )
+
+        for key in ('authority_ref', 'policy_basis_ref'):
+            value = task_packet.get(key)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                return RuntimeContractViolation(
+                    code=f'task_packet_{key}_invalid',
+                    reason=f'Runtime contract violation: task_packet.{key} must be a non-empty string when provided.',
+                    notes=[f'metadata.task_packet.{key} is invalid.'],
+                )
+
+        correlation = task_packet.get('correlation')
+        if correlation is not None:
+            if not isinstance(correlation, dict):
+                return RuntimeContractViolation(
+                    code='task_packet_correlation_invalid',
+                    reason='Runtime contract violation: task_packet.correlation must be an object map when provided.',
+                    notes=['metadata.task_packet.correlation is invalid.'],
+                )
+            unknown_correlation_keys = sorted(key for key in correlation if key not in self._TASK_PACKET_CORRELATION_KEYS)
+            if unknown_correlation_keys:
+                return RuntimeContractViolation(
+                    code='task_packet_correlation_unknown_keys',
+                    reason='Runtime contract violation: task_packet.correlation contains unsupported keys.',
+                    notes=[f"unsupported keys: {', '.join(unknown_correlation_keys)}"],
+                )
+            for key, value in correlation.items():
+                if value is not None and (not isinstance(value, str) or not value.strip()):
+                    return RuntimeContractViolation(
+                        code=f'task_packet_correlation_{key}_invalid',
+                        reason=f'Runtime contract violation: task_packet.correlation.{key} must be a non-empty string when provided.',
+                        notes=[f'metadata.task_packet.correlation.{key} is invalid.'],
+                    )
+
+        evidence_refs = task_packet.get('evidence_refs')
+        if evidence_refs is not None and not self._string_list(evidence_refs):
+            return RuntimeContractViolation(
+                code='task_packet_evidence_refs_invalid',
+                reason='Runtime contract violation: task_packet.evidence_refs must be a list of non-empty strings when provided.',
+                notes=['metadata.task_packet.evidence_refs has invalid shape.'],
+            )
+
+        packet_status = task_packet.get('packet_status')
+        if packet_status is not None and packet_status not in self._TASK_PACKET_STATUSES:
+            return RuntimeContractViolation(
+                code='task_packet_status_invalid',
+                reason='Runtime contract violation: task_packet.packet_status contains unsupported state.',
+                notes=[f'unsupported packet_status: {packet_status}'],
+            )
+        return None
+
     def _execution_plan_preflight_violation(
         self,
         execution_plan: object,
@@ -929,6 +1109,12 @@ class RuntimeContractGuard:
         if isinstance(status, str) and status.strip():
             return status
         return None
+
+    def _optional_str(self, value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+        text = value.strip()
+        return text or None
 
     def _string_list(self, value: object) -> bool:
         if not isinstance(value, list):
