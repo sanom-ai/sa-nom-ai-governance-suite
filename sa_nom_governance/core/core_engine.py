@@ -691,6 +691,8 @@ class CoreEngine:
             raise ValueError(f"Unsupported override decision: {decision}")
 
         metadata = state.to_dict()
+        if execution_result is not None:
+            metadata['execution_result'] = asdict(execution_result)
         if released_lock is not None:
             metadata["released_lock"] = released_lock.to_dict()
 
