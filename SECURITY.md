@@ -26,3 +26,12 @@ The maintainers should:
 - triage severity and impact
 - coordinate a fix and release plan
 - credit reporters when appropriate and approved
+
+## Repository Hygiene Posture
+
+The public repository follows a dependency-light security posture.
+
+That means maintainers should prefer small, reviewable dependency changes, keep secrets out of tracked files, and treat authentication, authorization, token, session, audit-integrity, and data-exposure paths as security-sensitive even when the deployment model is self-managed.
+
+See [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIENE.md) for the broader hygiene baseline.
+
