@@ -636,8 +636,67 @@ class EngineApplication:
     def list_evidence_packs(self, limit: int = 20) -> list[dict[str, object]]:
         return self.evidence_builder.list_packs(limit=limit)
 
+    def list_workflow_proof_bundles(self, limit: int = 20) -> list[dict[str, object]]:
+        return self.evidence_builder.list_workflow_proof_bundles(limit=limit)
+
     def evidence_pack_summary(self) -> dict[str, object]:
         return self.evidence_builder.summary()
+
+    def create_workflow_proof_bundle(self, workflow_id: str, requested_by: str, *, limit: int = 400) -> dict[str, object]:
+        workflow_state = self.get_workflow_state(workflow_id)
+        request_id = str(workflow_state.get('request_id', ''))
+
+        recovery_records = [
+            item
+            for item in self.list_runtime_recovery_records(limit=limit)
+            if self._workflow_matches_runtime_record(workflow_id, request_id, item)
+        ]
+        related_request_ids = {request_id}
+        for item in recovery_records:
+            related_request_ids.add(str(item.get('request_id', '')))
+            resumed_request_id = item.get('resumed_request_id')
+            if resumed_request_id is not None:
+                related_request_ids.add(str(resumed_request_id))
+        dead_letters = [
+            item
+            for item in self.list_runtime_dead_letters(limit=limit)
+            if str(item.get('request_id', '')) in related_request_ids
+        ]
+        human_sessions = [
+            session.to_dict()
+            for session in self.human_ask.store.list_sessions()
+            if self._workflow_matches_human_session(workflow_id, request_id, session.to_dict())
+        ]
+        audit_entries = [
+            entry
+            for entry in self.list_audit(limit=limit)
+            if self._workflow_matches_audit_entry(workflow_id, request_id, entry)
+        ]
+
+        result = self.evidence_builder.create_workflow_proof_bundle(
+            requested_by=requested_by,
+            workflow_id=workflow_id,
+            workflow_state=workflow_state,
+            operational_readiness=self.operational_readiness(limit=50),
+            recovery_records=recovery_records,
+            dead_letters=dead_letters,
+            human_sessions=human_sessions,
+            audit_entries=audit_entries,
+        )
+        self.engine.audit_logger.record_event(
+            active_role='SYSTEM',
+            action='workflow_proof_export',
+            outcome='completed',
+            reason='Workflow proof bundle exported from the enterprise runtime.',
+            metadata={
+                'requested_by': requested_by,
+                'workflow_id': workflow_id,
+                'bundle_id': result['bundle_id'],
+                'export_path': result['export_path'],
+                'artifact_total': result['artifact_total'],
+            },
+        )
+        return result
 
     def create_evidence_pack(self, requested_by: str) -> dict[str, object]:
         roles = self.list_roles()
@@ -733,6 +792,36 @@ class EngineApplication:
             source='integration_console',
             requested_by=requested_by,
         )
+
+    def _workflow_matches_runtime_record(self, workflow_id: str, request_id: str, record: dict[str, object]) -> bool:
+        if str(record.get('request_id', '')) == request_id:
+            return True
+        metadata = record.get('metadata', {})
+        if isinstance(metadata, dict):
+            execution_plan = metadata.get('execution_plan', {})
+            if isinstance(execution_plan, dict) and str(execution_plan.get('plan_id', '')) == workflow_id:
+                return True
+        return False
+
+    def _workflow_matches_human_session(self, workflow_id: str, request_id: str, session: dict[str, object]) -> bool:
+        metadata = session.get('metadata', {})
+        if not isinstance(metadata, dict):
+            return False
+        if str(metadata.get('origin_request_id', '')) == request_id:
+            return True
+        execution_plan = metadata.get('execution_plan', {})
+        if isinstance(execution_plan, dict) and str(execution_plan.get('plan_id', '')) == workflow_id:
+            return True
+        inbox = metadata.get('human_decision_inbox', {})
+        if isinstance(inbox, dict):
+            plan = inbox.get('execution_plan', {})
+            if isinstance(plan, dict) and str(plan.get('plan_id', '')) == workflow_id:
+                return True
+        return False
+
+    def _workflow_matches_audit_entry(self, workflow_id: str, request_id: str, entry: dict[str, object]) -> bool:
+        payload = str(entry)
+        return workflow_id in payload or request_id in payload
 
     def _dispatch_integration_event(
         self,

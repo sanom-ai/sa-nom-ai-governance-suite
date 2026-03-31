@@ -101,13 +101,113 @@ class AuditorEvidencePackBuilder:
             )
         return items
 
+    def create_workflow_proof_bundle(
+        self,
+        *,
+        requested_by: str,
+        workflow_id: str,
+        workflow_state: dict[str, object],
+        operational_readiness: dict[str, object],
+        recovery_records: list[dict[str, object]],
+        dead_letters: list[dict[str, object]],
+        human_sessions: list[dict[str, object]],
+        audit_entries: list[dict[str, object]],
+    ) -> dict[str, object]:
+        bundle_id = self._build_pack_id(prefix='workflow-proof')
+        pack_dir = self.config.runtime_evidence_dir / bundle_id
+        artifacts_dir = pack_dir / 'artifacts'
+        files_dir = pack_dir / 'files'
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        files_dir.mkdir(parents=True, exist_ok=True)
+
+        artifact_records: list[dict[str, object]] = []
+        for name, payload in [
+            ('workflow_state.json', workflow_state),
+            ('operational_readiness.json', operational_readiness),
+            ('recovery_records.json', recovery_records),
+            ('dead_letters.json', dead_letters),
+            ('human_sessions.json', human_sessions),
+            ('audit_excerpt.json', audit_entries),
+        ]:
+            artifact_records.append(self._write_json_artifact(artifacts_dir / name, payload, dataset=name.removesuffix('.json')))
+
+        file_records: list[dict[str, object]] = []
+        for dataset, path in self._tracked_paths():
+            file_records.append(self._copy_file_record(dataset=dataset, path=path, files_dir=files_dir))
+
+        manifest = {
+            'bundle_id': bundle_id,
+            'bundle_type': 'workflow_proof',
+            'workflow_id': workflow_id,
+            'created_at': self._utc_now(),
+            'requested_by': requested_by,
+            'environment': self.config.environment,
+            'export_path': str(pack_dir),
+            'artifact_total': len(artifact_records),
+            'file_total': len(file_records),
+            'artifacts': artifact_records,
+            'files': file_records,
+            'workflow_state': {
+                'current_state': workflow_state.get('current_state'),
+                'role_state': workflow_state.get('role_state'),
+                'request_id': workflow_state.get('request_id'),
+                'action': workflow_state.get('action'),
+            },
+            'operational_status': operational_readiness.get('status', 'unknown'),
+            'recovery_total': len(recovery_records),
+            'dead_letter_total': len(dead_letters),
+            'human_session_total': len(human_sessions),
+            'audit_excerpt_total': len(audit_entries),
+        }
+        (pack_dir / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        return manifest
+
+    def list_workflow_proof_bundles(self, limit: int = 20) -> list[dict[str, object]]:
+        items: list[dict[str, object]] = []
+        for manifest_path in self._workflow_proof_manifest_paths()[:limit]:
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding='utf-8-sig'))
+            except Exception as error:
+                items.append(
+                    {
+                        'bundle_id': manifest_path.parent.name,
+                        'created_at': None,
+                        'requested_by': '-',
+                        'export_path': str(manifest_path.parent),
+                        'status': 'invalid_manifest',
+                        'error': str(error),
+                    }
+                )
+                continue
+            items.append(
+                {
+                    'bundle_id': manifest.get('bundle_id', manifest_path.parent.name),
+                    'workflow_id': manifest.get('workflow_id'),
+                    'created_at': manifest.get('created_at'),
+                    'requested_by': manifest.get('requested_by', '-'),
+                    'export_path': manifest.get('export_path', str(manifest_path.parent)),
+                    'artifact_total': int(manifest.get('artifact_total', 0)),
+                    'file_total': int(manifest.get('file_total', 0)),
+                    'operational_status': manifest.get('operational_status', 'unknown'),
+                    'recovery_total': int(manifest.get('recovery_total', 0)),
+                    'dead_letter_total': int(manifest.get('dead_letter_total', 0)),
+                    'human_session_total': int(manifest.get('human_session_total', 0)),
+                    'status': 'ready',
+                }
+            )
+        return items
+
     def summary(self) -> dict[str, object]:
         packs = self._manifest_paths()
+        proofs = self._workflow_proof_manifest_paths()
         latest = self.list_packs(limit=1)
+        latest_proof = self.list_workflow_proof_bundles(limit=1)
         return {
             'evidence_dir': str(self.config.runtime_evidence_dir),
             'exports_total': len(packs),
+            'workflow_proof_total': len(proofs),
             'latest_export': latest[0] if latest else None,
+            'latest_workflow_proof': latest_proof[0] if latest_proof else None,
         }
 
     def _tracked_paths(self) -> list[tuple[str, Path | None]]:
@@ -161,11 +261,33 @@ class AuditorEvidencePackBuilder:
         root = self.config.runtime_evidence_dir
         if not root.exists():
             return []
-        manifests = [path for path in root.glob('*/manifest.json') if path.is_file()]
+        manifests = [
+            path
+            for path in root.glob('*/manifest.json')
+            if path.is_file() and self._manifest_kind(path) != 'workflow_proof'
+        ]
         return sorted(manifests, key=lambda item: item.stat().st_mtime, reverse=True)
 
-    def _build_pack_id(self) -> str:
-        timestamp = datetime.now(timezone.utc).strftime('evidence-%Y%m%dT%H%M%SZ')
+    def _workflow_proof_manifest_paths(self) -> list[Path]:
+        root = self.config.runtime_evidence_dir
+        if not root.exists():
+            return []
+        manifests = [
+            path
+            for path in root.glob('*/manifest.json')
+            if path.is_file() and self._manifest_kind(path) == 'workflow_proof'
+        ]
+        return sorted(manifests, key=lambda item: item.stat().st_mtime, reverse=True)
+
+    def _manifest_kind(self, path: Path) -> str:
+        try:
+            manifest = json.loads(path.read_text(encoding='utf-8-sig'))
+        except Exception:
+            return 'unknown'
+        return str(manifest.get('bundle_type', 'evidence_pack'))
+
+    def _build_pack_id(self, prefix: str = 'evidence') -> str:
+        timestamp = datetime.now(timezone.utc).strftime(f'{prefix}-%Y%m%dT%H%M%SZ')
         candidate = timestamp
         root = self.config.runtime_evidence_dir
         counter = 1
