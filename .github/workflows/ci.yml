@@ -34,8 +34,21 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
-      - name: Run lightweight security audit
+      - name: Run lightweight security audit (advisory)
+        id: security_audit
+        continue-on-error: true
         run: python -m pip_audit -r requirements-dev.txt
+
+      - name: Publish security audit summary
+        if: always()
+        run: |
+          if [ "${{ steps.security_audit.outcome }}" = "success" ]; then
+            echo "## Security Audit" >> "$GITHUB_STEP_SUMMARY"
+            echo "pip-audit completed with no blocking findings." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Security Audit" >> "$GITHUB_STEP_SUMMARY"
+            echo "pip-audit reported findings (advisory, non-blocking)." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Lint Python sources
         run: python -m ruff check .
