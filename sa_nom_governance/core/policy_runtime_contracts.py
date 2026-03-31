@@ -56,9 +56,14 @@ class RuntimeContractGuard:
         'stop_condition',
         'step_index',
         'total_steps',
+        'previous_step_id',
+        'allowed_previous_steps',
         'allowed_next_steps',
         'checkpoint_required',
         'checkpoint_policy_basis_prefix',
+        'handoff_required',
+        'handoff_from_role',
+        'handoff_target_role',
     }
 
     def request_violation(
@@ -187,6 +192,7 @@ class RuntimeContractGuard:
 
         execution_plan_violation = self._execution_plan_preflight_violation(
             execution_plan,
+            context=context,
             supported_human_required_bases=supported_human_required_bases,
         )
         if execution_plan_violation is not None:
@@ -330,6 +336,11 @@ class RuntimeContractGuard:
 
         step_index = execution_plan.get('step_index')
         total_steps = execution_plan.get('total_steps')
+        previous_step_id = execution_plan.get('previous_step_id')
+        allowed_previous_steps = execution_plan.get('allowed_previous_steps')
+        handoff_required = execution_plan.get('handoff_required') is True
+        handoff_from_role = execution_plan.get('handoff_from_role') if isinstance(execution_plan.get('handoff_from_role'), str) else None
+        handoff_target_role = execution_plan.get('handoff_target_role') if isinstance(execution_plan.get('handoff_target_role'), str) else None
         return {
             'plan_id': str(execution_plan['plan_id']),
             'step_id': str(execution_plan['step_id']),
@@ -338,10 +349,17 @@ class RuntimeContractGuard:
             'stop_condition': str(execution_plan['stop_condition']),
             'step_index': int(step_index) if isinstance(step_index, int) else 1,
             'total_steps': int(total_steps) if isinstance(total_steps, int) else None,
+            'previous_step_id': previous_step_id if isinstance(previous_step_id, str) else None,
+            'allowed_previous_steps': list(allowed_previous_steps) if isinstance(allowed_previous_steps, list) else [],
             'allowed_next_steps': list(execution_plan.get('allowed_next_steps', [])) if isinstance(execution_plan.get('allowed_next_steps'), list) else [],
             'checkpoint_required': execution_plan.get('checkpoint_required') is True,
             'checkpoint_policy_basis_prefix': execution_plan.get('checkpoint_policy_basis_prefix') if isinstance(execution_plan.get('checkpoint_policy_basis_prefix'), str) else None,
-            'plan_status': 'active_step',
+            'handoff_required': handoff_required,
+            'handoff_from_role': handoff_from_role,
+            'handoff_target_role': handoff_target_role,
+            'active_role': context.role_id,
+            'routing_status': self._execution_plan_routing_status(context, execution_plan),
+            'plan_status': 'handoff_active' if handoff_required else 'active_step',
         }
 
     def _policy_contract_shape_violation(self, policy_contract: object) -> RuntimeContractViolation | None:
@@ -549,13 +567,22 @@ class RuntimeContractGuard:
                 notes=[f'step_index={step_index}', f'total_steps={total_steps}'],
             )
 
-        allowed_next_steps = execution_plan.get('allowed_next_steps')
-        if allowed_next_steps is not None and not self._string_list(allowed_next_steps):
+        previous_step_id = execution_plan.get('previous_step_id')
+        if previous_step_id is not None and (not isinstance(previous_step_id, str) or not previous_step_id.strip()):
             return RuntimeContractViolation(
-                code='execution_plan_allowed_next_steps_invalid',
-                reason='Runtime contract violation: execution_plan.allowed_next_steps must be a list of non-empty strings when provided.',
-                notes=['metadata.execution_plan.allowed_next_steps has invalid shape.'],
+                code='execution_plan_previous_step_id_invalid',
+                reason='Runtime contract violation: execution_plan.previous_step_id must be a non-empty string when provided.',
+                notes=['metadata.execution_plan.previous_step_id is invalid.'],
             )
+
+        for key in ('allowed_previous_steps', 'allowed_next_steps'):
+            value = execution_plan.get(key)
+            if value is not None and not self._string_list(value):
+                return RuntimeContractViolation(
+                    code=f'execution_plan_{key}_invalid',
+                    reason=f'Runtime contract violation: execution_plan.{key} must be a list of non-empty strings when provided.',
+                    notes=[f'metadata.execution_plan.{key} has invalid shape.'],
+                )
 
         checkpoint_required = execution_plan.get('checkpoint_required')
         if checkpoint_required is not None and not isinstance(checkpoint_required, bool):
@@ -573,35 +600,113 @@ class RuntimeContractGuard:
                 notes=['metadata.execution_plan.checkpoint_policy_basis_prefix is invalid.'],
             )
 
+        handoff_required = execution_plan.get('handoff_required')
+        if handoff_required is not None and not isinstance(handoff_required, bool):
+            return RuntimeContractViolation(
+                code='execution_plan_handoff_required_invalid',
+                reason='Runtime contract violation: execution_plan.handoff_required must be boolean when provided.',
+                notes=['metadata.execution_plan.handoff_required is invalid.'],
+            )
+
+        handoff_from_role = execution_plan.get('handoff_from_role')
+        if handoff_from_role is not None and (not isinstance(handoff_from_role, str) or not handoff_from_role.strip()):
+            return RuntimeContractViolation(
+                code='execution_plan_handoff_from_role_invalid',
+                reason='Runtime contract violation: execution_plan.handoff_from_role must be a non-empty string when provided.',
+                notes=['metadata.execution_plan.handoff_from_role is invalid.'],
+            )
+
+        handoff_target_role = execution_plan.get('handoff_target_role')
+        if handoff_target_role is not None and (not isinstance(handoff_target_role, str) or not handoff_target_role.strip()):
+            return RuntimeContractViolation(
+                code='execution_plan_handoff_target_role_invalid',
+                reason='Runtime contract violation: execution_plan.handoff_target_role must be a non-empty string when provided.',
+                notes=['metadata.execution_plan.handoff_target_role is invalid.'],
+            )
+        if handoff_required is True and not isinstance(handoff_target_role, str):
+            return RuntimeContractViolation(
+                code='execution_plan_handoff_target_role_required',
+                reason='Runtime contract violation: execution_plan.handoff_target_role is required when handoff_required is true.',
+                notes=['metadata.execution_plan.handoff_required requires a target role.'],
+            )
+
         return None
 
     def _execution_plan_preflight_violation(
         self,
         execution_plan: object,
         *,
+        context: ExecutionContext,
         supported_human_required_bases: list[str],
     ) -> RuntimeContractViolation | None:
         if not isinstance(execution_plan, dict):
             return None
 
-        if execution_plan.get('checkpoint_required') is not True:
-            return None
+        if execution_plan.get('checkpoint_required') is True:
+            if not supported_human_required_bases:
+                return RuntimeContractViolation(
+                    code='execution_plan_checkpoint_unavailable',
+                    reason='Runtime contract violation: execution_plan requires a governed human checkpoint, but no compatible human-required runtime path is available.',
+                    notes=['execution_plan.checkpoint_required is true without a compatible human boundary.'],
+                )
 
-        if not supported_human_required_bases:
+            required_prefix = execution_plan.get('checkpoint_policy_basis_prefix')
+            if isinstance(required_prefix, str) and not any(
+                basis.startswith(required_prefix) for basis in supported_human_required_bases
+            ):
+                return RuntimeContractViolation(
+                    code='execution_plan_checkpoint_policy_basis_mismatch',
+                    reason='Runtime contract violation: execution_plan checkpoint policy basis does not match the available human-required runtime path.',
+                    notes=[f"required prefix: {required_prefix}", f"available paths: {', '.join(supported_human_required_bases)}"],
+                )
+
+        previous_step_id = execution_plan.get('previous_step_id')
+        allowed_previous_steps = execution_plan.get('allowed_previous_steps')
+        if isinstance(previous_step_id, str) and isinstance(allowed_previous_steps, list) and previous_step_id not in allowed_previous_steps:
             return RuntimeContractViolation(
-                code='execution_plan_checkpoint_unavailable',
-                reason='Runtime contract violation: execution_plan requires a governed human checkpoint, but no compatible human-required runtime path is available.',
-                notes=['execution_plan.checkpoint_required is true without a compatible human boundary.'],
+                code='execution_plan_previous_step_outside_allowlist',
+                reason='Runtime contract violation: execution_plan.previous_step_id is outside execution_plan.allowed_previous_steps.',
+                notes=[f'previous_step_id={previous_step_id}', f"allowed_previous_steps={', '.join(allowed_previous_steps)}"],
             )
 
-        required_prefix = execution_plan.get('checkpoint_policy_basis_prefix')
-        if isinstance(required_prefix, str) and not any(
-            basis.startswith(required_prefix) for basis in supported_human_required_bases
-        ):
+        if execution_plan.get('handoff_required') is not True:
+            return None
+
+        handoff_target_role = execution_plan.get('handoff_target_role')
+        if isinstance(handoff_target_role, str) and context.role_id != handoff_target_role:
             return RuntimeContractViolation(
-                code='execution_plan_checkpoint_policy_basis_mismatch',
-                reason='Runtime contract violation: execution_plan checkpoint policy basis does not match the available human-required runtime path.',
-                notes=[f"required prefix: {required_prefix}", f"available paths: {', '.join(supported_human_required_bases)}"],
+                code='execution_plan_handoff_target_role_mismatch',
+                reason='Runtime contract violation: execution_plan handoff target role does not match the active runtime role.',
+                notes=[f'required target role: {handoff_target_role}', f'active role: {context.role_id}'],
+            )
+
+        transition = context.role_transition if isinstance(context.role_transition, dict) else {}
+        previous_role = transition.get('previous_role') if isinstance(transition.get('previous_role'), str) else None
+        if previous_role is None:
+            previous_role = context.metadata.get('current_role') if isinstance(context.metadata.get('current_role'), str) else None
+        if previous_role is None:
+            previous_role = context.metadata.get('previous_role') if isinstance(context.metadata.get('previous_role'), str) else None
+
+        if previous_role is None:
+            return RuntimeContractViolation(
+                code='execution_plan_handoff_context_missing',
+                reason='Runtime contract violation: execution_plan requires a routed handoff, but previous role context is missing.',
+                notes=['handoff_required is true without previous_role/current_role context.'],
+            )
+
+        handoff_from_role = execution_plan.get('handoff_from_role')
+        if isinstance(handoff_from_role, str) and previous_role != handoff_from_role:
+            return RuntimeContractViolation(
+                code='execution_plan_handoff_source_role_mismatch',
+                reason='Runtime contract violation: execution_plan handoff source role does not match the routed previous role.',
+                notes=[f'required source role: {handoff_from_role}', f'previous role: {previous_role}'],
+            )
+
+        if previous_role == context.role_id:
+            return RuntimeContractViolation(
+                code='execution_plan_handoff_not_transitioned',
+                reason='Runtime contract violation: execution_plan requires a role handoff, but runtime is still executing under the same role.',
+                notes=[f'previous role: {previous_role}', f'active role: {context.role_id}'],
             )
 
         return None
@@ -745,6 +850,22 @@ class RuntimeContractGuard:
                 )
 
         return None
+
+    def _execution_plan_routing_status(self, context: ExecutionContext, execution_plan: dict[str, object]) -> str:
+        if execution_plan.get('handoff_required') is not True:
+            return 'active_step'
+
+        transition = context.role_transition if isinstance(context.role_transition, dict) else {}
+        previous_role = transition.get('previous_role') if isinstance(transition.get('previous_role'), str) else None
+        if previous_role is None:
+            previous_role = context.metadata.get('current_role') if isinstance(context.metadata.get('current_role'), str) else None
+        if previous_role is None:
+            previous_role = context.metadata.get('previous_role') if isinstance(context.metadata.get('previous_role'), str) else None
+
+        handoff_target_role = execution_plan.get('handoff_target_role')
+        if isinstance(previous_role, str) and isinstance(handoff_target_role, str) and previous_role != context.role_id and handoff_target_role == context.role_id:
+            return 'handoff_active'
+        return 'handoff_pending'
 
     def _supported_human_required_bases(
         self,
