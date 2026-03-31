@@ -25,6 +25,10 @@ Run:
 
 - `python scripts/guided_smoke_test.py --registration-code DEMO-ORG`
 
+Optional when you want a non-technical demo narrative generated from live runtime posture:
+
+- `python scripts/nontechnical_demo_path.py`
+
 Optional when Ollama is already available and you want a live private-model probe:
 
 - `python scripts/guided_smoke_test.py --registration-code DEMO-ORG --probe`
