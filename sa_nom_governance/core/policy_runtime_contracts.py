@@ -530,7 +530,8 @@ class RuntimeContractGuard:
 
         human_required_contract = policy_contract.get('human_required')
         if isinstance(human_required_contract, dict) and human_required_contract.get('required') is True:
-            if computation.outcome not in {'waiting_human', 'human_required'}:
+            override_completed = computation.outcome == 'approved' and self._human_override_status(computation) == 'approved'
+            if computation.outcome not in {'waiting_human', 'human_required'} and not override_completed:
                 return RuntimeContractViolation(
                     code='policy_contract_human_required_not_triggered',
                     reason='Runtime contract violation: policy contract required a human-required outcome, but runtime completed without entering that boundary.',
@@ -563,7 +564,8 @@ class RuntimeContractGuard:
 
         override_path_contract = policy_contract.get('override_path')
         if isinstance(override_path_contract, dict) and override_path_contract.get('required') is True:
-            if computation.outcome not in {'waiting_human', 'human_required'}:
+            override_completed = computation.outcome == 'approved' and self._human_override_status(computation) == 'approved'
+            if computation.outcome not in {'waiting_human', 'human_required'} and not override_completed:
                 return RuntimeContractViolation(
                     code='policy_contract_override_path_not_triggered',
                     reason='Runtime contract violation: policy contract required an override path, but runtime did not enter a resumable human-confirmed state.',
@@ -637,6 +639,15 @@ class RuntimeContractGuard:
         approver_role = getattr(override, 'approver_role', None)
         if isinstance(approver_role, str) and approver_role.strip():
             return approver_role
+        return None
+
+    def _human_override_status(self, computation: DecisionComputation) -> str | None:
+        override = computation.human_override
+        if override is None:
+            return None
+        status = getattr(override, 'status', None)
+        if isinstance(status, str) and status.strip():
+            return status
         return None
 
     def _string_list(self, value: object) -> bool:
