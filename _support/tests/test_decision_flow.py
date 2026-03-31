@@ -1002,3 +1002,112 @@ def test_deep_think_override_blocks_when_reasoning_metadata_is_missing() -> None
     assert reviewed.execution_result['outcome'] == 'blocked'
     assert reviewed.execution_result['policy_basis'] == 'runtime.authority_transition'
     assert reviewed.execution_result['decision_trace']['source_id'] == 'reasoning_control_resume_not_allowed'
+
+
+def test_policy_contract_preflight_requires_human_path() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-PREFLIGHT-1', 'amount': 3000000},
+        metadata={'policy_contract': {'human_required': {'required': True}}},
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.preflight'
+    assert result.decision_trace['source_id'] == 'policy_contract_human_required_unavailable'
+
+
+def test_policy_contract_preflight_rejects_override_approver_mismatch() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-PREFLIGHT-2', 'amount': 1000000},
+        metadata={
+            'authority_contract': {'approval_gate': 'human_required'},
+            'policy_contract': {
+                'override_path': {
+                    'required': True,
+                    'required_policy_basis_prefix': 'runtime.authority_contract',
+                    'required_approver_role': 'LEGAL',
+                }
+            },
+        },
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.preflight'
+    assert result.decision_trace['source_id'] == 'policy_contract_override_approver_role_mismatch'
+
+
+def test_policy_contract_exception_outcome_boundary_is_enforced() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-EXCEPTION-1', 'amount': 1000000},
+        metadata={
+            'authority_contract': {'approval_gate': 'blocked'},
+            'policy_contract': {'exception': {'allowed_outcomes': ['retryable']}},
+        },
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.decision'
+    assert result.decision_trace['source_id'] == 'policy_contract_exception_outcome_outside_allowlist'
+
+
+def test_policy_contract_exception_trace_boundary_is_enforced() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-EXCEPTION-2', 'amount': 1000000},
+        metadata={
+            'authority_contract': {'approval_gate': 'blocked'},
+            'policy_contract': {'exception': {'required_trace_sources': ['runtime_reliability']}},
+        },
+    )
+
+    assert result.outcome == 'escalated'
+    assert result.policy_basis == 'runtime.contract.decision'
+    assert result.decision_trace['source_id'] == 'policy_contract_exception_trace_source_outside_allowlist'
+
+
+def test_policy_contract_override_path_matches_authority_gate() -> None:
+    app = build_test_app()
+
+    result = app.request(
+        requester='tester',
+        role_id='LEGAL',
+        action='review_contract',
+        payload={'resource': 'contract', 'resource_id': 'C-PC-OVERRIDE-1', 'amount': 1000000},
+        metadata={
+            'authority_contract': {'approval_gate': 'human_required'},
+            'policy_contract': {
+                'human_required': {
+                    'required': True,
+                    'required_policy_basis_prefix': 'runtime.authority_contract',
+                },
+                'override_path': {
+                    'required': True,
+                    'required_policy_basis_prefix': 'runtime.authority_contract',
+                    'required_approver_role': 'GOV',
+                },
+            },
+        },
+    )
+
+    assert result.outcome == 'human_required'
+    assert result.policy_basis == 'runtime.authority_contract'
+    assert result.human_override is not None
+    assert result.human_override['approver_role'] == 'GOV'
