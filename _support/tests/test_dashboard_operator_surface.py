@@ -15,15 +15,20 @@ def test_dashboard_snapshot_includes_operational_readiness_summary() -> None:
         snapshot = DashboardSnapshotBuilder(config=config).build()
 
         operational = snapshot.get('operational_readiness', {})
+        first_run = snapshot.get('first_run_readiness', {})
         summary = snapshot.get('summary', {})
 
         assert isinstance(operational, dict)
+        assert isinstance(first_run, dict)
         assert operational.get('status') in {'ready', 'monitoring', 'attention_required'}
         assert summary.get('operational_readiness_status') == operational.get('status')
         assert isinstance(summary.get('workflow_backlog_total'), int)
         assert isinstance(summary.get('human_inbox_open_total'), int)
         assert isinstance(summary.get('recovery_pending_total'), int)
         assert isinstance(summary.get('dead_letter_total'), int)
+        assert first_run.get('status') in {'ready', 'monitoring', 'blocked'}
+        assert isinstance(summary.get('first_run_blockers_total'), int)
+        assert isinstance(summary.get('first_run_advisories_total'), int)
 
 
 

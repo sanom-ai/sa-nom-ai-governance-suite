@@ -31,10 +31,17 @@ class DashboardSnapshotBuilder:
         retention_plan = self.retention_plan()
         role_private_studio = self.role_private_studio()
         human_ask = self.human_ask()
+        owner_registration = self.owner_registration()
         go_live_readiness = self.go_live_readiness()
         operational_readiness = self.app.operational_readiness(limit=50)
         operator_decision_lanes = self.build_operator_decision_lanes(operational_readiness)
         operations = self.operations()
+        first_run_readiness = self.first_run_readiness(
+            owner_registration=owner_registration,
+            go_live_readiness=go_live_readiness,
+            operational_readiness=operational_readiness,
+            operations=operations,
+        )
         compliance = self.compliance_snapshot()
         evidence_exports = self.evidence_exports()
         integrations = self.integrations()
@@ -90,6 +97,9 @@ class DashboardSnapshotBuilder:
                 'usability_proof_criteria_total': int(operations.get('usability_proof', {}).get('criteria_total', 0) or 0),
                 'usability_proof_criteria_passed_total': int(operations.get('usability_proof', {}).get('criteria_passed_total', 0) or 0),
                 'usability_proof_criteria_failed_total': int(operations.get('usability_proof', {}).get('criteria_failed_total', 0) or 0),
+                'first_run_readiness_status': str(first_run_readiness.get('status', 'blocked')),
+                'first_run_blockers_total': int(first_run_readiness.get('blockers_total', 0) or 0),
+                'first_run_advisories_total': int(first_run_readiness.get('advisories_total', 0) or 0),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
                 'integration_targets_total': integrations.get('summary', {}).get('targets_total', 0),
@@ -115,6 +125,7 @@ class DashboardSnapshotBuilder:
             'model_providers': model_providers,
             'go_live_readiness': go_live_readiness,
             'operational_readiness': operational_readiness,
+            'first_run_readiness': first_run_readiness,
             'operator_decision_lanes': operator_decision_lanes,
             'runtime_alerts': runtime_alerts,
             'runtime_health': self.runtime_health(roles=roles, go_live_readiness=go_live_readiness),
@@ -267,6 +278,93 @@ class DashboardSnapshotBuilder:
             'summary': self.app.runtime_backup_summary(),
             'backups': self.app.list_runtime_backups(limit=limit),
             'usability_proof': self.usability_proof_summary(),
+        }
+
+    def first_run_readiness(
+        self,
+        *,
+        owner_registration: dict[str, object],
+        go_live_readiness: dict[str, object],
+        operational_readiness: dict[str, object],
+        operations: dict[str, object],
+    ) -> dict[str, object]:
+        proof = operations.get('usability_proof', {}) if isinstance(operations.get('usability_proof'), dict) else {}
+        smoke_report = go_live_readiness.get('smoke_report', {}) if isinstance(go_live_readiness.get('smoke_report'), dict) else {}
+        quick_start_report_path = self.config.review_dir / 'quick_start_path.json'
+        demo_script_path = self.config.base_dir / 'scripts' / 'nontechnical_demo_path.py'
+        checks: list[dict[str, object]] = [
+            {
+                'check_id': 'owner_registration',
+                'title': 'Owner registration is present',
+                'passed': bool(owner_registration.get('registered', False)),
+                'required': True,
+                'view': 'health',
+                'detail': str(owner_registration.get('path') or 'Owner registration record is missing.'),
+            },
+            {
+                'check_id': 'go_live_gate',
+                'title': 'Go-live gate is ready',
+                'passed': bool(go_live_readiness.get('ready', False)),
+                'required': True,
+                'view': 'health',
+                'detail': f"Go-live status is {go_live_readiness.get('status', 'blocked')}.",
+            },
+            {
+                'check_id': 'runtime_smoke',
+                'title': 'Runtime smoke report is passed',
+                'passed': str(smoke_report.get('status', 'missing')) == 'passed',
+                'required': True,
+                'view': 'health',
+                'detail': f"Smoke status is {smoke_report.get('status', 'missing')}.",
+            },
+            {
+                'check_id': 'operational_visibility',
+                'title': 'Operational readiness surface is live',
+                'passed': str(operational_readiness.get('status', 'unknown')) in {'ready', 'monitoring'},
+                'required': True,
+                'view': 'overview',
+                'detail': f"Operational readiness is {operational_readiness.get('status', 'unknown')}.",
+            },
+            {
+                'check_id': 'quick_start_report',
+                'title': 'Quick-start report artifact exists',
+                'passed': quick_start_report_path.exists(),
+                'required': False,
+                'view': 'health',
+                'detail': str(quick_start_report_path),
+            },
+            {
+                'check_id': 'usability_proof',
+                'title': 'Usability proof bundle is available',
+                'passed': bool(proof.get('available', False)),
+                'required': False,
+                'view': 'overview',
+                'detail': f"Proof status is {proof.get('status', 'missing')}.",
+            },
+            {
+                'check_id': 'demo_script',
+                'title': 'Non-technical demo script is available',
+                'passed': demo_script_path.exists(),
+                'required': False,
+                'view': 'overview',
+                'detail': str(demo_script_path),
+            },
+        ]
+        blockers = [item for item in checks if bool(item.get('required')) and not bool(item.get('passed'))]
+        advisories = [item for item in checks if not bool(item.get('required')) and not bool(item.get('passed'))]
+        if blockers:
+            status = 'blocked'
+        elif advisories:
+            status = 'monitoring'
+        else:
+            status = 'ready'
+        return {
+            'status': status,
+            'checks': checks,
+            'blockers_total': len(blockers),
+            'advisories_total': len(advisories),
+            'ready': not blockers,
+            'recommended_view': str((blockers[0] if blockers else advisories[0]).get('view', 'overview')) if (blockers or advisories) else 'overview',
         }
 
     def usability_proof_summary(self) -> dict[str, object]:
