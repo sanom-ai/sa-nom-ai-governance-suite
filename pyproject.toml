@@ -68,4 +68,6 @@ files = [
   "sa_nom_governance/core/execution_context.py",
   "sa_nom_governance/core/result_builder.py",
   "sa_nom_governance/core/risk_scorer.py",
+  "sa_nom_governance/core/decision_engine.py",
+  "sa_nom_governance/core/request_consistency.py",
 ]
