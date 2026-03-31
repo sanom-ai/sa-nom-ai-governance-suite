@@ -7,10 +7,15 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.14']
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -18,7 +23,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.14'
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            pyproject.toml
 
       - name: Install development dependencies
         run: |
@@ -37,5 +46,39 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q .
 
-      - name: Run test suite
+      - name: Run test suite with coverage
         run: python -m pytest _support/tests
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml-${{ matrix.python-version }}
+          path: coverage.xml
+          if-no-files-found: error
+
+
+  publish_verify_status:
+    name: publish-legacy-verify-status
+    runs-on: ubuntu-latest
+    needs: verify
+    if: always()
+    steps:
+      - name: Publish legacy verify status context
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const state = '${{ needs.verify.result }}' === 'success' ? 'success' : 'failure';
+            const sha = context.eventName === 'pull_request'
+              ? context.payload.pull_request.head.sha
+              : context.sha;
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state,
+              context: 'verify',
+              description: state === 'success'
+                ? 'Legacy verify compatibility status published.'
+                : 'Legacy verify compatibility status failed.',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });

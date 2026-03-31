@@ -2,6 +2,7 @@ import hashlib
 import secrets
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Protocol
 
 from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.utils.persistence import build_state_store
@@ -76,6 +77,13 @@ class SessionAuthResult:
     session_id: str | None = None
 
 
+class SessionProfile(Protocol):
+    profile_id: str
+    display_name: str
+    role_name: str
+    permissions: set[str]
+
+
 class SessionManager:
     def __init__(self, config: AppConfig) -> None:
         self.config = config
@@ -86,7 +94,7 @@ class SessionManager:
         self._sessions: dict[str, SessionState] = {}
         self._load_existing()
 
-    def issue(self, profile, auth_method: str = "access_token") -> tuple[SessionState, str]:
+    def issue(self, profile: SessionProfile, auth_method: str = "access_token") -> tuple[SessionState, str]:
         token = f"sns_{secrets.token_urlsafe(24)}"
         now = self._now()
         state = SessionState(
