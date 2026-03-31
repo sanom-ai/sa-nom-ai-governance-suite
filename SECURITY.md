@@ -38,6 +38,7 @@ See [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIE
 
 ## Security Automation Baseline
 
-The repository now includes a lightweight Python dependency audit in CI as an early security automation layer. See [docs/SECURITY_AUTOMATION_BASELINE.md](docs/SECURITY_AUTOMATION_BASELINE.md) for the current scope and limits and [docs/DEPENDENCY_REVIEW_WORKFLOW.md](docs/DEPENDENCY_REVIEW_WORKFLOW.md) for the dependency review response path.
+The repository now includes a lightweight Python dependency audit in CI as an early security automation layer. See [docs/SECURITY_AUTOMATION_BASELINE.md](docs/SECURITY_AUTOMATION_BASELINE.md) for the current scope and limits, [docs/DEPENDENCY_REVIEW_WORKFLOW.md](docs/DEPENDENCY_REVIEW_WORKFLOW.md) for the dependency review response path, and [docs/SECURITY_EXCEPTION_WORKFLOW.md](docs/SECURITY_EXCEPTION_WORKFLOW.md) for accepted-exception handling.
+
 
 
