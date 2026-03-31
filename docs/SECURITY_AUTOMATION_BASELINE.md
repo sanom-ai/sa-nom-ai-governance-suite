@@ -22,7 +22,7 @@ The goal is not to claim full supply-chain protection. The goal is to make repos
 
 At this stage, the public repository should treat the following as the first security automation baseline:
 - CI verification for linting, scoped type-checking, compile validation, and tests
-- pull-request dependency review through GitHub automation when dependency manifests change
+- pull-request dependency review through GitHub automation when dependency manifests change and require maintainer attention
 
 This baseline helps the repo surface risky dependency changes earlier without pretending that deployment-environment security is fully automated.
 
@@ -80,3 +80,4 @@ This guide explains the first automation layer that reinforces it.
 The right public message is:
 
 SA-NOM now includes a lightweight security automation baseline for pull-request dependency review, while staying explicit that this is an early repository-level control rather than a complete security platform.
+
