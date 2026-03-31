@@ -1,9 +1,17 @@
-﻿from _bootstrap import ensure_repo_root_on_path
+from importlib import import_module
 
-ensure_repo_root_on_path()
+from _bootstrap import ensure_repo_root_on_path
 
-from sa_nom_governance.deployment.ollama_demo_environment import *
-from sa_nom_governance.deployment.ollama_demo_environment import main
 
-if __name__ == '__main__':
-    main()
+MODULE_PATH = "sa_nom_governance.deployment.ollama_demo_environment"
+
+
+def main() -> int:
+    ensure_repo_root_on_path()
+    module = import_module(MODULE_PATH)
+    result = module.main()
+    return result if isinstance(result, int) else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

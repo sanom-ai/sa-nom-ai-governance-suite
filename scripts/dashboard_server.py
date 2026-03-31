@@ -1,9 +1,17 @@
+from importlib import import_module
+
 from _bootstrap import ensure_repo_root_on_path
 
-ensure_repo_root_on_path()
 
-from sa_nom_governance.dashboard.dashboard_server import *
-from sa_nom_governance.dashboard.dashboard_server import main
+MODULE_PATH = "sa_nom_governance.dashboard.dashboard_server"
 
-if __name__ == '__main__':
-    main()
+
+def main() -> int:
+    ensure_repo_root_on_path()
+    module = import_module(MODULE_PATH)
+    result = module.main()
+    return result if isinstance(result, int) else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
