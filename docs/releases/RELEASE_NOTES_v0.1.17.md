@@ -33,6 +33,7 @@ What was still useful before entering `0.2.xx` was one more release that made th
 - what quality checks exist
 - which checks are expected before a release
 - what the current public verification baseline does and does not claim
+- that SA-NOM's private-first local model path was also exercised successfully on a real machine before the phase was closed
 
 ## What Was Added In v0.1.17
 
@@ -54,6 +55,7 @@ The public baseline now includes:
 - a clearer quality check matrix
 - a clearer release verification baseline
 - contributor guidance that points more directly at those quality expectations
+- a small but real local private-model validation use case on the maintainer machine
 
 This means the `0.1.xx` line now ends with both:
 - structure-first documentation completeness
@@ -76,6 +78,7 @@ That phase now includes:
 - `v0.1.17` is a quality-baseline phase-close milestone, not a runtime feature milestone
 - the release is meant to close `0.1.xx` cleanly before enterprise-tier implementation work in `0.2.xx`
 - the verification baseline is explicit and repeatable, but it should not be mistaken for a final enterprise validation stack
+- the local Ollama validation in this release is a phase-close use case that shows the private-model path works on a real machine, not a claim of full production readiness
 
 ## Verification Snapshot
 
@@ -83,6 +86,11 @@ Validated during `v0.1.17` work with:
 - `python -m compileall -q .`
 - local review of quality matrix and release verification wording
 - local verification that the new release notes are linked from `docs/README.md`
+- local Ollama validation with `SANOM_OLLAMA_MODEL=gemma3:1b`
+- `python scripts/provider_demo_flow.py --provider ollama --probe`
+- `python scripts/provider_smoke_test.py --provider ollama`
+- `python scripts/private_server_smoke_test.py`
+- successful local probe and smoke results including provider readiness, `PONG` response, and a passing private-server smoke path
 
 ## Suggested Next Step
 
