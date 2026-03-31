@@ -60,6 +60,44 @@ jobs:
           if-no-files-found: error
 
 
+  pt_oss_advisory:
+    name: pt-oss-advisory
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            pyproject.toml
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run PT-OSS advisory check (non-blocking)
+        id: ptoss
+        continue-on-error: true
+        run: python -m pytest --no-cov _support/tests/test_pt_oss_engine.py -q
+
+      - name: Publish PT-OSS advisory summary
+        if: always()
+        run: |
+          if [ "${{ steps.ptoss.outcome }}" = "success" ]; then
+            echo "## PT-OSS Advisory" >> "$GITHUB_STEP_SUMMARY"
+            echo "PT-OSS advisory check passed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## PT-OSS Advisory" >> "$GITHUB_STEP_SUMMARY"
+            echo "PT-OSS advisory check reported findings or execution issues (non-blocking)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+
   publish_verify_status:
     name: publish-legacy-verify-status
     runs-on: ubuntu-latest
