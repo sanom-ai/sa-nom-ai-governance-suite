@@ -173,3 +173,77 @@ def test_audit_event_contract_is_emitted_for_decision_result() -> None:
 
 
 
+
+
+def test_audit_event_contract_exception_trace_matrix() -> None:
+    with TemporaryDirectory() as temp_dir:
+        log_path = Path(temp_dir) / 'audit.jsonl'
+        logger = AuditLogger(log_path=log_path)
+
+        exception_outcomes = [
+            ('blocked', 'runtime.authority_contract', 'authority_contract', 'approval_gate'),
+            ('rejected', 'runtime.contract.request', 'runtime_contract', 'request_shape_invalid'),
+            ('escalated', 'runtime.role_activation', 'role_activation', 'no_candidate_role'),
+            ('conflicted', 'runtime.resource_lock', 'runtime_conflict', 'contract:C-777'),
+            ('out_of_order', 'runtime.event_order', 'request_consistency', 'event_sequence_gap'),
+        ]
+
+        for index, (outcome, policy_basis, source_type, source_id) in enumerate(exception_outcomes, start=1):
+            result = DecisionResult(
+                requester='tester',
+                action='review_contract',
+                active_role='LEGAL',
+                outcome=outcome,
+                reason=f'Exception contract check for {outcome}.',
+                risk_score=0.9,
+                policy_basis=policy_basis,
+                decision_trace={'source_type': source_type, 'source_id': source_id},
+                metadata={
+                    'request_id': f'req-ex-{index}',
+                    'metadata': {
+                        'runtime_state_flow': {
+                            'current_state': outcome if outcome != 'out_of_order' else 'blocked',
+                            'history': [],
+                        },
+                    },
+                },
+            )
+            logger.record(result)
+
+        entries = logger.list_entries(limit=10)
+        assert len(entries) == len(exception_outcomes)
+
+        for entry, expected in zip(entries, exception_outcomes):
+            outcome, policy_basis, source_type, source_id = expected
+            evidence_event = entry.metadata['evidence_event']
+            exception_trace = evidence_event['exception_trace']
+
+            assert evidence_event['event_kind'] == 'exception'
+            assert isinstance(exception_trace, dict)
+            assert exception_trace['exception_kind'] == outcome
+            assert exception_trace['policy_basis'] == policy_basis
+            assert exception_trace['trace_source']['type'] == source_type
+            assert exception_trace['trace_source']['id'] == source_id
+            assert evidence_event['correlation']['policy_basis'] == policy_basis
+            assert evidence_event['correlation']['trace_source']['type'] == source_type
+            assert evidence_event['correlation']['trace_source']['id'] == source_id
+            assert evidence_event['correlation']['request_id'] == exception_trace['request_id']
+            assert evidence_event['correlation']['event_id'] == evidence_event['event_id']
+
+
+def test_audit_event_contract_non_exception_has_null_exception_trace() -> None:
+    with TemporaryDirectory() as temp_dir:
+        log_path = Path(temp_dir) / 'audit.jsonl'
+        logger = AuditLogger(log_path=log_path)
+
+        logger.record_event(
+            active_role='SYSTEM',
+            action='status_tick',
+            outcome='completed',
+            reason='Non-exception event for contract check.',
+            metadata={'scope': 'contract_test'},
+        )
+
+        evidence_event = logger.list_entries(limit=1)[0].metadata['evidence_event']
+        assert evidence_event['event_kind'] == 'action'
+        assert evidence_event['exception_trace'] is None

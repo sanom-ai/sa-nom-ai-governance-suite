@@ -153,11 +153,21 @@ class AuditLogger:
             'trace_source_type': decision_trace.get('source_type'),
             'trace_source_id': decision_trace.get('source_id'),
             'has_human_override': bool(result.human_override),
-            'has_exception_surface': result.outcome in {'waiting_human', 'human_required', 'escalated', 'rejected', 'blocked'},
+            'has_exception_surface': result.outcome in {'waiting_human', 'human_required', 'escalated', 'rejected', 'blocked', 'conflicted', 'out_of_order'},
             'authority_gate_triggered': bool(runtime_metadata.get('authority_gate', {}).get('gate_triggered')) if isinstance(runtime_metadata.get('authority_gate'), dict) else False,
             'runtime_state': runtime_metadata.get('runtime_state_flow', {}).get('current_state') if isinstance(runtime_metadata.get('runtime_state_flow'), dict) else None,
+            'exception_kind': self._exception_kind(result.outcome),
         }
 
+    def _exception_kind(self, outcome: str) -> str | None:
+        mapping = {
+            'blocked': 'blocked',
+            'rejected': 'rejected',
+            'escalated': 'escalated',
+            'conflicted': 'conflicted',
+            'out_of_order': 'out_of_order',
+        }
+        return mapping.get(outcome)
     def _with_event_contract(
         self,
         *,
@@ -188,3 +198,6 @@ class AuditLogger:
     def _load_existing(self) -> None:
         for item in self.ledger.read_records():
             self.entries.append(AuditEntry.from_dict(item))
+
+
+
