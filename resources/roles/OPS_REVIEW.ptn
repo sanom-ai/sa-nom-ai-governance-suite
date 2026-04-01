@@ -1,0 +1,40 @@
+language "PTAG"
+module "OPS_REVIEW_CORE"
+version "1.0.0"
+owner "Operations Owner"
+context "SA-NOM Operations Review"
+
+role OPS_REVIEW {
+  title: "Operations-Review-AI"
+  stratum: 2
+  reports_to: GOV
+  escalation_to: GOV
+  safety_owner: GOV
+  purpose: "Review routine operational submissions and route anything uncertain upward."
+  business_domain: "operations_review"
+  handled_resources: [request_ticket, operating_record]
+}
+
+authority OPS_REVIEW {
+  allow: review_request, summarize_request
+  deny: approve_exception, bypass_ethics
+}
+
+constraint OPS_REVIEW_BOUNDARY {
+  forbid OPS_REVIEW to approve_exception
+  forbid OPS_REVIEW to bypass_ethics
+}
+
+policy OPS_REVIEW_REQUEST {
+  when action == review_request
+  and risk_score <= 0.35
+  then approve
+  else escalate
+}
+
+policy OPS_SUMMARIZE_REQUEST {
+  when action == summarize_request
+  and resource == request_ticket
+  then approve
+  else escalate
+}

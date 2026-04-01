@@ -40,7 +40,7 @@ PTAG is now public in this repository. The PTAG documentation, reference impleme
 
 That means teams can study PTAG, use it, evaluate it, and contribute improvements through the normal repository workflow.
 
-See [docs/PTAG_FRAMEWORK.md](docs/PTAG_FRAMEWORK.md) for the public explanation of what PTAG is, [docs/PTAG_QUICK_START.md](docs/PTAG_QUICK_START.md) for the shortest onboarding path, and [docs/PTAG_FULL_SPEC.md](docs/PTAG_FULL_SPEC.md) for the current repository-level technical specification baseline.
+See [docs/PTAG_FRAMEWORK.md](docs/PTAG_FRAMEWORK.md) for the public explanation of what PTAG is, [docs/PTAG_QUICK_START.md](docs/PTAG_QUICK_START.md) for the shortest onboarding path, [docs/PTAG_EXAMPLES.md](docs/PTAG_EXAMPLES.md) for the example map, and [docs/PTAG_FULL_SPEC.md](docs/PTAG_FULL_SPEC.md) for the current repository-level technical specification baseline.
 
 ## Private Rule Studio And Private Rule Position
 
