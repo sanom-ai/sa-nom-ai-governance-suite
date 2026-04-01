@@ -129,10 +129,11 @@ If you want to go deeper:
 1. read this guide first
 2. read [PTAG Quick Start](PTAG_QUICK_START.md) for the shortest study path
 3. read [PTAG Examples](PTAG_EXAMPLES.md) for the example progression
-4. read [PTAG Full Spec](PTAG_FULL_SPEC.md)
-5. inspect `resources/roles/`
-6. inspect `sa_nom_governance/ptag/`
-7. read `CONTRIBUTING.md` if you want to help improve PTAG
+4. read [PTAG FAQ And Comparison](PTAG_FAQ_AND_COMPARISON.md) for positioning and common questions
+5. read [PTAG Full Spec](PTAG_FULL_SPEC.md)
+6. inspect `resources/roles/`
+7. inspect `sa_nom_governance/ptag/`
+8. read `CONTRIBUTING.md` if you want to help improve PTAG
 
 ## Summary
 
