@@ -36,6 +36,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Governed HITL Human Ask Reporting](GOVERNED_HITL_HUMAN_ASK_REPORTING.md)
 - [Governed HITL Reliability And Observability](GOVERNED_HITL_RELIABILITY_AND_OBSERVABILITY.md)
 - [Governed HITL Integration And Compliance Continuity](GOVERNED_HITL_INTEGRATION_AND_COMPLIANCE_CONTINUITY.md)
+- [SA-NOM Global Harmony Protocol](SA_NOM_GLOBAL_HARMONY_PROTOCOL.md)
 - [HITL Role Packs And Use Cases](HITL_ROLE_PACKS_AND_USE_CASES.md)
 - [Governed Authority And Decision Engine](GOVERNED_AUTHORITY_DECISION_ENGINE.md)
 - [Governed Document Center](GOVERNED_DOCUMENT_CENTER.md)
@@ -62,6 +63,8 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Planning And Release Notes
 
+- [Roadmap v0.6.0](ROADMAP_v0.6.0.md)
+- [Issue Drafts v0.6.0](ISSUE_DRAFTS_v0.6.0.md)
 - [Release Notes v0.5.2](releases/RELEASE_NOTES_v0.5.2.md)
 - [Roadmap v0.5.2](ROADMAP_v0.5.2.md)
 - [Issue Drafts v0.5.2](ISSUE_DRAFTS_v0.5.2.md)
