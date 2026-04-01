@@ -38,6 +38,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Governed HITL Integration And Compliance Continuity](GOVERNED_HITL_INTEGRATION_AND_COMPLIANCE_CONTINUITY.md)
 - [SA-NOM Global Harmony Protocol](SA_NOM_GLOBAL_HARMONY_PROTOCOL.md)
 - [Global Harmony Constitution Templates](GLOBAL_HARMONY_CONSTITUTION_TEMPLATES.md)
+- [Global Harmony Evaluation Baseline](GLOBAL_HARMONY_EVALUATION_BASELINE.md)
 - [HITL Role Packs And Use Cases](HITL_ROLE_PACKS_AND_USE_CASES.md)
 - [Governed Authority And Decision Engine](GOVERNED_AUTHORITY_DECISION_ENGINE.md)
 - [Governed Document Center](GOVERNED_DOCUMENT_CENTER.md)
