@@ -45,3 +45,10 @@ This layer turns Global Harmony from a set of files into a governed runtime post
 - ingestion requires `source_document_id`, `requested_by`, a structured payload, and at least one principle
 - ingestion results now return accepted/errors/warnings plus a normalized constitution summary
 - this keeps later document-center integration conservative and auditable
+
+## Selection Intent Policy
+
+- `blocked`: actor or rationale is not sufficient to justify the switch
+- `preview_only`: context is missing or guarded enough that the switch should stay in review mode first
+- `require_approval`: sensitive or externally visible contexts require an approval actor before the switch can activate
+- `direct_switch`: low-risk governed contexts can activate directly under the baseline policy
