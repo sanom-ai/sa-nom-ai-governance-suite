@@ -1988,6 +1988,31 @@ button:focus-visible {
   font-size: 0.95em;
 }
 
+.lane-picker-grid {
+  align-items: stretch;
+}
+
+.lane-card {
+  gap: 12px;
+}
+
+.lane-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.lane-token-pill {
+  background: rgba(185, 146, 79, 0.12);
+  border: 1px solid rgba(185, 146, 79, 0.22);
+  color: var(--accent-deep);
+}
+
+.lane-followup {
+  min-height: 2.8em;
+}
+
 .approval-flow-card .inline-actions {
   margin-top: 4px;
 }
