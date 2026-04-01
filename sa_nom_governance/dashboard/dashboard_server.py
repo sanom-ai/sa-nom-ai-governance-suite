@@ -155,12 +155,25 @@ class DashboardService:
         return {'report': self.app.retention_report(), 'plan': self.app.retention_plan()}
 
     def operations(self, limit: int = 20):
-        return {
+        operations = {
             'summary': self.app.runtime_backup_summary(),
             'backups': self.app.list_runtime_backups(limit=limit),
             'usability_proof': self.snapshot_builder.usability_proof_summary(),
             'quick_start_doctor': self.snapshot_builder.quick_start_doctor_summary(),
         }
+        go_live_readiness = self.snapshot_builder.go_live_readiness()
+        first_run_readiness = self.snapshot_builder.first_run_readiness(
+            owner_registration=self.snapshot_builder.owner_registration(),
+            go_live_readiness=go_live_readiness,
+            operational_readiness=self.app.operational_readiness(limit=50),
+            operations=operations,
+        )
+        operations['first_run_action_center'] = self.snapshot_builder.first_run_action_center(
+            first_run_readiness=first_run_readiness,
+            go_live_readiness=go_live_readiness,
+            operations=operations,
+        )
+        return operations
 
     def create_backup(self, profile: AccessProfile):
         return self.app.create_runtime_backup(requested_by=profile.display_name)
@@ -193,6 +206,32 @@ class DashboardService:
         from sa_nom_governance.deployment.quick_start_path import read_quick_start_doctor
 
         return read_quick_start_doctor(config=self.config)
+
+    def get_first_run_action_center(self):
+        return self.operations(limit=20).get('first_run_action_center', {})
+
+    def run_first_run_action_center(self, payload: dict[str, object]):
+        from sa_nom_governance.deployment.quick_start_path import export_quick_start_doctor
+        from sa_nom_governance.deployment.usability_proof_bundle import export_usability_proof_bundle
+
+        proof_output_raw = str(payload.get('proof_output_path', '')).strip()
+        doctor_output_raw = str(payload.get('doctor_output_path', '')).strip()
+        proof_output_path = Path(proof_output_raw) if proof_output_raw else None
+        doctor_output_path = Path(doctor_output_raw) if doctor_output_raw else None
+
+        proof_result = export_usability_proof_bundle(
+            config=self.config,
+            output_path=proof_output_path,
+            run_quick_start=True,
+        )
+        doctor_result = export_quick_start_doctor(config=self.config, output_path=doctor_output_path)
+        center = self.get_first_run_action_center()
+        return {
+            'status': 'completed',
+            'usability_proof': proof_result,
+            'quick_start_doctor': doctor_result,
+            'first_run_action_center': center,
+        }
 
     def go_live_readiness(self):
         return self.snapshot_builder.go_live_readiness()
@@ -365,6 +404,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.get_usability_proof_bundle(), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/operations/quick-start-doctor':
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.get_quick_start_doctor(), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/operations/first-run-action-center':
+            return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.get_first_run_action_center(), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/go-live-readiness':
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.go_live_readiness(), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/owner-registration':
@@ -432,6 +473,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('ops.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.create_usability_proof_bundle(profile, payload), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/operations/quick-start-doctor':
             return self._require_and_run('ops.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.run_quick_start_doctor(payload), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/operations/first-run-action-center':
+            return self._require_and_run('ops.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.run_first_run_action_center(payload), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/evidence/export':
             return self._require_and_run('evidence.export', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.create_evidence_export(profile), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/integrations/test-event':

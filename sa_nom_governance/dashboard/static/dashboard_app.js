@@ -448,6 +448,31 @@ root.addEventListener('click', async (event) => {
         render();
       }
     }
+    if (action === 'first-run-action-center-refresh') {
+      try {
+        const response = await apiFetch('/api/operations/first-run-action-center');
+        const item = response.item || {};
+        state.lastError = `First-run action center: ${item.status || 'blocked'} (required actions: ${String(item.required_total || 0)})`;
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
+    if (action === 'first-run-action-center-sync') {
+      const confirmed = window.confirm('Run first-run action center now? This will generate usability proof and quick-start doctor artifacts.');
+      if (!confirmed) return;
+      try {
+        const response = await apiFetch('/api/operations/first-run-action-center', { method: 'POST', body: JSON.stringify({}) });
+        const result = response.result || {};
+        const center = result.first_run_action_center || {};
+        state.lastError = `First-run sync completed: ${center.status || 'unknown'} (required actions: ${String(center.required_total || 0)})`;
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
     return;
   }
 
@@ -2528,6 +2553,7 @@ function renderOperationsSection(operations) {
   const backups = Array.isArray(operations.backups) ? operations.backups : [];
   const usabilityProof = operations.usability_proof || {};
   const quickStartDoctor = operations.quick_start_doctor || {};
+  const firstRunActionCenter = operations.first_run_action_center || {};
   const criteria = Array.isArray(usabilityProof.pass_criteria) ? usabilityProof.pass_criteria : [];
   const criteriaRows = criteria.length
     ? criteria.map((row) => `${statusBadge(row.passed ? 'passed' : 'failed')} ${escapeHtml(row.criterion || 'criterion')}`).join('<br>')
@@ -2536,10 +2562,13 @@ function renderOperationsSection(operations) {
   const failedHint = failedCriteria.length
     ? `Failing criteria: ${escapeHtml(failedCriteria.join(', '))}`
     : 'All loaded criteria are currently passing.';
+  const firstRunRows = Array.isArray(firstRunActionCenter.items) && firstRunActionCenter.items.length
+    ? firstRunActionCenter.items.slice(0, 4).map((item) => `${statusBadge(item.severity === 'required' ? 'blocked' : 'monitoring')} ${escapeHtml(item.title || item.action_id || 'action')} ${item.ops_action ? `-> ${escapeHtml(item.ops_action)}` : ''}`).join('<br>')
+    : 'No first-run actions are currently queued.';
   const action = can('ops.manage')
-    ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button><button class="action-button" data-ops-action="quick-start-doctor">Run Quick-Start Doctor</button><button class="action-button action-button-muted" data-ops-action="quick-start-doctor-refresh">Refresh Doctor Status</button></div>`
+    ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button><button class="action-button" data-ops-action="quick-start-doctor">Run Quick-Start Doctor</button><button class="action-button action-button-muted" data-ops-action="quick-start-doctor-refresh">Refresh Doctor Status</button><button class="action-button" data-ops-action="first-run-action-center-sync">Run First-Run Sync</button><button class="action-button action-button-muted" data-ops-action="first-run-action-center-refresh">Refresh First-Run Actions</button></div>`
     : '';
-  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}, Criteria: ${escapeHtml(String(usabilityProof.criteria_passed_total || 0))}/${escapeHtml(String(usabilityProof.criteria_total || 0))}, Failed: ${escapeHtml(String(usabilityProof.criteria_failed_total || 0))}</p><p class="muted">${failedHint}</p><p class="muted">${criteriaRows}</p></div><div class="trace-box"><strong>Quick-start doctor</strong><p class="muted">Status: ${escapeHtml(String(quickStartDoctor.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(quickStartDoctor.available)))}, Generated: ${escapeHtml(String(quickStartDoctor.generated_at || '-'))}, Required failed: ${escapeHtml(String(quickStartDoctor.required_failed_total || 0))}, Advisory failed: ${escapeHtml(String(quickStartDoctor.advisory_failed_total || 0))}, Checks: ${escapeHtml(String(quickStartDoctor.checks_total || 0))}</p><p class="muted">${escapeHtml(Array.isArray(quickStartDoctor.next_actions) && quickStartDoctor.next_actions.length ? quickStartDoctor.next_actions.slice(0, 2).join(' | ') : 'No recommended next actions.')}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
+  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>First-run action center</strong><p class="muted">Status: ${escapeHtml(String(firstRunActionCenter.status || 'blocked'))}, Ready: ${escapeHtml(String(Boolean(firstRunActionCenter.ready)))}, Required actions: ${escapeHtml(String(firstRunActionCenter.required_total || 0))}, Total actions: ${escapeHtml(String(firstRunActionCenter.items_total || 0))}, Recommended action: ${escapeHtml(String(firstRunActionCenter.recommended_action || 'none'))}</p><p class="muted">${firstRunRows}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}, Criteria: ${escapeHtml(String(usabilityProof.criteria_passed_total || 0))}/${escapeHtml(String(usabilityProof.criteria_total || 0))}, Failed: ${escapeHtml(String(usabilityProof.criteria_failed_total || 0))}</p><p class="muted">${failedHint}</p><p class="muted">${criteriaRows}</p></div><div class="trace-box"><strong>Quick-start doctor</strong><p class="muted">Status: ${escapeHtml(String(quickStartDoctor.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(quickStartDoctor.available)))}, Generated: ${escapeHtml(String(quickStartDoctor.generated_at || '-'))}, Required failed: ${escapeHtml(String(quickStartDoctor.required_failed_total || 0))}, Advisory failed: ${escapeHtml(String(quickStartDoctor.advisory_failed_total || 0))}, Checks: ${escapeHtml(String(quickStartDoctor.checks_total || 0))}</p><p class="muted">${escapeHtml(Array.isArray(quickStartDoctor.next_actions) && quickStartDoctor.next_actions.length ? quickStartDoctor.next_actions.slice(0, 2).join(' | ') : 'No recommended next actions.')}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
 }
 
 function renderIntegrationSection(integrations) {

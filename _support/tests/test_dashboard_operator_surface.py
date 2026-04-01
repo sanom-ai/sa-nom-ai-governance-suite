@@ -29,6 +29,8 @@ def test_dashboard_snapshot_includes_operational_readiness_summary() -> None:
         assert first_run.get('status') in {'ready', 'monitoring', 'blocked'}
         assert isinstance(summary.get('first_run_blockers_total'), int)
         assert isinstance(summary.get('first_run_advisories_total'), int)
+        assert isinstance(summary.get('first_run_action_items_total'), int)
+        assert isinstance(summary.get('first_run_action_required_total'), int)
 
 
 
@@ -62,6 +64,7 @@ def test_dashboard_snapshot_exposes_missing_usability_proof_status() -> None:
         operations = snapshot.get('operations', {})
         proof = operations.get('usability_proof', {}) if isinstance(operations, dict) else {}
         doctor = operations.get('quick_start_doctor', {}) if isinstance(operations, dict) else {}
+        first_run_actions = operations.get('first_run_action_center', {}) if isinstance(operations, dict) else {}
         summary = snapshot.get('summary', {})
 
         assert proof.get('status') == 'missing'
@@ -70,6 +73,11 @@ def test_dashboard_snapshot_exposes_missing_usability_proof_status() -> None:
         assert summary.get('usability_proof_available') is False
         assert summary.get('quick_start_doctor_status') == 'missing'
         assert doctor.get('status') == 'missing'
+        assert first_run_actions.get('status') in {'ready', 'monitoring', 'blocked'}
+        assert isinstance(first_run_actions.get('items_total'), int)
+        assert isinstance(first_run_actions.get('required_total'), int)
+        assert isinstance(summary.get('first_run_action_items_total'), int)
+        assert isinstance(summary.get('first_run_action_required_total'), int)
 
 
 def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
