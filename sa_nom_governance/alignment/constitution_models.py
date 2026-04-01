@@ -49,3 +49,41 @@ class RegionalConstitution:
             "notes": self.notes,
             "safe_claim": self.safe_claim,
         }
+
+
+@dataclass(slots=True)
+class ConstitutionIngestionRequest:
+    source_document_id: str
+    source_type: str
+    requested_by: str
+    payload: dict[str, object]
+    rationale: str = ""
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "source_document_id": self.source_document_id,
+            "source_type": self.source_type,
+            "requested_by": self.requested_by,
+            "payload": dict(self.payload),
+            "rationale": self.rationale,
+        }
+
+
+@dataclass(slots=True)
+class ConstitutionIngestionResult:
+    accepted: bool
+    constitution: RegionalConstitution | None
+    summary: dict[str, object]
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "accepted": self.accepted,
+            "summary": dict(self.summary),
+            "errors": list(self.errors),
+            "warnings": list(self.warnings),
+        }
+        if self.constitution is not None:
+            payload["constitution"] = self.constitution.to_dict()
+        return payload

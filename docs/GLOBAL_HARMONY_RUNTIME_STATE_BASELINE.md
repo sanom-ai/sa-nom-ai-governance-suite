@@ -38,3 +38,10 @@ This layer turns Global Harmony from a set of files into a governed runtime post
 - `preview_switch(...)` lets operators inspect the target constitution and its governed evaluation before a switch is applied
 - `audit_handoff` gives later audit or event layers a stable record shape for alignment selection intent
 - this keeps switching reviewable before any dashboard-heavy implementation appears
+
+## Ingestion Contract
+
+- uploaded constitution documents should pass through a single ingestion contract before they become selectable
+- ingestion requires `source_document_id`, `requested_by`, a structured payload, and at least one principle
+- ingestion results now return accepted/errors/warnings plus a normalized constitution summary
+- this keeps later document-center integration conservative and auditable
