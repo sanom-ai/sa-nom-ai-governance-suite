@@ -100,6 +100,7 @@ Expected outcomes:
 - Human Ask reporting for governed status visibility
 - a governed HITL Human Ask reporting document and reporting model
 - a small set of realistic role-pack or use-case examples for HITL operations
+- a compact HITL role-packs and use-cases reference document
 - reliability and observability framing that supports serious organizational evaluation
 - `v0.5.0` planning and release materials
 
