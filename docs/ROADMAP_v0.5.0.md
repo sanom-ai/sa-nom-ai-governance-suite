@@ -102,6 +102,7 @@ Expected outcomes:
 - a small set of realistic role-pack or use-case examples for HITL operations
 - a compact HITL role-packs and use-cases reference document
 - reliability and observability framing that supports serious organizational evaluation
+- a governed HITL reliability and observability baseline document
 - `v0.5.0` planning and release materials
 
 ## Exit Criteria
@@ -111,3 +112,4 @@ Expected outcomes:
 - human intervention is visible, reviewable, and auditable
 - runtime and governance posture are credible enough for serious organizational consideration
 - `v0.5.0` clearly advances SA-NOM from quality prototype toward pilot-ready evaluation status
+
