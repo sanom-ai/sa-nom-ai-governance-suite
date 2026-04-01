@@ -118,6 +118,7 @@ They exist to make PTAG easier to study, compare, and evolve responsibly in publ
 ## Where To Go Next
 
 After this examples guide:
+- read [PTAG FAQ And Comparison](PTAG_FAQ_AND_COMPARISON.md) for positioning and common questions
 - return to [PTAG Full Spec](PTAG_FULL_SPEC.md) for syntax and validation detail
 - inspect `sa_nom_governance/ptag/` to see how the parser and validator consume PTAG files
 - read [CONTRIBUTING](../CONTRIBUTING.md) if you want to add or improve public-safe PTAG examples
