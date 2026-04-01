@@ -4,6 +4,15 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Start Here
 
+## Choose An Evaluation Path
+
+- [Guided Evaluation](GUIDED_EVALUATION.md) for the shortest self-serve evaluator path, smoke tests, and the private-dashboard walkthrough
+- [Deployment](DEPLOYMENT.md) for the longer infrastructure and runtime setup path
+- [Troubleshooting](TROUBLESHOOTING.md) when startup readiness, smoke tests, or the private server do not behave as expected
+- [Provider Setup](PROVIDER_SETUP.md) when you want to enable a real model lane after the baseline runtime is up
+
+## Core Entry Points
+
 - [Deployment](DEPLOYMENT.md)
 - [Guided Evaluation](GUIDED_EVALUATION.md)
 - [Troubleshooting](TROUBLESHOOTING.md)

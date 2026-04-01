@@ -17,7 +17,10 @@ If you want the shortest real first run, start with the private local lane and l
 
 The quick-start path seeds public resources, owner registration, access profiles, trusted registry files, startup validation, and an end-to-end runtime smoke test in one guided command.
 
-For the longer deployment path, use [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). For the shortest evaluator path, use [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md).
+Choose the path that matches what you want to see first:
+- use [docs/GUIDED_EVALUATION.md](docs/GUIDED_EVALUATION.md) when you want the shortest evaluator path with smoke tests and a private-dashboard walkthrough
+- stay on the quick-start lane above when you want the fastest local bootstrap into a working private runtime
+- use [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) when you want the longer deployment path and infrastructure posture details
 
 ## What SA-NOM Actually Does
 
