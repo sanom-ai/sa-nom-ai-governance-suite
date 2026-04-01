@@ -1,6 +1,8 @@
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from sa_nom_governance.core.execution_context import ExecutionContext
 from sa_nom_governance.dashboard.dashboard_data import DashboardSnapshotBuilder
 from sa_nom_governance.utils.config import AppConfig
 
@@ -109,3 +111,68 @@ def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
         assert summary.get('usability_proof_criteria_total') == 2
         assert summary.get('usability_proof_criteria_passed_total') == 1
         assert summary.get('usability_proof_criteria_failed_total') == 1
+
+def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_health() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        config.operator_alert_warning_hours = 12
+        config.operator_alert_critical_hours = 48
+        config.operator_alert_stale_hours = 720
+        config.operator_alert_backlog_warning_total = 2
+        config.operator_alert_backlog_critical_total = 4
+        config.operator_notification_realert_hours = 2
+        config.operator_notification_digest_hours = 12
+        config.operator_notification_critical_channels = 'dashboard,email'
+        builder = DashboardSnapshotBuilder(config=config)
+
+        context = ExecutionContext(
+            request_id='REQ-OPS-1',
+            requester='operator@example.com',
+            action='approve_group_policy',
+            role_id='OPS_REVIEW',
+            payload={'resource': 'contract', 'resource_id': 'C-100'},
+            metadata={},
+        )
+        override = builder.app.engine.human_override.create_state(
+            context,
+            required_by='reviewer@example.com',
+            reason='High-risk action requires human review.',
+        )
+        builder.app.engine.human_override._requests[override.request_id].created_at = (
+            datetime.now(timezone.utc) - timedelta(hours=72)
+        ).isoformat()
+        builder.app.engine.human_override._persist()
+
+        snapshot = builder.build()
+        policy = snapshot.get('operator_alert_policy', {})
+        queue_health = snapshot.get('operator_queue_health', {})
+        notification_center = snapshot.get('operator_notification_center', {})
+        delivery_readiness = snapshot.get('operator_notification_delivery_readiness', {})
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+        summary = snapshot.get('summary', {})
+
+        assert policy.get('aging', {}).get('warning_hours') == 12
+        assert policy.get('aging', {}).get('critical_hours') == 48
+        assert policy.get('backlog', {}).get('warning_total') == 2
+        assert policy.get('notification', {}).get('cadence', {}).get('realert_hours') == 2
+        assert policy.get('notification', {}).get('cadence', {}).get('digest_hours') == 12
+        assert isinstance(queue_health.get('items'), list)
+        pending = next(item for item in queue_health.get('items', []) if item.get('lane_id') == 'pending_overrides')
+        assert pending.get('total') == 1
+        assert pending.get('status') in {'critical', 'stale'}
+        assert pending.get('oldest_age_hours', 0) >= 72
+        assert summary.get('operator_attention_total', 0) >= 1
+        assert summary.get('operator_critical_total', 0) >= 1
+        assert summary.get('operator_notification_candidates_total', 0) >= 1
+        assert summary.get('operator_notification_posture') in {'ready', 'dashboard_only', 'pressured', 'degraded', 'disabled'}
+        assert summary.get('operator_notification_external_ready') is False
+        assert notification_center.get('dispatch_candidates_total', 0) >= 1
+        assert notification_center.get('active_channel_total', 0) >= 1
+        assert delivery_readiness.get('posture') == 'dashboard_only'
+        assert delivery_readiness.get('external_routing_ready') is False
+        assert delivery_readiness.get('dispatch_candidates_total', 0) >= 1
+        assert isinstance(delivery_readiness.get('next_actions'), list)
+        pending_notification = next(item for item in notification_center.get('items', []) if item.get('lane_id') == 'pending_overrides')
+        assert pending_notification.get('dispatch_ready') is True
+        assert pending_notification.get('channels') == ['dashboard', 'email']
+        assert any(alert.get('alert_id') == 'operator_queue_pending_overrides' for alert in runtime_alerts)

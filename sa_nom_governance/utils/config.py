@@ -41,6 +41,18 @@ class AppConfig:
     retention_role_private_studio_days: int = field(default_factory=lambda: int(os.getenv("SANOM_RETENTION_ROLE_PRIVATE_STUDIO_DAYS", "2555")))
     retention_human_ask_days: int = field(default_factory=lambda: int(os.getenv("SANOM_RETENTION_HUMAN_ASK_DAYS", "365")))
     human_ask_confidence_threshold: float = field(default_factory=lambda: max(0.05, min(float(os.getenv("SANOM_HUMAN_ASK_CONFIDENCE_THRESHOLD", "0.72")), 0.99)))
+    operator_alert_warning_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_ALERT_WARNING_HOURS", "24"))))
+    operator_alert_critical_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_ALERT_CRITICAL_HOURS", "168"))))
+    operator_alert_stale_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_ALERT_STALE_HOURS", "720"))))
+    operator_alert_backlog_warning_total: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_ALERT_BACKLOG_WARNING_TOTAL", "3"))))
+    operator_alert_backlog_critical_total: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_ALERT_BACKLOG_CRITICAL_TOTAL", "10"))))
+    operator_notifications_enabled: bool = field(default_factory=lambda: os.getenv("SANOM_OPERATOR_NOTIFICATIONS_ENABLED", "true").strip().lower() not in {"0", "false", "no"})
+    operator_notification_channels: str = field(default_factory=lambda: os.getenv("SANOM_OPERATOR_NOTIFICATION_CHANNELS", "dashboard,email,webhook").strip())
+    operator_notification_warning_channels: str = field(default_factory=lambda: os.getenv("SANOM_OPERATOR_NOTIFICATION_WARNING_CHANNELS", "dashboard").strip())
+    operator_notification_critical_channels: str = field(default_factory=lambda: os.getenv("SANOM_OPERATOR_NOTIFICATION_CRITICAL_CHANNELS", "dashboard,email").strip())
+    operator_notification_stale_channels: str = field(default_factory=lambda: os.getenv("SANOM_OPERATOR_NOTIFICATION_STALE_CHANNELS", "dashboard,email,webhook").strip())
+    operator_notification_digest_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_NOTIFICATION_DIGEST_HOURS", "24"))))
+    operator_notification_realert_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_NOTIFICATION_REALERT_HOURS", "4"))))
     persistence_backend: str = field(default_factory=lambda: os.getenv("SANOM_PERSISTENCE_BACKEND", "file").strip().lower())
     postgres_dsn: str | None = field(default_factory=lambda: os.getenv("SANOM_POSTGRES_DSN"))
     postgres_schema: str = field(default_factory=lambda: os.getenv("SANOM_POSTGRES_SCHEMA", "public"))
@@ -224,6 +236,54 @@ class AppConfig:
     def owner_display_name(self) -> str:
         registration = self.owner_registration()
         return registration.owner_display_name if registration is not None else DEFAULT_OWNER_DISPLAY_NAME
+
+    def operator_alert_policy(self) -> dict[str, object]:
+        warning_hours = max(1, int(self.operator_alert_warning_hours))
+        critical_hours = max(warning_hours, int(self.operator_alert_critical_hours))
+        stale_hours = max(critical_hours, int(self.operator_alert_stale_hours))
+        backlog_warning_total = max(1, int(self.operator_alert_backlog_warning_total))
+        backlog_critical_total = max(backlog_warning_total, int(self.operator_alert_backlog_critical_total))
+
+        def _split_channels(value: str) -> list[str]:
+            channels = [item.strip().lower() for item in str(value or '').split(',') if item.strip()]
+            return channels or ['dashboard']
+
+        default_channels = _split_channels(self.operator_notification_channels)
+        warning_channels = _split_channels(self.operator_notification_warning_channels)
+        critical_channels = _split_channels(self.operator_notification_critical_channels)
+        stale_channels = _split_channels(self.operator_notification_stale_channels)
+
+        return {
+            "aging": {
+                "warning_hours": warning_hours,
+                "critical_hours": critical_hours,
+                "stale_hours": stale_hours,
+            },
+            "backlog": {
+                "warning_total": backlog_warning_total,
+                "critical_total": backlog_critical_total,
+            },
+            "applies_to": [
+                "pending_overrides",
+                "waiting_human_sessions",
+                "blocked_workflows",
+                "recovery_backlog",
+                "dead_letters",
+            ],
+            "notification": {
+                "enabled": bool(self.operator_notifications_enabled),
+                "default_channels": default_channels,
+                "severity_channels": {
+                    "warning": warning_channels,
+                    "critical": critical_channels,
+                    "stale": stale_channels,
+                },
+                "cadence": {
+                    "digest_hours": max(1, int(self.operator_notification_digest_hours)),
+                    "realert_hours": max(1, int(self.operator_notification_realert_hours)),
+                },
+            },
+        }
 
     def executive_owner_id(self) -> str:
         registration = self.owner_registration()
