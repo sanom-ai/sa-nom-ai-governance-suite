@@ -1,6 +1,7 @@
 from dataclasses import asdict
 from pathlib import Path
 
+from sa_nom_governance.alignment.alignment_service import GlobalHarmonyAlignmentService
 from sa_nom_governance.api.api_schemas import DecisionResult, OverrideReviewResult
 from sa_nom_governance.audit.audit_logger import AuditLogger
 from sa_nom_governance.core.authority_policy_engine import AuthorityPolicyEngine
@@ -72,6 +73,7 @@ class CoreEngine:
         self.hierarchy_registry = HierarchyRegistry(role_loader, default_executive_owner_id=default_executive_owner_id)
         self.role_activation_router = RoleActivationRouter(self.hierarchy_registry)
         self.role_transition_policy = self.role_activation_router.transition_policy
+        self.global_harmony_alignment = GlobalHarmonyAlignmentService(Path('resources/alignment'))
 
     def process(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         max_attempts = self._runtime_retry_max_attempts(metadata)
@@ -613,6 +615,8 @@ class CoreEngine:
         elif approved_override is not None and computation.human_override is None:
             computation.human_override = approved_override
 
+        computation = self._apply_global_harmony_runtime(context, computation)
+
         decision_violation = self.runtime_contract_guard.decision_violation(computation, context=context)
         if decision_violation is not None:
             computation = self.runtime_contract_guard.to_computation(decision_violation, phase='decision')
@@ -626,6 +630,90 @@ class CoreEngine:
             computation,
             resource_lock=lock_state.to_dict() if lock_state is not None else None,
         )
+
+
+    def _apply_global_harmony_runtime(self, context, computation: DecisionComputation) -> DecisionComputation:
+        harmony_payload = context.metadata.get('global_harmony')
+        if not isinstance(harmony_payload, dict):
+            return computation
+
+        requested_region_id = str(harmony_payload.get('region_id', '')).strip()
+        selected_by = str(harmony_payload.get('selected_by', context.requester)).strip() or context.requester
+        rationale = str(harmony_payload.get('rationale', '')).strip()
+        approved_by = str(harmony_payload.get('approved_by', '')).strip()
+        harmony_context = harmony_payload.get('context')
+        draft_text = str(harmony_payload.get('draft_text', '')).strip()
+
+        if isinstance(harmony_context, dict):
+            runtime_context = dict(harmony_context)
+        else:
+            runtime_context = {}
+
+        if requested_region_id:
+            preview = self.global_harmony_alignment.preview_switch(
+                requested_region_id,
+                selected_by=selected_by,
+                rationale=rationale,
+                context=runtime_context or None,
+                draft_text=draft_text,
+            )
+            context.metadata['global_harmony_runtime'] = {
+                'mode': 'requested_region_preview',
+                'region_id': requested_region_id,
+                **preview,
+            }
+
+            selection_intent = preview.get('selection_intent', {})
+            action = str(selection_intent.get('action', ''))
+            if action == 'require_approval' and not approved_by:
+                reason = 'Global Harmony selection requires approval before activation.'
+                if isinstance(selection_intent.get('reasons'), list) and selection_intent['reasons']:
+                    reason = str(selection_intent['reasons'][0])
+                return DecisionComputation(
+                    outcome='waiting_human',
+                    reason=reason,
+                    policy_basis='runtime.global_harmony.selection',
+                    trace=DecisionTrace(
+                        source_type='global_harmony',
+                        source_id=requested_region_id,
+                        matched_conditions=[f'selection_intent={action}'],
+                        notes=['Global Harmony switch preview requires human approval before activation.'],
+                    ),
+                    human_override=self.human_override.create_state(
+                        context=context,
+                        required_by='runtime.global_harmony.selection',
+                        reason=reason,
+                        approver_role=self.hierarchy_registry.default_escalation_target(context.role_id),
+                    ),
+                )
+
+            if action == 'direct_switch':
+                try:
+                    self.global_harmony_alignment.select_region(
+                        requested_region_id,
+                        selected_by=selected_by,
+                        rationale=rationale,
+                        context=runtime_context or None,
+                        draft_text=draft_text,
+                        approved_by=approved_by,
+                    )
+                except ValueError:
+                    # Keep runtime non-disruptive when switch activation is not allowed in the current request.
+                    pass
+            return computation
+
+        if runtime_context:
+            active_snapshot = self.global_harmony_alignment.build_runtime_snapshot(
+                context=runtime_context,
+                draft_text=draft_text,
+            )
+            active_selection = active_snapshot.get('active_selection', {})
+            context.metadata['global_harmony_runtime'] = {
+                'mode': 'active_runtime',
+                'region_id': active_selection.get('region_id', ''),
+                **active_snapshot,
+            }
+        return computation
 
     def _transition_policy_escalation(self, context) -> HierarchyEscalationDecision | None:
         transition = dict(context.role_transition)

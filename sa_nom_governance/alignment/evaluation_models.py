@@ -35,6 +35,8 @@ class AlignmentConcern:
 class AlignmentEvaluationResult:
     status: str
     human_review_required: bool
+    resonance_score: int
+    resonance_band: str
     normalized_context: dict[str, object]
     matched_principles: list[AlignmentMatch] = field(default_factory=list)
     concerns: list[AlignmentConcern] = field(default_factory=list)
@@ -44,6 +46,8 @@ class AlignmentEvaluationResult:
         return {
             "status": self.status,
             "human_review_required": self.human_review_required,
+            "resonance_score": self.resonance_score,
+            "resonance_band": self.resonance_band,
             "normalized_context": dict(self.normalized_context),
             "matched_principles": [item.to_dict() for item in self.matched_principles],
             "concerns": [item.to_dict() for item in self.concerns],
