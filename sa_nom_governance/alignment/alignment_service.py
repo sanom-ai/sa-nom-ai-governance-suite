@@ -6,6 +6,7 @@ from pathlib import Path
 from sa_nom_governance.alignment.alignment_runtime_models import (
     ActiveAlignmentSelection,
     AlignmentRuntimeSnapshot,
+    AlignmentSwitchDecision,
 )
 from sa_nom_governance.alignment.constitution_registry import RegionalConstitutionRegistry
 from sa_nom_governance.alignment.cultural_alignment_evaluator import CulturalAlignmentEvaluator
@@ -39,6 +40,51 @@ class GlobalHarmonyAlignmentService:
     def active_selection(self) -> ActiveAlignmentSelection:
         return self._active_selection
 
+    def assess_switch(
+        self,
+        region_id: str,
+        *,
+        selected_by: str,
+        rationale: str = "",
+    ) -> AlignmentSwitchDecision:
+        self.registry.load(region_id)
+        actor = selected_by.strip()
+        note = rationale.strip()
+        if not actor:
+            return AlignmentSwitchDecision(
+                allowed=False,
+                severity="critical",
+                message="Alignment switching requires a named actor.",
+                required_note=True,
+            )
+        if region_id == self._active_selection.region_id:
+            return AlignmentSwitchDecision(
+                allowed=True,
+                severity="info",
+                message="Requested region is already active.",
+                required_note=False,
+            )
+        if not note:
+            return AlignmentSwitchDecision(
+                allowed=False,
+                severity="warning",
+                message="Alignment switching requires a rationale so the change stays auditable.",
+                required_note=True,
+            )
+        if len(note) < 12:
+            return AlignmentSwitchDecision(
+                allowed=False,
+                severity="warning",
+                message="Alignment switching rationale is too short to explain the operational need.",
+                required_note=True,
+            )
+        return AlignmentSwitchDecision(
+            allowed=True,
+            severity="info",
+            message="Alignment switch is allowed and should remain visible in the audit trail.",
+            required_note=True,
+        )
+
     def select_region(
         self,
         region_id: str,
@@ -47,6 +93,9 @@ class GlobalHarmonyAlignmentService:
         rationale: str = "",
         source: str = "operator-selection",
     ) -> ActiveAlignmentSelection:
+        decision = self.assess_switch(region_id, selected_by=selected_by, rationale=rationale)
+        if not decision.allowed:
+            raise ValueError(decision.message)
         constitution = self.registry.load(region_id)
         self._active_selection = ActiveAlignmentSelection(
             region_id=constitution.region_id,
@@ -83,10 +132,17 @@ class GlobalHarmonyAlignmentService:
             notes.append(
                 "Evaluation results should be interpreted as governed alignment signals, not as automatic cultural truth."
             )
+        switch_policy = {
+            "requires_named_actor": True,
+            "requires_rationale": True,
+            "minimum_rationale_length": 12,
+            "active_region_id": self._active_selection.region_id,
+        }
         snapshot = AlignmentRuntimeSnapshot(
             available_regions=self.registry.list_regions(),
             active_selection=self._active_selection,
             safe_claim=constitution.safe_claim,
+            switch_policy=switch_policy,
             evaluation=evaluation,
             notes=notes,
         )

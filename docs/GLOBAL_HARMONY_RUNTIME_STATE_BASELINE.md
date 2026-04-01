@@ -16,6 +16,7 @@ This document describes the first invisible runtime layer that sits between the 
 
 ## What This Slice Does
 
+- applies baseline switching guardrails so constitution changes stay attributable and justified
 - initializes an active constitution from the registry
 - allows operator-controlled switching to another region
 - exposes a runtime snapshot that can be consumed by later API or dashboard layers

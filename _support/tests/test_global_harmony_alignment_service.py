@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from sa_nom_governance.alignment.alignment_service import GlobalHarmonyAlignmentService
 
 
@@ -13,6 +15,7 @@ def test_alignment_service_initializes_with_active_selection() -> None:
     assert snapshot["active_selection"]["source"] == "catalog-default"
     assert snapshot["safe_claim"]
     assert snapshot["available_regions"]
+    assert snapshot["switch_policy"]["requires_named_actor"] is True
     assert "evaluation" not in snapshot
 
 
@@ -31,6 +34,14 @@ def test_alignment_service_can_switch_active_region() -> None:
     assert snapshot["active_selection"]["region_id"] == "thailand"
     assert snapshot["active_selection"]["selected_by"] == "operator.tawan"
     assert snapshot["active_selection"]["rationale"] == "Customer-facing ASEAN pilot alignment."
+
+
+
+def test_alignment_service_rejects_switch_without_meaningful_rationale() -> None:
+    service = GlobalHarmonyAlignmentService(Path("resources/alignment"))
+
+    with pytest.raises(ValueError):
+        service.select_region("thailand", selected_by="operator.tawan", rationale="too short")
 
 
 

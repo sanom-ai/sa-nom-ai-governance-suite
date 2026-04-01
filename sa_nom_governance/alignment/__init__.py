@@ -1,4 +1,4 @@
-from sa_nom_governance.alignment.alignment_runtime_models import ActiveAlignmentSelection, AlignmentRuntimeSnapshot
+from sa_nom_governance.alignment.alignment_runtime_models import ActiveAlignmentSelection, AlignmentRuntimeSnapshot, AlignmentSwitchDecision
 from sa_nom_governance.alignment.alignment_service import GlobalHarmonyAlignmentService
 from sa_nom_governance.alignment.constitution_models import AlignmentPrinciple, RegionalConstitution
 from sa_nom_governance.alignment.constitution_registry import RegionalConstitutionRegistry
@@ -8,6 +8,7 @@ from sa_nom_governance.alignment.evaluation_models import AlignmentConcern, Alig
 __all__ = [
     "ActiveAlignmentSelection",
     "AlignmentRuntimeSnapshot",
+    "AlignmentSwitchDecision",
     "GlobalHarmonyAlignmentService",
     "AlignmentPrinciple",
     "RegionalConstitution",
