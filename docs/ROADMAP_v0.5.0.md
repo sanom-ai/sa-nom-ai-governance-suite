@@ -98,6 +98,7 @@ Expected outcomes:
 - a simple approval/rationale/audit interaction surface
 - a minimal human approval surface document and first interface model
 - Human Ask reporting for governed status visibility
+- a governed HITL Human Ask reporting document and reporting model
 - a small set of realistic role-pack or use-case examples for HITL operations
 - reliability and observability framing that supports serious organizational evaluation
 - `v0.5.0` planning and release materials
