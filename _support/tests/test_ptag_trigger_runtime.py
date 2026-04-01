@@ -151,6 +151,9 @@ policy REVIEW_GATE {
         trigger_runtime = pending.metadata["metadata"]["ptag_trigger_runtime"]
         assert trigger_runtime["approval_role"] == "LEGAL"
         assert trigger_runtime["evidence_tags"] == ["external_review_gate"]
+        policy_runtime = pending.metadata["metadata"]["policy_runtime"]
+        assert policy_runtime["approval_role"] == "LEGAL"
+        assert policy_runtime["evidence_tags"] == ["external_review_gate"]
 
         reviewed = app.approve_override(
             pending.human_override["request_id"],
@@ -164,3 +167,70 @@ policy REVIEW_GATE {
     resume_runtime = execution_result["metadata"]["metadata"]["ptag_trigger_runtime"]
     assert resume_runtime["approval_role"] == "LEGAL"
     assert resume_runtime["terminal_outcome"] == "approved"
+
+
+def test_runtime_materializes_trigger_effects_into_metadata_and_audit_evidence() -> None:
+    app = build_test_app()
+    semantic = build_semantic_document(
+        '''
+language "PTAG"
+module "TRIGGER_RUNTIME"
+version "1.0.0"
+owner "EXEC_OWNER"
+
+role LEGAL {
+  title: "Legal"
+}
+
+authority LEGAL {
+  allow: review_contract
+}
+
+policy REVIEW_CONTEXT_PACK {
+  WHEN action == review_contract AND region == "eu" AND audience == "external"
+  THEN apply_policy_pack("EU_PRIVACY"), rewrite_tone("diplomatic"), log_evidence("gdpr_guard"), approve
+  ELSE escalate
+}
+'''
+    )
+
+    with patch.object(app.engine.role_loader, "load", return_value=semantic):
+        result = app.request(
+            requester="operator.tawan",
+            role_id="LEGAL",
+            action="review_contract",
+            payload={"resource": "contract", "resource_id": "TR-4", "amount": 1000000},
+            metadata={
+                "region": "eu",
+                "audience": "external",
+                "global_harmony": {
+                    "context": {
+                        "audience": "external",
+                        "channel": "customer",
+                        "sensitivity": "normal",
+                        "tone": "neutral",
+                    },
+                    "draft_text": "Initial contract response.",
+                },
+            },
+        )
+
+    assert result.outcome == "approved"
+    metadata = result.metadata["metadata"]
+    policy_runtime = metadata["policy_runtime"]
+    output_guidance = metadata["output_guidance"]
+    harmony_runtime = metadata["global_harmony_runtime"]
+
+    assert policy_runtime["source_policy_id"] == "REVIEW_CONTEXT_PACK"
+    assert policy_runtime["active_policy_packs"] == ["EU_PRIVACY"]
+    assert policy_runtime["evidence_tags"] == ["gdpr_guard"]
+    assert output_guidance["tone_profile"] == "diplomatic"
+    assert metadata["runtime_evidence_tags"] == ["gdpr_guard"]
+    assert harmony_runtime["trigger_runtime"]["policy_packs"] == ["EU_PRIVACY"]
+    assert harmony_runtime["trigger_runtime"]["tone_profile"] == "diplomatic"
+
+    evidence = app.list_runtime_evidence(limit=1)[-1]
+    assert evidence["trigger_policy_id"] == "REVIEW_CONTEXT_PACK"
+    assert evidence["trigger_policy_packs"] == ["EU_PRIVACY"]
+    assert evidence["trigger_evidence_tags"] == ["gdpr_guard"]
+    assert evidence["trigger_tone_profile"] == "diplomatic"

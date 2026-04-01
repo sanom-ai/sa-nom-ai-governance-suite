@@ -616,6 +616,7 @@ class CoreEngine:
             computation.human_override = approved_override
 
         computation = self._apply_global_harmony_runtime(context, computation)
+        self._apply_ptag_trigger_runtime_effects(context, computation)
 
         decision_violation = self.runtime_contract_guard.decision_violation(computation, context=context)
         if decision_violation is not None:
@@ -714,6 +715,58 @@ class CoreEngine:
                 **active_snapshot,
             }
         return computation
+
+    def _apply_ptag_trigger_runtime_effects(self, context, computation: DecisionComputation) -> None:
+        trigger_runtime = context.metadata.get('ptag_trigger_runtime')
+        if not isinstance(trigger_runtime, dict):
+            return
+
+        policy_packs = [str(item) for item in trigger_runtime.get('policy_packs', []) if str(item).strip()]
+        evidence_tags = [str(item) for item in trigger_runtime.get('evidence_tags', []) if str(item).strip()]
+        tone_profile = str(trigger_runtime.get('tone_profile', '')).strip()
+        approval_role = str(trigger_runtime.get('approval_role', '')).strip()
+
+        context.metadata['policy_runtime'] = {
+            'source_policy_id': str(trigger_runtime.get('policy_id', '')),
+            'branch': str(trigger_runtime.get('branch', '')),
+            'requires_approval': bool(trigger_runtime.get('requires_approval')),
+            'approval_role': approval_role,
+            'active_policy_packs': policy_packs,
+            'evidence_tags': evidence_tags,
+            'unknown_actions': [str(item) for item in trigger_runtime.get('unknown_actions', [])],
+            'terminal_outcome': computation.outcome,
+        }
+
+        if tone_profile:
+            context.metadata['output_guidance'] = {
+                'source_policy_id': str(trigger_runtime.get('policy_id', '')),
+                'tone_profile': tone_profile,
+                'rewrite_required': True,
+                'applied_branch': str(trigger_runtime.get('branch', '')),
+            }
+
+        if evidence_tags:
+            context.metadata['runtime_evidence_tags'] = list(evidence_tags)
+
+        harmony_runtime = context.metadata.get('global_harmony_runtime')
+        if isinstance(harmony_runtime, dict):
+            harmony_runtime['trigger_runtime'] = {
+                'policy_id': str(trigger_runtime.get('policy_id', '')),
+                'branch': str(trigger_runtime.get('branch', '')),
+                'requires_approval': bool(trigger_runtime.get('requires_approval')),
+                'approval_role': approval_role,
+                'policy_packs': list(policy_packs),
+                'evidence_tags': list(evidence_tags),
+                'tone_profile': tone_profile,
+                'terminal_outcome': computation.outcome,
+            }
+            if policy_packs:
+                harmony_runtime['active_policy_packs'] = list(policy_packs)
+            if tone_profile:
+                harmony_runtime['tone_guidance'] = {
+                    'tone_profile': tone_profile,
+                    'source_policy_id': str(trigger_runtime.get('policy_id', '')),
+                }
 
     def _transition_policy_escalation(self, context) -> HierarchyEscalationDecision | None:
         transition = dict(context.role_transition)
