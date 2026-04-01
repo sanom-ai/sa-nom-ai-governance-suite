@@ -353,10 +353,11 @@ root.addEventListener('click', async (event) => {
   if (overrideButton) {
     const requestId = overrideButton.dataset.requestId;
     const action = overrideButton.dataset.overrideAction;
-    const note = window.prompt(`${action === 'approve' ? 'Approve' : 'Veto'} override ${requestId} note`, action === 'approve' ? 'Approved from dashboard.' : 'Rejected from dashboard.');
+    const note = promptForOverrideReviewNote(overrideButton.dataset);
     if (note === null) return;
     try {
       await apiFetch(`/api/overrides/${encodeURIComponent(requestId)}/${action}`, { method: 'POST', body: JSON.stringify({ note }) });
+      state.lastError = `${action === 'approve' ? 'Approved' : 'Vetoed'} ${requestId} with a governed review note.`;
       await loadDashboard();
     } catch (error) {
       state.lastError = String(error.message || error);
@@ -758,6 +759,54 @@ function maybeAutoScrollToFocus() {
   if (state.lastAutoFocusKey === focusKey) return;
   state.lastAutoFocusKey = focusKey;
   scrollToDashboardTarget(scrollTarget);
+}
+
+function buildOverrideReviewTemplate(dataset) {
+  const action = String(dataset.overrideAction || 'approve');
+  const requestId = String(dataset.requestId || 'request');
+  const activeRole = String(dataset.activeRole || 'unknown role');
+  const requestAction = String(dataset.requestAction || 'requested action');
+  const requiredBy = String(dataset.requiredBy || 'human boundary');
+  const requester = String(dataset.requester || 'unknown requester');
+  const executionOutcome = String(dataset.executionOutcome || 'pending runtime state');
+  if (action === 'veto') {
+    return `Vetoed request ${requestId} for ${requestAction} under role ${activeRole}.
+Boundary owner: ${requiredBy}. Requester: ${requester}. Current execution posture: ${executionOutcome}.
+Blocking concern: [describe the policy, risk, legal, customer, or execution issue].
+Required follow-up: [state what must happen before this request can return].`;
+  }
+  return `Approved request ${requestId} for ${requestAction} under role ${activeRole}.
+Boundary owner: ${requiredBy}. Requester: ${requester}. Current execution posture: ${executionOutcome}.
+Decision basis: [describe the evidence, policy fit, and why approval is acceptable].
+Residual risk: [state any remaining risk, monitoring, or follow-up].`;
+}
+
+function validateOverrideReviewNote(action, note) {
+  const trimmed = String(note || '').trim();
+  if (trimmed.length < 48) {
+    return 'Add a fuller rationale so another reviewer can understand the decision later.';
+  }
+  if (action === 'approve' && !trimmed.toLowerCase().includes('decision basis:')) {
+    return 'Approved notes should include a "Decision basis:" line.';
+  }
+  if (action === 'veto' && !trimmed.toLowerCase().includes('blocking concern:')) {
+    return 'Veto notes should include a "Blocking concern:" line.';
+  }
+  return '';
+}
+
+function promptForOverrideReviewNote(dataset) {
+  const action = String(dataset.overrideAction || 'approve');
+  const requestId = String(dataset.requestId || 'request');
+  let draft = buildOverrideReviewTemplate(dataset);
+  while (true) {
+    const note = window.prompt(`${action === 'approve' ? 'Approve' : 'Veto'} override ${requestId} with a governed review note`, draft);
+    if (note === null) return null;
+    const validationError = validateOverrideReviewNote(action, note);
+    if (!validationError) return note.trim();
+    window.alert(validationError);
+    draft = note;
+  }
 }
 
 async function loadDashboard() {
@@ -2030,6 +2079,15 @@ function renderOverridesView(snapshot) {
           ['Action fit', 'The requested action should be covered by the role and policy basis'],
           ['Execution context', 'Check requester, required-by, and current execution outcome'],
           ['Auditability', 'Only approve when the later explanation will still make sense to another reviewer'],
+        ])}
+      </article>
+      <article class="card stack">
+        <div><div class="eyebrow muted">Review note guardrail</div><h3 class="card-title">Use a governed rationale, not a one-line approval</h3><p class="card-subtitle">Approve and veto actions now open with a structured template so the audit trail captures why a human let execution continue or kept it fail-closed.</p></div>
+        ${keyValue([
+          ['Approve note', 'Must include a Decision basis line and any residual risk or follow-up'],
+          ['Veto note', 'Must include a Blocking concern line and the required follow-up'],
+          ['Minimum standard', 'Write enough detail that another reviewer can understand the decision later'],
+          ['Control goal', 'Keep human intervention explainable instead of turning approval into a silent bypass'],
         ])}
       </article>
     </section>
@@ -3763,7 +3821,7 @@ function requestTable(rows) {
 
 function overrideTable(rows) {
   if (!rows.length) return emptyState('No overrides available.');
-  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}" data-active-role="${escapeHtml(row.active_role || '')}" data-request-action="${escapeHtml(row.action || '')}" data-required-by="${escapeHtml(row.required_by || '')}" data-requester="${escapeHtml(row.requester || '')}" data-execution-outcome="${escapeHtml(row.execution_outcome || '')}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}" data-active-role="${escapeHtml(row.active_role || '')}" data-request-action="${escapeHtml(row.action || '')}" data-required-by="${escapeHtml(row.required_by || '')}" data-requester="${escapeHtml(row.requester || '')}" data-execution-outcome="${escapeHtml(row.execution_outcome || '')}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function lockTable(rows) {
