@@ -62,6 +62,30 @@ const VIEW_DESCRIPTIONS = {
   health: 'Track deployment readiness, persistence, integrations, and infrastructure posture of the private server.',
 };
 
+const DEV_LANES = {
+  viewer: {
+    token: 'sanom-viewer-token',
+    view: 'overview',
+    title: 'Viewer lane',
+    summary: 'Inspect the dashboard, runtime health, and audit posture before you start changing anything.',
+    followup: 'Start with Overview, then move to Health and Audit.',
+  },
+  operator: {
+    token: 'sanom-operator-token',
+    view: 'requests',
+    title: 'Operator lane',
+    summary: 'Submit governed requests, watch queue posture, and follow runtime handoff lanes.',
+    followup: 'Start with Requests, then check Overrides if a human boundary is triggered.',
+  },
+  reviewer: {
+    token: 'sanom-reviewer-token',
+    view: 'overrides',
+    title: 'Reviewer lane',
+    summary: 'Work the human approval queue with rationale, veto discipline, and audit continuity.',
+    followup: 'Start with Overrides, then confirm the result in Audit.',
+  },
+};
+
 const VIEW_INTELLIGENCE = {
   overview: {
     eyebrow: 'Executive Radar',
@@ -313,6 +337,19 @@ root.addEventListener('change', (event) => {
 });
 
 root.addEventListener('click', async (event) => {
+  const devLaneButton = event.target.closest('[data-dev-lane]');
+  if (devLaneButton) {
+    const lane = DEV_LANES[devLaneButton.dataset.devLane || ''];
+    if (!lane) return;
+    state.token = lane.token;
+    state.view = lane.view || 'overview';
+    state.authRequired = false;
+    state.lastError = '';
+    window.localStorage.setItem('sanom_api_token', lane.token);
+    await loadDashboard();
+    return;
+  }
+
   const viewJumpButton = event.target.closest('[data-view-jump]');
   if (viewJumpButton) {
     state.view = viewJumpButton.dataset.viewJump || state.view;
@@ -1005,38 +1042,45 @@ function updateNav() {
 }
 
 function renderAuthCard() {
+  const laneCards = Object.entries(DEV_LANES).map(([laneKey, lane]) => `
+    <article class="mini-card stack lane-card">
+      <div>
+        <strong>${escapeHtml(lane.title)}</strong>
+        <p class="muted">${escapeHtml(lane.summary)}</p>
+      </div>
+      <div class="lane-chip-row">
+        ${statusBadge(VIEW_TITLES[lane.view] || lane.view)}
+        <span class="pill lane-token-pill">${escapeHtml(lane.token)}</span>
+      </div>
+      <p class="muted lane-followup">${escapeHtml(lane.followup)}</p>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" type="button" data-dev-lane="${escapeHtml(laneKey)}">Use ${escapeHtml(lane.title.toLowerCase())}</button>
+      </div>
+    </article>
+  `).join('');
   return `
     <article class="card auth-card stack">
       <div>
         <div class="eyebrow muted">Private API Access</div>
         <h3 class="card-title">Connect to the governed private runtime</h3>
-        <p class="card-subtitle">Use a SA-NOM server token to exchange for a short-lived session. Local development tokens are listed below so first-time evaluators can enter the correct lane without guessing.</p>
+        <p class="card-subtitle">Use a SA-NOM server token to exchange for a short-lived session. For local evaluation, choose a lane below and the dashboard will start in the view that fits that role.</p>
       </div>
       <form id="token-form" class="auth-form">
         <input id="token-input" type="password" placeholder="SA-NOM API token" value="${escapeHtml(state.token)}" autofocus />
         <div class="inline-actions"><button class="action-button" type="submit">Connect</button></div>
       </form>
-      <div class="onboarding-grid">
-        <article class="mini-card stack">
-          <strong>Start read-only</strong>
-          <p class="muted">Use <code>sanom-viewer-token</code> if you only want to inspect the dashboard, health posture, and audit-oriented views.</p>
-        </article>
-        <article class="mini-card stack">
-          <strong>Operate the runtime</strong>
-          <p class="muted">Use <code>sanom-operator-token</code> to create governed requests and watch runtime queues, conflicts, and overrides.</p>
-        </article>
-        <article class="mini-card stack">
-          <strong>Resolve human decisions</strong>
-          <p class="muted">Use <code>sanom-reviewer-token</code> when you need the human approval lane for approve or veto actions.</p>
-        </article>
-      </div>
+      <div class="onboarding-grid lane-picker-grid">${laneCards}</div>
       <div class="trace-box">
         <strong>Development tokens</strong>
         <p class="muted">Owner: sanom-dev-token, Operator: sanom-operator-token, Reviewer: sanom-reviewer-token, Auditor: sanom-auditor-token, Viewer: sanom-viewer-token</p>
       </div>
       <div class="trace-box">
         <strong>First-run path</strong>
-        <p class="muted">1. Connect with <code>sanom-viewer-token</code> to inspect the runtime. 2. Switch to <code>sanom-operator-token</code> to submit a governed request. 3. Open the Human Override Queue with <code>sanom-reviewer-token</code> to complete a human-required decision.</p>
+        <p class="muted">1. Start with the Viewer lane to inspect Overview, Health, and Audit. 2. Switch to the Operator lane to submit or inspect governed runtime work. 3. Use the Reviewer lane when you want to finish a human-required approval or veto with rationale.</p>
+      </div>
+      <div class="trace-box">
+        <strong>Manual token entry still works</strong>
+        <p class="muted">If you already have an owner-issued token, paste it directly above. Lane buttons are only a shortcut for local evaluation and development tokens.</p>
       </div>
       <div class="trace-box">
         <strong>Private deployment note</strong>

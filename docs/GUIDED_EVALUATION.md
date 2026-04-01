@@ -133,6 +133,20 @@ Run:
 
 At this point the community baseline is operational for local evaluation.
 
+## Step 8: Optional Private Dashboard Walkthrough
+
+When you want to inspect the governed runtime through the dashboard instead of only reading smoke-test output, open the local dashboard and follow this lane order:
+
+- start with `sanom-viewer-token` to inspect Overview, Runtime Health, and Audit Trail
+- switch to `sanom-operator-token` when you want to inspect Requests, conflicts, and governed runtime flow
+- switch to `sanom-reviewer-token` when you want to inspect the Human Override Queue and human-required decisions
+
+Recommended first-run reading path inside the dashboard:
+- `Overview` for executive posture and queue health
+- `Health` for deployment and notification posture
+- `Requests` for governed runtime intake
+- `Overrides` only when a human boundary is actually triggered
+
 ## Success Checklist
 
 You are in a good evaluation state if all of the following are true:
