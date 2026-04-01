@@ -16,6 +16,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Demo Checklist (TH)](DEMO_CHECKLIST_TH.md)
 - [Product Tour](PRODUCT_TOUR.md)
 - [PTAG Framework](PTAG_FRAMEWORK.md)
+- [PTAG Quick Start](PTAG_QUICK_START.md)
 - [PTAG Full Spec](PTAG_FULL_SPEC.md)
 - [Private Rule Position](PRIVATE_RULE_POSITION.md)
 - [Governed Runtime Orchestration](GOVERNED_RUNTIME_ORCHESTRATION.md)

@@ -127,10 +127,11 @@ Public here does not mean:
 
 If you want to go deeper:
 1. read this guide first
-2. read [PTAG Full Spec](PTAG_FULL_SPEC.md)
-3. inspect `resources/roles/`
-4. inspect `sa_nom_governance/ptag/`
-5. read `CONTRIBUTING.md` if you want to help improve PTAG
+2. read [PTAG Quick Start](PTAG_QUICK_START.md) for the shortest study path
+3. read [PTAG Full Spec](PTAG_FULL_SPEC.md)
+4. inspect `resources/roles/`
+5. inspect `sa_nom_governance/ptag/`
+6. read `CONTRIBUTING.md` if you want to help improve PTAG
 
 ## Summary
 
