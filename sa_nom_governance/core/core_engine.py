@@ -8,6 +8,7 @@ from sa_nom_governance.core.authority_policy_engine import AuthorityPolicyEngine
 from sa_nom_governance.core.decision_engine import DecisionEngine
 from sa_nom_governance.core.decision_models import DecisionComputation, DecisionTrace
 from sa_nom_governance.core.dispatcher import RequestDispatcher
+from sa_nom_governance.core.trigger_action_registry import TriggerActionRegistry
 from sa_nom_governance.core.hierarchy_registry import HierarchyEscalationDecision, HierarchyRegistry
 from sa_nom_governance.core.lock_manager import ResourceConflictError, ResourceLockManager
 from sa_nom_governance.core.policy_runtime_contracts import RuntimeContractGuard
@@ -55,7 +56,8 @@ class CoreEngine:
         self.risk_scorer = RiskScorer()
         self.runtime_contract_guard = RuntimeContractGuard()
         self.authority_policy_engine = AuthorityPolicyEngine()
-        self.decision_engine = DecisionEngine()
+        self.trigger_actions = TriggerActionRegistry()
+        self.decision_engine = DecisionEngine(trigger_actions=self.trigger_actions)
         self.state_flow_engine = RuntimeStateFlowEngine()
         self.human_override = HumanOverrideGateway(store_path=override_store_path, config=config)
         self.lock_manager = ResourceLockManager(store_path=lock_store_path, config=config)
@@ -616,6 +618,7 @@ class CoreEngine:
             computation.human_override = approved_override
 
         computation = self._apply_global_harmony_runtime(context, computation)
+        self._apply_ptag_trigger_runtime_effects(context, computation)
 
         decision_violation = self.runtime_contract_guard.decision_violation(computation, context=context)
         if decision_violation is not None:
@@ -715,6 +718,9 @@ class CoreEngine:
             }
         return computation
 
+    def _apply_ptag_trigger_runtime_effects(self, context, computation: DecisionComputation) -> None:
+        self.trigger_actions.apply_runtime_effects(context, computation)
+
     def _transition_policy_escalation(self, context) -> HierarchyEscalationDecision | None:
         transition = dict(context.role_transition)
         if transition.get("transition_disposition") != "review":
@@ -776,6 +782,9 @@ class CoreEngine:
     def _override_approver_role(self, context, hierarchy_escalation: HierarchyEscalationDecision | None) -> str:
         if hierarchy_escalation is not None:
             return hierarchy_escalation.escalated_to
+        trigger_approval_role = self.trigger_actions.resolve_approval_role(context)
+        if trigger_approval_role:
+            return trigger_approval_role
         return self.hierarchy_registry.default_escalation_target(context.role_id)
 
     def _authority_override_matches(
