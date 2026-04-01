@@ -59,6 +59,7 @@ policy CULTURAL_FRICTION_GUARD {
     assert result.outcome == "waiting_human"
     assert result.policy_basis == "CULTURAL_FRICTION_GUARD"
     assert result.trace.source_id == "CULTURAL_FRICTION_GUARD"
+    assert "Runtime executors prepared: policy_pack, approval_gate, evidence_log." in result.trace.notes
     assert "Human approval requested through LEGAL." in result.trace.notes
 
     trigger_runtime = context.metadata["ptag_trigger_runtime"]
@@ -67,6 +68,11 @@ policy CULTURAL_FRICTION_GUARD {
     assert trigger_runtime["approval_role"] == "LEGAL"
     assert trigger_runtime["policy_packs"] == ["EU_PRIVACY"]
     assert trigger_runtime["evidence_tags"] == ["gdpr_guard"]
+    assert [effect["kind"] for effect in trigger_runtime["runtime_effects"]] == [
+        "policy_pack",
+        "approval_gate",
+        "evidence_log",
+    ]
     assert trigger_runtime["terminal_outcome"] == "waiting_human"
 
 
@@ -105,9 +111,11 @@ policy BRAND_GUARD {
 
     assert result.outcome == "waiting_human"
     assert result.policy_basis == "BRAND_GUARD"
+    assert "Runtime executors prepared: tone_rewrite." in result.trace.notes
     trigger_runtime = context.metadata["ptag_trigger_runtime"]
     assert trigger_runtime["branch"] == "else"
     assert trigger_runtime["tone_profile"] == "diplomatic"
+    assert trigger_runtime["runtime_effects"] == [{"kind": "tone_rewrite", "tone_profile": "diplomatic"}]
     assert trigger_runtime["terminal_outcome"] == "waiting_human"
 
 
@@ -151,9 +159,15 @@ policy REVIEW_GATE {
         trigger_runtime = pending.metadata["metadata"]["ptag_trigger_runtime"]
         assert trigger_runtime["approval_role"] == "LEGAL"
         assert trigger_runtime["evidence_tags"] == ["external_review_gate"]
+        assert [effect["kind"] for effect in trigger_runtime["runtime_effects"]] == [
+            "approval_gate",
+            "evidence_log",
+        ]
         policy_runtime = pending.metadata["metadata"]["policy_runtime"]
         assert policy_runtime["approval_role"] == "LEGAL"
         assert policy_runtime["evidence_tags"] == ["external_review_gate"]
+        assert policy_runtime["approval_gate"]["role"] == "LEGAL"
+        assert policy_runtime["applied_effect_kinds"] == ["approval_gate", "evidence_log"]
 
         reviewed = app.approve_override(
             pending.human_override["request_id"],
@@ -224,13 +238,29 @@ policy REVIEW_CONTEXT_PACK {
     assert policy_runtime["source_policy_id"] == "REVIEW_CONTEXT_PACK"
     assert policy_runtime["active_policy_packs"] == ["EU_PRIVACY"]
     assert policy_runtime["evidence_tags"] == ["gdpr_guard"]
+    assert policy_runtime["applied_effect_kinds"] == ["policy_pack", "tone_rewrite", "evidence_log"]
     assert output_guidance["tone_profile"] == "diplomatic"
+    assert output_guidance["guidance_type"] == "tone_rewrite"
     assert metadata["runtime_evidence_tags"] == ["gdpr_guard"]
     assert harmony_runtime["trigger_runtime"]["policy_packs"] == ["EU_PRIVACY"]
     assert harmony_runtime["trigger_runtime"]["tone_profile"] == "diplomatic"
+    assert harmony_runtime["trigger_runtime"]["applied_effect_kinds"] == [
+        "policy_pack",
+        "tone_rewrite",
+        "evidence_log",
+    ]
+    assert harmony_runtime["policy_pack_effects"] == [
+        {
+            "pack_id": "EU_PRIVACY",
+            "source_policy_id": "REVIEW_CONTEXT_PACK",
+            "branch": "then",
+        }
+    ]
+    assert harmony_runtime["tone_guidance"]["guidance_type"] == "tone_rewrite"
 
     evidence = app.list_runtime_evidence(limit=1)[-1]
     assert evidence["trigger_policy_id"] == "REVIEW_CONTEXT_PACK"
     assert evidence["trigger_policy_packs"] == ["EU_PRIVACY"]
     assert evidence["trigger_evidence_tags"] == ["gdpr_guard"]
     assert evidence["trigger_tone_profile"] == "diplomatic"
+    assert evidence["trigger_effect_kinds"] == ["policy_pack", "tone_rewrite", "evidence_log"]
