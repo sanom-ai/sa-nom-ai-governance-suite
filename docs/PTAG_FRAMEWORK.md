@@ -32,6 +32,7 @@ In practical terms, PTAG is the layer that answers:
 - what it is denied from doing
 - what conditions must be satisfied before sensitive actions can proceed
 - when work can continue automatically and when human control is still required
+Current runtime support now materializes the first governed trigger actions directly into execution metadata and audit-ready runtime effects: terminal outcomes plus `require_approval(...)`, `apply_policy_pack(...)`, `rewrite_tone(...)`, and `log_evidence(...)` become `runtime_effects`, `policy_runtime`, `output_guidance`, and audit evidence fields that downstream governance layers can inspect.
 
 ## Two Meanings In One Name
 

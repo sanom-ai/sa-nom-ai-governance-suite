@@ -59,6 +59,7 @@ policy BRAND_GUARD {
 This is the easiest way to connect PTAG back to the SA-NOM operating idea:
 - AI can work inside defined boundaries
 - sensitive actions can require human approval
+- non-terminal actions become runtime effects such as tone guidance, policy packs, and evidence tags
 - governance stays explicit instead of being hidden inside runtime code
 
 ## 4. Inspect The Current Reference Implementation

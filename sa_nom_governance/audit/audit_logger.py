@@ -144,6 +144,20 @@ class AuditLogger:
         runtime_metadata = metadata.get('metadata') if isinstance(metadata.get('metadata'), dict) else {}
         execution_plan = runtime_metadata.get('execution_plan') if isinstance(runtime_metadata.get('execution_plan'), dict) else {}
         decision_queue = runtime_metadata.get('decision_queue') if isinstance(runtime_metadata.get('decision_queue'), dict) else {}
+        trigger_runtime = runtime_metadata.get('ptag_trigger_runtime') if isinstance(runtime_metadata.get('ptag_trigger_runtime'), dict) else {}
+        policy_runtime = runtime_metadata.get('policy_runtime') if isinstance(runtime_metadata.get('policy_runtime'), dict) else {}
+        output_guidance = runtime_metadata.get('output_guidance') if isinstance(runtime_metadata.get('output_guidance'), dict) else {}
+        trigger_effect_kinds = [
+            str(effect.get('kind'))
+            for effect in trigger_runtime.get('runtime_effects', [])
+            if isinstance(effect, dict) and str(effect.get('kind', '')).strip()
+        ]
+        if not trigger_effect_kinds:
+            trigger_effect_kinds = [
+                str(item)
+                for item in policy_runtime.get('applied_effect_kinds', [])
+                if str(item).strip()
+            ]
         return {
             'timestamp': datetime.now(timezone.utc).isoformat(),
             'request_id': metadata.get('request_id'),
@@ -159,6 +173,14 @@ class AuditLogger:
             'authority_gate_triggered': bool(runtime_metadata.get('authority_gate', {}).get('gate_triggered')) if isinstance(runtime_metadata.get('authority_gate'), dict) else False,
             'runtime_state': runtime_metadata.get('runtime_state_flow', {}).get('current_state') if isinstance(runtime_metadata.get('runtime_state_flow'), dict) else None,
             'exception_kind': self._exception_kind(result.outcome),
+            'trigger_policy_id': trigger_runtime.get('policy_id') or policy_runtime.get('source_policy_id'),
+            'trigger_branch': trigger_runtime.get('branch') or policy_runtime.get('branch'),
+            'trigger_requires_approval': bool(trigger_runtime.get('requires_approval') or policy_runtime.get('requires_approval')),
+            'trigger_approval_role': trigger_runtime.get('approval_role') or policy_runtime.get('approval_role'),
+            'trigger_policy_packs': [str(item) for item in trigger_runtime.get('policy_packs', policy_runtime.get('active_policy_packs', []))],
+            'trigger_evidence_tags': [str(item) for item in trigger_runtime.get('evidence_tags', policy_runtime.get('evidence_tags', []))],
+            'trigger_tone_profile': output_guidance.get('tone_profile') or trigger_runtime.get('tone_profile'),
+            'trigger_effect_kinds': trigger_effect_kinds,
             'authority_decision': self._authority_decision_evidence(result, runtime_metadata, decision_trace),
             'workflow_bundle_summary': {
                 'execution_plan_id': execution_plan.get('plan_id'),
