@@ -159,23 +159,33 @@ constraint GOV_BOUNDARY {
 
 ### Policy
 
-The `policy` block defines decision logic tied to actions and conditions.
+The `policy` block is the canonical PTAG trigger-grammar surface.
+
+It expresses governed decision logic as one `WHEN ... THEN ...` structure, with optional `AND` clauses and an optional `ELSE` fallback.
 
 Example:
 
 ```ptag
 policy GOV_REVIEW_AUDIT {
-  when action == review_audit
-  and risk_score <= 0.60
-  then approve
-  else escalate
+  WHEN action == review_audit AND risk_score <= 0.60
+  THEN approve, log_evidence("audit_review")
+  ELSE escalate
 }
 ```
+
+Current public trigger-grammar behavior includes:
+- `WHEN` starts the trigger condition set
+- additional conditions can be written as inline `AND` clauses or separate `and ...` lines
+- `THEN` defines one or more ordered actions
+- multiple `THEN` or `ELSE` actions can be written as comma-separated action expressions
+- keyword matching is case-insensitive for `when`, `and`, `then`, and `else`
+- policy coverage still depends on explicit governed action references such as `action == review_audit` or `action in [review_audit, emergency_stop]`
 
 Example outcomes already visible in repository examples include:
 - `approve`
 - `escalate`
 - `wait_human`
+- richer action expressions such as `require_approval("legal")` or `rewrite_tone("diplomatic")`
 
 ### Dictionary, Decision, Flow
 
@@ -211,7 +221,11 @@ The semantic validator currently checks that:
 
 The semantic validator can emit a `POLICY_COVERAGE_GAP` warning when an allowed or required action is not covered by a policy or constraint.
 
-This is one of the most important current PTAG public signals because it helps teams detect governance gaps before runtime trust assumptions drift silently.
+The semantic validator can also emit:
+- `TRIGGER_MISSING_WHEN` when a policy block has no governed `WHEN` condition
+- `TRIGGER_MISSING_THEN` when a policy block has no governed `THEN` action
+
+These signals help teams keep trigger grammar explicit before runtime trust assumptions drift silently.
 
 ## Repository Example Surface
 

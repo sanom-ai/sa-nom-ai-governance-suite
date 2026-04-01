@@ -1,7 +1,7 @@
 import pytest
 
-from sa_nom_governance.ptag.ptag_ast import PTAGDocument, PTAGBlock
-from sa_nom_governance.ptag.ptag_semantic import SemanticAnalyzer, SemanticDocument, RoleDefinition, AuthorityDefinition
+from sa_nom_governance.ptag.ptag_ast import PTAGBlock, PTAGDocument
+from sa_nom_governance.ptag.ptag_semantic import AuthorityDefinition, RoleDefinition, SemanticAnalyzer, SemanticDocument
 from sa_nom_governance.ptag.ptag_validator import PTAGValidator
 
 
@@ -94,3 +94,41 @@ def test_semantic_validator_rejects_authority_for_unknown_role() -> None:
 
     with pytest.raises(ValueError, match="unknown role"):
         PTAGValidator().validate_semantic(semantic)
+
+
+def test_semantic_validator_reports_missing_then_trigger_action() -> None:
+    document = PTAGDocument(
+        source="",
+        headers=dict(VALID_HEADERS),
+        blocks=[
+            PTAGBlock(name="role GOV", body='title: "Gov-AI"'),
+            PTAGBlock(name="authority GOV", body='allow: review_audit'),
+            PTAGBlock(name="policy GOV_REVIEW", body='when action == review_audit'),
+        ],
+    )
+
+    semantic = SemanticAnalyzer().analyze(document)
+    issues = PTAGValidator().validate_semantic(semantic)
+    codes = {issue.code for issue in issues}
+
+    assert "TRIGGER_MISSING_THEN" in codes
+    assert "POLICY_COVERAGE_GAP" not in codes
+
+
+def test_semantic_validator_reports_missing_when_trigger_condition() -> None:
+    document = PTAGDocument(
+        source="",
+        headers=dict(VALID_HEADERS),
+        blocks=[
+            PTAGBlock(name="role GOV", body='title: "Gov-AI"'),
+            PTAGBlock(name="authority GOV", body='allow: review_audit'),
+            PTAGBlock(name="policy GOV_REVIEW", body='then approve'),
+        ],
+    )
+
+    semantic = SemanticAnalyzer().analyze(document)
+    issues = PTAGValidator().validate_semantic(semantic)
+    codes = {issue.code for issue in issues}
+
+    assert "TRIGGER_MISSING_WHEN" in codes
+    assert "POLICY_COVERAGE_GAP" in codes

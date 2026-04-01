@@ -42,6 +42,22 @@ class PTAGValidator:
         covered_actions: set[str] = set()
         for policy in semantic.policies.values():
             covered_actions.update(policy.action_refs)
+            if not policy.conditions:
+                issues.append(
+                    ValidationIssue(
+                        severity="warning",
+                        code="TRIGGER_MISSING_WHEN",
+                        message=f"Policy {policy.policy_id} is missing a WHEN condition in its trigger grammar.",
+                    )
+                )
+            if not policy.then_actions:
+                issues.append(
+                    ValidationIssue(
+                        severity="warning",
+                        code="TRIGGER_MISSING_THEN",
+                        message=f"Policy {policy.policy_id} is missing a THEN action in its trigger grammar.",
+                    )
+                )
         for constraint in semantic.constraints.values():
             covered_actions.update(constraint.action_refs)
 

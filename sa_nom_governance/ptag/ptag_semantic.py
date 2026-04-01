@@ -14,10 +14,137 @@ def _split_csv(value: str) -> list[str]:
     return [part.strip() for part in value.split(',') if part.strip()]
 
 
-def _extract_action_reference(condition: str) -> str | None:
-    if not condition.startswith('action =='):
-        return None
-    return condition.split('==', 1)[1].strip().strip('"')
+def _split_top_level_csv(value: str) -> list[str]:
+    parts: list[str] = []
+    current: list[str] = []
+    quote_char: str | None = None
+    depth = 0
+
+    for char in value:
+        if quote_char is not None:
+            current.append(char)
+            if char == quote_char:
+                quote_char = None
+            continue
+
+        if char in {'"', "'"}:
+            quote_char = char
+            current.append(char)
+            continue
+
+        if char in '([{':
+            depth += 1
+            current.append(char)
+            continue
+
+        if char in ')]}':
+            depth = max(0, depth - 1)
+            current.append(char)
+            continue
+
+        if char == ',' and depth == 0:
+            part = ''.join(current).strip()
+            if part:
+                parts.append(part)
+            current = []
+            continue
+
+        current.append(char)
+
+    part = ''.join(current).strip()
+    if part:
+        parts.append(part)
+    return parts
+
+
+def _split_top_level_keyword(value: str, keyword: str) -> list[str]:
+    parts: list[str] = []
+    current: list[str] = []
+    quote_char: str | None = None
+    depth = 0
+    upper_value = value.upper()
+    keyword = keyword.upper()
+    keyword_len = len(keyword)
+    index = 0
+
+    while index < len(value):
+        char = value[index]
+        if quote_char is not None:
+            current.append(char)
+            if char == quote_char:
+                quote_char = None
+            index += 1
+            continue
+
+        if char in {'"', "'"}:
+            quote_char = char
+            current.append(char)
+            index += 1
+            continue
+
+        if char in '([{':
+            depth += 1
+            current.append(char)
+            index += 1
+            continue
+
+        if char in ')]}':
+            depth = max(0, depth - 1)
+            current.append(char)
+            index += 1
+            continue
+
+        candidate = upper_value[index:index + keyword_len]
+        prev_ok = index == 0 or value[index - 1].isspace()
+        next_index = index + keyword_len
+        next_ok = next_index >= len(value) or value[next_index].isspace()
+        if depth == 0 and candidate == keyword and prev_ok and next_ok:
+            part = ''.join(current).strip()
+            if part:
+                parts.append(part)
+            current = []
+            index += keyword_len
+            while index < len(value) and value[index].isspace():
+                index += 1
+            continue
+
+        current.append(char)
+        index += 1
+
+    part = ''.join(current).strip()
+    if part:
+        parts.append(part)
+    return parts
+
+
+def _keyword_payload(line: str, keyword: str) -> str | None:
+    stripped = line.strip()
+    prefix = f'{keyword} '
+    if stripped.lower().startswith(prefix):
+        return stripped[len(prefix):].strip()
+    if stripped.lower() == keyword:
+        return ''
+    return None
+
+
+def _split_condition_clauses(value: str) -> list[str]:
+    return [part.strip() for part in _split_top_level_keyword(value, 'AND') if part.strip()]
+
+
+def _split_action_clauses(value: str) -> list[str]:
+    return _split_top_level_csv(value)
+
+
+def _extract_action_references(condition: str) -> set[str]:
+    lower_condition = condition.lower()
+    if lower_condition.startswith('action =='):
+        return {condition.split('==', 1)[1].strip().strip('"')}
+    if not lower_condition.startswith('action in'):
+        return set()
+    payload = condition[len('action in'):].strip()
+    if not (payload.startswith('[') and payload.endswith(']')):
+        return set()
+    return {item.strip().strip('"') for item in _split_top_level_csv(payload[1:-1].strip()) if item.strip()}
 
 
 def _extract_constraint_action(line: str) -> str | None:
@@ -64,6 +191,8 @@ class PolicyDefinition:
     policy_id: str
     body: list[str] = field(default_factory=list)
     conditions: list[str] = field(default_factory=list)
+    then_actions: list[str] = field(default_factory=list)
+    else_actions: list[str] = field(default_factory=list)
     action_refs: set[str] = field(default_factory=set)
 
 
@@ -140,7 +269,32 @@ class SemanticAnalyzer:
 
     def _parse_policy(self, policy_id: str, body: str) -> PolicyDefinition:
         lines = [line.strip() for line in body.splitlines() if line.strip()]
-        conditions = [line.removeprefix('when ').strip() for line in lines if line.startswith('when ')]
-        conditions.extend(line.removeprefix('and ').strip() for line in lines if line.startswith('and '))
-        action_refs = {action for condition in conditions if (action := _extract_action_reference(condition)) is not None}
-        return PolicyDefinition(policy_id=policy_id, body=lines, conditions=conditions, action_refs=action_refs)
+        conditions: list[str] = []
+        then_actions: list[str] = []
+        else_actions: list[str] = []
+
+        for line in lines:
+            if (payload := _keyword_payload(line, 'when')) is not None:
+                conditions.extend(_split_condition_clauses(payload))
+                continue
+            if (payload := _keyword_payload(line, 'and')) is not None:
+                conditions.extend(_split_condition_clauses(payload))
+                continue
+            if (payload := _keyword_payload(line, 'then')) is not None:
+                then_actions.extend(_split_action_clauses(payload))
+                continue
+            if (payload := _keyword_payload(line, 'else')) is not None:
+                else_actions.extend(_split_action_clauses(payload))
+
+        action_refs: set[str] = set()
+        for condition in conditions:
+            action_refs.update(_extract_action_references(condition))
+
+        return PolicyDefinition(
+            policy_id=policy_id,
+            body=lines,
+            conditions=conditions,
+            then_actions=then_actions,
+            else_actions=else_actions,
+            action_refs=action_refs,
+        )
