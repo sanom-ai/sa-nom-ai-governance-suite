@@ -2,6 +2,8 @@ import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './da
 
 import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js';
 
+const FOCUS_STORAGE_KEY = 'sanom_operator_focus_context';
+
 const state = {
   view: 'overview',
   snapshot: null,
@@ -17,7 +19,7 @@ const state = {
   studioRevisionSelections: {},
   studioPtagDrafts: {},
   studioPtagHistory: {},
-  focusContext: null,
+  focusContext: loadFocusContext(),
 };
 
 const root = document.getElementById('dashboard-root');
@@ -142,6 +144,7 @@ const VIEW_PERMISSIONS = {
 navList.addEventListener('click', (event) => {
   const target = event.target.closest('.nav-item');
   if (!target) return;
+  clearFocusContext();
   state.view = target.dataset.view;
   updateNav();
   render();
@@ -168,6 +171,7 @@ logoutButton.addEventListener('click', async () => {
   state.studioRevisionSelections = {};
   state.studioPtagDrafts = {};
   state.studioPtagHistory = {};
+  clearFocusContext();
   window.localStorage.removeItem('sanom_api_token');
   window.localStorage.removeItem('sanom_session_token');
   render();
@@ -319,10 +323,20 @@ root.addEventListener('click', async (event) => {
     const nextView = viewJumpButton.dataset.viewJump || state.view;
     const focusTarget = viewJumpButton.dataset.focusTarget || '';
     const focusLabel = viewJumpButton.dataset.focusLabel || '';
+    const scrollTarget = viewJumpButton.dataset.scrollTarget || '';
     state.focusContext = focusTarget ? { view: nextView, target: focusTarget, label: focusLabel } : null;
+    persistFocusContext();
     state.view = nextView;
     updateNav();
     render();
+    if (scrollTarget) scrollToDashboardTarget(scrollTarget);
+    return;
+  }
+
+  const scrollButton = event.target.closest('[data-scroll-target]');
+  if (scrollButton) {
+    const scrollTarget = scrollButton.dataset.scrollTarget || '';
+    if (scrollTarget) scrollToDashboardTarget(scrollTarget);
     return;
   }
 
@@ -685,6 +699,53 @@ root.addEventListener('click', async (event) => {
 
 loadDashboard();
 
+function loadFocusContext() {
+  try {
+    const raw = window.sessionStorage.getItem(FOCUS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!parsed.view || !parsed.target) return null;
+    return {
+      view: String(parsed.view),
+      target: String(parsed.target),
+      label: parsed.label ? String(parsed.label) : '',
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
+function persistFocusContext() {
+  if (!state.focusContext) {
+    window.sessionStorage.removeItem(FOCUS_STORAGE_KEY);
+    return;
+  }
+  window.sessionStorage.setItem(FOCUS_STORAGE_KEY, JSON.stringify(state.focusContext));
+}
+
+function clearFocusContext() {
+  state.focusContext = null;
+  persistFocusContext();
+}
+
+function normalizeFocusContext(snapshot) {
+  const focus = state.focusContext;
+  if (!focus) return;
+  const items = Array.isArray(snapshot?.operator_action_plan?.items) ? snapshot.operator_action_plan.items : [];
+  const stillValid = items.some((item) => String(item.action_id || '') === String(focus.target || ''));
+  if (!stillValid) clearFocusContext();
+}
+
+function scrollToDashboardTarget(targetId) {
+  if (!targetId) return;
+  window.requestAnimationFrame(() => {
+    const element = document.getElementById(String(targetId));
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 async function loadDashboard() {
   if (!state.sessionToken && !state.token) {
     state.authRequired = true;
@@ -699,6 +760,7 @@ async function loadDashboard() {
     state.snapshot = snapshot;
     state.session = snapshot.session || null;
     state.authRequired = false;
+    normalizeFocusContext(snapshot);
     render();
   } catch (error) {
     const message = String(error.message || error);
@@ -746,7 +808,8 @@ function render() {
   viewDescription.textContent = VIEW_DESCRIPTIONS[state.view];
   sidebarViewTitle.textContent = VIEW_TITLES[state.view];
   sidebarViewDescription.textContent = VIEW_DESCRIPTIONS[state.view];
-  topbarFocusLabel.textContent = VIEW_TITLES[state.view];
+  const focusLabel = state.focusContext?.label ? ` | ${state.focusContext.label}` : '';
+  topbarFocusLabel.textContent = `${VIEW_TITLES[state.view]}${focusLabel}`;
   document.body.dataset.view = state.view;
   if (state.authRequired || !state.snapshot) {
     sessionLabel.textContent = 'disconnected';
@@ -1184,7 +1247,7 @@ function renderFirstRunReadinessCard(firstRunReadiness) {
   const highlighted = blockers.length ? blockers.slice(0, 3) : advisories.slice(0, 3);
   const recommendedView = firstRunReadiness.recommended_view || 'overview';
   return `
-    <section class="card stack">
+    <section id="focused-human-ask-subset" class="card stack">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">First-Run Control Plane</div>
@@ -1435,6 +1498,25 @@ function getFocusContext(viewName) {
   return focus;
 }
 
+function getFocusScrollTarget(viewName, target) {
+  const mapping = {
+    requests: {
+      queue_blocked_workflows: 'focused-request-subset',
+      queue_pending_overrides: 'focused-request-subset',
+      notification_posture: 'focused-request-subset',
+    },
+    overrides: {
+      queue_pending_overrides: 'focused-override-subset',
+      notification_posture: 'focused-override-subset',
+    },
+    human_ask: {
+      queue_waiting_human_sessions: 'focused-human-ask-subset',
+      notification_posture: 'focused-human-ask-subset',
+    },
+  };
+  return mapping[String(viewName || '')]?.[String(target || '')] || '';
+}
+
 function describeFocusTarget(target, fallbackLabel = '') {
   const mapping = {
     queue_pending_overrides: {
@@ -1498,6 +1580,7 @@ function renderFocusedOperatorSpotlight(viewName) {
   const focus = getFocusContext(viewName);
   if (!focus) return '';
   const detail = describeFocusTarget(focus.target, focus.label || 'Operator focus');
+  const scrollTarget = getFocusScrollTarget(viewName, focus.target);
   return `
     <section class="card stack focus-spotlight-card">
       <div class="hero-heading">
@@ -1507,7 +1590,7 @@ function renderFocusedOperatorSpotlight(viewName) {
           <p class="card-subtitle">${escapeHtml(detail.detail)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(focus.target || 'focus')}</div></div>
-      ${detail.actionView ? `<div class="inline-actions"><button class="action-button action-button-muted" data-view-jump="${escapeHtml(detail.actionView)}" data-focus-target="${escapeHtml(focus.target || '')}" data-focus-label="${escapeHtml(focus.label || '')}">${escapeHtml(detail.actionLabel || 'Open focus view')}</button></div>` : ''}
+      ${(detail.actionView || scrollTarget) ? `<div class="inline-actions">${detail.actionView ? `<button class="action-button action-button-muted" data-view-jump="${escapeHtml(detail.actionView)}" data-focus-target="${escapeHtml(focus.target || '')}" data-focus-label="${escapeHtml(focus.label || '')}"${scrollTarget && detail.actionView === viewName ? ` data-scroll-target="${escapeHtml(scrollTarget)}"` : ''}>${escapeHtml(detail.actionLabel || 'Open focus view')}</button>` : ''}${scrollTarget ? `<button class="action-button action-button-muted" data-scroll-target="${escapeHtml(scrollTarget)}">Jump to focused subset</button>` : ''}</div>` : ''}
     </section>
   `;
 }
@@ -1588,14 +1671,17 @@ function renderOperatorContextHandoff(actionPlan, currentView, title, subtitle) 
         <div class="hero-chip-row">${statusBadge(`${items.length} actions`)}</div>
       </div>
       <div class="view-prelude-grid">
-        ${items.map((item) => `
+        ${items.map((item) => {
+          const scrollTarget = getFocusScrollTarget(currentView, item.action_id || '');
+          return `
           <article class="view-prelude-card${item.priority === 'urgent' ? ' view-prelude-card-danger' : item.priority === 'next' ? ' view-prelude-card-warning' : ''}">
             <span class="view-prelude-label">${escapeHtml(titleCase(item.priority || 'watch'))}</span>
             <strong>${escapeHtml(item.title || 'Operator action')}</strong>
             <p class="muted">${escapeHtml(item.detail || 'Review this lane now.')}</p>
             <div class="hero-chip-row">${statusBadge(item.source || 'runtime')}</div>
-          </article>
-        `).join('')}
+            ${scrollTarget ? `<div class="inline-actions"><button class="action-button action-button-muted" data-scroll-target="${escapeHtml(scrollTarget)}">Jump to focused subset</button></div>` : ''}
+          </article>`;
+        }).join('')}
       </div>
     </section>
   `;
@@ -1622,7 +1708,7 @@ function renderFocusedRequestSubset(snapshot) {
     subtitle = 'This subset shows requests that are most likely to feed the current notification posture and escalation pressure.';
   }
   if (!rows.length) return '';
-  return wrapTableCard(title, requestTable(rows.slice(0, 8)), subtitle);
+  return wrapTableCard(title, requestTable(rows.slice(0, 8)), subtitle, 'focused-request-subset');
 }
 
 function renderFocusedOverrideSubset(snapshot) {
@@ -1642,7 +1728,7 @@ function renderFocusedOverrideSubset(snapshot) {
     subtitle = 'Pending or vetoed decisions are the override records most likely to sustain operator notification pressure.';
   }
   if (!rows.length) return '';
-  return wrapTableCard(title, overrideTable(rows.slice(0, 8)), subtitle);
+  return wrapTableCard(title, overrideTable(rows.slice(0, 8)), subtitle, 'focused-override-subset');
 }
 
 function renderFocusedHumanAskSubset(snapshot) {
@@ -3710,8 +3796,9 @@ function integrationDeadLetterTable(rows) {
   return `<table class="data-table"><thead><tr><th>Event</th><th>Target</th><th>Final Status</th><th>Attempts</th><th>Signing</th><th>Dead-lettered</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.event_type || '-')}</strong><div class="muted">${escapeHtml(row.event_id || '-')}</div></td><td>${escapeHtml(row.target_name || row.target_id || '-')}</td><td>${statusBadge(row.final_status || 'failed')}</td><td><strong>${escapeHtml(String(row.attempts_used || 1))}</strong><div class="muted">of ${escapeHtml(String(row.max_attempts || 1))}</div></td><td>${escapeHtml(row.signing_policy || 'none')}</td><td>${escapeHtml(shortTime(row.dead_lettered_at))}</td><td class="muted">${escapeHtml(row.reason || '-')}</td></tr>`).join('')}</tbody></table>`;
 }
 
-function wrapTableCard(title, tableHtml, subtitle = '') {
-  return `<article class="table-card"><div class="table-card-head"><div><div class="eyebrow muted">Runtime Table</div><h3 class="table-title">${escapeHtml(title)}</h3>${subtitle ? `<p class="card-subtitle">${escapeHtml(subtitle)}</p>` : ''}</div></div><div class="table-wrapper">${tableHtml}</div></article>`;
+function wrapTableCard(title, tableHtml, subtitle = '', anchorId = '') {
+  const anchorAttr = anchorId ? ` id="${escapeHtml(anchorId)}"` : '';
+  return `<article${anchorAttr} class="table-card"><div class="table-card-head"><div><div class="eyebrow muted">Runtime Table</div><h3 class="table-title">${escapeHtml(title)}</h3>${subtitle ? `<p class="card-subtitle">${escapeHtml(subtitle)}</p>` : ''}</div></div><div class="table-wrapper">${tableHtml}</div></article>`;
 }
 
 function keyValue(rows) {
