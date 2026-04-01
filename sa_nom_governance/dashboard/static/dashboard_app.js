@@ -20,6 +20,7 @@ const state = {
   studioPtagDrafts: {},
   studioPtagHistory: {},
   focusContext: loadFocusContext(),
+  lastAutoFocusKey: '',
 };
 
 const root = document.getElementById('dashboard-root');
@@ -325,6 +326,7 @@ root.addEventListener('click', async (event) => {
     const focusLabel = viewJumpButton.dataset.focusLabel || '';
     const scrollTarget = viewJumpButton.dataset.scrollTarget || '';
     state.focusContext = focusTarget ? { view: nextView, target: focusTarget, label: focusLabel } : null;
+    state.lastAutoFocusKey = '';
     persistFocusContext();
     state.view = nextView;
     updateNav();
@@ -726,6 +728,7 @@ function persistFocusContext() {
 
 function clearFocusContext() {
   state.focusContext = null;
+  state.lastAutoFocusKey = '';
   persistFocusContext();
 }
 
@@ -744,6 +747,17 @@ function scrollToDashboardTarget(targetId) {
     if (!element) return;
     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+}
+
+function maybeAutoScrollToFocus() {
+  const focus = getFocusContext(state.view);
+  if (!focus) return;
+  const scrollTarget = getFocusScrollTarget(state.view, focus.target || '');
+  if (!scrollTarget) return;
+  const focusKey = `${state.view}:${focus.target}:${scrollTarget}`;
+  if (state.lastAutoFocusKey === focusKey) return;
+  state.lastAutoFocusKey = focusKey;
+  scrollToDashboardTarget(scrollTarget);
 }
 
 async function loadDashboard() {
@@ -856,6 +870,7 @@ function render() {
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null, snapshot.operator_action_plan || null);
   root.innerHTML = `${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${viewContent}`;
   updateNav();
+  maybeAutoScrollToFocus();
 }
 
 function renderAlertRail(snapshot) {
