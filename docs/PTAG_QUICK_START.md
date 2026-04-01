@@ -84,8 +84,9 @@ That path is enough to understand what PTAG is, what it currently looks like, an
 
 Choose the next document based on what you need:
 - If you want the public positioning, stay with [PTAG Framework](PTAG_FRAMEWORK.md).
+- If you want a guided walk through the example set, go to [PTAG Examples](PTAG_EXAMPLES.md).
 - If you want syntax and validation detail, go to [PTAG Full Spec](PTAG_FULL_SPEC.md).
-- If you want more example files, inspect `resources/roles/`.
+- If you want more example files directly, inspect `resources/roles/`.
 - If you want to help improve PTAG, read [CONTRIBUTING](../CONTRIBUTING.md).
 
 ## Summary

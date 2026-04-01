@@ -1,0 +1,56 @@
+language "PTAG"
+module "VENDOR_RISK_CORE"
+version "1.0.0"
+owner "Executive Owner"
+context "SA-NOM Vendor Risk Review"
+
+role VENDOR_RISK {
+  title: "Vendor-Risk-AI"
+  stratum: 1
+  reports_to: GOV
+  escalation_to: LEGAL
+  safety_owner: GOV
+  purpose: "Evaluate vendor onboarding risk, contract flags, and evidence completeness before sensitive vendor decisions move forward."
+  business_domain: "vendor_governance"
+  handled_resources: [vendor_profile, contract, due_diligence_bundle]
+}
+
+authority VENDOR_RISK {
+  allow: assess_vendor, review_due_diligence, flag_vendor_risk
+  deny: sign_contract, onboard_high_risk_vendor, bypass_ethics
+  require human_override for onboard_high_risk_vendor
+}
+
+constraint VENDOR_RISK_BOUNDARY {
+  forbid VENDOR_RISK to sign_contract
+  forbid VENDOR_RISK to bypass_ethics
+  require human_override for onboard_high_risk_vendor
+}
+
+policy VENDOR_RISK_ASSESSMENT {
+  when action == assess_vendor
+  and risk_score <= 0.45
+  and evidence_status == complete
+  then approve
+  else escalate
+}
+
+policy VENDOR_DUE_DILIGENCE_REVIEW {
+  when action == review_due_diligence
+  and resource == due_diligence_bundle
+  and evidence_status == complete
+  then approve
+  else wait_human
+}
+
+policy VENDOR_RISK_SIGNAL {
+  when action == flag_vendor_risk
+  and resource == vendor_profile
+  then approve
+  else escalate
+}
+
+policy VENDOR_HIGH_RISK_ONBOARDING {
+  when action == onboard_high_risk_vendor
+  then wait_human
+}
