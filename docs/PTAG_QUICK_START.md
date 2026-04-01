@@ -44,7 +44,17 @@ When you read PTAG, use this simple interpretation:
 - `role` says who exists and what that role is for
 - `authority` says what the role may or may not do
 - `constraint` says what boundaries cannot be crossed
-- `policy` says how decisions are made for a specific action or situation
+- `policy` says how decisions are made through a single `WHEN ... THEN ...` trigger rule for a specific action or situation
+
+A practical reading shortcut for `policy` blocks is:
+
+```ptag
+policy BRAND_GUARD {
+  WHEN action == send_customer_reply AND resonance_score < 0.85
+  THEN rewrite_tone("diplomatic"), require_approval("reviewer")
+  ELSE approve
+}
+```
 
 This is the easiest way to connect PTAG back to the SA-NOM operating idea:
 - AI can work inside defined boundaries

@@ -24,6 +24,8 @@ This public opening should be read as a real repository change, not only a wordi
 
 PTAG is the policy and role-governance language used inside SA-NOM to define roles, authority boundaries, constraints, policy logic, and decision-ready control structure in a readable form.
 
+Inside `policy` blocks, the canonical control structure is now a single `WHEN ... THEN ...` trigger grammar, with additional `AND` clauses and an optional `ELSE` fallback for governed runtime decisions.
+
 In practical terms, PTAG is the layer that answers:
 - what role exists
 - what that role is allowed to do
@@ -95,6 +97,7 @@ At a high level, PTAG validation currently includes:
 - structural validation for required headers and supported block types
 - semantic validation for role and authority consistency
 - policy coverage-gap signaling when governed actions lack supporting policy or constraint coverage
+- trigger-shape signaling when a policy block is missing a governed `WHEN` or `THEN` clause
 
 See [PTAG Full Spec](PTAG_FULL_SPEC.md) for the current public detail level.
 
