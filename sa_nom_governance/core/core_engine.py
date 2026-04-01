@@ -776,6 +776,11 @@ class CoreEngine:
     def _override_approver_role(self, context, hierarchy_escalation: HierarchyEscalationDecision | None) -> str:
         if hierarchy_escalation is not None:
             return hierarchy_escalation.escalated_to
+        trigger_runtime = context.metadata.get('ptag_trigger_runtime')
+        if isinstance(trigger_runtime, dict):
+            approval_role = str(trigger_runtime.get('approval_role', '')).strip()
+            if approval_role:
+                return approval_role
         return self.hierarchy_registry.default_escalation_target(context.role_id)
 
     def _authority_override_matches(

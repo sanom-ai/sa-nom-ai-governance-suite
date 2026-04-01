@@ -187,6 +187,8 @@ Example outcomes already visible in repository examples include:
 - `wait_human`
 - richer action expressions such as `require_approval("legal")` or `rewrite_tone("diplomatic")`
 
+Current runtime baseline now interprets the first trigger-action set directly: terminal outcomes, `require_approval(...)`, `apply_policy_pack(...)`, `rewrite_tone(...)`, and `log_evidence(...)`. The resulting action plan is attached to runtime metadata under `ptag_trigger_runtime`.
+
 ### Dictionary, Decision, Flow
 
 The validator currently accepts `dictionary`, `decision`, and `flow` blocks as part of the public PTAG block model.

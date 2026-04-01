@@ -1,10 +1,10 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sa_nom_governance.core.decision_models import DecisionComputation, DecisionTrace
 from sa_nom_governance.core.execution_context import ExecutionContext
 from sa_nom_governance.guards.human_override import HumanOverrideState
-from sa_nom_governance.ptag.ptag_semantic import SemanticDocument
+from sa_nom_governance.ptag.ptag_semantic import PolicyDefinition, SemanticDocument
 
 
 @dataclass(slots=True)
@@ -14,6 +14,14 @@ class PolicyEvaluation:
     outcome: str | None = None
     matched_conditions: list[str] | None = None
     failed_conditions: list[str] | None = None
+    action_plan: dict[str, Any] | None = None
+
+
+@dataclass(slots=True)
+class ParsedAction:
+    raw: str
+    name: str
+    args: list[str] = field(default_factory=list)
 
 
 class DecisionEngine:
@@ -59,32 +67,45 @@ class DecisionEngine:
                     )
 
         for policy in role_document.policies.values():
-            evaluation = self._evaluate_policy(policy.body, context)
+            evaluation = self._evaluate_policy(policy, context, override_active=override_active)
+            if evaluation.action_plan is not None:
+                context.metadata["ptag_trigger_runtime"] = evaluation.action_plan
             if evaluation.outcome is not None:
                 if evaluation.outcome == "waiting_human" and override_active:
+                    resume_reason = f"Action resumed after human override approval for policy {policy.policy_id}."
+                    if evaluation.action_plan is not None and evaluation.action_plan.get("requires_approval"):
+                        resume_reason = f"Action resumed after trigger approval for policy {policy.policy_id}."
                     return DecisionComputation(
                         outcome="approved",
-                        reason=f"Action resumed after human override approval for policy {policy.policy_id}.",
+                        reason=resume_reason,
                         policy_basis=policy.policy_id,
                         trace=DecisionTrace(
                             source_type="human_override_resume",
                             source_id=approved_override.request_id if approved_override else policy.policy_id,
                             matched_conditions=evaluation.matched_conditions or [],
                             failed_conditions=evaluation.failed_conditions or [],
-                            notes=["Human override approval resumed execution.", f"Original policy source: {policy.policy_id}."],
+                            notes=[
+                                "Human override approval resumed execution.",
+                                f"Original policy source: {policy.policy_id}.",
+                            ],
                         ),
                         human_override=approved_override,
                     )
+                reason = f"Decision resolved by policy {policy.policy_id}."
+                if evaluation.action_plan is not None:
+                    branch = str(evaluation.action_plan.get("branch", "")).strip()
+                    if branch:
+                        reason = f"Decision resolved by policy {policy.policy_id} via {branch.upper()} branch."
                 return DecisionComputation(
                     outcome=evaluation.outcome,
-                    reason=f"Decision resolved by policy {policy.policy_id}.",
+                    reason=reason,
                     policy_basis=policy.policy_id,
                     trace=DecisionTrace(
                         source_type="policy",
                         source_id=policy.policy_id,
                         matched_conditions=evaluation.matched_conditions or [],
                         failed_conditions=evaluation.failed_conditions or [],
-                        notes=["Policy evaluation completed."],
+                        notes=self._build_policy_notes(evaluation),
                     ),
                 )
 
@@ -108,26 +129,19 @@ class DecisionEngine:
             and approved_override.action == context.action
         )
 
-    def _evaluate_policy(self, lines: list[str], context: ExecutionContext) -> PolicyEvaluation:
-        conditions: list[str] = []
-        then_token: str | None = None
-        else_token: str | None = None
-
-        for line in lines:
-            if line.startswith("when "):
-                conditions.append(line.removeprefix("when ").strip())
-            elif line.startswith("and "):
-                conditions.append(line.removeprefix("and ").strip())
-            elif line.startswith("then "):
-                then_token = line.removeprefix("then ").strip()
-            elif line.startswith("else "):
-                else_token = line.removeprefix("else ").strip()
-
-        if not conditions or then_token is None:
+    def _evaluate_policy(
+        self,
+        policy: PolicyDefinition,
+        context: ExecutionContext,
+        *,
+        override_active: bool,
+    ) -> PolicyEvaluation:
+        conditions = list(policy.conditions)
+        if not conditions or not policy.then_actions:
             return PolicyEvaluation(applicable=False, matched=False, outcome=None)
 
-        action_conditions = [condition for condition in conditions if condition.startswith("action ")]
-        non_action_conditions = [condition for condition in conditions if not condition.startswith("action ")]
+        action_conditions = [condition for condition in conditions if condition.lower().startswith("action ")]
+        non_action_conditions = [condition for condition in conditions if not condition.lower().startswith("action ")]
 
         matched_conditions: list[str] = []
         failed_conditions: list[str] = []
@@ -154,21 +168,39 @@ class DecisionEngine:
                 failed_conditions.append(condition)
 
         if not failed_conditions:
+            action_plan = self._build_action_plan(
+                policy.policy_id,
+                branch="then",
+                action_tokens=policy.then_actions,
+                override_active=override_active,
+            )
+            action_plan["matched_conditions"] = list(matched_conditions)
+            action_plan["failed_conditions"] = list(failed_conditions)
             return PolicyEvaluation(
                 applicable=True,
                 matched=True,
-                outcome=self._normalize_outcome(then_token),
+                outcome=action_plan.get("terminal_outcome"),
                 matched_conditions=matched_conditions,
                 failed_conditions=failed_conditions,
+                action_plan=action_plan,
             )
 
-        if else_token is not None:
+        if policy.else_actions:
+            action_plan = self._build_action_plan(
+                policy.policy_id,
+                branch="else",
+                action_tokens=policy.else_actions,
+                override_active=override_active,
+            )
+            action_plan["matched_conditions"] = list(matched_conditions)
+            action_plan["failed_conditions"] = list(failed_conditions)
             return PolicyEvaluation(
                 applicable=True,
                 matched=False,
-                outcome=self._normalize_outcome(else_token),
+                outcome=action_plan.get("terminal_outcome"),
                 matched_conditions=matched_conditions,
                 failed_conditions=failed_conditions,
+                action_plan=action_plan,
             )
 
         return PolicyEvaluation(
@@ -180,6 +212,9 @@ class DecisionEngine:
         )
 
     def _evaluate_condition(self, condition: str, context: ExecutionContext) -> bool:
+        membership = self._evaluate_membership_condition(condition, context)
+        if membership is not None:
+            return membership
         for operator in self.COMPARISON_OPERATORS:
             if operator in condition:
                 left, right = condition.split(operator, 1)
@@ -188,6 +223,22 @@ class DecisionEngine:
                 return self._compare(actual, expected, operator)
         return False
 
+    def _evaluate_membership_condition(self, condition: str, context: ExecutionContext) -> bool | None:
+        marker = " in "
+        lower_condition = condition.lower()
+        if marker not in lower_condition:
+            return None
+        index = lower_condition.find(marker)
+        left = condition[:index].strip()
+        right = condition[index + len(marker):].strip()
+        if not (right.startswith("[") and right.endswith("]")):
+            return None
+        actual = self._resolve_operand(left, context)
+        if actual is None:
+            return False
+        choices = [self._coerce_literal(item) for item in self._split_top_level_csv(right[1:-1].strip())]
+        return actual in choices
+
     def _resolve_operand(self, operand: str, context: ExecutionContext) -> Any | None:
         if operand == "action":
             return context.action
@@ -195,6 +246,8 @@ class DecisionEngine:
             return context.requester
         if operand == "risk_score":
             return context.risk_score
+        if operand in {"region", "audience", "channel", "sensitivity", "tone", "resonance_score"}:
+            return self._resolve_context_signal(operand, context)
         if operand == "amount":
             return context.payload.get("amount")
         if operand == "resource":
@@ -202,7 +255,52 @@ class DecisionEngine:
         if operand.startswith("payload."):
             key = operand.split(".", 1)[1]
             return context.payload.get(key)
+        if operand.startswith("metadata."):
+            key = operand.split(".", 1)[1]
+            return self._resolve_nested_mapping(context.metadata, key)
         return None
+
+    def _resolve_context_signal(self, operand: str, context: ExecutionContext) -> Any | None:
+        direct_value = context.metadata.get(operand)
+        if direct_value is not None:
+            return direct_value
+
+        harmony_payload = context.metadata.get("global_harmony")
+        if isinstance(harmony_payload, dict):
+            if operand == "region":
+                region_value = harmony_payload.get("region_id")
+                if region_value is not None:
+                    return region_value
+            harmony_context = harmony_payload.get("context")
+            if isinstance(harmony_context, dict):
+                signal_value = harmony_context.get(operand)
+                if signal_value is not None:
+                    return signal_value
+
+        runtime_payload = context.metadata.get("global_harmony_runtime")
+        if isinstance(runtime_payload, dict):
+            if operand == "region":
+                region_value = runtime_payload.get("region_id")
+                if region_value is not None:
+                    return region_value
+            normalized_context = self._resolve_nested_mapping(runtime_payload, "evaluation.normalized_context")
+            if isinstance(normalized_context, dict):
+                signal_value = normalized_context.get(operand)
+                if signal_value is not None:
+                    return signal_value
+            if operand == "resonance_score":
+                resonance = self._resolve_nested_mapping(runtime_payload, "evaluation.resonance_score")
+                if resonance is not None:
+                    return resonance
+        return None
+
+    def _resolve_nested_mapping(self, mapping: dict[str, Any], path: str) -> Any | None:
+        current: Any = mapping
+        for key in path.split("."):
+            if not isinstance(current, dict) or key not in current:
+                return None
+            current = current[key]
+        return current
 
     def _coerce_literal(self, value: str) -> Any:
         stripped = value.strip()
@@ -261,4 +359,157 @@ class DecisionEngine:
             "suspend": "suspended",
             "escalate": "escalated",
         }
-        return mapping.get(token, token)
+        return mapping.get(token.lower(), token)
+
+    def _build_action_plan(
+        self,
+        policy_id: str,
+        *,
+        branch: str,
+        action_tokens: list[str],
+        override_active: bool,
+    ) -> dict[str, Any]:
+        actions = [self._parse_action_token(token) for token in action_tokens]
+        terminal_token: str | None = None
+        approval_role = ""
+        requires_approval = False
+        policy_packs: list[str] = []
+        evidence_tags: list[str] = []
+        tone_profile = ""
+        unknown_actions: list[str] = []
+
+        for action in actions:
+            normalized_name = action.name.lower()
+            if normalized_name in {"approve", "reject", "wait_human", "suspend", "escalate"}:
+                if terminal_token is None:
+                    terminal_token = normalized_name
+                continue
+            if normalized_name == "require_approval":
+                requires_approval = True
+                if action.args and not approval_role:
+                    approval_role = action.args[0]
+                continue
+            if normalized_name == "apply_policy_pack":
+                if action.args:
+                    policy_packs.append(action.args[0])
+                continue
+            if normalized_name == "rewrite_tone":
+                if action.args:
+                    tone_profile = action.args[0]
+                continue
+            if normalized_name == "log_evidence":
+                if action.args:
+                    evidence_tags.append(action.args[0])
+                continue
+            unknown_actions.append(action.raw)
+
+        terminal_outcome: str | None = None
+        if requires_approval and not override_active:
+            terminal_outcome = "waiting_human"
+        elif terminal_token is not None:
+            terminal_outcome = self._normalize_outcome(terminal_token)
+        elif requires_approval and override_active:
+            terminal_outcome = "approved"
+
+        return {
+            "policy_id": policy_id,
+            "branch": branch,
+            "actions": [self._serialize_action(action) for action in actions],
+            "requires_approval": requires_approval,
+            "approval_role": approval_role,
+            "policy_packs": policy_packs,
+            "evidence_tags": evidence_tags,
+            "tone_profile": tone_profile,
+            "unknown_actions": unknown_actions,
+            "terminal_action": terminal_token,
+            "terminal_outcome": terminal_outcome,
+            "override_active": override_active,
+        }
+
+    def _build_policy_notes(self, evaluation: PolicyEvaluation) -> list[str]:
+        notes = ["Policy evaluation completed."]
+        action_plan = evaluation.action_plan or {}
+        branch = action_plan.get("branch")
+        if branch:
+            notes.append(f"Trigger branch resolved through {str(branch).upper()}.")
+        if action_plan.get("policy_packs"):
+            notes.append(
+                f"Policy packs prepared: {', '.join(str(item) for item in action_plan['policy_packs'])}."
+            )
+        if action_plan.get("evidence_tags"):
+            notes.append(
+                f"Evidence tags prepared: {', '.join(str(item) for item in action_plan['evidence_tags'])}."
+            )
+        tone_profile = action_plan.get("tone_profile")
+        if tone_profile:
+            notes.append(f"Tone rewrite suggested: {tone_profile}.")
+        if action_plan.get("requires_approval"):
+            approval_role = str(action_plan.get("approval_role", "")).strip() or "governed reviewer"
+            notes.append(f"Human approval requested through {approval_role}.")
+        return notes
+
+    def _parse_action_token(self, token: str) -> ParsedAction:
+        stripped = token.strip()
+        if "(" not in stripped or not stripped.endswith(")"):
+            return ParsedAction(raw=stripped, name=stripped)
+        name, remainder = stripped.split("(", 1)
+        args_payload = remainder[:-1].strip()
+        if not args_payload:
+            return ParsedAction(raw=stripped, name=name.strip())
+        args = [self._stringify_argument(item) for item in self._split_top_level_csv(args_payload)]
+        return ParsedAction(raw=stripped, name=name.strip(), args=args)
+
+    def _stringify_argument(self, value: str) -> str:
+        coerced = self._coerce_literal(value)
+        if isinstance(coerced, bool):
+            return "true" if coerced else "false"
+        return str(coerced)
+
+    def _split_top_level_csv(self, value: str) -> list[str]:
+        parts: list[str] = []
+        current: list[str] = []
+        quote_char: str | None = None
+        depth = 0
+
+        for char in value:
+            if quote_char is not None:
+                current.append(char)
+                if char == quote_char:
+                    quote_char = None
+                continue
+
+            if char in {'"', "'"}:
+                quote_char = char
+                current.append(char)
+                continue
+
+            if char in "([{":
+                depth += 1
+                current.append(char)
+                continue
+
+            if char in ")]}":
+                depth = max(0, depth - 1)
+                current.append(char)
+                continue
+
+            if char == "," and depth == 0:
+                part = "".join(current).strip()
+                if part:
+                    parts.append(part)
+                current = []
+                continue
+
+            current.append(char)
+
+        part = "".join(current).strip()
+        if part:
+            parts.append(part)
+        return parts
+
+    def _serialize_action(self, action: ParsedAction) -> dict[str, Any]:
+        return {
+            "raw": action.raw,
+            "name": action.name,
+            "args": list(action.args),
+        }
