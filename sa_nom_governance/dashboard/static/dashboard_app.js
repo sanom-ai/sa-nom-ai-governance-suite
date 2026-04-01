@@ -1937,6 +1937,7 @@ function renderRequests(snapshot) {
       })}
     </section>
     <section class="split-grid">
+      ${renderOperatorAuditHandoffCard(auditHandoff, { compact: true })}
       <article class="card stack">
         <div><div class="eyebrow muted">Submission protocol</div><h3 class="card-title">What strong requests look like</h3><p class="card-subtitle">Use this surface as the premium operator lane for runtime work that must remain reviewable after execution.</p></div>
         ${keyValue([
@@ -1975,6 +1976,7 @@ function renderOverridesView(snapshot) {
   const latestOverrideLabel = overrides.length
     ? `${overrides[0].request_id} | ${shortTime(overrides[0].created_at)}`
     : 'No human override records are visible yet.';
+  const auditHandoff = snapshot.operator_audit_handoff || { review_events: [] };
   const operatorHandoff = renderOperatorContextHandoff(
     snapshot.operator_action_plan || { items: [] },
     'overrides',
@@ -2070,8 +2072,36 @@ function renderOverridesView(snapshot) {
           ['Control goal', 'Keep human intervention explainable instead of turning approval into a silent bypass'],
         ])}
       </article>
+      ${renderOperatorAuditHandoffCard(auditHandoff)}
     </section>
     ${wrapTableCard('Overrides', overrideTable(overrides), 'Human approvals and vetoes that gate governed execution before it may resume.')}
+  `;
+}
+
+function renderOperatorAuditHandoffCard(handoff, options = {}) {
+  const compact = Boolean(options.compact);
+  const latestReview = handoff?.latest_review || null;
+  const reviewedTotal = Number(handoff?.reviewed_total || 0);
+  const pendingTotal = Number(handoff?.pending_total || 0);
+  const reviewEvents = Array.isArray(handoff?.review_events) ? handoff.review_events.slice(0, compact ? 2 : 3) : [];
+  if (!latestReview && !reviewEvents.length && !pendingTotal) return '';
+  return `
+    <article class="card stack">
+      <div>
+        <div class="eyebrow muted">Audit handoff</div>
+        <h3 class="card-title">Human override decisions should stay traceable in the ledger</h3>
+        <p class="card-subtitle">Use this handoff to confirm the latest human decision and then continue into the audit view with the right packet in mind.</p>
+      </div>
+      ${keyValue([
+        ['Pending approvals', String(pendingTotal)],
+        ['Reviewed decisions', String(reviewedTotal)],
+        ['Latest request', latestReview?.request_id || '-'],
+        ['Latest decision', latestReview ? titleCase(latestReview.decision || '-') : '-'],
+      ])}
+      ${latestReview ? `<div class="trace-box"><strong>Latest ledger note</strong><p class="muted">${escapeHtml(`${latestReview.request_id} | ${shortTime(latestReview.timestamp)} | ${latestReview.reason || '-'}`)}</p></div>` : ''}
+      ${reviewEvents.length ? `<div class="stack">${reviewEvents.map((item) => `<article class="trace-box compact-trace"><strong>${escapeHtml(item.request_id || '-')}</strong><p class="muted">${escapeHtml(`${titleCase(item.decision || '-') } | ${shortTime(item.timestamp)} | ${item.reason || '-'}`)}</p></article>`).join('')}</div>` : ''}
+      <div class="inline-actions"><button class="action-button action-button-muted" data-view-jump="audit">Open Audit</button>${compact ? '<button class="action-button action-button-muted" data-view-jump="overrides">Open Overrides</button>' : ''}</div>
+    </article>
   `;
 }
 
@@ -2187,6 +2217,7 @@ function renderConflicts(snapshot) {
 function renderAudit(snapshot) {
   const integrity = snapshot.runtime_health?.audit_integrity || {};
   const auditRows = snapshot.audit || [];
+  const auditHandoff = snapshot.operator_audit_handoff || { review_events: [] };
   const roleTransitionEvents = auditRows.filter((row) => ['role_activation', 'role_switch', 'role_escalation'].includes(row.action));
   const canReseal = can('audit.manage');
   const maintenanceAction = canReseal && integrity.status === 'legacy_verified'

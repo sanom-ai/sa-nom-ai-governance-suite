@@ -150,6 +150,7 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         delivery_readiness = snapshot.get('operator_notification_delivery_readiness', {})
         action_plan = snapshot.get('operator_action_plan', {})
         focus_subsets = snapshot.get('operator_focus_subsets', {})
+        audit_handoff = snapshot.get('operator_audit_handoff', {})
         runtime_alerts = snapshot.get('runtime_alerts', [])
         summary = snapshot.get('summary', {})
 
@@ -196,6 +197,8 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         human_ask_subset = focus_subsets.get('human_ask', {}).get('notification_posture', {})
         assert human_ask_subset.get('title') == 'Human Ask sessions contributing to alert posture'
         assert isinstance(human_ask_subset.get('rows'), list)
+        assert audit_handoff.get('pending_total', 0) >= 1
+        assert isinstance(audit_handoff.get('review_events'), list)
         pending_notification = next(item for item in notification_center.get('items', []) if item.get('lane_id') == 'pending_overrides')
         assert pending_notification.get('dispatch_ready') is True
         assert pending_notification.get('channels') == ['dashboard', 'email']

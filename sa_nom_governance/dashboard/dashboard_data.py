@@ -79,6 +79,10 @@ class DashboardSnapshotBuilder:
             overrides=overrides,
             human_ask=human_ask,
         )
+        operator_audit_handoff = self.operator_audit_handoff(
+            audit_entries=audit_entries,
+            overrides=overrides,
+        )
         runtime_alerts = self.runtime_alerts(
             human_ask=human_ask,
             role_private_studio=role_private_studio,
@@ -176,6 +180,7 @@ class DashboardSnapshotBuilder:
             'operator_notification_delivery_readiness': operator_notification_delivery_readiness,
             'operator_action_plan': operator_action_plan,
             'operator_focus_subsets': operator_focus_subsets,
+            'operator_audit_handoff': operator_audit_handoff,
             'go_live_readiness': go_live_readiness,
             'operational_readiness': operational_readiness,
             'first_run_readiness': first_run_readiness,
@@ -1055,6 +1060,40 @@ class DashboardSnapshotBuilder:
             'requests': request_subsets,
             'overrides': override_subsets,
             'human_ask': human_ask_subsets,
+        }
+
+
+    def operator_audit_handoff(
+        self,
+        *,
+        audit_entries: list[dict[str, object]],
+        overrides: list[dict[str, object]],
+    ) -> dict[str, object]:
+        review_events: list[dict[str, object]] = []
+        for entry in audit_entries:
+            action = str(entry.get('action', ''))
+            if action not in {'override_approve', 'override_veto'}:
+                continue
+            metadata = entry.get('metadata', {}) if isinstance(entry.get('metadata', {}), dict) else {}
+            review_events.append(
+                {
+                    'request_id': metadata.get('request_id') or entry.get('request_id') or '-',
+                    'audit_action': action,
+                    'decision': 'approve' if action == 'override_approve' else 'veto',
+                    'outcome': entry.get('outcome', '-'),
+                    'timestamp': entry.get('timestamp'),
+                    'reason': entry.get('reason', '-') or '-',
+                    'resolved_by': entry.get('requester') or metadata.get('requester') or '-',
+                    'active_role': entry.get('active_role', '-') or '-',
+                }
+            )
+        pending_overrides = [item for item in overrides if str(item.get('status') or '') == 'pending']
+        latest_review = review_events[0] if review_events else None
+        return {
+            'pending_total': len(pending_overrides),
+            'reviewed_total': len(review_events),
+            'latest_review': latest_review,
+            'review_events': review_events[:8],
         }
 
     def runtime_alerts(
