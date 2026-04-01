@@ -16,6 +16,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Demo Checklist (TH)](DEMO_CHECKLIST_TH.md)
 - [Product Tour](PRODUCT_TOUR.md)
 - [PTAG Framework](PTAG_FRAMEWORK.md)
+- [PTAG Full Spec](PTAG_FULL_SPEC.md)
 - [Private Rule Position](PRIVATE_RULE_POSITION.md)
 - [Governed Runtime Orchestration](GOVERNED_RUNTIME_ORCHESTRATION.md)
 - [Governed Authority And Decision Engine](GOVERNED_AUTHORITY_DECISION_ENGINE.md)
@@ -43,6 +44,10 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Planning And Release Notes
 
+- [Roadmap v0.4.0](ROADMAP_v0.4.0.md)
+- [Issue Drafts v0.4.0](ISSUE_DRAFTS_v0.4.0.md)
+- [Release Notes v0.4.0](releases/RELEASE_NOTES_v0.4.0.md)
+- [PTAG Public Opening Announcement](PTAG_PUBLIC_OPENING_ANNOUNCEMENT.md)
 - [Roadmap v0.3.0](ROADMAP_v0.3.0.md)
 - [Issue Drafts v0.3.0](ISSUE_DRAFTS_v0.3.0.md)
 - [v0.3.0 Handoff](V0_3_0_HANDOFF.md)

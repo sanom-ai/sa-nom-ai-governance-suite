@@ -41,6 +41,16 @@ The current `v0.1.10` hardening work is intentionally incremental. Ruff starts w
 - no machine-local paths left in public docs
 - public-facing examples remain generic
 
+## PTAG Contributions
+
+When a pull request changes PTAG documentation, syntax, parser behavior, validator behavior, semantic analysis, or public examples:
+- update `docs/PTAG_FRAMEWORK.md` when the public language surface changes
+- add or update tests in `_support/tests` when parser, validator, or semantic behavior changes
+- keep PTAG examples under `resources/roles/` public-safe and readable
+- explain whether the change affects syntax, validation rules, semantic expectations, or only documentation
+- avoid treating PTAG wording as settled if the implementation still differs; either align both or call out the current limitation clearly
+
+Use small, reviewable pull requests when changing PTAG behavior so language evolution stays understandable to maintainers and outside readers.
 ## Communication
 
 Open an issue for bug reports, feature requests, or design discussion before large changes.
