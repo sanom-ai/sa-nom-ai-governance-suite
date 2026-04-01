@@ -22,6 +22,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [PTAG Full Spec](PTAG_FULL_SPEC.md)
 - [Private Rule Position](PRIVATE_RULE_POSITION.md)
 - [Governed Runtime Orchestration](GOVERNED_RUNTIME_ORCHESTRATION.md)
+- [Governed Human-In-The-Loop Operations](GOVERNED_HITL_OPERATIONS.md)
 - [Governed Authority And Decision Engine](GOVERNED_AUTHORITY_DECISION_ENGINE.md)
 - [Governed Document Center](GOVERNED_DOCUMENT_CENTER.md)
 - [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)

@@ -93,6 +93,7 @@ Expected outcomes:
 ## Candidate Deliverables
 
 - a core governed HITL operations model
+- a primary governed HITL operations architecture document
 - explicit human-approval and escalation triggers
 - a simple approval/rationale/audit interaction surface
 - Human Ask reporting for governed status visibility
