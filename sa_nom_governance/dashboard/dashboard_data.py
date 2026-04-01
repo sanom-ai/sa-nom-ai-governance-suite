@@ -42,6 +42,11 @@ class DashboardSnapshotBuilder:
             operational_readiness=operational_readiness,
             operations=operations,
         )
+        operations['first_run_action_center'] = self.first_run_action_center(
+            first_run_readiness=first_run_readiness,
+            go_live_readiness=go_live_readiness,
+            operations=operations,
+        )
         compliance = self.compliance_snapshot()
         evidence_exports = self.evidence_exports()
         integrations = self.integrations()
@@ -101,6 +106,8 @@ class DashboardSnapshotBuilder:
                 'first_run_readiness_status': str(first_run_readiness.get('status', 'blocked')),
                 'first_run_blockers_total': int(first_run_readiness.get('blockers_total', 0) or 0),
                 'first_run_advisories_total': int(first_run_readiness.get('advisories_total', 0) or 0),
+                'first_run_action_items_total': int((operations.get('first_run_action_center', {}) or {}).get('items_total', 0) or 0),
+                'first_run_action_required_total': int((operations.get('first_run_action_center', {}) or {}).get('required_total', 0) or 0),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
                 'integration_targets_total': integrations.get('summary', {}).get('targets_total', 0),
@@ -385,92 +392,114 @@ class DashboardSnapshotBuilder:
             'next_actions': result.get('next_actions', []) if isinstance(result.get('next_actions'), list) else [],
         }
 
-    def first_run_readiness(
+    def first_run_action_center(
         self,
         *,
-        owner_registration: dict[str, object],
+        first_run_readiness: dict[str, object],
         go_live_readiness: dict[str, object],
-        operational_readiness: dict[str, object],
         operations: dict[str, object],
     ) -> dict[str, object]:
-        proof = operations.get('usability_proof', {}) if isinstance(operations.get('usability_proof'), dict) else {}
-        smoke_report = go_live_readiness.get('smoke_report', {}) if isinstance(go_live_readiness.get('smoke_report'), dict) else {}
-        quick_start_report_path = self.config.review_dir / 'quick_start_path.json'
-        demo_script_path = self.config.base_dir / 'scripts' / 'nontechnical_demo_path.py'
-        checks: list[dict[str, object]] = [
-            {
-                'check_id': 'owner_registration',
-                'title': 'Owner registration is present',
-                'passed': bool(owner_registration.get('registered', False)),
-                'required': True,
-                'view': 'health',
-                'detail': str(owner_registration.get('path') or 'Owner registration record is missing.'),
+        checks = first_run_readiness.get('checks', []) if isinstance(first_run_readiness.get('checks'), list) else []
+        items: list[dict[str, object]] = []
+
+        action_map = {
+            'owner_registration': {
+                'ops_action': None,
+                'recommendation': 'Register the runtime ownership identity before first-run handoff.',
             },
-            {
-                'check_id': 'go_live_gate',
-                'title': 'Go-live gate is ready',
-                'passed': bool(go_live_readiness.get('ready', False)),
-                'required': True,
-                'view': 'health',
-                'detail': f"Go-live status is {go_live_readiness.get('status', 'blocked')}.",
+            'go_live_gate': {
+                'ops_action': 'quick-start-doctor',
+                'recommendation': 'Run quick-start doctor and clear required blockers before go-live.',
             },
-            {
-                'check_id': 'runtime_smoke',
-                'title': 'Runtime smoke report is passed',
-                'passed': str(smoke_report.get('status', 'missing')) == 'passed',
-                'required': True,
-                'view': 'health',
-                'detail': f"Smoke status is {smoke_report.get('status', 'missing')}.",
+            'runtime_smoke': {
+                'ops_action': 'quick-start-doctor',
+                'recommendation': 'Run quick-start doctor to refresh startup smoke posture.',
             },
-            {
-                'check_id': 'operational_visibility',
-                'title': 'Operational readiness surface is live',
-                'passed': str(operational_readiness.get('status', 'unknown')) in {'ready', 'monitoring'},
-                'required': True,
-                'view': 'overview',
-                'detail': f"Operational readiness is {operational_readiness.get('status', 'unknown')}.",
+            'operational_visibility': {
+                'ops_action': 'quick-start-doctor',
+                'recommendation': 'Refresh doctor status so operational visibility is current.',
             },
-            {
-                'check_id': 'quick_start_report',
-                'title': 'Quick-start report artifact exists',
-                'passed': quick_start_report_path.exists(),
-                'required': False,
-                'view': 'health',
-                'detail': str(quick_start_report_path),
+            'quick_start_report': {
+                'ops_action': 'quick-start-doctor',
+                'recommendation': 'Generate quick-start doctor report so first-run artifacts are visible.',
             },
-            {
-                'check_id': 'usability_proof',
-                'title': 'Usability proof bundle is available',
-                'passed': bool(proof.get('available', False)),
-                'required': False,
-                'view': 'overview',
-                'detail': f"Proof status is {proof.get('status', 'missing')}.",
+            'usability_proof': {
+                'ops_action': 'usability-proof',
+                'recommendation': 'Generate usability proof bundle for first-run evidence coverage.',
             },
-            {
-                'check_id': 'demo_script',
-                'title': 'Non-technical demo script is available',
-                'passed': demo_script_path.exists(),
-                'required': False,
-                'view': 'overview',
-                'detail': str(demo_script_path),
+            'demo_script': {
+                'ops_action': None,
+                'recommendation': 'Add non-technical demo script to complete first-run handoff flow.',
             },
-        ]
-        blockers = [item for item in checks if bool(item.get('required')) and not bool(item.get('passed'))]
-        advisories = [item for item in checks if not bool(item.get('required')) and not bool(item.get('passed'))]
-        if blockers:
-            status = 'blocked'
-        elif advisories:
-            status = 'monitoring'
-        else:
-            status = 'ready'
-        return {
-            'status': status,
-            'checks': checks,
-            'blockers_total': len(blockers),
-            'advisories_total': len(advisories),
-            'ready': not blockers,
-            'recommended_view': str((blockers[0] if blockers else advisories[0]).get('view', 'overview')) if (blockers or advisories) else 'overview',
         }
+
+        for check in checks:
+            if bool(check.get('passed')):
+                continue
+            check_id = str(check.get('check_id', 'unknown'))
+            mapping = action_map.get(check_id, {'ops_action': None, 'recommendation': 'Review this first-run gate before continuing.'})
+            items.append(
+                {
+                    'action_id': check_id,
+                    'title': str(check.get('title', check_id.replace('_', ' '))),
+                    'severity': 'required' if bool(check.get('required')) else 'advisory',
+                    'view': str(check.get('view', 'overview')),
+                    'detail': str(check.get('detail', '-')),
+                    'ops_action': mapping.get('ops_action'),
+                    'recommendation': str(mapping.get('recommendation', 'Review this gate before continuing.')),
+                }
+            )
+
+        doctor = operations.get('quick_start_doctor', {}) if isinstance(operations.get('quick_start_doctor'), dict) else {}
+        doctor_status = str(doctor.get('status', 'missing'))
+        if doctor_status in {'missing', 'invalid'}:
+            items.append(
+                {
+                    'action_id': 'quick_start_doctor_refresh',
+                    'title': 'Quick-start doctor artifact is missing or invalid',
+                    'severity': 'required',
+                    'view': 'health',
+                    'detail': str(doctor.get('artifact_path', self.config.review_dir / 'quick_start_doctor.json')),
+                    'ops_action': 'quick-start-doctor',
+                    'recommendation': 'Run quick-start doctor so runtime posture is machine-readable.',
+                }
+            )
+
+        proof = operations.get('usability_proof', {}) if isinstance(operations.get('usability_proof'), dict) else {}
+        if not bool(proof.get('available', False)):
+            items.append(
+                {
+                    'action_id': 'usability_proof_refresh',
+                    'title': 'Usability proof bundle is not available yet',
+                    'severity': 'advisory',
+                    'view': 'overview',
+                    'detail': str(proof.get('path', self.config.review_dir / 'usability_proof_bundle.json')),
+                    'ops_action': 'usability-proof',
+                    'recommendation': 'Generate the usability proof bundle for first-run evidence and demo readiness.',
+                }
+            )
+
+        deduped: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for item in items:
+            action_id = str(item.get('action_id', ''))
+            if action_id in seen:
+                continue
+            seen.add(action_id)
+            deduped.append(item)
+
+        deduped.sort(key=lambda item: (0 if item.get('severity') == 'required' else 1, str(item.get('action_id', ''))))
+        required_total = sum(1 for item in deduped if item.get('severity') == 'required')
+
+        return {
+            'status': str(first_run_readiness.get('status', go_live_readiness.get('status', 'blocked'))),
+            'ready': bool(first_run_readiness.get('ready', False)) and required_total == 0,
+            'items_total': len(deduped),
+            'required_total': required_total,
+            'recommended_action': str((deduped[0] if deduped else {}).get('ops_action') or 'none'),
+            'items': deduped[:10],
+        }
+
 
     def usability_proof_summary(self) -> dict[str, object]:
         from sa_nom_governance.deployment.usability_proof_bundle import read_usability_proof_bundle
