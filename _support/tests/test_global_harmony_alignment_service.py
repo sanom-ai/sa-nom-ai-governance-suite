@@ -85,6 +85,7 @@ def test_alignment_service_requires_approval_for_sensitive_context() -> None:
     assert preview["selection_intent"]["action"] == "require_approval"
     assert preview["selection_intent"]["approval_required"] is True
     assert preview["evaluation"]["status"] == "escalated"
+    assert preview["evaluation"]["resonance_band"] == "low"
     concern_codes = {item["code"] for item in preview["evaluation"]["concerns"]}
     assert "HUMAN_REVIEW_REQUIRED" in concern_codes
 
@@ -159,6 +160,7 @@ def test_alignment_service_builds_runtime_evaluation_snapshot() -> None:
 
     assert snapshot["evaluation"]["status"] == "guarded"
     assert snapshot["evaluation"]["human_review_required"] is True
+    assert snapshot["evaluation"]["resonance_band"] == "moderate"
     concern_codes = {item["code"] for item in snapshot["evaluation"]["concerns"]}
     assert "OWNER_NOT_VISIBLE" in concern_codes
     assert snapshot["safe_claim"]

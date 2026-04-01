@@ -33,6 +33,12 @@ This document describes the first invisible runtime layer that sits between the 
 
 This layer turns Global Harmony from a set of files into a governed runtime posture. Later UI work should read from this runtime state instead of inventing its own version of the truth.
 
+## Adoption-Value Mapping
+
+- **Last-mile social fit**: runtime evaluation now carries a `resonance_score` and `resonance_band` with region-aware concerns, so teams can spot cultural drift before external output is released.
+- **High ROI by design**: alignment behavior is injected through PTAG principles and constitution documents at runtime; no model retraining is required for each country or business unit.
+- **Enterprise credibility**: selection intent, approval-required states, and runtime metadata are all traceable through governed audit and human-override paths, including private and air-gapped deployment posture.
+
 ## Preview And Audit Handoff
 
 - `preview_switch(...)` lets operators inspect the target constitution and its governed evaluation before a switch is applied
@@ -52,3 +58,10 @@ This layer turns Global Harmony from a set of files into a governed runtime post
 - `preview_only`: context is missing or guarded enough that the switch should stay in review mode first
 - `require_approval`: sensitive or externally visible contexts require an approval actor before the switch can activate
 - `direct_switch`: low-risk governed contexts can activate directly under the baseline policy
+
+## Runtime Decision Integration
+
+- requests can now supply `global_harmony` metadata to evaluate cultural alignment during runtime
+- low-risk aligned cases are annotated in metadata and trace notes
+- preview-only or approval-required cases can pause the runtime with a human review gate
+- active-region evaluation can attach guarded or escalated signals to runtime outputs without changing dashboard layers first

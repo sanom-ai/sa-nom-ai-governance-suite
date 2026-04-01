@@ -129,14 +129,47 @@ class CulturalAlignmentEvaluator:
             status = 'aligned'
             rationale.append('No cultural or governance conflicts were detected in the evaluated context.')
 
+        resonance_score = self._calculate_resonance_score(status, matches, concerns)
+        if resonance_score >= 85:
+            resonance_band = 'high'
+        elif resonance_score >= 65:
+            resonance_band = 'moderate'
+        else:
+            resonance_band = 'low'
+        rationale.append(f'Resonance score: {resonance_score}/100 ({resonance_band}).')
+
         return AlignmentEvaluationResult(
             status=status,
             human_review_required=status == 'escalated' or requires_approval,
+            resonance_score=resonance_score,
+            resonance_band=resonance_band,
             normalized_context=normalized,
             matched_principles=matches,
             concerns=concerns,
             rationale=rationale,
         )
+
+    def _calculate_resonance_score(
+        self,
+        status: str,
+        matches: list[AlignmentMatch],
+        concerns: list[AlignmentConcern],
+    ) -> int:
+        if status == 'escalated':
+            score = 45
+        elif status == 'guarded':
+            score = 72
+        else:
+            score = 88
+
+        warning_count = sum(1 for concern in concerns if concern.severity == 'warning')
+        critical_count = sum(1 for concern in concerns if concern.severity == 'critical')
+        score -= warning_count * 4
+        score -= critical_count * 10
+
+        # Reward contextual matches while keeping guarded/escalated paths clearly below high confidence.
+        score += min(len(matches) * 2, 10)
+        return max(0, min(100, score))
 
     def _match_reason(
         self,
