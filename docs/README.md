@@ -26,6 +26,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Minimal Human Approval Surface](MINIMAL_HUMAN_APPROVAL_SURFACE.md)
 - [Governed HITL Human Ask Reporting](GOVERNED_HITL_HUMAN_ASK_REPORTING.md)
 - [Governed HITL Reliability And Observability](GOVERNED_HITL_RELIABILITY_AND_OBSERVABILITY.md)
+- [Governed HITL Integration And Compliance Continuity](GOVERNED_HITL_INTEGRATION_AND_COMPLIANCE_CONTINUITY.md)
 - [HITL Role Packs And Use Cases](HITL_ROLE_PACKS_AND_USE_CASES.md)
 - [Governed Authority And Decision Engine](GOVERNED_AUTHORITY_DECISION_ENGINE.md)
 - [Governed Document Center](GOVERNED_DOCUMENT_CENTER.md)

@@ -103,6 +103,7 @@ Expected outcomes:
 - a compact HITL role-packs and use-cases reference document
 - reliability and observability framing that supports serious organizational evaluation
 - a governed HITL reliability and observability baseline document
+- a governed HITL integration and compliance continuity document
 - `v0.5.0` planning and release materials
 
 ## Exit Criteria
