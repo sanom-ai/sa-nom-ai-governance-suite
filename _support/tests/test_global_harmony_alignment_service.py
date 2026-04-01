@@ -5,7 +5,6 @@ import pytest
 from sa_nom_governance.alignment.alignment_service import GlobalHarmonyAlignmentService
 
 
-
 def test_alignment_service_initializes_with_active_selection() -> None:
     service = GlobalHarmonyAlignmentService(Path("resources/alignment"))
 
@@ -16,8 +15,8 @@ def test_alignment_service_initializes_with_active_selection() -> None:
     assert snapshot["safe_claim"]
     assert snapshot["available_regions"]
     assert snapshot["switch_policy"]["requires_named_actor"] is True
+    assert snapshot["audit_handoff"]["event_type"] == "alignment.selection"
     assert "evaluation" not in snapshot
-
 
 
 def test_alignment_service_can_switch_active_region() -> None:
@@ -36,13 +35,37 @@ def test_alignment_service_can_switch_active_region() -> None:
     assert snapshot["active_selection"]["rationale"] == "Customer-facing ASEAN pilot alignment."
 
 
-
 def test_alignment_service_rejects_switch_without_meaningful_rationale() -> None:
     service = GlobalHarmonyAlignmentService(Path("resources/alignment"))
 
     with pytest.raises(ValueError):
         service.select_region("thailand", selected_by="operator.tawan", rationale="too short")
 
+
+def test_alignment_service_can_preview_switch_before_applying_it() -> None:
+    service = GlobalHarmonyAlignmentService(Path("resources/alignment"))
+
+    preview = service.preview_switch(
+        "thailand",
+        selected_by="operator.tawan",
+        rationale="Customer-facing ASEAN pilot alignment.",
+        context={
+            "audience": "customer",
+            "channel": "public",
+            "sensitivity": "high",
+            "tone": "aggressive",
+            "requires_approval": False,
+        },
+        draft_text="Aggressive escalation message to a customer.",
+    )
+
+    assert preview["decision"]["allowed"] is True
+    assert preview["current_region_id"] == "eu"
+    assert preview["target_region_id"] == "thailand"
+    assert preview["evaluation"]["status"] == "escalated"
+    concern_codes = {item["code"] for item in preview["evaluation"]["concerns"]}
+    assert "HUMAN_REVIEW_REQUIRED" in concern_codes
+    assert preview["audit_handoff"]["requested_region_id"] == "thailand"
 
 
 def test_alignment_service_builds_runtime_evaluation_snapshot() -> None:

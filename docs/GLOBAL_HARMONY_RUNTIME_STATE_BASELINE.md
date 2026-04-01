@@ -32,3 +32,9 @@ This document describes the first invisible runtime layer that sits between the 
 ## Why This Matters
 
 This layer turns Global Harmony from a set of files into a governed runtime posture. Later UI work should read from this runtime state instead of inventing its own version of the truth.
+
+## Preview And Audit Handoff
+
+- `preview_switch(...)` lets operators inspect the target constitution and its governed evaluation before a switch is applied
+- `audit_handoff` gives later audit or event layers a stable record shape for alignment selection intent
+- this keeps switching reviewable before any dashboard-heavy implementation appears

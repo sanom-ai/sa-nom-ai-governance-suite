@@ -7,6 +7,7 @@ from sa_nom_governance.alignment.alignment_runtime_models import (
     ActiveAlignmentSelection,
     AlignmentRuntimeSnapshot,
     AlignmentSwitchDecision,
+    AlignmentSwitchPreview,
 )
 from sa_nom_governance.alignment.constitution_registry import RegionalConstitutionRegistry
 from sa_nom_governance.alignment.cultural_alignment_evaluator import CulturalAlignmentEvaluator
@@ -85,6 +86,39 @@ class GlobalHarmonyAlignmentService:
             required_note=True,
         )
 
+    def preview_switch(
+        self,
+        region_id: str,
+        *,
+        selected_by: str,
+        rationale: str = "",
+        context: dict[str, object] | None = None,
+        draft_text: str = "",
+    ) -> dict[str, object]:
+        decision = self.assess_switch(region_id, selected_by=selected_by, rationale=rationale)
+        target_constitution = self.registry.load(region_id)
+        evaluation = None
+        if context is not None:
+            evaluation = self.evaluator.evaluate(
+                target_constitution,
+                context=context,
+                draft_text=draft_text,
+            ).to_dict()
+        preview = AlignmentSwitchPreview(
+            decision=decision,
+            current_region_id=self._active_selection.region_id,
+            target_region_id=target_constitution.region_id,
+            target_safe_claim=target_constitution.safe_claim,
+            evaluation=evaluation,
+            audit_handoff=self._build_audit_handoff(
+                requested_region_id=target_constitution.region_id,
+                selected_by=selected_by,
+                rationale=rationale,
+                decision=decision,
+            ),
+        )
+        return preview.to_dict()
+
     def select_region(
         self,
         region_id: str,
@@ -143,10 +177,39 @@ class GlobalHarmonyAlignmentService:
             active_selection=self._active_selection,
             safe_claim=constitution.safe_claim,
             switch_policy=switch_policy,
+            audit_handoff=self._build_audit_handoff(
+                requested_region_id=self._active_selection.region_id,
+                selected_by=self._active_selection.selected_by,
+                rationale=self._active_selection.rationale,
+                decision=AlignmentSwitchDecision(
+                    allowed=True,
+                    severity="info",
+                    message="Active selection is audit-ready.",
+                    required_note=True,
+                ),
+            ),
             evaluation=evaluation,
             notes=notes,
         )
         return snapshot.to_dict()
+
+    def _build_audit_handoff(
+        self,
+        *,
+        requested_region_id: str,
+        selected_by: str,
+        rationale: str,
+        decision: AlignmentSwitchDecision,
+    ) -> dict[str, object]:
+        return {
+            "event_type": "alignment.selection",
+            "requested_region_id": requested_region_id,
+            "current_region_id": self._active_selection.region_id,
+            "selected_by": selected_by,
+            "rationale": rationale,
+            "decision": decision.to_dict(),
+            "recorded_at": self._utc_now(),
+        }
 
     @staticmethod
     def _utc_now() -> str:
