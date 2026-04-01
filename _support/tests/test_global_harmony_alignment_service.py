@@ -42,6 +42,7 @@ def test_alignment_service_can_switch_active_region_for_low_risk_context() -> No
     assert selection.region_id == "thailand"
     assert snapshot["active_selection"]["region_id"] == "thailand"
     assert snapshot["active_selection"]["selected_by"] == "operator.tawan"
+    assert snapshot["active_selection"]["rationale"] == "Internal ASEAN pilot alignment for low-risk coordination."
 
 
 def test_alignment_service_rejects_switch_without_meaningful_rationale() -> None:

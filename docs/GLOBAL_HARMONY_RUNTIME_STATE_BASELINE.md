@@ -27,7 +27,7 @@ This document describes the first invisible runtime layer that sits between the 
 - it does not add automatic geolocation or country inference
 - it does not claim legal compliance automation
 - it does not replace local human experts
-- it does not add resonance scoring yet
+- it does not add fully calibrated resonance scoring or automatic cultural truth claims
 
 ## Why This Matters
 
