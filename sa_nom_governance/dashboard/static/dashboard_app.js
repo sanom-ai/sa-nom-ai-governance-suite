@@ -1719,6 +1719,14 @@ function renderNotificationCenter(alerts) {
   `;
 }
 
+function getOperatorFocusedSubset(snapshot, viewName, actionId) {
+  const focusSubsets = snapshot?.operator_focus_subsets || {};
+  const viewSubsets = focusSubsets?.[viewName] || {};
+  const subset = viewSubsets?.[actionId] || null;
+  if (!subset || !Array.isArray(subset.rows) || !subset.rows.length) return null;
+  return subset;
+}
+
 function renderOperatorContextHandoff(actionPlan, currentView, title, subtitle) {
   const items = Array.isArray(actionPlan?.items)
     ? actionPlan.items.filter((item) => String(item.view || '') === String(currentView || '')).slice(0, 3)
@@ -1754,45 +1762,17 @@ function renderOperatorContextHandoff(actionPlan, currentView, title, subtitle) 
 function renderFocusedRequestSubset(snapshot) {
   const focus = getFocusContext('requests');
   if (!focus) return '';
-  const requests = Array.isArray(snapshot.requests) ? snapshot.requests : [];
-  let rows = [];
-  let title = 'Focused request subset';
-  let subtitle = 'The current operator focus routed you to a specific slice of the request ledger.';
-  if (focus.target === 'queue_blocked_workflows') {
-    rows = requests.filter((row) => ['blocked', 'conflicted', 'waiting_human', 'escalated'].includes(String(row.outcome || row.execution_outcome || '')));
-    title = 'Blocked or escalated requests';
-    subtitle = 'These are the request rows most likely to explain why workflow movement is currently blocked or diverted.';
-  } else if (focus.target === 'queue_pending_overrides') {
-    rows = requests.filter((row) => ['waiting_human', 'escalated'].includes(String(row.outcome || '')));
-    title = 'Requests waiting behind human review';
-    subtitle = 'These requests are the likely upstream cause of the current approval queue focus.';
-  } else if (focus.target === 'notification_posture') {
-    rows = requests.filter((row) => ['conflicted', 'blocked', 'waiting_human', 'escalated'].includes(String(row.outcome || row.execution_outcome || '')));
-    title = 'Requests most likely to generate alert routing';
-    subtitle = 'This subset shows requests that are most likely to feed the current notification posture and escalation pressure.';
-  }
-  if (!rows.length) return '';
-  return wrapTableCard(title, requestTable(rows.slice(0, 8)), subtitle, 'focused-request-subset');
+  const subset = getOperatorFocusedSubset(snapshot, 'requests', focus.target);
+  if (!subset) return '';
+  return wrapTableCard(subset.title || 'Focused request subset', requestTable(subset.rows || []), subset.subtitle || 'The current operator focus routed you to a specific slice of the request ledger.', 'focused-request-subset');
 }
 
 function renderFocusedOverrideSubset(snapshot) {
   const focus = getFocusContext('overrides');
   if (!focus) return '';
-  const overrides = Array.isArray(snapshot.overrides) ? snapshot.overrides : [];
-  let rows = [];
-  let title = 'Focused override subset';
-  let subtitle = 'The current operator focus routed you to a specific slice of the approval lane.';
-  if (focus.target === 'queue_pending_overrides') {
-    rows = overrides.filter((row) => String(row.status || '') == 'pending');
-    title = 'Pending human approvals';
-    subtitle = 'These are the exact override packets that currently require a human decision.';
-  } else if (focus.target === 'notification_posture') {
-    rows = overrides.filter((row) => ['pending', 'vetoed'].includes(String(row.status || '')));
-    title = 'Override packets affecting alert posture';
-    subtitle = 'Pending or vetoed decisions are the override records most likely to sustain operator notification pressure.';
-  }
-  if (!rows.length) return '';
-  return wrapTableCard(title, overrideTable(rows.slice(0, 8)), subtitle, 'focused-override-subset');
+  const subset = getOperatorFocusedSubset(snapshot, 'overrides', focus.target);
+  if (!subset) return '';
+  return wrapTableCard(subset.title || 'Focused override subset', overrideTable(subset.rows || []), subset.subtitle || 'The current operator focus routed you to a specific slice of the approval lane.', 'focused-override-subset');
 }
 
 function renderFocusedHumanAskSubset(snapshot) {

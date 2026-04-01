@@ -74,6 +74,11 @@ class DashboardSnapshotBuilder:
             first_run_readiness=first_run_readiness,
             go_live_readiness=go_live_readiness,
         )
+        operator_focus_subsets = self.operator_focus_subsets(
+            requests=requests,
+            overrides=overrides,
+            human_ask=human_ask,
+        )
         runtime_alerts = self.runtime_alerts(
             human_ask=human_ask,
             role_private_studio=role_private_studio,
@@ -170,6 +175,7 @@ class DashboardSnapshotBuilder:
             'operator_notification_center': operator_notification_center,
             'operator_notification_delivery_readiness': operator_notification_delivery_readiness,
             'operator_action_plan': operator_action_plan,
+            'operator_focus_subsets': operator_focus_subsets,
             'go_live_readiness': go_live_readiness,
             'operational_readiness': operational_readiness,
             'first_run_readiness': first_run_readiness,
@@ -956,6 +962,99 @@ class DashboardSnapshotBuilder:
             'items_total': len(items),
             'urgent_total': sum(1 for item in items if item.get('priority') == 'urgent'),
             'posture': posture,
+        }
+
+    def operator_focus_subsets(
+        self,
+        *,
+        requests: list[dict[str, object]],
+        overrides: list[dict[str, object]],
+        human_ask: dict[str, object],
+    ) -> dict[str, object]:
+        sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
+
+        def build_request_subset(action_id: str, title: str, subtitle: str, rows: list[dict[str, object]]) -> dict[str, object]:
+            return {
+                'action_id': action_id,
+                'title': title,
+                'subtitle': subtitle,
+                'total': len(rows),
+                'rows': rows[:8],
+            }
+
+        def build_override_subset(action_id: str, title: str, subtitle: str, rows: list[dict[str, object]]) -> dict[str, object]:
+            return {
+                'action_id': action_id,
+                'title': title,
+                'subtitle': subtitle,
+                'total': len(rows),
+                'rows': rows[:8],
+            }
+
+        def build_human_ask_subset(action_id: str, title: str, subtitle: str, rows: list[dict[str, object]]) -> dict[str, object]:
+            return {
+                'action_id': action_id,
+                'title': title,
+                'subtitle': subtitle,
+                'total': len(rows),
+                'rows': rows[:6],
+            }
+
+        request_subsets = {
+            'queue_blocked_workflows': build_request_subset(
+                'queue_blocked_workflows',
+                'Blocked or escalated requests',
+                'These are the request rows most likely to explain why workflow movement is currently blocked or diverted.',
+                [row for row in requests if str(row.get('outcome') or row.get('execution_outcome') or '') in {'blocked', 'conflicted', 'waiting_human', 'escalated'}],
+            ),
+            'queue_pending_overrides': build_request_subset(
+                'queue_pending_overrides',
+                'Requests waiting behind human review',
+                'These requests are the likely upstream cause of the current approval queue focus.',
+                [row for row in requests if str(row.get('outcome') or '') in {'waiting_human', 'escalated'}],
+            ),
+            'notification_posture': build_request_subset(
+                'notification_posture',
+                'Requests most likely to generate alert routing',
+                'This subset shows requests that are most likely to feed the current notification posture and escalation pressure.',
+                [row for row in requests if str(row.get('outcome') or row.get('execution_outcome') or '') in {'conflicted', 'blocked', 'waiting_human', 'escalated'}],
+            ),
+        }
+
+        override_subsets = {
+            'queue_pending_overrides': build_override_subset(
+                'queue_pending_overrides',
+                'Pending human approvals',
+                'These are the exact override packets that currently require a human decision.',
+                [row for row in overrides if str(row.get('status') or '') == 'pending'],
+            ),
+            'notification_posture': build_override_subset(
+                'notification_posture',
+                'Override packets affecting alert posture',
+                'Pending or vetoed decisions are the override records most likely to sustain operator notification pressure.',
+                [row for row in overrides if str(row.get('status') or '') in {'pending', 'vetoed'}],
+            ),
+        }
+
+        human_ask_subsets = {
+            'queue_waiting_human_sessions': build_human_ask_subset(
+                'queue_waiting_human_sessions',
+                'Human Ask sessions waiting for intervention',
+                'These records are paused behind a human-only or callable boundary and match the current operator focus.',
+                [row for row in sessions if str(row.get('status') or '') in {'waiting_human', 'escalated'}],
+            ),
+            'notification_posture': build_human_ask_subset(
+                'notification_posture',
+                'Human Ask sessions contributing to alert posture',
+                'These records are the Human Ask items most likely to sustain current alert routing pressure.',
+                [row for row in sessions if str(row.get('status') or '') in {'waiting_human', 'escalated', 'blocked'}],
+            ),
+        }
+
+        return {
+            'requests': request_subsets,
+            'overrides': override_subsets,
+            'human_ask': human_ask_subsets,
         }
 
     def runtime_alerts(

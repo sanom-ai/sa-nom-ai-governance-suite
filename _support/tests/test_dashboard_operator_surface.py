@@ -149,6 +149,7 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         notification_center = snapshot.get('operator_notification_center', {})
         delivery_readiness = snapshot.get('operator_notification_delivery_readiness', {})
         action_plan = snapshot.get('operator_action_plan', {})
+        focus_subsets = snapshot.get('operator_focus_subsets', {})
         runtime_alerts = snapshot.get('runtime_alerts', [])
         summary = snapshot.get('summary', {})
 
@@ -183,6 +184,18 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         assert pending_action.get('view') == 'overrides'
         notification_action = next(item for item in action_plan.get('items', []) if item.get('action_id') == 'notification_posture')
         assert notification_action.get('view') == 'health'
+        assert isinstance(focus_subsets.get('requests'), dict)
+        assert isinstance(focus_subsets.get('overrides'), dict)
+        assert isinstance(focus_subsets.get('human_ask'), dict)
+        pending_override_subset = focus_subsets.get('overrides', {}).get('queue_pending_overrides', {})
+        assert pending_override_subset.get('title') == 'Pending human approvals'
+        assert pending_override_subset.get('total', 0) >= 1
+        assert isinstance(pending_override_subset.get('rows'), list)
+        request_subset = focus_subsets.get('requests', {}).get('queue_pending_overrides', {})
+        assert request_subset.get('title') == 'Requests waiting behind human review'
+        human_ask_subset = focus_subsets.get('human_ask', {}).get('notification_posture', {})
+        assert human_ask_subset.get('title') == 'Human Ask sessions contributing to alert posture'
+        assert isinstance(human_ask_subset.get('rows'), list)
         pending_notification = next(item for item in notification_center.get('items', []) if item.get('lane_id') == 'pending_overrides')
         assert pending_notification.get('dispatch_ready') is True
         assert pending_notification.get('channels') == ['dashboard', 'email']
