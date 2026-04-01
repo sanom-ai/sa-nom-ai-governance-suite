@@ -1,5 +1,6 @@
-﻿from dataclasses import asdict
+from dataclasses import asdict
 from datetime import datetime, timezone
+from math import ceil
 from pathlib import Path
 
 from sa_nom_governance.api.api_engine import EngineApplication, build_engine_app
@@ -51,10 +52,28 @@ class DashboardSnapshotBuilder:
         evidence_exports = self.evidence_exports()
         integrations = self.integrations()
         model_providers = self.model_providers()
+        operator_alert_policy = self.config.operator_alert_policy()
+        operator_queue_health = self.operator_queue_health(
+            overrides=overrides,
+            human_ask=human_ask,
+            operational_readiness=operational_readiness,
+            policy=operator_alert_policy,
+        )
+        operator_notification_center = self.operator_notification_center(
+            queue_health=operator_queue_health,
+            policy=operator_alert_policy,
+        )
+        operator_notification_delivery_readiness = self.operator_notification_delivery_readiness(
+            notification_center=operator_notification_center,
+            integrations=integrations,
+        )
         runtime_alerts = self.runtime_alerts(
             human_ask=human_ask,
             role_private_studio=role_private_studio,
             go_live_readiness=go_live_readiness,
+            operational_readiness=operational_readiness,
+            operator_queue_health=operator_queue_health,
+            operator_notification_center=operator_notification_center,
         )
 
         conflicts = [request for request in requests if request['outcome'] == 'conflicted']
@@ -115,6 +134,12 @@ class DashboardSnapshotBuilder:
                 'integration_failures_total': integrations.get('summary', {}).get('failed_total', 0),
                 'integration_outbox_total': integrations.get('summary', {}).get('outbox_total', 0),
                 'model_providers_configured_total': model_providers.get('configured_providers', 0),
+                'operator_attention_total': sum(1 for item in operator_queue_health.get('items', []) if item.get('status') in {'warning', 'critical', 'stale'}),
+                'operator_critical_total': sum(1 for item in operator_queue_health.get('items', []) if item.get('status') in {'critical', 'stale'}),
+                'operator_notification_candidates_total': int(operator_notification_center.get('dispatch_candidates_total', 0) or 0),
+                'operator_notification_channels_total': int(operator_notification_center.get('active_channel_total', 0) or 0),
+                'operator_notification_posture': str(operator_notification_delivery_readiness.get('posture', 'unknown')),
+                'operator_notification_external_ready': bool(operator_notification_delivery_readiness.get('external_routing_ready', False)),
             },
             'requests': requests[:50],
             'overrides': overrides[:50],
@@ -131,6 +156,10 @@ class DashboardSnapshotBuilder:
             'evidence_exports': evidence_exports,
             'integrations': integrations,
             'model_providers': model_providers,
+            'operator_alert_policy': operator_alert_policy,
+            'operator_queue_health': operator_queue_health,
+            'operator_notification_center': operator_notification_center,
+            'operator_notification_delivery_readiness': operator_notification_delivery_readiness,
             'go_live_readiness': go_live_readiness,
             'operational_readiness': operational_readiness,
             'first_run_readiness': first_run_readiness,
@@ -630,12 +659,197 @@ class DashboardSnapshotBuilder:
             'legal_hold_file': self._file_health(self.config.legal_hold_path),
         }
 
+    def operator_queue_health(
+        self,
+        *,
+        overrides: list[dict[str, object]],
+        human_ask: dict[str, object],
+        operational_readiness: dict[str, object],
+        policy: dict[str, object],
+    ) -> dict[str, object]:
+        visibility = operational_readiness.get('operator_visibility', {}) if isinstance(operational_readiness.get('operator_visibility', {}), dict) else {}
+        sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
+        warning_hours = int(((policy.get('aging') or {}).get('warning_hours')) or 24)
+        critical_hours = int(((policy.get('aging') or {}).get('critical_hours')) or warning_hours)
+        stale_hours = int(((policy.get('aging') or {}).get('stale_hours')) or critical_hours)
+        backlog_warning_total = int(((policy.get('backlog') or {}).get('warning_total')) or 3)
+        backlog_critical_total = int(((policy.get('backlog') or {}).get('critical_total')) or backlog_warning_total)
+
+        pending_overrides = [item for item in overrides if str(item.get('status', '')) == 'pending']
+        waiting_sessions = [item for item in sessions if str(item.get('status', '')) in {'waiting_human', 'escalated'}]
+        blocked_workflows = [
+            item for item in (visibility.get('workflow_backlog', []) if isinstance(visibility.get('workflow_backlog', []), list) else [])
+            if str(item.get('current_state', '')) in {'blocked', 'awaiting_human_confirmation'}
+        ]
+        recovery_backlog = visibility.get('runtime_recovery_backlog', []) if isinstance(visibility.get('runtime_recovery_backlog', []), list) else []
+        dead_letters = visibility.get('runtime_dead_letters', []) if isinstance(visibility.get('runtime_dead_letters', []), list) else []
+
+        def build_item(lane_id: str, title: str, view: str, rows: list[dict[str, object]], *, timestamp_fields: list[str], reference_fields: list[str]) -> dict[str, object]:
+            total = len(rows)
+            oldest_record = self._oldest_record(rows, timestamp_fields)
+            oldest_hours = self._age_hours(oldest_record, timestamp_fields) if oldest_record is not None else 0
+            status = self._operator_queue_status(
+                total=total,
+                oldest_hours=oldest_hours,
+                warning_hours=warning_hours,
+                critical_hours=critical_hours,
+                stale_hours=stale_hours,
+                backlog_warning_total=backlog_warning_total,
+                backlog_critical_total=backlog_critical_total,
+            )
+            return {
+                'lane_id': lane_id,
+                'title': title,
+                'view': view,
+                'total': total,
+                'oldest_age_hours': oldest_hours,
+                'status': status,
+                'oldest_reference': self._first_present(oldest_record or {}, reference_fields),
+            }
+
+        items = [
+            build_item('pending_overrides', 'Pending overrides', 'overrides', pending_overrides, timestamp_fields=['created_at'], reference_fields=['request_id', 'origin_request_id']),
+            build_item('waiting_human_sessions', 'Waiting Human Ask sessions', 'human_ask', waiting_sessions, timestamp_fields=['updated_at', 'created_at'], reference_fields=['session_id']),
+            build_item('blocked_workflows', 'Blocked workflows', 'requests', blocked_workflows, timestamp_fields=['updated_at'], reference_fields=['workflow_id', 'request_id']),
+            build_item('recovery_backlog', 'Recovery backlog', 'conflicts', recovery_backlog, timestamp_fields=['updated_at', 'created_at'], reference_fields=['request_id']),
+            build_item('dead_letters', 'Dead letters', 'conflicts', dead_letters, timestamp_fields=['captured_at', 'updated_at', 'created_at'], reference_fields=['request_id', 'event_id']),
+        ]
+        items.sort(key=lambda item: (0 if item['status'] in {'stale', 'critical'} else 1 if item['status'] == 'warning' else 2, -item['total'], -item['oldest_age_hours']))
+        return {
+            'policy': policy,
+            'items': items,
+            'attention_total': sum(1 for item in items if item.get('status') in {'warning', 'critical', 'stale'}),
+            'critical_total': sum(1 for item in items if item.get('status') in {'critical', 'stale'}),
+        }
+
+    def operator_notification_center(
+        self,
+        *,
+        queue_health: dict[str, object],
+        policy: dict[str, object],
+    ) -> dict[str, object]:
+        notification = policy.get('notification', {}) if isinstance(policy.get('notification', {}), dict) else {}
+        severity_channels = notification.get('severity_channels', {}) if isinstance(notification.get('severity_channels', {}), dict) else {}
+        cadence = notification.get('cadence', {}) if isinstance(notification.get('cadence', {}), dict) else {}
+        enabled = bool(notification.get('enabled', True))
+        default_channels = [str(item) for item in notification.get('default_channels', []) if str(item)] if isinstance(notification.get('default_channels', []), list) else ['dashboard']
+
+        severity_rank = {'warning': 1, 'critical': 2, 'stale': 3}
+        items: list[dict[str, object]] = []
+        channel_totals: dict[str, int] = {}
+
+        for item in queue_health.get('items', []) if isinstance(queue_health.get('items', []), list) else []:
+            status = str(item.get('status', 'ready'))
+            if status not in {'warning', 'critical', 'stale'}:
+                continue
+            channels = severity_channels.get(status, default_channels)
+            channels = [str(channel) for channel in channels if str(channel)] if isinstance(channels, list) else default_channels
+            for channel in channels:
+                channel_totals[channel] = channel_totals.get(channel, 0) + 1
+            items.append(
+                {
+                    'lane_id': item.get('lane_id'),
+                    'title': item.get('title'),
+                    'view': item.get('view'),
+                    'total': int(item.get('total', 0) or 0),
+                    'status': status,
+                    'severity': status,
+                    'oldest_age_hours': int(item.get('oldest_age_hours', 0) or 0),
+                    'oldest_reference': item.get('oldest_reference'),
+                    'channels': channels,
+                    'dispatch_ready': enabled and bool(channels),
+                }
+            )
+
+        items.sort(key=lambda item: (-severity_rank.get(str(item.get('severity', 'warning')), 0), -int(item.get('oldest_age_hours', 0) or 0), -int(item.get('total', 0) or 0)))
+        highest_severity = 'ready'
+        if items:
+            highest_severity = max((str(item.get('severity', 'warning')) for item in items), key=lambda level: severity_rank.get(level, 0))
+
+        channels = [
+            {
+                'channel': channel,
+                'active_total': total,
+            }
+            for channel, total in sorted(channel_totals.items(), key=lambda entry: (-entry[1], entry[0]))
+        ]
+
+        return {
+            'policy': policy,
+            'enabled': enabled,
+            'cadence': cadence,
+            'items': items,
+            'channels': channels,
+            'active_channel_total': len(channels),
+            'dispatch_candidates_total': len(items),
+            'dispatch_ready_total': sum(1 for item in items if item.get('dispatch_ready')),
+            'highest_severity': highest_severity,
+        }
+
+    def operator_notification_delivery_readiness(
+        self,
+        *,
+        notification_center: dict[str, object],
+        integrations: dict[str, object],
+    ) -> dict[str, object]:
+        summary = integrations.get('summary', {}) if isinstance(integrations.get('summary', {}), dict) else {}
+        failed_total = int(summary.get('failed_total', 0) or 0)
+        outbox_total = int(summary.get('outbox_total', 0) or 0)
+        active_targets = int(summary.get('active_targets', 0) or 0)
+        http_enabled = bool(summary.get('http_enabled', False))
+        deliveries_total = int(summary.get('deliveries_total', 0) or 0)
+        dispatch_candidates_total = int(notification_center.get('dispatch_candidates_total', 0) or 0)
+        enabled = bool(notification_center.get('enabled', True))
+        external_routing_ready = http_enabled and active_targets > 0
+
+        if not enabled:
+            posture = 'disabled'
+        elif failed_total > 0:
+            posture = 'degraded'
+        elif outbox_total > 0:
+            posture = 'pressured'
+        elif external_routing_ready or dispatch_candidates_total <= 0:
+            posture = 'ready'
+        else:
+            posture = 'dashboard_only'
+
+        next_actions: list[dict[str, str]] = []
+        if not enabled:
+            next_actions.append({'label': 'Immediate action', 'detail': 'Re-enable operator notifications or maintain strict manual dashboard review until routing is restored.'})
+        if not http_enabled:
+            next_actions.append({'label': 'Enable HTTP', 'detail': 'Turn on outbound HTTP integrations before expecting external alert delivery.'})
+        if http_enabled and active_targets <= 0:
+            next_actions.append({'label': 'Add active target', 'detail': 'Configure at least one active integration target so alerts can leave the dashboard.'})
+        if failed_total > 0:
+            next_actions.append({'label': 'Review failed deliveries', 'detail': 'Inspect failed deliveries and dead letters before trusting external routing.'})
+        if outbox_total > 0:
+            next_actions.append({'label': 'Reduce queue pressure', 'detail': 'Work through queued outbox jobs and coordination pressure to avoid delayed notifications.'})
+        if not next_actions:
+            next_actions.append({'label': 'Current posture', 'detail': 'Notification delivery is aligned with the current operator routing plan.'})
+
+        return {
+            'posture': posture,
+            'notifications_enabled': enabled,
+            'dispatch_candidates_total': dispatch_candidates_total,
+            'external_routing_ready': external_routing_ready,
+            'http_enabled': http_enabled,
+            'active_targets': active_targets,
+            'deliveries_total': deliveries_total,
+            'failed_total': failed_total,
+            'outbox_total': outbox_total,
+            'highest_severity': str(notification_center.get('highest_severity', 'ready')),
+            'next_actions': next_actions,
+        }
+
     def runtime_alerts(
         self,
         *,
         human_ask: dict[str, object],
         role_private_studio: dict[str, object],
         go_live_readiness: dict[str, object],
+        operational_readiness: dict[str, object],
+        operator_queue_health: dict[str, object],
+        operator_notification_center: dict[str, object],
         limit: int = 12,
     ) -> list[dict[str, object]]:
         alerts: list[dict[str, object]] = []
@@ -778,6 +992,53 @@ class DashboardSnapshotBuilder:
                 }
             )
 
+        for item in operator_queue_health.get('items', []):
+            if item.get('total', 0) <= 0 or item.get('status') == 'ready':
+                continue
+            age_hours = float(item.get('oldest_age_hours', 0) or 0)
+            alerts.append(
+                {
+                    'alert_id': f"operator_queue_{item.get('lane_id')}",
+                    'tone': 'danger' if item.get('status') in {'critical', 'stale'} else 'warning',
+                    'eyebrow': 'Operator queue health',
+                    'title': f"{item.get('title')} need attention",
+                    'message': f"The oldest item in this lane has been waiting about {ceil(age_hours)} hours, so the runtime should not leave it unattended.",
+                    'view': item.get('view', 'overview'),
+                    'action_label': 'Open queue',
+                    'badge': f"{item.get('total', 0)} queued",
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'status': item.get('status', 'warning'),
+                        'oldest_age_hours': ceil(age_hours),
+                        'oldest_reference': item.get('oldest_reference') or '-',
+                    },
+                }
+            )
+
+        backlog_total = int((operational_readiness.get('summary', {}) or {}).get('active_workflow_total', 0) or 0)
+        backlog_policy = (operator_queue_health.get('policy', {}) or {}).get('backlog', {}) if isinstance(operator_queue_health.get('policy', {}), dict) else {}
+        backlog_warning_total = int(backlog_policy.get('warning_total', 3) or 3)
+        backlog_critical_total = int(backlog_policy.get('critical_total', backlog_warning_total) or backlog_warning_total)
+        if backlog_total >= backlog_warning_total:
+            alerts.append(
+                {
+                    'alert_id': 'operator_workflow_backlog_pressure',
+                    'tone': 'danger' if backlog_total >= backlog_critical_total else 'warning',
+                    'eyebrow': 'Workflow accumulation',
+                    'title': 'Live workflow backlog is accumulating beyond the operator threshold',
+                    'message': 'The runtime has enough active governed work in flight that operator review should confirm the queues are not silently aging behind the scenes.',
+                    'view': 'requests',
+                    'action_label': 'Open Requests',
+                    'badge': f'{backlog_total} active',
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'warning_total': backlog_warning_total,
+                        'critical_total': backlog_critical_total,
+                        'human_inbox_open': int((operational_readiness.get('summary', {}) or {}).get('human_inbox_total', 0) or 0),
+                    },
+                }
+            )
+
         if go_live_readiness.get('status') in {'guarded', 'blocked'}:
             alerts.append(
                 {
@@ -800,6 +1061,58 @@ class DashboardSnapshotBuilder:
 
         alerts.sort(key=lambda item: (0 if item.get('tone') == 'danger' else 1, item.get('timestamp', '')), reverse=False)
         return alerts[:limit]
+
+    def _operator_queue_status(
+        self,
+        *,
+        total: int,
+        oldest_hours: int,
+        warning_hours: int,
+        critical_hours: int,
+        stale_hours: int,
+        backlog_warning_total: int,
+        backlog_critical_total: int,
+    ) -> str:
+        if total <= 0:
+            return 'ready'
+        if oldest_hours >= stale_hours:
+            return 'stale'
+        if total >= backlog_critical_total or oldest_hours >= critical_hours:
+            return 'critical'
+        if total >= backlog_warning_total or oldest_hours >= warning_hours:
+            return 'warning'
+        return 'monitoring'
+
+    def _oldest_record(self, rows: list[dict[str, object]], timestamp_fields: list[str]) -> dict[str, object] | None:
+        if not rows:
+            return None
+        dated = [row for row in rows if self._parse_timestamp(self._first_present(row, timestamp_fields)) is not None]
+        if not dated:
+            return rows[0]
+        return min(dated, key=lambda row: self._parse_timestamp(self._first_present(row, timestamp_fields)) or datetime.now(timezone.utc))
+
+    def _age_hours(self, row: dict[str, object] | None, timestamp_fields: list[str]) -> int:
+        if row is None:
+            return 0
+        timestamp = self._parse_timestamp(self._first_present(row, timestamp_fields))
+        if timestamp is None:
+            return 0
+        return max(0, int((datetime.now(timezone.utc) - timestamp).total_seconds() // 3600))
+
+    def _first_present(self, row: dict[str, object], fields: list[str]) -> str | None:
+        for field in fields:
+            value = row.get(field)
+            if value not in (None, ''):
+                return str(value)
+        return None
+
+    def _parse_timestamp(self, value: str | None) -> datetime | None:
+        if value in (None, ''):
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        except ValueError:
+            return None
 
     def _resource_label(self, payload: dict[str, object]) -> str:
         resource = payload.get('resource')

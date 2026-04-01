@@ -1,4 +1,4 @@
-﻿import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js';
 
 import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js';
 
@@ -775,7 +775,7 @@ function render() {
   let viewContent = '';
   if (state.view === 'overview') viewContent = renderOverview(snapshot);
   if (state.view === 'requests') viewContent = renderRequests(snapshot);
-  if (state.view === 'overrides') viewContent = wrapTableCard('Overrides', overrideTable(snapshot.overrides || []), 'Human approvals and vetoes that gate governed execution before it may resume.');
+  if (state.view === 'overrides') viewContent = renderOverridesView(snapshot);
   if (state.view === 'conflicts') viewContent = renderConflicts(snapshot);
   if (state.view === 'audit') viewContent = renderAudit(snapshot);
   if (state.view === 'studio') {
@@ -791,7 +791,7 @@ function render() {
   );
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
-  if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null);
+  if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
   root.innerHTML = `${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${viewContent}`;
   updateNav();
 }
@@ -1009,14 +1009,39 @@ function renderAuthCard() {
     <article class="card auth-card stack">
       <div>
         <div class="eyebrow muted">Private API Access</div>
-        <h3 class="card-title">Enter the server token</h3>
-        <p class="card-subtitle">This dashboard reads live AI Director core data from the private server API. A valid access token will be exchanged for a short-lived session.</p>
+        <h3 class="card-title">Connect to the governed private runtime</h3>
+        <p class="card-subtitle">Use a SA-NOM server token to exchange for a short-lived session. Local development tokens are listed below so first-time evaluators can enter the correct lane without guessing.</p>
       </div>
       <form id="token-form" class="auth-form">
         <input id="token-input" type="password" placeholder="SA-NOM API token" value="${escapeHtml(state.token)}" autofocus />
         <div class="inline-actions"><button class="action-button" type="submit">Connect</button></div>
       </form>
-      <div class="trace-box"><strong>Development tokens</strong><p class="muted">Owner: sanom-dev-token, Operator: sanom-operator-token, Reviewer: sanom-reviewer-token, Auditor: sanom-auditor-token, Viewer: sanom-viewer-token</p></div>
+      <div class="onboarding-grid">
+        <article class="mini-card stack">
+          <strong>Start read-only</strong>
+          <p class="muted">Use <code>sanom-viewer-token</code> if you only want to inspect the dashboard, health posture, and audit-oriented views.</p>
+        </article>
+        <article class="mini-card stack">
+          <strong>Operate the runtime</strong>
+          <p class="muted">Use <code>sanom-operator-token</code> to create governed requests and watch runtime queues, conflicts, and overrides.</p>
+        </article>
+        <article class="mini-card stack">
+          <strong>Resolve human decisions</strong>
+          <p class="muted">Use <code>sanom-reviewer-token</code> when you need the human approval lane for approve or veto actions.</p>
+        </article>
+      </div>
+      <div class="trace-box">
+        <strong>Development tokens</strong>
+        <p class="muted">Owner: sanom-dev-token, Operator: sanom-operator-token, Reviewer: sanom-reviewer-token, Auditor: sanom-auditor-token, Viewer: sanom-viewer-token</p>
+      </div>
+      <div class="trace-box">
+        <strong>First-run path</strong>
+        <p class="muted">1. Connect with <code>sanom-viewer-token</code> to inspect the runtime. 2. Switch to <code>sanom-operator-token</code> to submit a governed request. 3. Open the Human Override Queue with <code>sanom-reviewer-token</code> to complete a human-required decision.</p>
+      </div>
+      <div class="trace-box">
+        <strong>Private deployment note</strong>
+        <p class="muted">These tokens are for local development and evaluation only. In a real private deployment, access should be issued by the runtime owner or platform administrator and mapped to an approved role.</p>
+      </div>
       ${state.lastError ? `<div class="trace-box"><strong>Access error</strong><p class="muted">${escapeHtml(state.lastError)}</p></div>` : ''}
     </article>
   `;
@@ -1048,6 +1073,9 @@ function renderOverview(snapshot) {
   const auditIntegrity = runtimeHealth.audit_integrity || {};
   const integrations = snapshot.integrations || {};
   const integrationSummary = integrations.summary || {};
+  const operatorQueueHealth = snapshot.operator_queue_health || { items: [], policy: {} };
+  const operatorNotificationCenter = snapshot.operator_notification_center || { items: [], policy: {} };
+  const operatorNotificationDeliveryReadiness = snapshot.operator_notification_delivery_readiness || {};
   const runtimeAlerts = Array.isArray(snapshot.runtime_alerts) ? snapshot.runtime_alerts.slice(0, 4) : [];
   const backupLabel = latestBackup ? `${latestBackup.backup_id} | ${shortTime(latestBackup.created_at)}` : 'No runtime backup recorded yet.';
   const focusNote = state.lastError || 'All executive actions route through a governed runtime with policy oversight.';
@@ -1112,7 +1140,13 @@ function renderOverview(snapshot) {
         ${metricCard('Backups', snapshot.summary.backups_total || 0, 'default', 'Operational recovery bundles captured from the private runtime.')}
         ${metricCard('Integrations', snapshot.summary.integration_targets_total || 0, 'accent', 'Configured outbound targets across webhook, SIEM, and ticketing lanes.')}
         ${metricCard('Outbound deliveries', snapshot.summary.integration_deliveries_total || 0, snapshot.summary.integration_failures_total ? 'warning' : 'success', 'Outbound integration delivery records currently visible in the runtime ledger.')}
+        ${metricCard('Operator attention', snapshot.summary.operator_attention_total || 0, (snapshot.summary.operator_attention_total || 0) ? 'warning' : 'success', 'Queue lanes that crossed the unified operator alert policy and now need attention.')}
+        ${metricCard('Operator critical', snapshot.summary.operator_critical_total || 0, (snapshot.summary.operator_critical_total || 0) ? 'danger' : 'success', 'Queue lanes that are critical or stale under the shared operator aging policy.')}
+        ${metricCard('Notify candidates', snapshot.summary.operator_notification_candidates_total || 0, (snapshot.summary.operator_notification_candidates_total || 0) ? 'accent' : 'success', 'Queue lanes that would route through the unified operator notification plan.')}
       </section>
+      ${renderOperatorQueueHealthCard(operatorQueueHealth)}
+      ${renderOperatorNotificationPolicyCard(operatorNotificationCenter)}
+      ${renderOperatorNotificationDeliveryCard(operatorNotificationCenter, integrations, operatorNotificationDeliveryReadiness)}
       ${renderFirstRunReadinessCard(firstRunReadiness)}
       ${renderOperatorDecisionLanes(snapshot.operator_decision_lanes || [])}
       ${renderNotificationCenter(runtimeAlerts)}
@@ -1197,6 +1231,197 @@ function renderOperatorDecisionLanes(lanes) {
             ${lane.default_view ? `<div class="inline-actions"><button class="action-button" data-view-jump="${escapeHtml(lane.default_view)}">Open ${escapeHtml(titleCase(lane.default_view))}</button></div>` : ''}
           </article>
         `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderOperatorQueueHealthCard(queueHealth) {
+  const items = Array.isArray(queueHealth?.items) ? queueHealth.items.filter((item) => (item.total || 0) > 0).slice(0, 5) : [];
+  const policy = queueHealth?.policy || {};
+  const aging = policy.aging || {};
+  const backlog = policy.backlog || {};
+  if (!items.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Operator Queue Health</div>
+          <h3 class="card-title">One policy reads every waiting lane</h3>
+          <p class="card-subtitle">A single operator alert policy watches human approvals, Human Ask queues, blocked workflows, recovery backlog, and dead letters without requiring separate threshold tuning for each lane.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${queueHealth.attention_total || 0} attention`)}</div>
+      </div>
+      ${keyValue([
+        ['Warning age', `${aging.warning_hours || '-'} hours`],
+        ['Critical age', `${aging.critical_hours || '-'} hours`],
+        ['Stale age', `${aging.stale_hours || '-'} hours`],
+        ['Backlog warning', String(backlog.warning_total || '-')],
+        ['Backlog critical', String(backlog.critical_total || '-')],
+      ])}
+      <div class="view-prelude-grid">
+        ${items.map((item) => `
+          <article class="view-prelude-card${item.status === 'stale' || item.status === 'critical' ? ' view-prelude-card-danger' : item.status === 'warning' ? ' view-prelude-card-warning' : ''}">
+            <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
+            <strong>${escapeHtml(item.title || 'Queue lane')}</strong>
+            <p class="muted">${escapeHtml(`${item.total || 0} queued | oldest about ${item.oldest_age_hours || 0} hours | ref ${item.oldest_reference || '-'}`)}</p>
+            <div class="hero-chip-row">${statusBadge(item.status || 'monitoring')}</div>
+            ${item.view ? `<div class="inline-actions"><button class="action-button" data-view-jump="${escapeHtml(item.view)}">Open ${escapeHtml(titleCase(item.view))}</button></div>` : ''}
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderOperatorNotificationPolicyCard(center) {
+  const policy = center?.policy || {};
+  const notification = policy.notification || {};
+  const severityChannels = notification.severity_channels || {};
+  const cadence = notification.cadence || center?.cadence || {};
+  const items = Array.isArray(center?.items) ? center.items.slice(0, 5) : [];
+  const channels = Array.isArray(center?.channels) ? center.channels : [];
+  if (!notification || !Object.keys(notification).length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Operator Notification Plan</div>
+          <h3 class="card-title">One routing plan covers every waiting lane</h3>
+          <p class="card-subtitle">The same operator policy that scores queue age and backlog also decides which channel should be used for warning, critical, and stale conditions.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(center?.enabled ? (center?.highest_severity || 'ready') : 'notifications disabled')}</div>
+      </div>
+      ${keyValue([
+        ['Notifications enabled', String(Boolean(center?.enabled))],
+        ['Default channels', (notification.default_channels || []).join(', ') || 'dashboard'],
+        ['Re-alert cadence', `${cadence.realert_hours || '-'} hours`],
+        ['Digest cadence', `${cadence.digest_hours || '-'} hours`],
+        ['Dispatch candidates', String(center?.dispatch_candidates_total || 0)],
+        ['Active channels', String(center?.active_channel_total || 0)],
+      ])}
+      <div class="view-prelude-grid">
+        ${['warning', 'critical', 'stale'].map((level) => `
+          <article class="view-prelude-card${level === 'stale' || level === 'critical' ? ' view-prelude-card-danger' : ' view-prelude-card-warning'}">
+            <span class="view-prelude-label">${escapeHtml(titleCase(level))}</span>
+            <strong>${escapeHtml((severityChannels[level] || []).join(', ') || 'dashboard')}</strong>
+            <p class="muted">${escapeHtml(level === 'warning' ? 'Early operator attention before queues harden.' : level === 'critical' ? 'Escalated operator routing once age or backlog crosses the critical threshold.' : 'Strongest routing once queues are stale and executive follow-up is overdue.')}</p>
+          </article>
+        `).join('')}
+      </div>
+      ${channels.length ? `<div class="trace-box"><strong>Active routing footprint</strong><p class="muted">${escapeHtml(channels.map((item) => `${item.channel} (${item.active_total})`).join(' | '))}</p></div>` : '<div class="trace-box"><strong>Active routing footprint</strong><p class="muted">No queue lane currently requires notification routing.</p></div>'}
+      ${items.length ? `
+        <div class="view-prelude-grid">
+          ${items.map((item) => `
+            <article class="view-prelude-card${item.status === 'stale' || item.status === 'critical' ? ' view-prelude-card-danger' : ' view-prelude-card-warning'}">
+              <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
+              <strong>${escapeHtml(item.title || 'Queue lane')}</strong>
+              <p class="muted">${escapeHtml(`${item.total || 0} queued | oldest about ${item.oldest_age_hours || 0} hours | channels ${Array.isArray(item.channels) ? item.channels.join(', ') : 'dashboard'}`)}</p>
+              <div class="hero-chip-row">${statusBadge(item.status || 'warning')}</div>
+              ${item.view ? `<div class="inline-actions"><button class="action-button action-button-muted" data-view-jump="${escapeHtml(item.view)}">Open ${escapeHtml(titleCase(item.view))}</button></div>` : ''}
+            </article>
+          `).join('')}
+        </div>
+      ` : ''}
+    </section>
+  `;
+}
+
+function renderOperatorNotificationDeliveryCard(center, integrations, deliveryReadiness = null) {
+  const notification = center?.policy?.notification || {};
+  const summary = integrations?.summary || {};
+  const activeTargets = Number((deliveryReadiness?.active_targets ?? summary.active_targets) || 0);
+  const deliveriesTotal = Number((deliveryReadiness?.deliveries_total ?? summary.deliveries_total) || 0);
+  const failedTotal = Number((deliveryReadiness?.failed_total ?? summary.failed_total) || 0);
+  const outboxTotal = Number((deliveryReadiness?.outbox_total ?? summary.outbox_total) || 0);
+  const httpEnabled = Boolean((deliveryReadiness?.http_enabled ?? summary.http_enabled) || false);
+  const coordinationBackend = summary.coordination_backend || '-';
+  const coordinationMode = summary.coordination_mode || '-';
+  const uniqueChannels = new Set();
+  (notification.default_channels || []).forEach((channel) => uniqueChannels.add(String(channel)));
+  Object.values(notification.severity_channels || {}).forEach((channels) => {
+    (channels || []).forEach((channel) => uniqueChannels.add(String(channel)));
+  });
+  const channels = Array.from(uniqueChannels);
+  if (!channels.length) return '';
+
+  const describeChannel = (channel) => {
+    if (channel === 'dashboard') {
+      return {
+        status: center?.enabled ? 'ready' : 'disabled',
+        note: center?.enabled
+          ? 'Always available inside the operator dashboard and alert rail.'
+          : 'Dashboard routing is configured but notifications are globally disabled.',
+      };
+    }
+    if (!httpEnabled) {
+      return {
+        status: 'setup_needed',
+        note: 'Outbound HTTP integrations are disabled, so external routing is not ready yet.',
+      };
+    }
+    if (activeTargets <= 0) {
+      return {
+        status: 'setup_needed',
+        note: 'No active integration target is available for external delivery yet.',
+      };
+    }
+    if (failedTotal > 0) {
+      return {
+        status: 'degraded',
+        note: 'External routing exists, but recent delivery failures mean the channel needs review.',
+      };
+    }
+    if (outboxTotal > 0) {
+      return {
+        status: 'pressured',
+        note: 'Targets are present, but queued outbox jobs mean delivery is under pressure.',
+      };
+    }
+    return {
+      status: 'ready',
+      note: deliveriesTotal > 0
+        ? 'Targets are active and recent deliveries are visible in the runtime ledger.'
+        : 'Targets are active and ready even if no recent delivery has been recorded yet.',
+    };
+  };
+
+  const rows = channels.map((channel) => ({ channel, ...describeChannel(channel) }));
+  const postureLabel = deliveryReadiness?.posture
+    ? String(deliveryReadiness.posture).replace('_', ' ')
+    : (rows.some((row) => row.status === 'degraded' || row.status === 'setup_needed') ? 'review routing' : 'delivery aligned');
+  const priority = { degraded: 3, pressured: 2, setup_needed: 2, ready: 1, disabled: 0 };
+  rows.sort((left, right) => (priority[right.status] - priority[left.status]) || left.channel.localeCompare(right.channel));
+
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Notification Delivery Readiness</div>
+          <h3 class="card-title">Will the chosen channels actually carry operator alerts?</h3>
+          <p class="card-subtitle">This card compares the unified operator notification plan against the current integration posture so operators can see whether routing is dashboard-only, externally ready, or still needs setup.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(postureLabel)}</div>
+      </div>
+      ${keyValue([
+        ['Active integration targets', String(activeTargets)],
+        ['HTTP enabled', String(httpEnabled)],
+        ['Deliveries visible', String(deliveriesTotal)],
+        ['Failed deliveries', String(failedTotal)],
+        ['Outbox jobs', String(outboxTotal)],
+        ['Coordination', `${coordinationBackend} | ${coordinationMode}`],
+      ])}
+      <div class="view-prelude-grid">
+        ${rows.map((row) => `
+          <article class="view-prelude-card${row.status === 'degraded' || row.status === 'setup_needed' ? ' view-prelude-card-danger' : row.status === 'pressured' ? ' view-prelude-card-warning' : ''}">
+            <span class="view-prelude-label">${escapeHtml(row.channel)}</span>
+            <strong>${escapeHtml(titleCase(row.status.replace('_', ' ')))}</strong>
+            <p class="muted">${escapeHtml(row.note)}</p>
+          </article>
+        `).join('')}
+      </div>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" data-view-jump="health">Open Health</button>
       </div>
     </section>
   `;
@@ -1304,6 +1529,24 @@ function renderRequests(snapshot) {
     </section>
     <section class="split-grid">
       ${composer}
+      ${renderApprovalFlowCard({
+        eyebrow: 'Approval corridor',
+        title: 'How the governed approval flow works',
+        subtitle: 'The runtime makes the autonomous-versus-human boundary visible before anyone forces work through.',
+        queueStatus: pendingOverrides.length ? 'Human review is active in this snapshot.' : 'No active human review bottleneck is visible in this snapshot.',
+        primaryActionView: 'overrides',
+        primaryActionLabel: 'Open Overrides',
+        secondaryActionView: 'audit',
+        secondaryActionLabel: 'Open Audit',
+        steps: [
+          ['1. Submit into the runtime', 'The operator sends a governed request with action, payload, and metadata.'],
+          ['2. Let SA-NOM classify the path', 'Policy coverage, role authority, consistency checks, and routing decide whether the request may continue autonomously.'],
+          ['3. Stop at the human boundary when required', pendingOverrides.length ? 'Pending overrides already show where execution is paused for a real human decision.' : 'If risk, policy, or runtime posture requires it, the request is paused for human approval or veto.'],
+          ['4. Resume only with evidence', 'Approval outcome, rationale, and audit trace remain attached before downstream execution continues.'],
+        ],
+      })}
+    </section>
+    <section class="split-grid">
       <article class="card stack">
         <div><div class="eyebrow muted">Submission protocol</div><h3 class="card-title">What strong requests look like</h3><p class="card-subtitle">Use this surface as the premium operator lane for runtime work that must remain reviewable after execution.</p></div>
         ${keyValue([
@@ -1314,9 +1557,137 @@ function renderRequests(snapshot) {
         ])}
         <div class="trace-box"><strong>Recommended metadata</strong><p class="muted">Pair each governed request with an idempotency key, event stream, and event sequence whenever the action touches mutable records or recurring workflows.</p></div>
       </article>
+      <article class="card stack">
+        <div><div class="eyebrow muted">Onboarding checkpoint</div><h3 class="card-title">What to do after your first request</h3><p class="card-subtitle">Use the next view based on what happened to the request instead of guessing where the system stored the decision.</p></div>
+        ${keyValue([
+          ['If the request stayed autonomous', 'Open Audit to confirm outcome and policy basis'],
+          ['If the request escalated', 'Open Overrides to see who must approve or veto'],
+          ['If the request conflicted', 'Open Conflicts to inspect locks before retrying'],
+          ['If the role changed', 'Stay in Runtime Requests to review activation source and switch reason'],
+        ])}
+        <div class="inline-actions">
+          <button class="action-button" type="button" data-view-jump="audit">Open Audit</button>
+          <button class="action-button action-button-muted" type="button" data-view-jump="conflicts">Open Conflicts</button>
+        </div>
+      </article>
     </section>
     ${wrapTableCard('Runtime Requests', requestTable(requests), 'Live governed requests with role flow, activation source, escalation target, consistency posture, and policy basis.')}
     ${wrapTableCard('Human Override Queue', overrideTable(overrides), 'Pending and resolved human reviews that control whether execution may continue.')}
+  `;
+}
+
+function renderOverridesView(snapshot) {
+  const overrides = snapshot.overrides || [];
+  const pendingOverrides = overrides.filter((item) => item.status === 'pending');
+  const approvedOverrides = overrides.filter((item) => item.status === 'approved');
+  const vetoedOverrides = overrides.filter((item) => item.status === 'vetoed');
+  const requesters = new Set(overrides.map((item) => item.requester).filter(Boolean)).size;
+  const latestOverrideLabel = overrides.length
+    ? `${overrides[0].request_id} | ${shortTime(overrides[0].created_at)}`
+    : 'No human override records are visible yet.';
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Human Decision Lane</div>
+            <h2 class="hero-title">Execution stays paused until a human approval outcome is recorded.</h2>
+            <p class="hero-subtitle">This lane shows which governed requests crossed a human boundary, who must decide next, and whether the runtime can resume or must remain blocked.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(pendingOverrides.length ? 'approval action required' : 'queue stable')}
+            ${statusBadge(vetoedOverrides.length ? 'veto history present' : 'no recent veto')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Overrides in view', String(overrides.length)],
+            ['Pending approvals', String(pendingOverrides.length)],
+            ['Approved', String(approvedOverrides.length)],
+            ['Vetoed', String(vetoedOverrides.length)],
+            ['Requesters represented', String(requesters)],
+          ])}
+          <div class="hero-note">
+            <strong>Human-control standard</strong>
+            <p>Approve only when the governed request, policy basis, and rationale align. A veto is a first-class control signal and should be used when the runtime must remain fail-closed.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Review posture</div>
+          <h3 class="card-title">Queue reading guide</h3>
+          <p class="card-subtitle">Use this view to answer the two questions operators always ask: who owns the next decision, and what evidence will justify it later?</p>
+        </div>
+        ${keyValue([
+          ['Latest override', latestOverrideLabel],
+          ['Decision model', 'Approve or veto before resume'],
+          ['Execution stance', pendingOverrides.length ? 'paused behind human boundary' : 'no current pause detected'],
+          ['Audit expectation', 'Rationale and outcome should remain reviewable'],
+        ])}
+        <div class="trace-box"><strong>Reviewer note</strong><p class="muted">If you need the end-to-end context first, open Runtime Requests before deciding so the role flow, action, and escalation target remain visible beside the approval packet.</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Pending', pendingOverrides.length, 'warning', 'Requests waiting for a human decision before execution may continue.')}
+      ${metricCard('Approved', approvedOverrides.length, 'success', 'Requests that received a human green light and may continue under audit trace.')}
+      ${metricCard('Vetoed', vetoedOverrides.length, 'danger', 'Requests that were intentionally stopped by a human control decision.')}
+      ${metricCard('Distinct requesters', requesters, 'default', 'How many submitting identities are represented in the current override queue.')}
+    </section>
+    <section class="split-grid">
+      ${renderApprovalFlowCard({
+        eyebrow: 'Review flow',
+        title: 'How to review a human-required request',
+        subtitle: 'This view is where the private runtime hands control to a real person without losing auditability.',
+        queueStatus: pendingOverrides.length ? 'There are pending packets that still need a human decision.' : 'No pending approval packets are visible right now.',
+        primaryActionView: 'requests',
+        primaryActionLabel: 'Open Requests',
+        secondaryActionView: 'audit',
+        secondaryActionLabel: 'Open Audit',
+        steps: [
+          ['1. Inspect the governed request', 'Use the request id, role, action, and requester to understand what the runtime paused.'],
+          ['2. Confirm why the human boundary was triggered', 'Check required-by, policy basis, and execution outcome so the decision is tied to governance rather than intuition.'],
+          ['3. Approve or veto explicitly', 'An approval lets the governed path continue; a veto keeps the runtime fail-closed and records a control decision.'],
+          ['4. Preserve the rationale', 'Follow up in audit-oriented views so the decision remains explainable to operators, reviewers, and future investigations.'],
+        ],
+      })}
+      <article class="card stack">
+        <div><div class="eyebrow muted">Reviewer checklist</div><h3 class="card-title">What to verify before approving</h3><p class="card-subtitle">Keep the human intervention disciplined so this lane strengthens governance instead of bypassing it.</p></div>
+        ${keyValue([
+          ['Role authority', 'The active role should match the kind of work being requested'],
+          ['Action fit', 'The requested action should be covered by the role and policy basis'],
+          ['Execution context', 'Check requester, required-by, and current execution outcome'],
+          ['Auditability', 'Only approve when the later explanation will still make sense to another reviewer'],
+        ])}
+      </article>
+    </section>
+    ${wrapTableCard('Overrides', overrideTable(overrides), 'Human approvals and vetoes that gate governed execution before it may resume.')}
+  `;
+}
+
+function renderApprovalFlowCard({ eyebrow, title, subtitle, queueStatus, primaryActionView, primaryActionLabel, secondaryActionView, secondaryActionLabel, steps }) {
+  const renderedSteps = Array.isArray(steps) ? steps : [];
+  return `
+    <article class="card stack approval-flow-card">
+      <div>
+        <div class="eyebrow muted">${escapeHtml(eyebrow || 'Approval flow')}</div>
+        <h3 class="card-title">${escapeHtml(title || 'How the approval path works')}</h3>
+        <p class="card-subtitle">${escapeHtml(subtitle || 'Make the AI-to-human boundary obvious before you act.')}</p>
+      </div>
+      <div class="approval-step-list">
+        ${renderedSteps.map(([label, body]) => `
+          <article class="mini-card stack approval-step">
+            <strong>${escapeHtml(label)}</strong>
+            <p class="muted">${escapeHtml(body)}</p>
+          </article>
+        `).join('')}
+      </div>
+      <div class="trace-box"><strong>Queue status</strong><p class="muted">${escapeHtml(queueStatus || 'No queue status available.')}</p></div>
+      <div class="inline-actions">
+        ${primaryActionView ? `<button class="action-button" type="button" data-view-jump="${escapeHtml(primaryActionView)}">${escapeHtml(primaryActionLabel || 'Open view')}</button>` : ''}
+        ${secondaryActionView ? `<button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(secondaryActionView)}">${escapeHtml(secondaryActionLabel || 'Open secondary view')}</button>` : ''}
+      </div>
+    </article>
   `;
 }
 
@@ -2104,7 +2475,7 @@ function renderReviewTimeline(timeline) {
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(titleCase(item.decision || 'review'))}</strong>
-          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} · ${item.reviewer || '-'}`)}</p>
+          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} Â· ${item.reviewer || '-'}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.decision || 'review')}</div>
       </div>
@@ -2121,7 +2492,7 @@ function renderSimulationHistory(history) {
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(`Revision ${item.revision_number || 0}`)}</strong>
-          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} · ${shortTime(item.generated_at)}`)}</p>
+          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} Â· ${shortTime(item.generated_at)}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.status || 'not_run')}</div>
       </div>
@@ -2376,7 +2747,7 @@ function renderPolicies(roles) {
   `;
 }
 
-function renderHealth(runtimeHealth, availableProfiles, retentionReport, operations, integrations) {
+function renderHealth(runtimeHealth, availableProfiles, retentionReport, operations, integrations, operatorNotificationCenter, operatorNotificationDeliveryReadiness) {
   const goLive = runtimeHealth.go_live_readiness || null;
   const backupSummary = operations?.summary || runtimeHealth.runtime_backups || {};
   const integrationSummary = integrations?.summary || runtimeHealth.integration_deliveries || {};
@@ -2449,12 +2820,88 @@ function renderHealth(runtimeHealth, availableProfiles, retentionReport, operati
         ${metricCard('Retention datasets', retentionReport?.datasets?.length || 0, 'warning', 'Datasets currently tracked by the retention and legal-hold engine.')}
         ${metricCard('Outbound deliveries', integrationSummary.deliveries_total || 0, integrationSummary.failed_total ? 'warning' : 'success', 'Integration dispatch records across the current runtime window.')}
       </section>
+    ${renderHealthNotificationPostureCard(operatorNotificationCenter, integrations, operatorNotificationDeliveryReadiness)}
     ${renderOwnerRegistrationPanel(ownerRegistration)}
     <section class="health-grid">${goLive ? renderGoLiveReadinessCard(goLive) : ''}${cards}</section>
     ${renderOperationsSection(operations || { summary: runtimeHealth.runtime_backups || {}, backups: [] })}
     ${renderIntegrationSection(integrations || { summary: runtimeHealth.integration_deliveries || {}, targets: [], deliveries: [] })}
     ${renderRetentionSection(retentionReport)}
     <article class="card stack"><div><div class="eyebrow muted">Access Profiles</div><h3 class="card-title">Configured private-server profiles</h3><p class="card-subtitle">Profiles available to enter the governed private runtime surface.</p></div>${keyValue(profileRows.length ? profileRows : [['Profiles', 'No access profiles available.']])}</article>
+  `;
+}
+
+function renderHealthNotificationPostureCard(center, integrations, deliveryReadiness = null) {
+  const policy = center?.policy || {};
+  const notification = policy.notification || {};
+  if (!notification || !Object.keys(notification).length) return '';
+  const summary = integrations?.summary || {};
+  const severityChannels = notification.severity_channels || {};
+  const hasExternal = Boolean((deliveryReadiness?.external_routing_ready ?? (Boolean(summary.http_enabled) && Number(summary.active_targets || 0) > 0)));
+  const failedTotal = Number((deliveryReadiness?.failed_total ?? summary.failed_total) || 0);
+  const outboxTotal = Number((deliveryReadiness?.outbox_total ?? summary.outbox_total) || 0);
+  const dispatchCandidates = Number((deliveryReadiness?.dispatch_candidates_total ?? center?.dispatch_candidates_total) || 0);
+  const highestSeverity = deliveryReadiness?.highest_severity || center?.highest_severity || 'ready';
+  const posture = deliveryReadiness?.posture || (!center?.enabled
+    ? 'disabled'
+    : failedTotal > 0
+      ? 'degraded'
+      : outboxTotal > 0
+        ? 'pressured'
+        : hasExternal || dispatchCandidates <= 0
+          ? 'ready'
+          : 'dashboard only');
+  const nextActions = Array.isArray(deliveryReadiness?.next_actions) && deliveryReadiness.next_actions.length
+    ? deliveryReadiness.next_actions.map((item) => [item.label || 'Action', item.detail || '-'])
+    : [];
+  if (!center?.enabled) nextActions.push(['Immediate action', 'Re-enable operator notifications or keep a strict dashboard-review routine until routing is restored.']);
+  if (!summary.http_enabled) nextActions.push(['Routing setup', 'Enable outbound HTTP integrations before expecting external email or webhook-style routing.']);
+  if (summary.http_enabled && Number(summary.active_targets || 0) <= 0) nextActions.push(['Target setup', 'Add at least one active integration target so external routing can leave the dashboard.']);
+  if (failedTotal > 0) nextActions.push(['Failure review', 'Inspect failed deliveries and dead letters to restore trusted operator notification routing.']);
+  if (outboxTotal > 0) nextActions.push(['Queue pressure', 'Review queued outbox jobs and coordination state before alert latency grows.']);
+  if (!nextActions.length) nextActions.push(['Current posture', 'Notification routing is aligned with the current runtime and does not need immediate operator repair.']);
+  return `
+    <article class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Operator Notification Posture</div>
+          <h3 class="card-title">Runtime readiness for governed alert routing</h3>
+          <p class="card-subtitle">Health translates the notification policy into an operational answer: are operator alerts confined to the dashboard, externally routable, or currently degraded by delivery pressure?</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(posture)}</div>
+      </div>
+      ${keyValue([
+        ['Notifications enabled', String(Boolean(center?.enabled))],
+        ['Highest queue severity', String(highestSeverity)],
+        ['Dispatch candidates', String(dispatchCandidates)],
+        ['External routing ready', String(hasExternal)],
+        ['Failed deliveries', String(failedTotal)],
+        ['Outbox pressure', String(outboxTotal)],
+      ])}
+      <div class="trace-box compact-trace">
+        <strong>Severity routing</strong>
+        <p class="muted">${escapeHtml(['warning', 'critical', 'stale'].map((level) => `${level}: ${((severityChannels[level] || []).join(', ') || 'dashboard')}`).join(' | '))}</p>
+      </div>
+      <div class="trace-box compact-trace">
+        <strong>Operator reading</strong>
+        <p class="muted">${escapeHtml(!center?.enabled
+          ? 'The queue policy is still evaluating risk, but notifications are globally disabled so only manual dashboard review is available.'
+          : failedTotal > 0
+            ? 'Alert routing exists, but recent integration failures mean operators should treat external delivery as degraded until Health and Integrations are reviewed.'
+            : outboxTotal > 0
+              ? 'Routing is configured, but queued jobs show pressure in the delivery path. Watch for delayed alerts.'
+              : hasExternal
+                ? 'The runtime has an external delivery path for governed alerts in addition to the dashboard.'
+                : 'The unified policy is active, but current routing is effectively dashboard-only until an external target is enabled.')}</p>
+      </div>
+      <div class="trace-box compact-trace">
+        <strong>Recommended next actions</strong>
+        ${keyValue(nextActions)}
+      </div>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" data-view-jump="health">Open Health</button>
+        <button class="action-button action-button-muted" data-view-jump="overview">Back to Overview</button>
+      </div>
+    </article>
   `;
 }
 
@@ -2578,10 +3025,26 @@ function renderIntegrationSection(integrations) {
   const outbox = Array.isArray(integrations.outbox) ? integrations.outbox : [];
   const deliveries = Array.isArray(integrations.deliveries) ? integrations.deliveries : [];
   const deadLetters = Array.isArray(integrations.dead_letters) ? integrations.dead_letters : [];
+  const hasExternal = Boolean(summary.http_enabled) && Number(summary.active_targets || 0) > 0;
+  const routingPosture = !summary.http_enabled
+    ? 'dashboard only'
+    : Number(summary.failed_total || 0) > 0
+      ? 'degraded'
+      : Number(summary.outbox_total || 0) > 0
+        ? 'pressured'
+        : hasExternal
+          ? 'ready'
+          : 'setup needed';
+  const routingActions = [];
+  if (!summary.http_enabled) routingActions.push(['Enable HTTP', 'Turn on outbound HTTP integrations before expecting email or webhook-style alert delivery.']);
+  if (summary.http_enabled && Number(summary.active_targets || 0) <= 0) routingActions.push(['Add active target', 'Create at least one active target so alert routing can leave the dashboard.']);
+  if (Number(summary.failed_total || 0) > 0) routingActions.push(['Review failed deliveries', 'Inspect delivery failures and dead letters before trusting external alert routing.']);
+  if (Number(summary.outbox_total || 0) > 0) routingActions.push(['Reduce queue pressure', 'Work through outbox backlog and coordination pressure to avoid delayed notifications.']);
+  if (!routingActions.length) routingActions.push(['Current posture', 'Integration routing is aligned with the current operator notification plan.']);
   const testAction = can('integration.manage')
     ? `<div class="inline-actions"><button class="action-button" data-integration-action="test-event">Send Test Event</button></div>`
     : '';
-  return `<article class="table-card"><h3 class="table-title">Integration Foundation</h3>${testAction}<div class="trace-box"><strong>Summary</strong><p class="muted">Targets: ${escapeHtml(String(summary.targets_total || 0))}, Active: ${escapeHtml(String(summary.active_targets || 0))}, Deliveries: ${escapeHtml(String(summary.deliveries_total || 0))}, Retries: ${escapeHtml(String(summary.retry_records_total || 0))}, Dead letters: ${escapeHtml(String(summary.dead_letters_total || 0))}, Outbox jobs: ${escapeHtml(String(summary.outbox_total || 0))}, Coordination: ${escapeHtml(String(summary.coordination_backend || '-'))} (${escapeHtml(String(summary.coordination_mode || '-'))}), Signed targets: ${escapeHtml(String(summary.signed_targets || 0))}, HTTP enabled: ${escapeHtml(String(Boolean(summary.http_enabled)))}</p></div><div class="table-wrapper">${integrationTargetTable(targets)}</div><div class="table-wrapper">${integrationOutboxTable(outbox)}</div><div class="table-wrapper">${integrationDeliveryTable(deliveries)}</div><div class="table-wrapper">${integrationDeadLetterTable(deadLetters)}</div></article>`;
+  return `<article class="table-card"><h3 class="table-title">Integration Foundation</h3>${testAction}<div class="trace-box"><strong>Summary</strong><p class="muted">Targets: ${escapeHtml(String(summary.targets_total || 0))}, Active: ${escapeHtml(String(summary.active_targets || 0))}, Deliveries: ${escapeHtml(String(summary.deliveries_total || 0))}, Retries: ${escapeHtml(String(summary.retry_records_total || 0))}, Dead letters: ${escapeHtml(String(summary.dead_letters_total || 0))}, Outbox jobs: ${escapeHtml(String(summary.outbox_total || 0))}, Coordination: ${escapeHtml(String(summary.coordination_backend || '-'))} (${escapeHtml(String(summary.coordination_mode || '-'))}), Signed targets: ${escapeHtml(String(summary.signed_targets || 0))}, HTTP enabled: ${escapeHtml(String(Boolean(summary.http_enabled)))}</p></div><div class="trace-box compact-trace"><strong>Alert-routing fit</strong><p class="muted">${escapeHtml(`Posture: ${routingPosture} | External routing ready: ${String(hasExternal)} | Failed deliveries: ${String(summary.failed_total || 0)} | Outbox jobs: ${String(summary.outbox_total || 0)}`)}</p></div><div class="trace-box compact-trace"><strong>Recommended next actions</strong>${keyValue(routingActions)}</div><div class="table-wrapper">${integrationTargetTable(targets)}</div><div class="table-wrapper">${integrationOutboxTable(outbox)}</div><div class="table-wrapper">${integrationDeliveryTable(deliveries)}</div><div class="table-wrapper">${integrationDeadLetterTable(deadLetters)}</div></article>`;
 }
 
 function renderStudioRequestCard(item) {
@@ -2756,7 +3219,7 @@ function renderStudioRevisionSelector(requestId, availableRevisions, currentRevi
   if (!availableRevisions.length) return '';
   const buildOptions = (selectedRevisionNumber) => availableRevisions.map((revision) => {
     const revisionNumber = revision.revision_number || 0;
-    const label = `Revision ${revisionNumber} · ${revision.trigger || 'refresh'} · ${shortTime(revision.generated_at)}`;
+    const label = `Revision ${revisionNumber} Â· ${revision.trigger || 'refresh'} Â· ${shortTime(revision.generated_at)}`;
     const selected = revisionNumber === selectedRevisionNumber ? ' selected' : '';
     return `<option value="${escapeHtml(String(revisionNumber))}"${selected}>${escapeHtml(label)}</option>`;
   }).join('');
@@ -3194,6 +3657,7 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
 
 
 
