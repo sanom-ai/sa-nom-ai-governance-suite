@@ -159,6 +159,7 @@ class DashboardService:
             'summary': self.app.runtime_backup_summary(),
             'backups': self.app.list_runtime_backups(limit=limit),
             'usability_proof': self.snapshot_builder.usability_proof_summary(),
+            'quick_start_doctor': self.snapshot_builder.quick_start_doctor_summary(),
         }
 
     def create_backup(self, profile: AccessProfile):
@@ -180,6 +181,18 @@ class DashboardService:
         from sa_nom_governance.deployment.usability_proof_bundle import read_usability_proof_bundle
 
         return read_usability_proof_bundle(config=self.config)
+
+    def run_quick_start_doctor(self, payload: dict[str, object]):
+        from sa_nom_governance.deployment.quick_start_path import export_quick_start_doctor
+
+        output_raw = str(payload.get('output_path', '')).strip()
+        output_path = Path(output_raw) if output_raw else None
+        return export_quick_start_doctor(config=self.config, output_path=output_path)
+
+    def get_quick_start_doctor(self):
+        from sa_nom_governance.deployment.quick_start_path import read_quick_start_doctor
+
+        return read_quick_start_doctor(config=self.config)
 
     def go_live_readiness(self):
         return self.snapshot_builder.go_live_readiness()
@@ -350,6 +363,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.operations(limit=limit), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/operations/usability-proof':
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.get_usability_proof_bundle(), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/operations/quick-start-doctor':
+            return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.get_quick_start_doctor(), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/go-live-readiness':
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.go_live_readiness(), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/owner-registration':
@@ -415,6 +430,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('ops.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.create_backup(profile), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/operations/usability-proof':
             return self._require_and_run('ops.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.create_usability_proof_bundle(profile, payload), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/operations/quick-start-doctor':
+            return self._require_and_run('ops.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.run_quick_start_doctor(payload), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/evidence/export':
             return self._require_and_run('evidence.export', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.create_evidence_export(profile), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/integrations/test-event':

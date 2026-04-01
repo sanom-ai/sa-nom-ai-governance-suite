@@ -426,6 +426,28 @@ root.addEventListener('click', async (event) => {
         render();
       }
     }
+    if (action === 'quick-start-doctor') {
+      try {
+        const response = await apiFetch('/api/operations/quick-start-doctor', { method: 'POST', body: JSON.stringify({}) });
+        const result = response.result || {};
+        state.lastError = `Quick-start doctor completed: ${result.status || 'unknown'} (required failed: ${String(result.summary?.required_failed_total || 0)})`;
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
+    if (action === 'quick-start-doctor-refresh') {
+      try {
+        const response = await apiFetch('/api/operations/quick-start-doctor');
+        const item = response.item || {};
+        state.lastError = `Latest quick-start doctor: ${item.status || 'missing'} (required failed: ${String(item.summary?.required_failed_total || 0)})`;
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
     return;
   }
 
@@ -1082,6 +1104,7 @@ function renderOverview(snapshot) {
           ['Proof available', String(Boolean(snapshot.summary.usability_proof_available))],
           ['Proof criteria passed', `${snapshot.summary.usability_proof_criteria_passed_total || 0}/${snapshot.summary.usability_proof_criteria_total || 0}`],
           ['Proof criteria failed', `${snapshot.summary.usability_proof_criteria_failed_total || 0}`],
+          ['Quick-start doctor', snapshot.summary.quick_start_doctor_status || 'missing'],
         ])}
         ${can('ops.manage') ? '<div class="inline-actions"><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button></div>' : ''}
       </article>
@@ -2504,6 +2527,7 @@ function renderOperationsSection(operations) {
   const summary = operations.summary || {};
   const backups = Array.isArray(operations.backups) ? operations.backups : [];
   const usabilityProof = operations.usability_proof || {};
+  const quickStartDoctor = operations.quick_start_doctor || {};
   const criteria = Array.isArray(usabilityProof.pass_criteria) ? usabilityProof.pass_criteria : [];
   const criteriaRows = criteria.length
     ? criteria.map((row) => `${statusBadge(row.passed ? 'passed' : 'failed')} ${escapeHtml(row.criterion || 'criterion')}`).join('<br>')
@@ -2513,9 +2537,9 @@ function renderOperationsSection(operations) {
     ? `Failing criteria: ${escapeHtml(failedCriteria.join(', '))}`
     : 'All loaded criteria are currently passing.';
   const action = can('ops.manage')
-    ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button></div>`
+    ? `<div class="inline-actions"><button class="action-button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" data-ops-action="usability-proof-refresh">Refresh Latest Proof</button><button class="action-button" data-ops-action="quick-start-doctor">Run Quick-Start Doctor</button><button class="action-button action-button-muted" data-ops-action="quick-start-doctor-refresh">Refresh Doctor Status</button></div>`
     : '';
-  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}, Criteria: ${escapeHtml(String(usabilityProof.criteria_passed_total || 0))}/${escapeHtml(String(usabilityProof.criteria_total || 0))}, Failed: ${escapeHtml(String(usabilityProof.criteria_failed_total || 0))}</p><p class="muted">${failedHint}</p><p class="muted">${criteriaRows}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
+  return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}, Criteria: ${escapeHtml(String(usabilityProof.criteria_passed_total || 0))}/${escapeHtml(String(usabilityProof.criteria_total || 0))}, Failed: ${escapeHtml(String(usabilityProof.criteria_failed_total || 0))}</p><p class="muted">${failedHint}</p><p class="muted">${criteriaRows}</p></div><div class="trace-box"><strong>Quick-start doctor</strong><p class="muted">Status: ${escapeHtml(String(quickStartDoctor.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(quickStartDoctor.available)))}, Generated: ${escapeHtml(String(quickStartDoctor.generated_at || '-'))}, Required failed: ${escapeHtml(String(quickStartDoctor.required_failed_total || 0))}, Advisory failed: ${escapeHtml(String(quickStartDoctor.advisory_failed_total || 0))}, Checks: ${escapeHtml(String(quickStartDoctor.checks_total || 0))}</p><p class="muted">${escapeHtml(Array.isArray(quickStartDoctor.next_actions) && quickStartDoctor.next_actions.length ? quickStartDoctor.next_actions.slice(0, 2).join(' | ') : 'No recommended next actions.')}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
 }
 
 function renderIntegrationSection(integrations) {

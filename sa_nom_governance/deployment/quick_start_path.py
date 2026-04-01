@@ -205,6 +205,70 @@ def build_quick_start_doctor(config: AppConfig | None = None) -> dict[str, objec
     }
 
 
+def export_quick_start_doctor(
+    config: AppConfig | None = None,
+    *,
+    output_path: Path | None = None,
+) -> dict[str, object]:
+    runtime_config = config or AppConfig()
+    target_path = output_path or (runtime_config.review_dir / 'quick_start_doctor.json')
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    report = build_quick_start_doctor(config=runtime_config)
+    report['artifact_path'] = str(target_path)
+    encoded = json.dumps(report, ensure_ascii=False, indent=2)
+    target_path.write_text(encoded + '\n', encoding='utf-8')
+    return report
+
+
+def read_quick_start_doctor(
+    config: AppConfig | None = None,
+    *,
+    output_path: Path | None = None,
+) -> dict[str, object]:
+    runtime_config = config or AppConfig()
+    target_path = output_path or (runtime_config.review_dir / 'quick_start_doctor.json')
+    if not target_path.exists():
+        return {
+            'status': 'missing',
+            'available': False,
+            'artifact_path': str(target_path),
+            'generated_at': None,
+            'summary': {
+                'checks_total': 0,
+                'required_failed_total': 0,
+                'advisory_failed_total': 0,
+            },
+            'checks': [],
+            'next_actions': [],
+        }
+    try:
+        payload = json.loads(target_path.read_text(encoding='utf-8'))
+    except json.JSONDecodeError:
+        return {
+            'status': 'invalid',
+            'available': False,
+            'artifact_path': str(target_path),
+            'generated_at': None,
+            'summary': {
+                'checks_total': 0,
+                'required_failed_total': 0,
+                'advisory_failed_total': 0,
+            },
+            'checks': [],
+            'next_actions': ['Regenerate doctor report: python scripts/quick_start_path.py --doctor'],
+        }
+    if not isinstance(payload, dict):
+        payload = {}
+    payload.setdefault('status', 'invalid')
+    payload['available'] = True
+    payload['artifact_path'] = str(target_path)
+    payload.setdefault('generated_at', None)
+    payload.setdefault('summary', {'checks_total': 0, 'required_failed_total': 0, 'advisory_failed_total': 0})
+    payload.setdefault('checks', [])
+    payload.setdefault('next_actions', [])
+    return payload
+
+
 def build_quick_start_path(
     config: AppConfig | None = None,
     *,
@@ -278,13 +342,8 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.doctor:
-        report = build_quick_start_doctor(config=config)
-        output_path = Path(args.doctor_output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        report['artifact_path'] = str(output_path)
-        encoded = json.dumps(report, ensure_ascii=False, indent=2)
-        output_path.write_text(encoded + '\n', encoding='utf-8')
-        print(encoded)
+        report = export_quick_start_doctor(config=config, output_path=Path(args.doctor_output))
+        print(json.dumps(report, ensure_ascii=False, indent=2))
         if report['status'] == 'fail':
             raise SystemExit(1)
         return
