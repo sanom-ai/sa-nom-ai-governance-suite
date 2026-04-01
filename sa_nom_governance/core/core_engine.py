@@ -8,6 +8,7 @@ from sa_nom_governance.core.authority_policy_engine import AuthorityPolicyEngine
 from sa_nom_governance.core.decision_engine import DecisionEngine
 from sa_nom_governance.core.decision_models import DecisionComputation, DecisionTrace
 from sa_nom_governance.core.dispatcher import RequestDispatcher
+from sa_nom_governance.core.trigger_action_registry import TriggerActionRegistry
 from sa_nom_governance.core.hierarchy_registry import HierarchyEscalationDecision, HierarchyRegistry
 from sa_nom_governance.core.lock_manager import ResourceConflictError, ResourceLockManager
 from sa_nom_governance.core.policy_runtime_contracts import RuntimeContractGuard
@@ -55,7 +56,8 @@ class CoreEngine:
         self.risk_scorer = RiskScorer()
         self.runtime_contract_guard = RuntimeContractGuard()
         self.authority_policy_engine = AuthorityPolicyEngine()
-        self.decision_engine = DecisionEngine()
+        self.trigger_actions = TriggerActionRegistry()
+        self.decision_engine = DecisionEngine(trigger_actions=self.trigger_actions)
         self.state_flow_engine = RuntimeStateFlowEngine()
         self.human_override = HumanOverrideGateway(store_path=override_store_path, config=config)
         self.lock_manager = ResourceLockManager(store_path=lock_store_path, config=config)
@@ -717,56 +719,7 @@ class CoreEngine:
         return computation
 
     def _apply_ptag_trigger_runtime_effects(self, context, computation: DecisionComputation) -> None:
-        trigger_runtime = context.metadata.get('ptag_trigger_runtime')
-        if not isinstance(trigger_runtime, dict):
-            return
-
-        policy_packs = [str(item) for item in trigger_runtime.get('policy_packs', []) if str(item).strip()]
-        evidence_tags = [str(item) for item in trigger_runtime.get('evidence_tags', []) if str(item).strip()]
-        tone_profile = str(trigger_runtime.get('tone_profile', '')).strip()
-        approval_role = str(trigger_runtime.get('approval_role', '')).strip()
-
-        context.metadata['policy_runtime'] = {
-            'source_policy_id': str(trigger_runtime.get('policy_id', '')),
-            'branch': str(trigger_runtime.get('branch', '')),
-            'requires_approval': bool(trigger_runtime.get('requires_approval')),
-            'approval_role': approval_role,
-            'active_policy_packs': policy_packs,
-            'evidence_tags': evidence_tags,
-            'unknown_actions': [str(item) for item in trigger_runtime.get('unknown_actions', [])],
-            'terminal_outcome': computation.outcome,
-        }
-
-        if tone_profile:
-            context.metadata['output_guidance'] = {
-                'source_policy_id': str(trigger_runtime.get('policy_id', '')),
-                'tone_profile': tone_profile,
-                'rewrite_required': True,
-                'applied_branch': str(trigger_runtime.get('branch', '')),
-            }
-
-        if evidence_tags:
-            context.metadata['runtime_evidence_tags'] = list(evidence_tags)
-
-        harmony_runtime = context.metadata.get('global_harmony_runtime')
-        if isinstance(harmony_runtime, dict):
-            harmony_runtime['trigger_runtime'] = {
-                'policy_id': str(trigger_runtime.get('policy_id', '')),
-                'branch': str(trigger_runtime.get('branch', '')),
-                'requires_approval': bool(trigger_runtime.get('requires_approval')),
-                'approval_role': approval_role,
-                'policy_packs': list(policy_packs),
-                'evidence_tags': list(evidence_tags),
-                'tone_profile': tone_profile,
-                'terminal_outcome': computation.outcome,
-            }
-            if policy_packs:
-                harmony_runtime['active_policy_packs'] = list(policy_packs)
-            if tone_profile:
-                harmony_runtime['tone_guidance'] = {
-                    'tone_profile': tone_profile,
-                    'source_policy_id': str(trigger_runtime.get('policy_id', '')),
-                }
+        self.trigger_actions.apply_runtime_effects(context, computation)
 
     def _transition_policy_escalation(self, context) -> HierarchyEscalationDecision | None:
         transition = dict(context.role_transition)
@@ -829,11 +782,9 @@ class CoreEngine:
     def _override_approver_role(self, context, hierarchy_escalation: HierarchyEscalationDecision | None) -> str:
         if hierarchy_escalation is not None:
             return hierarchy_escalation.escalated_to
-        trigger_runtime = context.metadata.get('ptag_trigger_runtime')
-        if isinstance(trigger_runtime, dict):
-            approval_role = str(trigger_runtime.get('approval_role', '')).strip()
-            if approval_role:
-                return approval_role
+        trigger_approval_role = self.trigger_actions.resolve_approval_role(context)
+        if trigger_approval_role:
+            return trigger_approval_role
         return self.hierarchy_registry.default_escalation_target(context.role_id)
 
     def _authority_override_matches(
