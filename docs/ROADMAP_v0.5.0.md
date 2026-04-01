@@ -96,6 +96,7 @@ Expected outcomes:
 - a primary governed HITL operations architecture document
 - explicit human-approval and escalation triggers
 - a simple approval/rationale/audit interaction surface
+- a minimal human approval surface document and first interface model
 - Human Ask reporting for governed status visibility
 - a small set of realistic role-pack or use-case examples for HITL operations
 - reliability and observability framing that supports serious organizational evaluation
