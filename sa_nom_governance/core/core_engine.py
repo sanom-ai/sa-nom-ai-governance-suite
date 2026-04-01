@@ -8,7 +8,6 @@ from sa_nom_governance.core.authority_policy_engine import AuthorityPolicyEngine
 from sa_nom_governance.core.decision_engine import DecisionEngine
 from sa_nom_governance.core.decision_models import DecisionComputation, DecisionTrace
 from sa_nom_governance.core.dispatcher import RequestDispatcher
-from sa_nom_governance.core.trigger_action_registry import TriggerActionRegistry
 from sa_nom_governance.core.hierarchy_registry import HierarchyEscalationDecision, HierarchyRegistry
 from sa_nom_governance.core.lock_manager import ResourceConflictError, ResourceLockManager
 from sa_nom_governance.core.policy_runtime_contracts import RuntimeContractGuard
@@ -22,6 +21,7 @@ from sa_nom_governance.core.risk_scorer import RiskScorer
 from sa_nom_governance.core.role_activation_router import RoleActivationError, RoleActivationRouter
 from sa_nom_governance.core.runtime_recovery_store import RuntimeRecoveryStore
 from sa_nom_governance.core.state_flow_engine import RuntimeStateFlowEngine
+from sa_nom_governance.core.trigger_action_registry import TriggerActionRegistry
 from sa_nom_governance.core.workflow_state_store import WorkflowStateStore
 from sa_nom_governance.guards.authority_guard import AuthorityGuard
 from sa_nom_governance.guards.ethics_guard import EthicsGuard
