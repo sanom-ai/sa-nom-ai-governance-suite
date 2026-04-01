@@ -19,8 +19,11 @@ def test_bootstrap_access_profiles_delegate_privileged_operator_permissions() ->
 
 def test_bootstrap_access_profiles_reject_invalid_lifetimes() -> None:
     invalid_cases = [
+        (0, -1, "days_valid"),
         (0, 180, "days_valid"),
+        (-7, 180, "days_valid"),
         (365, 0, "rotate_days"),
+        (365, -1, "rotate_days"),
         (30, 30, "rotate_days"),
         (30, 45, "rotate_days"),
     ]
