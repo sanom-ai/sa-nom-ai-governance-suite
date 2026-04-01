@@ -53,7 +53,7 @@ That means the product is not only checking whether the runtime starts. It is al
 
 SA-NOM includes PT-OSS as an embedded structural intelligence layer.
 
-PT-OSS is a proprietary framework developed by the creator and integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
+PT-OSS is a creator-developed embedded framework integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
 
 See [PT_OSS_CORE.md](PT_OSS_CORE.md) and [PT_OSS_METRICS.md](PT_OSS_METRICS.md).
 
@@ -128,4 +128,5 @@ It is that the runtime shows:
 - [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md)
 - [PROVIDER_SETUP.md](PROVIDER_SETUP.md)
 - [DEPLOYMENT.md](DEPLOYMENT.md)
+
 

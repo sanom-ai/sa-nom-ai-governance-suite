@@ -115,7 +115,7 @@ The correct public claim is:
 
 SA-NOM includes PT-OSS as an embedded structural intelligence layer.
 
-PT-OSS is a proprietary framework developed by the creator and integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
+PT-OSS is a creator-developed embedded framework integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
 
 ## What This Does Not Mean
 

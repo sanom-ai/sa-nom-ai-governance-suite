@@ -64,7 +64,7 @@ See [docs/COMPLIANCE_KNOWLEDGE_BASELINE.md](docs/COMPLIANCE_KNOWLEDGE_BASELINE.m
 
 SA-NOM includes PT-OSS as an embedded structural intelligence layer.
 
-PT-OSS is a proprietary framework developed by the creator and integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
+PT-OSS is a creator-developed embedded framework integrated into SA-NOM to assess structural dependency, fragility, human-override integrity, and power asymmetry before AI roles and workflows are treated as safely governed.
 
 See [docs/PT_OSS_CORE.md](docs/PT_OSS_CORE.md) for the core explanation of what is already embedded in the codebase and [docs/PT_OSS_METRICS.md](docs/PT_OSS_METRICS.md) for the plain-language metric explainer.
 
@@ -118,5 +118,6 @@ SA-NOM is designed for private, self-managed, and air-gapped deployment scenario
 That means the public repository should be read as a governance and operational baseline, not as a place where real credentials, emergency access material, or deployment secrets belong.
 
 See [docs/SECRETS_AND_CREDENTIALS_HANDLING.md](docs/SECRETS_AND_CREDENTIALS_HANDLING.md) for the first public handling guide and [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIENE.md) for the dependency-light security posture.
+
 
 
