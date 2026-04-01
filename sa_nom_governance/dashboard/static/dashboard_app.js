@@ -1092,18 +1092,47 @@ function renderAuthCard() {
 }
 
 function renderPermissionNotice(permission) {
+  const currentRole = state.session ? state.session.role_name : 'unknown';
+  const recommendedLanes = [
+    DEV_LANES.viewer,
+    DEV_LANES.operator,
+    DEV_LANES.reviewer,
+  ].map((lane) => `
+    <article class="mini-card stack lane-card permission-lane-card">
+      <div>
+        <strong>${escapeHtml(lane.title)}</strong>
+        <p class="muted">${escapeHtml(lane.summary)}</p>
+      </div>
+      <div class="lane-chip-row">
+        ${statusBadge(VIEW_TITLES[lane.view] || lane.view)}
+        <span class="pill lane-token-pill">${escapeHtml(lane.token)}</span>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" type="button" data-dev-lane="${escapeHtml(Object.keys(DEV_LANES).find((key) => DEV_LANES[key] === lane) || '')}">Switch to ${escapeHtml(lane.title.toLowerCase())}</button>
+      </div>
+    </article>
+  `).join('');
   return `
     <article class="card notice-card notice-warning stack">
       <div>
         <div class="eyebrow muted">Access restricted</div>
         <h3 class="card-title">Current profile cannot open this view</h3>
-        <p class="card-subtitle">The active session is missing the required permission.</p>
+        <p class="card-subtitle">The active session is missing the required permission. Switch to the lane that matches the work you want to inspect instead of guessing where the runtime put the decision.</p>
       </div>
       ${keyValue([
         ['Required permission', permission],
         ['Current profile', state.session ? state.session.display_name : 'unknown'],
-        ['Role', state.session ? state.session.role_name : 'unknown'],
+        ['Role', currentRole],
+        ['Suggested next step', 'Switch to the lane that owns this governed view or go back to Overview for a broader runtime scan'],
       ])}
+      <div class="trace-box">
+        <strong>Common lane mapping</strong>
+        <p class="muted">Viewer is best for Overview, Health, and Audit. Operator is best for Requests and flow inspection. Reviewer is best for Overrides and human-required decisions.</p>
+      </div>
+      <div class="onboarding-grid lane-picker-grid permission-lane-grid">${recommendedLanes}</div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-view-jump="overview">Open Overview</button>
+      </div>
     </article>
   `;
 }

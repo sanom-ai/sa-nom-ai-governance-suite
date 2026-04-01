@@ -2013,6 +2013,14 @@ button:focus-visible {
   min-height: 2.8em;
 }
 
+.permission-lane-grid {
+  margin-top: 4px;
+}
+
+.permission-lane-card {
+  background: rgba(255, 248, 235, 0.82);
+}
+
 .approval-flow-card .inline-actions {
   margin-top: 4px;
 }
