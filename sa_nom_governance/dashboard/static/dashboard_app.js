@@ -17,6 +17,7 @@ const state = {
   studioRevisionSelections: {},
   studioPtagDrafts: {},
   studioPtagHistory: {},
+  focusContext: null,
 };
 
 const root = document.getElementById('dashboard-root');
@@ -315,7 +316,11 @@ root.addEventListener('change', (event) => {
 root.addEventListener('click', async (event) => {
   const viewJumpButton = event.target.closest('[data-view-jump]');
   if (viewJumpButton) {
-    state.view = viewJumpButton.dataset.viewJump || state.view;
+    const nextView = viewJumpButton.dataset.viewJump || state.view;
+    const focusTarget = viewJumpButton.dataset.focusTarget || '';
+    const focusLabel = viewJumpButton.dataset.focusLabel || '';
+    state.focusContext = focusTarget ? { view: nextView, target: focusTarget, label: focusLabel } : null;
+    state.view = nextView;
     updateNav();
     render();
     return;
@@ -782,16 +787,10 @@ function render() {
     viewContent = renderStudio(snapshot.role_private_studio || { summary: {}, requests: [], examples: [] });
     if (state.studioEditorDraft) fillStudioForm(state.studioEditorDraft);
   }
-  if (state.view === 'human_ask') viewContent = renderHumanAsk(
-    snapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
-    {
-      can,
-      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase },
-    },
-  );
+  if (state.view === 'human_ask') viewContent = renderHumanAskView(snapshot);
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
-  if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
+  if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null, snapshot.operator_action_plan || null);
   root.innerHTML = `${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${viewContent}`;
   updateNav();
 }
@@ -1076,6 +1075,7 @@ function renderOverview(snapshot) {
   const operatorQueueHealth = snapshot.operator_queue_health || { items: [], policy: {} };
   const operatorNotificationCenter = snapshot.operator_notification_center || { items: [], policy: {} };
   const operatorNotificationDeliveryReadiness = snapshot.operator_notification_delivery_readiness || {};
+  const operatorActionPlan = snapshot.operator_action_plan || { items: [] };
   const runtimeAlerts = Array.isArray(snapshot.runtime_alerts) ? snapshot.runtime_alerts.slice(0, 4) : [];
   const backupLabel = latestBackup ? `${latestBackup.backup_id} | ${shortTime(latestBackup.created_at)}` : 'No runtime backup recorded yet.';
   const focusNote = state.lastError || 'All executive actions route through a governed runtime with policy oversight.';
@@ -1126,7 +1126,7 @@ function renderOverview(snapshot) {
         <div class="trace-box"><strong>Latest backup</strong><p class="muted">${escapeHtml(backupLabel)}</p></div>
       </article>
     </section>
-      <section class="metrics-grid metrics-grid-luxury">
+    <section class="metrics-grid metrics-grid-luxury">
         ${metricCard('Requests', snapshot.summary.requests_total, 'default', 'Governed runtime submissions in the current live view.')}
         ${metricCard('Runtime alerts', snapshot.summary.runtime_alert_total || runtimeAlerts.length, (snapshot.summary.runtime_alert_critical_total || 0) ? 'danger' : (snapshot.summary.runtime_alert_total || runtimeAlerts.length) ? 'warning' : 'success', 'Conditions where the Director paused or governance pressure is still active.')}
         ${metricCard('Pending overrides', snapshot.summary.pending_overrides, 'warning', 'Human approvals waiting in the executive queue.')}
@@ -1143,10 +1143,12 @@ function renderOverview(snapshot) {
         ${metricCard('Operator attention', snapshot.summary.operator_attention_total || 0, (snapshot.summary.operator_attention_total || 0) ? 'warning' : 'success', 'Queue lanes that crossed the unified operator alert policy and now need attention.')}
         ${metricCard('Operator critical', snapshot.summary.operator_critical_total || 0, (snapshot.summary.operator_critical_total || 0) ? 'danger' : 'success', 'Queue lanes that are critical or stale under the shared operator aging policy.')}
         ${metricCard('Notify candidates', snapshot.summary.operator_notification_candidates_total || 0, (snapshot.summary.operator_notification_candidates_total || 0) ? 'accent' : 'success', 'Queue lanes that would route through the unified operator notification plan.')}
+        ${metricCard('Next actions', snapshot.summary.operator_action_items_total || 0, (snapshot.summary.operator_action_urgent_total || 0) ? 'warning' : 'success', 'Shared dashboard-derived action items for the operator control plane.')}
       </section>
       ${renderOperatorQueueHealthCard(operatorQueueHealth)}
       ${renderOperatorNotificationPolicyCard(operatorNotificationCenter)}
       ${renderOperatorNotificationDeliveryCard(operatorNotificationCenter, integrations, operatorNotificationDeliveryReadiness)}
+      ${renderOperatorActionPlanCard(operatorActionPlan)}
       ${renderFirstRunReadinessCard(firstRunReadiness)}
       ${renderOperatorDecisionLanes(snapshot.operator_decision_lanes || [])}
       ${renderNotificationCenter(runtimeAlerts)}
@@ -1169,7 +1171,7 @@ function renderOverview(snapshot) {
       </article>
     </section>
       ${renderOwnerRegistrationPanel(snapshot.owner_registration || {}, { compact: true })}
-      ${renderIntegrationSection(integrations)}
+      ${renderIntegrationSection(integrations, operatorNotificationDeliveryReadiness, operatorActionPlan)}
     `;
   }
 
@@ -1427,6 +1429,117 @@ function renderOperatorNotificationDeliveryCard(center, integrations, deliveryRe
   `;
 }
 
+function getFocusContext(viewName) {
+  const focus = state.focusContext;
+  if (!focus || String(focus.view || '') !== String(viewName || '')) return null;
+  return focus;
+}
+
+function describeFocusTarget(target, fallbackLabel = '') {
+  const mapping = {
+    queue_pending_overrides: {
+      title: 'Pending overrides are the current priority',
+      detail: 'The shared operator plan says the approval queue is aging or has become critical. Review the pending human decisions before assuming the runtime can move again.',
+      actionView: 'overrides',
+      actionLabel: 'Stay in Overrides',
+    },
+    queue_waiting_human_sessions: {
+      title: 'Human Ask waiting sessions need attention',
+      detail: 'There are Human Ask records paused behind a human or callable boundary. Review those records before they become stale.',
+      actionView: 'human_ask',
+      actionLabel: 'Open Human Ask',
+    },
+    queue_blocked_workflows: {
+      title: 'Blocked workflows need direct runtime inspection',
+      detail: 'The operator plan flagged blocked workflows, so inspect request outcomes and contention before retrying or escalating.',
+      actionView: 'requests',
+      actionLabel: 'Open Requests',
+    },
+    queue_recovery_backlog: {
+      title: 'Recovery backlog is accumulating',
+      detail: 'Recovery items are accumulating long enough to enter the shared operator plan. Inspect health and recovery posture before the queue hardens further.',
+      actionView: 'health',
+      actionLabel: 'Open Health',
+    },
+    queue_dead_letters: {
+      title: 'Dead letters are part of the current operator path',
+      detail: 'Dead-letter pressure is high enough to appear in the operator plan. Review integrations and health posture before trusting downstream delivery.',
+      actionView: 'health',
+      actionLabel: 'Open Health',
+    },
+    notification_posture: {
+      title: 'Notification routing needs stabilization',
+      detail: 'The shared plan says alerts may be confined to the dashboard, degraded, or under pressure. Review delivery posture before assuming escalation signals will leave the runtime.',
+      actionView: 'health',
+      actionLabel: 'Open Health',
+    },
+    first_run_gate: {
+      title: 'First-run blockers are still active',
+      detail: 'The dashboard is highlighting first-run blockers as part of the current operator path. Clear these before treating the runtime as smooth for new operators.',
+      actionView: 'overview',
+      actionLabel: 'Open Overview',
+    },
+    go_live_gate: {
+      title: 'Go-live posture still needs review',
+      detail: 'Deployment blockers or advisories are part of the operator plan right now. Treat the runtime as guarded until Health confirms the gate is clear.',
+      actionView: 'health',
+      actionLabel: 'Open Health',
+    },
+  };
+  return mapping[target] || {
+    title: fallbackLabel || 'This view is in focus now',
+    detail: 'The shared operator plan routed you here to inspect the current runtime condition more closely.',
+    actionView: '',
+    actionLabel: '',
+  };
+}
+
+function renderFocusedOperatorSpotlight(viewName) {
+  const focus = getFocusContext(viewName);
+  if (!focus) return '';
+  const detail = describeFocusTarget(focus.target, focus.label || 'Operator focus');
+  return `
+    <section class="card stack focus-spotlight-card">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Focused operator context</div>
+          <h3 class="card-title">${escapeHtml(detail.title)}</h3>
+          <p class="card-subtitle">${escapeHtml(detail.detail)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(focus.target || 'focus')}</div></div>
+      ${detail.actionView ? `<div class="inline-actions"><button class="action-button action-button-muted" data-view-jump="${escapeHtml(detail.actionView)}" data-focus-target="${escapeHtml(focus.target || '')}" data-focus-label="${escapeHtml(focus.label || '')}">${escapeHtml(detail.actionLabel || 'Open focus view')}</button></div>` : ''}
+    </section>
+  `;
+}
+
+function renderOperatorActionPlanCard(actionPlan) {
+  const items = Array.isArray(actionPlan?.items) ? actionPlan.items : [];
+  if (!items.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Operator Action Plan</div>
+          <h3 class="card-title">One action order for the current runtime posture</h3>
+          <p class="card-subtitle">This is the shortest path the operator should follow right now, synthesized from queue aging, notification routing, first-run readiness, and go-live posture.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${actionPlan?.urgent_total || 0} urgent`)}</div>
+      </div>
+      <div class="view-prelude-grid">
+        ${items.map((item) => `
+          <article class="view-prelude-card${item.priority === 'urgent' ? ' view-prelude-card-danger' : item.priority === 'next' ? ' view-prelude-card-warning' : ''}">
+            <span class="view-prelude-label">${escapeHtml(titleCase(item.priority || 'watch'))}</span>
+            <strong>${escapeHtml(item.title || 'Operator action')}</strong>
+            <p class="muted">${escapeHtml(item.detail || 'Review the current posture before taking the next step.')}</p>
+            <div class="hero-chip-row">${statusBadge(item.source || 'runtime')}</div>
+            ${item.view ? `<div class="inline-actions"><button class="action-button" data-view-jump="${escapeHtml(item.view)}" data-focus-target="${escapeHtml(item.action_id || '')}" data-focus-label="${escapeHtml(item.title || 'Operator action')}">${escapeHtml(item.action_label || `Open ${titleCase(item.view)}`)}</button></div>` : ''}
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function renderNotificationCenter(alerts) {
   if (!alerts.length) return '';
   return `
@@ -1459,6 +1572,142 @@ function renderNotificationCenter(alerts) {
   `;
 }
 
+function renderOperatorContextHandoff(actionPlan, currentView, title, subtitle) {
+  const items = Array.isArray(actionPlan?.items)
+    ? actionPlan.items.filter((item) => String(item.view || '') === String(currentView || '')).slice(0, 3)
+    : [];
+  if (!items.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Operator Handoff</div>
+          <h3 class="card-title">${escapeHtml(title || 'Why this view matters right now')}</h3>
+          <p class="card-subtitle">${escapeHtml(subtitle || 'This page is part of the current operator action order.')}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${items.length} actions`)}</div>
+      </div>
+      <div class="view-prelude-grid">
+        ${items.map((item) => `
+          <article class="view-prelude-card${item.priority === 'urgent' ? ' view-prelude-card-danger' : item.priority === 'next' ? ' view-prelude-card-warning' : ''}">
+            <span class="view-prelude-label">${escapeHtml(titleCase(item.priority || 'watch'))}</span>
+            <strong>${escapeHtml(item.title || 'Operator action')}</strong>
+            <p class="muted">${escapeHtml(item.detail || 'Review this lane now.')}</p>
+            <div class="hero-chip-row">${statusBadge(item.source || 'runtime')}</div>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderFocusedRequestSubset(snapshot) {
+  const focus = getFocusContext('requests');
+  if (!focus) return '';
+  const requests = Array.isArray(snapshot.requests) ? snapshot.requests : [];
+  let rows = [];
+  let title = 'Focused request subset';
+  let subtitle = 'The current operator focus routed you to a specific slice of the request ledger.';
+  if (focus.target === 'queue_blocked_workflows') {
+    rows = requests.filter((row) => ['blocked', 'conflicted', 'waiting_human', 'escalated'].includes(String(row.outcome || row.execution_outcome || '')));
+    title = 'Blocked or escalated requests';
+    subtitle = 'These are the request rows most likely to explain why workflow movement is currently blocked or diverted.';
+  } else if (focus.target === 'queue_pending_overrides') {
+    rows = requests.filter((row) => ['waiting_human', 'escalated'].includes(String(row.outcome || '')));
+    title = 'Requests waiting behind human review';
+    subtitle = 'These requests are the likely upstream cause of the current approval queue focus.';
+  } else if (focus.target === 'notification_posture') {
+    rows = requests.filter((row) => ['conflicted', 'blocked', 'waiting_human', 'escalated'].includes(String(row.outcome || row.execution_outcome || '')));
+    title = 'Requests most likely to generate alert routing';
+    subtitle = 'This subset shows requests that are most likely to feed the current notification posture and escalation pressure.';
+  }
+  if (!rows.length) return '';
+  return wrapTableCard(title, requestTable(rows.slice(0, 8)), subtitle);
+}
+
+function renderFocusedOverrideSubset(snapshot) {
+  const focus = getFocusContext('overrides');
+  if (!focus) return '';
+  const overrides = Array.isArray(snapshot.overrides) ? snapshot.overrides : [];
+  let rows = [];
+  let title = 'Focused override subset';
+  let subtitle = 'The current operator focus routed you to a specific slice of the approval lane.';
+  if (focus.target === 'queue_pending_overrides') {
+    rows = overrides.filter((row) => String(row.status || '') == 'pending');
+    title = 'Pending human approvals';
+    subtitle = 'These are the exact override packets that currently require a human decision.';
+  } else if (focus.target === 'notification_posture') {
+    rows = overrides.filter((row) => ['pending', 'vetoed'].includes(String(row.status || '')));
+    title = 'Override packets affecting alert posture';
+    subtitle = 'Pending or vetoed decisions are the override records most likely to sustain operator notification pressure.';
+  }
+  if (!rows.length) return '';
+  return wrapTableCard(title, overrideTable(rows.slice(0, 8)), subtitle);
+}
+
+function renderFocusedHumanAskSubset(snapshot) {
+  const focus = getFocusContext('human_ask');
+  if (!focus) return '';
+  const sessions = Array.isArray(snapshot.human_ask?.sessions) ? snapshot.human_ask.sessions : [];
+  let rows = [];
+  let title = 'Focused Human Ask subset';
+  let subtitle = 'The current operator focus routed you to a specific slice of Human Ask records.';
+  if (focus.target === 'queue_waiting_human_sessions') {
+    rows = sessions.filter((row) => ['waiting_human', 'escalated'].includes(String(row.status || '')));
+    title = 'Human Ask sessions waiting for intervention';
+    subtitle = 'These records are paused behind a human-only or callable boundary and match the current operator focus.';
+  } else if (focus.target === 'notification_posture') {
+    rows = sessions.filter((row) => ['waiting_human', 'escalated', 'blocked'].includes(String(row.status || '')));
+    title = 'Human Ask sessions contributing to alert posture';
+    subtitle = 'These records are the Human Ask items most likely to sustain current alert routing pressure.';
+  }
+  if (!rows.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Focused record subset</div>
+          <h3 class="card-title">${escapeHtml(title)}</h3>
+          <p class="card-subtitle">${escapeHtml(subtitle)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${rows.length} records`)}</div>
+      </div>
+      <div class="stack">
+        ${rows.slice(0, 6).map((session) => `
+          <article class="trace-box compact-trace notice-card ${['blocked'].includes(String(session.status || '')) ? 'notice-danger' : 'notice-warning'}">
+            <div class="hero-heading">
+              <div>
+                <strong>${escapeHtml(session.summary?.participant || session.participant?.display_name || session.session_id || 'Human Ask record')}</strong>
+                <p class="muted">${escapeHtml(`${session.session_id || '-'} | ${shortTime(session.updated_at || session.created_at)}`)}</p>
+              </div>
+              <div class="hero-chip-row">${statusBadge(session.status || 'recorded')}</div>
+            </div>
+            <p class="muted">${escapeHtml(session.prompt || session.summary?.prompt || 'No prompt recorded.')}</p>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderHumanAskView(snapshot) {
+  const handoff = renderOperatorContextHandoff(
+    snapshot.operator_action_plan || { items: [] },
+    'human_ask',
+    'Human Ask is part of the current operator path',
+    'Use this surface when the shared operator action order says a request is waiting behind a human-only or callable boundary.',
+  );
+  const focusSpotlight = renderFocusedOperatorSpotlight('human_ask');
+  const focusedSubset = renderFocusedHumanAskSubset(snapshot);
+  return `${focusSpotlight}${handoff}${focusedSubset}${renderHumanAsk(
+    snapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
+    {
+      can,
+      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase },
+    },
+  )}`;
+}
+
 function renderRequests(snapshot) {
   const requests = snapshot.requests || [];
   const overrides = snapshot.overrides || [];
@@ -1474,7 +1723,16 @@ function renderRequests(snapshot) {
   const composer = can('request.create')
     ? renderRequestComposer(snapshot.roles || [])
     : `<article class="card notice-card stack"><strong>Request composer</strong><p class="permission-note">This profile does not have request.create permission.</p></article>`;
+  const operatorHandoff = renderOperatorContextHandoff(
+    snapshot.operator_action_plan || { items: [] },
+    'requests',
+    'Requests is in the active operator action order',
+    'Open this view first when queue pressure or workflow accumulation needs direct runtime inspection.'
+  );
+  const focusSpotlight = renderFocusedOperatorSpotlight('requests');
+  const focusedSubset = renderFocusedRequestSubset(snapshot);
   return `
+    ${focusSpotlight}
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
         <div class="hero-heading">
@@ -1519,6 +1777,8 @@ function renderRequests(snapshot) {
         <div class="trace-box"><strong>Submission note</strong><p class="muted">When metadata includes idempotency keys and event ordering, replay and out-of-order protection remain explicit in the runtime ledger alongside role transitions and escalation evidence.</p></div>
       </article>
     </section>
+    ${operatorHandoff}
+    ${focusedSubset}
     <section class="metrics-grid metrics-grid-luxury">
       ${metricCard('Requests', requests.length, 'default', 'Governed submissions visible in the current runtime ledger.')}
       ${metricCard('Pending overrides', pendingOverrides.length, 'warning', 'Requests paused until a human review resolves the decision.')}
@@ -1585,7 +1845,16 @@ function renderOverridesView(snapshot) {
   const latestOverrideLabel = overrides.length
     ? `${overrides[0].request_id} | ${shortTime(overrides[0].created_at)}`
     : 'No human override records are visible yet.';
+  const operatorHandoff = renderOperatorContextHandoff(
+    snapshot.operator_action_plan || { items: [] },
+    'overrides',
+    'Overrides is in the active operator action order',
+    'Use this lane when the shared dashboard plan says a governed request is already waiting for human approval or veto.'
+  );
+  const focusSpotlight = renderFocusedOperatorSpotlight('overrides');
+  const focusedSubset = renderFocusedOverrideSubset(snapshot);
   return `
+    ${focusSpotlight}
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
         <div class="hero-heading">
@@ -1628,6 +1897,8 @@ function renderOverridesView(snapshot) {
         <div class="trace-box"><strong>Reviewer note</strong><p class="muted">If you need the end-to-end context first, open Runtime Requests before deciding so the role flow, action, and escalation target remain visible beside the approval packet.</p></div>
       </article>
     </section>
+    ${operatorHandoff}
+    ${focusedSubset}
     <section class="metrics-grid metrics-grid-luxury">
       ${metricCard('Pending', pendingOverrides.length, 'warning', 'Requests waiting for a human decision before execution may continue.')}
       ${metricCard('Approved', approvedOverrides.length, 'success', 'Requests that received a human green light and may continue under audit trace.')}
@@ -1712,7 +1983,15 @@ function renderConflicts(snapshot) {
   const locks = snapshot.locks || [];
   const conflicts = (snapshot.requests || []).filter((item) => item.outcome === 'conflicted');
   const resources = new Set([...locks.map((item) => item.resource).filter(Boolean), ...conflicts.map((item) => item.resource).filter(Boolean)]).size;
+  const operatorHandoff = renderOperatorContextHandoff(
+    snapshot.operator_action_plan || { items: [] },
+    'conflicts',
+    'Conflicts is in the active operator action order',
+    'Use this view when queue pressure or retries may be caused by lock contention instead of approval waiting alone.'
+  );
+  const focusSpotlight = renderFocusedOperatorSpotlight('conflicts');
   return `
+    ${focusSpotlight}
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
         <div class="hero-heading">
@@ -2747,7 +3026,7 @@ function renderPolicies(roles) {
   `;
 }
 
-function renderHealth(runtimeHealth, availableProfiles, retentionReport, operations, integrations, operatorNotificationCenter, operatorNotificationDeliveryReadiness) {
+function renderHealth(runtimeHealth, availableProfiles, retentionReport, operations, integrations, operatorNotificationCenter, operatorNotificationDeliveryReadiness, operatorActionPlan) {
   const goLive = runtimeHealth.go_live_readiness || null;
   const backupSummary = operations?.summary || runtimeHealth.runtime_backups || {};
   const integrationSummary = integrations?.summary || runtimeHealth.integration_deliveries || {};
@@ -2824,7 +3103,7 @@ function renderHealth(runtimeHealth, availableProfiles, retentionReport, operati
     ${renderOwnerRegistrationPanel(ownerRegistration)}
     <section class="health-grid">${goLive ? renderGoLiveReadinessCard(goLive) : ''}${cards}</section>
     ${renderOperationsSection(operations || { summary: runtimeHealth.runtime_backups || {}, backups: [] })}
-    ${renderIntegrationSection(integrations || { summary: runtimeHealth.integration_deliveries || {}, targets: [], deliveries: [] })}
+    ${renderIntegrationSection(integrations || { summary: runtimeHealth.integration_deliveries || {}, targets: [], deliveries: [] }, operatorNotificationDeliveryReadiness, operatorActionPlan)}
     ${renderRetentionSection(retentionReport)}
     <article class="card stack"><div><div class="eyebrow muted">Access Profiles</div><h3 class="card-title">Configured private-server profiles</h3><p class="card-subtitle">Profiles available to enter the governed private runtime surface.</p></div>${keyValue(profileRows.length ? profileRows : [['Profiles', 'No access profiles available.']])}</article>
   `;
@@ -3018,15 +3297,16 @@ function renderOperationsSection(operations) {
   return `<article class="table-card"><h3 class="table-title">Operations Backup</h3>${action}<div class="trace-box"><strong>Summary</strong><p class="muted">Backups total: ${escapeHtml(String(summary.backups_total || 0))}, Latest backup: ${escapeHtml(summary.latest_backup?.backup_id || '-')}, Latest time: ${escapeHtml(summary.latest_backup?.created_at || '-')}</p></div><div class="trace-box"><strong>First-run action center</strong><p class="muted">Status: ${escapeHtml(String(firstRunActionCenter.status || 'blocked'))}, Ready: ${escapeHtml(String(Boolean(firstRunActionCenter.ready)))}, Required actions: ${escapeHtml(String(firstRunActionCenter.required_total || 0))}, Total actions: ${escapeHtml(String(firstRunActionCenter.items_total || 0))}, Recommended action: ${escapeHtml(String(firstRunActionCenter.recommended_action || 'none'))}</p><p class="muted">${firstRunRows}</p></div><div class="trace-box"><strong>Usability proof</strong><p class="muted">Status: ${escapeHtml(String(usabilityProof.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(usabilityProof.available)))}, Generated: ${escapeHtml(String(usabilityProof.generated_at || '-'))}, Path: ${escapeHtml(String(usabilityProof.path || '-'))}, Criteria: ${escapeHtml(String(usabilityProof.criteria_passed_total || 0))}/${escapeHtml(String(usabilityProof.criteria_total || 0))}, Failed: ${escapeHtml(String(usabilityProof.criteria_failed_total || 0))}</p><p class="muted">${failedHint}</p><p class="muted">${criteriaRows}</p></div><div class="trace-box"><strong>Quick-start doctor</strong><p class="muted">Status: ${escapeHtml(String(quickStartDoctor.status || 'missing'))}, Available: ${escapeHtml(String(Boolean(quickStartDoctor.available)))}, Generated: ${escapeHtml(String(quickStartDoctor.generated_at || '-'))}, Required failed: ${escapeHtml(String(quickStartDoctor.required_failed_total || 0))}, Advisory failed: ${escapeHtml(String(quickStartDoctor.advisory_failed_total || 0))}, Checks: ${escapeHtml(String(quickStartDoctor.checks_total || 0))}</p><p class="muted">${escapeHtml(Array.isArray(quickStartDoctor.next_actions) && quickStartDoctor.next_actions.length ? quickStartDoctor.next_actions.slice(0, 2).join(' | ') : 'No recommended next actions.')}</p></div><div class="table-wrapper">${backupTable(backups)}</div></article>`;
 }
 
-function renderIntegrationSection(integrations) {
+function renderIntegrationSection(integrations, operatorNotificationDeliveryReadiness = null, operatorActionPlan = null) {
   if (!integrations) return '';
   const summary = integrations.summary || {};
   const targets = Array.isArray(integrations.targets) ? integrations.targets : [];
   const outbox = Array.isArray(integrations.outbox) ? integrations.outbox : [];
   const deliveries = Array.isArray(integrations.deliveries) ? integrations.deliveries : [];
   const deadLetters = Array.isArray(integrations.dead_letters) ? integrations.dead_letters : [];
-  const hasExternal = Boolean(summary.http_enabled) && Number(summary.active_targets || 0) > 0;
-  const routingPosture = !summary.http_enabled
+  const deliveryReadiness = operatorNotificationDeliveryReadiness || {};
+  const hasExternal = Boolean(deliveryReadiness.external_routing_ready ?? (Boolean(summary.http_enabled) && Number(summary.active_targets || 0) > 0));
+  const routingPosture = String((deliveryReadiness.posture || '').replace('_', ' ') || (!summary.http_enabled
     ? 'dashboard only'
     : Number(summary.failed_total || 0) > 0
       ? 'degraded'
@@ -3034,17 +3314,24 @@ function renderIntegrationSection(integrations) {
         ? 'pressured'
         : hasExternal
           ? 'ready'
-          : 'setup needed';
-  const routingActions = [];
-  if (!summary.http_enabled) routingActions.push(['Enable HTTP', 'Turn on outbound HTTP integrations before expecting email or webhook-style alert delivery.']);
-  if (summary.http_enabled && Number(summary.active_targets || 0) <= 0) routingActions.push(['Add active target', 'Create at least one active target so alert routing can leave the dashboard.']);
-  if (Number(summary.failed_total || 0) > 0) routingActions.push(['Review failed deliveries', 'Inspect delivery failures and dead letters before trusting external alert routing.']);
-  if (Number(summary.outbox_total || 0) > 0) routingActions.push(['Reduce queue pressure', 'Work through outbox backlog and coordination pressure to avoid delayed notifications.']);
-  if (!routingActions.length) routingActions.push(['Current posture', 'Integration routing is aligned with the current operator notification plan.']);
+          : 'setup needed'));
+  const routingActions = Array.isArray(deliveryReadiness.next_actions) && deliveryReadiness.next_actions.length
+    ? deliveryReadiness.next_actions.map((item) => [item.label || 'Next action', item.detail || 'Review the current delivery posture.'])
+    : [];
+  if (!routingActions.length) {
+    if (!summary.http_enabled) routingActions.push(['Enable HTTP', 'Turn on outbound HTTP integrations before expecting email or webhook-style alert delivery.']);
+    if (summary.http_enabled && Number(summary.active_targets || 0) <= 0) routingActions.push(['Add active target', 'Create at least one active target so alert routing can leave the dashboard.']);
+    if (Number(summary.failed_total || 0) > 0) routingActions.push(['Review failed deliveries', 'Inspect delivery failures and dead letters before trusting external alert routing.']);
+    if (Number(summary.outbox_total || 0) > 0) routingActions.push(['Reduce queue pressure', 'Work through outbox backlog and coordination pressure to avoid delayed notifications.']);
+    if (!routingActions.length) routingActions.push(['Current posture', 'Integration routing is aligned with the current operator notification plan.']);
+  }
+  const actionPlanItems = Array.isArray(operatorActionPlan?.items) ? operatorActionPlan.items.filter((item) => ['health', 'overview'].includes(String(item.view || ''))).slice(0, 3) : [];
   const testAction = can('integration.manage')
-    ? `<div class="inline-actions"><button class="action-button" data-integration-action="test-event">Send Test Event</button></div>`
-    : '';
-  return `<article class="table-card"><h3 class="table-title">Integration Foundation</h3>${testAction}<div class="trace-box"><strong>Summary</strong><p class="muted">Targets: ${escapeHtml(String(summary.targets_total || 0))}, Active: ${escapeHtml(String(summary.active_targets || 0))}, Deliveries: ${escapeHtml(String(summary.deliveries_total || 0))}, Retries: ${escapeHtml(String(summary.retry_records_total || 0))}, Dead letters: ${escapeHtml(String(summary.dead_letters_total || 0))}, Outbox jobs: ${escapeHtml(String(summary.outbox_total || 0))}, Coordination: ${escapeHtml(String(summary.coordination_backend || '-'))} (${escapeHtml(String(summary.coordination_mode || '-'))}), Signed targets: ${escapeHtml(String(summary.signed_targets || 0))}, HTTP enabled: ${escapeHtml(String(Boolean(summary.http_enabled)))}</p></div><div class="trace-box compact-trace"><strong>Alert-routing fit</strong><p class="muted">${escapeHtml(`Posture: ${routingPosture} | External routing ready: ${String(hasExternal)} | Failed deliveries: ${String(summary.failed_total || 0)} | Outbox jobs: ${String(summary.outbox_total || 0)}`)}</p></div><div class="trace-box compact-trace"><strong>Recommended next actions</strong>${keyValue(routingActions)}</div><div class="table-wrapper">${integrationTargetTable(targets)}</div><div class="table-wrapper">${integrationOutboxTable(outbox)}</div><div class="table-wrapper">${integrationDeliveryTable(deliveries)}</div><div class="table-wrapper">${integrationDeadLetterTable(deadLetters)}</div></article>`;
+    ? `<div class="inline-actions"><button class="action-button" data-integration-action="test-event">Send Test Event</button>${actionPlanItems.length ? '<button class="action-button action-button-muted" data-view-jump="health">Open Health posture</button>' : ''}</div>`
+    : actionPlanItems.length
+      ? '<div class="inline-actions"><button class="action-button action-button-muted" data-view-jump="health">Open Health posture</button></div>'
+      : '';
+  return `<article class="table-card"><h3 class="table-title">Integration Foundation</h3>${testAction}<div class="trace-box"><strong>Summary</strong><p class="muted">Targets: ${escapeHtml(String(summary.targets_total || 0))}, Active: ${escapeHtml(String(summary.active_targets || 0))}, Deliveries: ${escapeHtml(String(summary.deliveries_total || 0))}, Retries: ${escapeHtml(String(summary.retry_records_total || 0))}, Dead letters: ${escapeHtml(String(summary.dead_letters_total || 0))}, Outbox jobs: ${escapeHtml(String(summary.outbox_total || 0))}, Coordination: ${escapeHtml(String(summary.coordination_backend || '-'))} (${escapeHtml(String(summary.coordination_mode || '-'))}), Signed targets: ${escapeHtml(String(summary.signed_targets || 0))}, HTTP enabled: ${escapeHtml(String(Boolean(summary.http_enabled)))}</p></div><div class="trace-box compact-trace"><strong>Alert-routing fit</strong><p class="muted">${escapeHtml(`Posture: ${routingPosture} | External routing ready: ${String(hasExternal)} | Failed deliveries: ${String(deliveryReadiness.failed_total ?? summary.failed_total || 0)} | Outbox jobs: ${String(deliveryReadiness.outbox_total ?? summary.outbox_total || 0)}`)}</p></div><div class="trace-box compact-trace"><strong>Recommended next actions</strong>${keyValue(routingActions)}</div>${actionPlanItems.length ? `<div class="trace-box compact-trace"><strong>Operator handoff</strong>${keyValue(actionPlanItems.map((item) => [item.title || 'Operator action', `${item.detail || ''}${item.action_label ? ` | ${item.action_label}` : ''}`]))}</div>` : ''}<div class="table-wrapper">${integrationTargetTable(targets)}</div><div class="table-wrapper">${integrationOutboxTable(outbox)}</div><div class="table-wrapper">${integrationDeliveryTable(deliveries)}</div><div class="table-wrapper">${integrationDeadLetterTable(deadLetters)}</div></article>`;
 }
 
 function renderStudioRequestCard(item) {

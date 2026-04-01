@@ -67,6 +67,13 @@ class DashboardSnapshotBuilder:
             notification_center=operator_notification_center,
             integrations=integrations,
         )
+        operator_action_plan = self.operator_action_plan(
+            queue_health=operator_queue_health,
+            notification_center=operator_notification_center,
+            notification_delivery_readiness=operator_notification_delivery_readiness,
+            first_run_readiness=first_run_readiness,
+            go_live_readiness=go_live_readiness,
+        )
         runtime_alerts = self.runtime_alerts(
             human_ask=human_ask,
             role_private_studio=role_private_studio,
@@ -140,6 +147,8 @@ class DashboardSnapshotBuilder:
                 'operator_notification_channels_total': int(operator_notification_center.get('active_channel_total', 0) or 0),
                 'operator_notification_posture': str(operator_notification_delivery_readiness.get('posture', 'unknown')),
                 'operator_notification_external_ready': bool(operator_notification_delivery_readiness.get('external_routing_ready', False)),
+                'operator_action_items_total': int(operator_action_plan.get('items_total', 0) or 0),
+                'operator_action_urgent_total': int(operator_action_plan.get('urgent_total', 0) or 0),
             },
             'requests': requests[:50],
             'overrides': overrides[:50],
@@ -160,6 +169,7 @@ class DashboardSnapshotBuilder:
             'operator_queue_health': operator_queue_health,
             'operator_notification_center': operator_notification_center,
             'operator_notification_delivery_readiness': operator_notification_delivery_readiness,
+            'operator_action_plan': operator_action_plan,
             'go_live_readiness': go_live_readiness,
             'operational_readiness': operational_readiness,
             'first_run_readiness': first_run_readiness,
@@ -839,6 +849,113 @@ class DashboardSnapshotBuilder:
             'outbox_total': outbox_total,
             'highest_severity': str(notification_center.get('highest_severity', 'ready')),
             'next_actions': next_actions,
+        }
+
+    def operator_action_plan(
+        self,
+        *,
+        queue_health: dict[str, object],
+        notification_center: dict[str, object],
+        notification_delivery_readiness: dict[str, object],
+        first_run_readiness: dict[str, object],
+        go_live_readiness: dict[str, object],
+    ) -> dict[str, object]:
+        items: list[dict[str, object]] = []
+        queue_items = [
+            item
+            for item in queue_health.get('items', [])
+            if item.get('total', 0) and item.get('status') in {'warning', 'critical', 'stale'}
+        ]
+        severity_rank = {'stale': 3, 'critical': 2, 'warning': 1, 'monitoring': 0, 'ready': 0}
+        queue_items.sort(
+            key=lambda item: (
+                -severity_rank.get(str(item.get('status', 'warning')), 0),
+                -int(item.get('oldest_age_hours', 0) or 0),
+                -int(item.get('total', 0) or 0),
+            )
+        )
+        for item in queue_items[:3]:
+            status = str(item.get('status', 'warning'))
+            items.append(
+                {
+                    'action_id': f"queue_{item.get('lane_id')}",
+                    'priority': 'urgent' if status in {'critical', 'stale'} else 'next',
+                    'title': f"Work the {item.get('title', 'queue lane')}",
+                    'detail': f"{item.get('total', 0)} queued and the oldest item has been waiting about {ceil(float(item.get('oldest_age_hours', 0) or 0))} hours.",
+                    'view': item.get('view', 'overview'),
+                    'action_label': f"Open {str(item.get('view', 'overview')).replace('_', ' ').title()}",
+                    'source': 'queue_health',
+                }
+            )
+
+        posture = str(notification_delivery_readiness.get('posture', 'dashboard_only'))
+        dispatch_candidates_total = int(notification_center.get('dispatch_candidates_total', 0) or 0)
+        if posture in {'disabled', 'degraded', 'pressured', 'dashboard_only'} and dispatch_candidates_total > 0:
+            detail_map = {
+                'disabled': 'Operator notifications are disabled while queue items already qualify for dispatch under the shared routing plan.',
+                'degraded': 'External alert delivery has recent failures, so operators should treat the routing path as degraded until it is cleared.',
+                'pressured': 'Outbox pressure could delay governed notifications even though routing is configured.',
+                'dashboard_only': 'Queue items qualify for notification, but current routing is effectively confined to the dashboard.',
+            }
+            items.append(
+                {
+                    'action_id': 'notification_posture',
+                    'priority': 'urgent' if posture in {'disabled', 'degraded'} else 'next',
+                    'title': 'Stabilize operator notification routing',
+                    'detail': detail_map.get(posture, 'Review the notification path before relying on it.'),
+                    'view': 'health',
+                    'action_label': 'Open Health',
+                    'source': 'notification_posture',
+                }
+            )
+
+        if str(first_run_readiness.get('status', 'blocked')) == 'blocked':
+            recommended_view = str(first_run_readiness.get('recommended_view', 'overview'))
+            items.append(
+                {
+                    'action_id': 'first_run_gate',
+                    'priority': 'next',
+                    'title': 'Clear first-run blockers',
+                    'detail': f"{int(first_run_readiness.get('blockers_total', 0) or 0)} blocking checks still prevent a clean first-run path.",
+                    'view': recommended_view,
+                    'action_label': f"Open {recommended_view.replace('_', ' ').title()}",
+                    'source': 'first_run',
+                }
+            )
+
+        if str(go_live_readiness.get('status', 'blocked')) in {'guarded', 'blocked'}:
+            items.append(
+                {
+                    'action_id': 'go_live_gate',
+                    'priority': 'watch',
+                    'title': 'Review go-live posture',
+                    'detail': f"{len(go_live_readiness.get('blockers', []) or [])} blockers and {len(go_live_readiness.get('advisories', []) or [])} advisories remain in the deployment gate.",
+                    'view': 'health',
+                    'action_label': 'Open Health',
+                    'source': 'go_live',
+                }
+            )
+
+        if not items:
+            items.append(
+                {
+                    'action_id': 'current_posture',
+                    'priority': 'watch',
+                    'title': 'Maintain normal operator review',
+                    'detail': 'No urgent dashboard-derived action is currently required beyond normal governed monitoring.',
+                    'view': 'overview',
+                    'action_label': 'Open Overview',
+                    'source': 'steady_state',
+                }
+            )
+
+        priority_rank = {'urgent': 3, 'next': 2, 'watch': 1}
+        items.sort(key=lambda item: (-priority_rank.get(str(item.get('priority', 'watch')), 0), str(item.get('title', ''))))
+        return {
+            'items': items[:6],
+            'items_total': len(items),
+            'urgent_total': sum(1 for item in items if item.get('priority') == 'urgent'),
+            'posture': posture,
         }
 
     def runtime_alerts(

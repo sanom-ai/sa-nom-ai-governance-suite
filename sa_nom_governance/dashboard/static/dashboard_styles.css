@@ -1991,3 +1991,31 @@ button:focus-visible {
 .approval-flow-card .inline-actions {
   margin-top: 4px;
 }
+
+
+.focus-spotlight-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(214, 158, 46, 0.28);
+  background:
+    radial-gradient(circle at top left, rgba(214, 158, 46, 0.18), transparent 42%),
+    linear-gradient(160deg, rgba(255, 250, 240, 0.96), rgba(255, 245, 230, 0.92));
+  box-shadow: 0 18px 34px rgba(120, 84, 18, 0.12);
+}
+
+.focus-spotlight-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(214, 158, 46, 0.18), transparent 32%);
+}
+
+.focus-spotlight-card .card-title,
+.focus-spotlight-card .card-subtitle,
+.focus-spotlight-card .muted,
+.focus-spotlight-card strong,
+.focus-spotlight-card .eyebrow {
+  position: relative;
+  z-index: 1;
+}

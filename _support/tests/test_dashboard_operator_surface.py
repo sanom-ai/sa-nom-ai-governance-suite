@@ -148,6 +148,7 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         queue_health = snapshot.get('operator_queue_health', {})
         notification_center = snapshot.get('operator_notification_center', {})
         delivery_readiness = snapshot.get('operator_notification_delivery_readiness', {})
+        action_plan = snapshot.get('operator_action_plan', {})
         runtime_alerts = snapshot.get('runtime_alerts', [])
         summary = snapshot.get('summary', {})
 
@@ -166,12 +167,22 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         assert summary.get('operator_notification_candidates_total', 0) >= 1
         assert summary.get('operator_notification_posture') in {'ready', 'dashboard_only', 'pressured', 'degraded', 'disabled'}
         assert summary.get('operator_notification_external_ready') is False
+        assert summary.get('operator_action_items_total', 0) >= 1
+        assert summary.get('operator_action_urgent_total', 0) >= 1
         assert notification_center.get('dispatch_candidates_total', 0) >= 1
         assert notification_center.get('active_channel_total', 0) >= 1
         assert delivery_readiness.get('posture') == 'dashboard_only'
         assert delivery_readiness.get('external_routing_ready') is False
         assert delivery_readiness.get('dispatch_candidates_total', 0) >= 1
         assert isinstance(delivery_readiness.get('next_actions'), list)
+        assert isinstance(action_plan.get('items'), list)
+        assert action_plan.get('items_total', 0) >= 1
+        assert action_plan.get('urgent_total', 0) >= 1
+        pending_action = next(item for item in action_plan.get('items', []) if item.get('action_id') == 'queue_pending_overrides')
+        assert pending_action.get('priority') == 'urgent'
+        assert pending_action.get('view') == 'overrides'
+        notification_action = next(item for item in action_plan.get('items', []) if item.get('action_id') == 'notification_posture')
+        assert notification_action.get('view') == 'health'
         pending_notification = next(item for item in notification_center.get('items', []) if item.get('lane_id') == 'pending_overrides')
         assert pending_notification.get('dispatch_ready') is True
         assert pending_notification.get('channels') == ['dashboard', 'email']
