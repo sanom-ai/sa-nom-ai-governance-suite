@@ -2650,6 +2650,8 @@ function renderCaseContinuity(item) {
   const nextView = continuity.next_view || item.primary_view || 'requests';
   const nextViewLabel = VIEW_TITLES[nextView] || titleCase(nextView || 'overview');
   const nextFocus = resolveCasePrimaryFocus(item, nextView);
+  const latestProof = item.latest_proof_event || null;
+  const followUps = Array.isArray(continuity.follow_up_actions) ? continuity.follow_up_actions : [];
   return `
     <div class="case-continuity-grid">
       <article class="mini-card case-continuity-card">
@@ -2669,9 +2671,28 @@ function renderCaseContinuity(item) {
         <div class="eyebrow muted">Proof posture</div>
         <strong>${escapeHtml(continuity.evidence_posture || 'proof starting')}</strong>
         <p class="muted">${escapeHtml(continuity.evidence_detail || 'Case proof will strengthen as requests, decisions, and audit events accumulate.')}</p>
-        <span class="permission-note">Audit events ${escapeHtml(String(item.audit_event_total || 0))} | Timeline ${escapeHtml(String(item.timeline_total || 0))}</span>
+        <span class="permission-note">Audit ${escapeHtml(String(item.audit_event_total || 0))} | Exports ${escapeHtml(String(item.evidence_export_total || 0))} | Workflow proof ${escapeHtml(String(item.workflow_proof_total || 0))}</span>
+        ${latestProof ? `<div class="case-proof-note"><strong>${escapeHtml(titleCase(latestProof.action || 'proof event'))}</strong><p class="muted">${escapeHtml(latestProof.detail || 'Latest proof artifact recorded.')}</p><span class="permission-note">${escapeHtml(shortTime(latestProof.timestamp))} | ${escapeHtml(latestProof.status || 'recorded')} | ${escapeHtml(latestProof.reference || '-')}</span></div>` : ''}
       </article>
     </div>
+    ${followUps.length ? `<div class="case-follow-up-grid">${followUps.map((entry) => {
+      const view = entry.view || 'overview';
+      const viewLabel = VIEW_TITLES[view] || titleCase(view || 'overview');
+      const focus = resolveCasePrimaryFocus(item, view);
+      return `<article class="mini-card case-follow-up-item">
+        <div class="eyebrow muted">Follow-up</div>
+        <strong>${escapeHtml(entry.label || `Open ${viewLabel}`)}</strong>
+        <p class="muted">${escapeHtml(entry.detail || 'Continue the governed flow from the linked lane.')}</p>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view,
+          focusType: focus.entityType,
+          focusId: focus.entityId,
+          title: item.case_id ? `Case ${item.case_id} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
+          detail: entry.detail || 'Continue the governed flow from the linked lane.',
+          actionLabel: `Open ${viewLabel}`,
+        })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+      </article>`;
+    }).join('')}</div>` : ''}
   `;
 }
 

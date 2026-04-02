@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from math import ceil
 from pathlib import Path
 
@@ -596,6 +596,9 @@ class DashboardSnapshotBuilder:
                 'attention_total': 0,
                 'active_total': 0,
                 'audit_event_total': 0,
+                'evidence_export_total': 0,
+                'workflow_proof_total': 0,
+                'latest_proof_event': None,
             }
 
         def merge_case(target: dict[str, object], source: dict[str, object]) -> None:
@@ -609,8 +612,12 @@ class DashboardSnapshotBuilder:
             ]:
                 target[field].update(source[field])
             target['timeline'].extend(source['timeline'])
-            for field in ['pending_override_total', 'waiting_human_total', 'blocked_total', 'attention_total', 'active_total', 'audit_event_total']:
+            for field in ['pending_override_total', 'waiting_human_total', 'blocked_total', 'attention_total', 'active_total', 'audit_event_total', 'evidence_export_total', 'workflow_proof_total']:
                 target[field] += int(source.get(field, 0) or 0)
+            target_proof = target.get('latest_proof_event') if isinstance(target.get('latest_proof_event'), dict) else None
+            source_proof = source.get('latest_proof_event') if isinstance(source.get('latest_proof_event'), dict) else None
+            if source_proof and (not target_proof or str(source_proof.get('timestamp', '') or '') >= str(target_proof.get('timestamp', '') or '')):
+                target['latest_proof_event'] = source_proof
             opened_at = [value for value in [target.get('opened_at'), source.get('opened_at')] if value]
             updated_at = [value for value in [target.get('updated_at'), source.get('updated_at')] if value]
             target['opened_at'] = min(opened_at) if opened_at else None
@@ -643,7 +650,7 @@ class DashboardSnapshotBuilder:
                 case['aliases'].add(alias)
             return case_key, case
 
-        def touch_case(case: dict[str, object], *, timestamp: object, event: dict[str, object], request_id: str = '', override_id: str = '', session_id: str = '', workflow_id: str = '', studio_request_id: str = '', pending_override: bool = False, waiting_human: bool = False, blocked: bool = False, attention: bool = False, active: bool = False, audit_event: bool = False) -> None:
+        def touch_case(case: dict[str, object], *, timestamp: object, event: dict[str, object], request_id: str = '', override_id: str = '', session_id: str = '', workflow_id: str = '', studio_request_id: str = '', pending_override: bool = False, waiting_human: bool = False, blocked: bool = False, attention: bool = False, active: bool = False, audit_event: bool = False, evidence_export: bool = False, workflow_proof: bool = False, proof_event: dict[str, object] | None = None) -> None:
             stamp = str(timestamp or '').strip()
             if stamp:
                 case['opened_at'] = min([value for value in [case.get('opened_at'), stamp] if value]) if case.get('opened_at') else stamp
@@ -670,6 +677,14 @@ class DashboardSnapshotBuilder:
                 case['active_total'] += 1
             if audit_event:
                 case['audit_event_total'] += 1
+            if evidence_export:
+                case['evidence_export_total'] += 1
+            if workflow_proof:
+                case['workflow_proof_total'] += 1
+            if isinstance(proof_event, dict):
+                current_proof = case.get('latest_proof_event') if isinstance(case.get('latest_proof_event'), dict) else None
+                if not current_proof or str(proof_event.get('timestamp', '') or '') >= str(current_proof.get('timestamp', '') or ''):
+                    case['latest_proof_event'] = proof_event
             case['timeline'].append(event)
 
         for item in requests:
@@ -838,6 +853,17 @@ class DashboardSnapshotBuilder:
             _, case = ensure_case(aliases)
             action = str(entry.get('action', 'audit_event') or 'audit_event')
             outcome = str(entry.get('outcome', 'recorded') or 'recorded')
+            is_evidence_export = action == 'evidence_export'
+            is_workflow_proof = action == 'workflow_proof_export'
+            proof_event = None
+            if is_evidence_export or is_workflow_proof:
+                proof_event = {
+                    'action': action,
+                    'status': outcome,
+                    'reference': request_id or workflow_id or studio_request_id or '-',
+                    'timestamp': entry.get('timestamp'),
+                    'detail': str(entry.get('reason') or metadata.get('requested_by') or 'Proof artifact recorded.'),
+                }
             touch_case(
                 case,
                 timestamp=entry.get('timestamp'),
@@ -845,8 +871,11 @@ class DashboardSnapshotBuilder:
                 override_id=override_id,
                 workflow_id=workflow_id,
                 studio_request_id=studio_request_id,
-                attention=action in {'evidence_export', 'workflow_proof_export'} and outcome != 'completed',
+                attention=(is_evidence_export or is_workflow_proof) and outcome != 'completed',
                 audit_event=True,
+                evidence_export=is_evidence_export,
+                workflow_proof=is_workflow_proof,
+                proof_event=proof_event,
                 event={
                     'timestamp': entry.get('timestamp'),
                     'event_type': 'audit',
@@ -922,15 +951,62 @@ class DashboardSnapshotBuilder:
                 next_label = 'Confirm the operating story'
                 next_detail = 'The case looks calm. Use the linked lane or proof history to confirm the story is complete.'
 
-            if audit_event_total > 0 and timeline_total >= 3:
+            evidence_export_total = int(case.get('evidence_export_total', 0) or 0)
+            workflow_proof_total = int(case.get('workflow_proof_total', 0) or 0)
+            latest_proof_event = case.get('latest_proof_event') if isinstance(case.get('latest_proof_event'), dict) else None
+            if workflow_proof_total > 0:
                 evidence_posture = 'proof attached'
-                evidence_detail = 'Requests, decisions, and audit proof are already attached to this case.'
-            elif audit_event_total > 0 or timeline_total > 1:
+                evidence_detail = 'A workflow proof bundle is attached, so the case already has exportable runtime proof for review.'
+            elif evidence_export_total > 0 or (audit_event_total > 0 and timeline_total >= 3):
                 evidence_posture = 'partial proof'
-                evidence_detail = 'The runtime has started building proof, but the case may still need another decision or export to feel complete.'
+                evidence_detail = 'The runtime has exported or recorded proof, but the case may still need another decision or a workflow-specific bundle.'
             else:
                 evidence_posture = 'proof starting'
                 evidence_detail = 'This case is only lightly documented so far. Keep the next move tied to evidence as it grows.'
+
+            follow_up_actions: list[dict[str, str]] = []
+            follow_up_actions.append({
+                'label': next_label,
+                'detail': next_detail,
+                'view': next_view,
+                'tone': status,
+            })
+            if workflow_proof_total > 0:
+                follow_up_actions.append({
+                    'label': 'Inspect proof history',
+                    'detail': 'Open Audit to review the attached workflow proof bundle and confirm the case is ready for closure or handoff.',
+                    'view': 'audit',
+                    'tone': 'proof',
+                })
+            else:
+                follow_up_actions.append({
+                    'label': 'Inspect proof history',
+                    'detail': 'Open Audit to verify whether this case still needs evidence export or workflow proof before closure.',
+                    'view': 'audit',
+                    'tone': 'proof',
+                })
+            if linked_session_ids and status in {'human_required', 'attention_required'}:
+                follow_up_actions.append({
+                    'label': 'Refresh governed record',
+                    'detail': 'Review the linked Human Ask record so the narrative stays current before the next decision.',
+                    'view': 'human_ask',
+                    'tone': 'follow_up',
+                })
+            elif linked_studio_request_ids and primary_view != 'studio':
+                follow_up_actions.append({
+                    'label': 'Review linked studio draft',
+                    'detail': 'Open the Studio lane if this case still depends on a governed role draft or publication outcome.',
+                    'view': 'studio',
+                    'tone': 'follow_up',
+                })
+            deduped_follow_ups = []
+            seen_follow_up_views = set()
+            for action_item in follow_up_actions:
+                action_view = str(action_item.get('view', '') or '')
+                if action_view in seen_follow_up_views:
+                    continue
+                seen_follow_up_views.add(action_view)
+                deduped_follow_ups.append(action_item)
 
             items.append(
                 {
@@ -946,6 +1022,9 @@ class DashboardSnapshotBuilder:
                     'linked_workflow_ids': linked_workflow_ids,
                     'linked_studio_request_ids': linked_studio_request_ids,
                     'audit_event_total': audit_event_total,
+                    'evidence_export_total': evidence_export_total,
+                    'workflow_proof_total': workflow_proof_total,
+                    'latest_proof_event': latest_proof_event,
                     'timeline_total': timeline_total,
                     'timeline': timeline[:6],
                     'continuity': {
@@ -954,6 +1033,7 @@ class DashboardSnapshotBuilder:
                         'next_detail': next_detail,
                         'evidence_posture': evidence_posture,
                         'evidence_detail': evidence_detail,
+                        'follow_up_actions': deduped_follow_ups[:3],
                     },
                     'work_items': [
                         {

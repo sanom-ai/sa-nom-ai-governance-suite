@@ -478,6 +478,68 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
         assert continuity.get('next_view') in {'overrides', 'human_ask', 'requests', 'audit', 'conflicts'}
         assert continuity.get('evidence_posture') in {'proof attached', 'partial proof', 'proof starting'}
 
+
+
+def test_dashboard_snapshot_surfaces_case_proof_and_follow_up_cues() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        pending = builder.app.request(
+            requester='operator@example.com',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'CASE-PROOF-001', 'amount': 1000000},
+            metadata={
+                'authority_contract': {'approval_gate': 'human_required'},
+                'execution_plan': {
+                    'plan_id': 'plan-case-proof-001',
+                    'step_id': 'step-human-check',
+                    'intent': 'Prepare proof-aware case review',
+                    'expected_output': 'Human review package',
+                    'stop_condition': 'human_checkpoint',
+                    'step_index': 2,
+                    'total_steps': 4,
+                    'checkpoint_required': True,
+                },
+            },
+        )
+        request_id = pending.metadata['request_id']
+
+        builder.app.create_human_ask_session(
+            {
+                'role_id': 'GOV',
+                'prompt': 'Summarize the proof posture for this governed case.',
+                'metadata': {
+                    'origin_request_id': request_id,
+                    'execution_plan': {
+                        'plan_id': 'plan-case-proof-001',
+                        'step_id': 'step-human-check',
+                    },
+                },
+            },
+            requested_by='EXEC_OWNER',
+        )
+
+        builder.app.approve_override(
+            pending.human_override['request_id'],
+            resolved_by='EXEC_OWNER',
+            note='Workflow proof bundle validation.',
+        )
+        builder.app.create_workflow_proof_bundle('plan-case-proof-001', requested_by='EXEC_OWNER')
+
+        snapshot = builder.build()
+        case_items = snapshot.get('cases', {}).get('items', [])
+        linked_case = next(item for item in case_items if request_id in item.get('linked_request_ids', []))
+        continuity = linked_case.get('continuity', {}) if isinstance(linked_case.get('continuity', {}), dict) else {}
+        latest_proof = linked_case.get('latest_proof_event', {}) if isinstance(linked_case.get('latest_proof_event', {}), dict) else {}
+        follow_up_views = {entry.get('view') for entry in continuity.get('follow_up_actions', []) if isinstance(entry, dict)}
+
+        assert linked_case.get('workflow_proof_total', 0) >= 1
+        assert continuity.get('evidence_posture') == 'proof attached'
+        assert latest_proof.get('action') == 'workflow_proof_export'
+        assert 'audit' in follow_up_views
+        assert continuity.get('next_view') in {'requests', 'audit', 'human_ask'}
 def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)

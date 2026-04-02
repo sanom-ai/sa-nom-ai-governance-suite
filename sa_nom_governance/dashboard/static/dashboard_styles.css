@@ -1103,6 +1103,28 @@ a {
   width: fit-content;
 }
 
+.case-proof-note {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+
+.case-follow-up-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.case-follow-up-item {
+  gap: 10px;
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.case-follow-up-item .action-button {
+  width: fit-content;
+}
+
 .case-work-items {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
