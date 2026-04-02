@@ -168,3 +168,17 @@ def test_alignment_service_builds_runtime_evaluation_snapshot() -> None:
     assert 'OWNER_NOT_VISIBLE' in concern_codes
     assert snapshot['safe_claim']
     assert snapshot['notes']
+
+def test_alignment_service_accepts_explicit_default_region() -> None:
+    service = GlobalHarmonyAlignmentService(ALIGNMENT_CATALOG_DIR, default_region_id='thailand')
+
+    snapshot = service.build_runtime_snapshot()
+
+    assert snapshot['active_selection']['region_id'] == 'thailand'
+    assert snapshot['active_selection']['source'] == 'configured-default'
+    assert snapshot['active_selection']['rationale'] == 'Initialized from explicit default region thailand.'
+
+
+def test_alignment_service_rejects_unknown_explicit_default_region() -> None:
+    with pytest.raises(ValueError, match='Unknown default regional constitution'):
+        GlobalHarmonyAlignmentService(ALIGNMENT_CATALOG_DIR, default_region_id='japan')

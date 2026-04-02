@@ -128,6 +128,7 @@ def test_app_config_defaults_alignment_resources_to_bundled_catalog(tmp_path: Pa
     config = AppConfig(base_dir=tmp_path, persist_runtime=False)
 
     assert config.alignment_resources_dir == DEFAULT_ALIGNMENT_CATALOG_DIR
+    assert config.alignment_default_region == 'eu'
 
 
 def test_app_config_resolves_relative_alignment_resource_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -136,3 +137,20 @@ def test_app_config_resolves_relative_alignment_resource_override(monkeypatch: p
     config = AppConfig(persist_runtime=False)
 
     assert config.alignment_resources_dir == config.base_dir / 'resources' / 'alignment'
+
+def test_app_config_resolves_alignment_default_region_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('SANOM_ALIGNMENT_DEFAULT_REGION', 'thailand')
+
+    config = AppConfig(persist_runtime=False)
+
+    assert config.alignment_default_region == 'thailand'
+
+
+def test_runtime_uses_configured_alignment_default_region(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('SANOM_ALIGNMENT_DEFAULT_REGION', 'thailand')
+
+    app = build_engine_app(AppConfig(persist_runtime=False))
+    snapshot = app.engine.global_harmony_alignment.build_runtime_snapshot()
+
+    assert snapshot['active_selection']['region_id'] == 'thailand'
+    assert snapshot['active_selection']['source'] == 'configured-default'

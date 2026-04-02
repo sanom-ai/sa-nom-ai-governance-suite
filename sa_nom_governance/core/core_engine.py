@@ -80,7 +80,15 @@ class CoreEngine:
             if config is not None
             else Path(__file__).resolve().parents[2] / 'resources' / 'alignment'
         )
-        self.global_harmony_alignment = GlobalHarmonyAlignmentService(alignment_catalog_dir)
+        alignment_default_region = (
+            config.alignment_default_region
+            if config is not None
+            else 'eu'
+        )
+        self.global_harmony_alignment = GlobalHarmonyAlignmentService(
+            alignment_catalog_dir,
+            default_region_id=alignment_default_region,
+        )
 
     def process(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         max_attempts = self._runtime_retry_max_attempts(metadata)

@@ -25,6 +25,7 @@ class AppConfig:
     pt_oss_resources_dir: Path = field(init=False)
     studio_resources_dir: Path = field(init=False)
     alignment_resources_dir: Path = field(init=False)
+    alignment_default_region: str = field(default_factory=lambda: os.getenv("SANOM_ALIGNMENT_DEFAULT_REGION", "eu").strip())
     persist_runtime: bool = True
     api_token: str | None = field(default_factory=lambda: os.getenv("SANOM_API_TOKEN"))
     server_host: str = field(default_factory=lambda: os.getenv("SANOM_SERVER_HOST", "127.0.0.1"))
@@ -130,6 +131,7 @@ class AppConfig:
             self.alignment_resources_dir = alignment_path if alignment_path.is_absolute() else self.base_dir / alignment_path
         else:
             self.alignment_resources_dir = _package_base_dir() / "resources" / "alignment"
+        self.alignment_default_region = self.alignment_default_region.strip() or "eu"
         self.roles_dir = self.resources_dir / "roles"
         self.dictionaries_dir = self.roles_dir
         self.runtime_dir = self.base_dir / "_runtime"
