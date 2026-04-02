@@ -1,0 +1,39 @@
+﻿{
+  "matrix_name": "SA-NOM Enterprise Role Transition Matrix",
+  "defaults": {
+    "same_role": "allow",
+    "initial_activation": "allow",
+    "unregistered_transition": "block",
+    "fallback_cross_domain": "block"
+  },
+  "rules": [
+    {
+      "rule_id": "SAFETY_DOMAIN_HUMAN_REVIEW",
+      "from": ["*"],
+      "to": ["*"],
+      "activation_sources": ["manual", "context_router"],
+      "business_domains": ["product_safety", "safety", "safety_operations"],
+      "decision": "review",
+      "escalated_to": "SAFETY_OWNER",
+      "reason": "Safety-sensitive role transitions require immediate human review."
+    },
+    {
+      "rule_id": "GOV_TO_LEGAL_DELEGATION",
+      "from": ["GOV"],
+      "to": ["LEGAL"],
+      "activation_sources": ["manual", "context_router"],
+      "resources": ["contract", "compliance"],
+      "decision": "allow",
+      "reason": "Governance may delegate contract and compliance work to LEGAL."
+    },
+    {
+      "rule_id": "LEGAL_TO_GOV_UPWARD_REVIEW",
+      "from": ["LEGAL"],
+      "to": ["GOV"],
+      "activation_sources": ["manual", "context_router"],
+      "decision": "review",
+      "escalated_to": "TARGET_ROLE",
+      "reason": "Upward transitions into governance authority require human review."
+    }
+  ]
+}

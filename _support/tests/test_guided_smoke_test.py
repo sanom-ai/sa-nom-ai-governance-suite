@@ -15,7 +15,7 @@ def test_guided_smoke_test_bootstraps_first_run_and_defaults_to_ollama() -> None
         report = build_guided_smoke_test(config=config, registration_code='demo-org')
 
         assert report['passed'] is True
-        assert report['steps']['public_resources']['action'] == 'seeded'
+        assert report['steps']['public_resources']['action'] in {'seeded', 'existing'}
         assert report['steps']['owner_registration']['action'] == 'created'
         assert report['steps']['access_profiles']['action'] == 'created'
         assert report['steps']['trusted_registry']['action'] == 'refreshed'

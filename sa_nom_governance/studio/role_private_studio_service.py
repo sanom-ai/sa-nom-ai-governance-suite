@@ -1,21 +1,26 @@
 import json
 from copy import deepcopy
 from uuid import uuid4
-from pathlib import Path
 
 from sa_nom_governance.audit.audit_logger import AuditLogger
-from sa_nom_governance.utils.config import AppConfig
-from sa_nom_governance.utils.owner_identity import is_default_owner_alias
+from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
 from sa_nom_governance.ptag.pt_oss_engine import PTOSSEngine
-from sa_nom_governance.utils.registry import RoleRegistry
 from sa_nom_governance.studio.role_private_studio_diff import build_revision_delta
 from sa_nom_governance.studio.role_private_studio_generator import RolePrivateStudioGenerator
-from sa_nom_governance.studio.role_private_studio_models import PublishArtifact, ReviewDecision, RoleDraftRevision, RolePrivateStudioRequest, StructuredJD, utc_now
+from sa_nom_governance.studio.role_private_studio_models import (
+    PublishArtifact,
+    ReviewDecision,
+    RoleDraftRevision,
+    RolePrivateStudioRequest,
+    StructuredJD,
+    utc_now,
+)
 from sa_nom_governance.studio.role_private_studio_simulator import RolePrivateStudioSimulator
 from sa_nom_governance.studio.role_private_studio_store import RolePrivateStudioStore
 from sa_nom_governance.studio.role_private_studio_validator import RolePrivateStudioValidator
-from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
-
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.owner_identity import is_default_owner_alias
+from sa_nom_governance.utils.registry import RoleRegistry
 
 DEFAULT_TEMPLATE = {
     'template_name': 'SA-NOM Role Private Studio JD Template',
@@ -210,17 +215,27 @@ class RolePrivateStudioService:
         )
         self.validator = RolePrivateStudioValidator()
         self.simulator = RolePrivateStudioSimulator(config.trusted_registry_signing_key or 'role-private-studio-sim-key')
-        bundled_dir = Path(__file__).resolve().parents[2]
+        bundled_dir = config.bundled_resources_root
+        bundled_foundation_path = bundled_dir / 'pt_oss' / 'pt_oss_foundation.json'
+        bundled_template_path = bundled_dir / 'studio' / 'role_private_studio_templates.json'
+        bundled_examples_path = bundled_dir / 'studio' / 'role_private_studio_examples.json'
         foundation_path = config.pt_oss_foundation_path or (config.base_dir / 'resources' / 'pt_oss' / 'pt_oss_foundation.json')
         legacy_foundation_path = config.base_dir / 'pt_oss_foundation.json'
-        effective_foundation_path = foundation_path if foundation_path.exists() else legacy_foundation_path
-        self.pt_oss_engine = PTOSSEngine(effective_foundation_path if effective_foundation_path.exists() else bundled_dir / 'resources' / 'pt_oss' / 'pt_oss_foundation.json')
+        if foundation_path.exists():
+            effective_foundation_path = foundation_path
+        elif legacy_foundation_path.exists():
+            effective_foundation_path = legacy_foundation_path
+        else:
+            effective_foundation_path = bundled_foundation_path
+        self.pt_oss_engine = PTOSSEngine(effective_foundation_path)
         self.template_path = config.role_private_studio_template_path or (config.base_dir / 'resources' / 'studio' / 'role_private_studio_templates.json')
         self.examples_path = config.role_private_studio_examples_path or (config.base_dir / 'resources' / 'studio' / 'role_private_studio_examples.json')
         if not self.template_path.exists():
-            self.template_path = config.base_dir / 'role_private_studio_templates.json'
+            legacy_template_path = config.base_dir / 'role_private_studio_templates.json'
+            self.template_path = legacy_template_path if legacy_template_path.exists() else bundled_template_path
         if not self.examples_path.exists():
-            self.examples_path = config.base_dir / 'role_private_studio_examples.json'
+            legacy_examples_path = config.base_dir / 'role_private_studio_examples.json'
+            self.examples_path = legacy_examples_path if legacy_examples_path.exists() else bundled_examples_path
 
     def studio_snapshot(self, limit: int = 50) -> dict[str, object]:
         requests = [item.to_dict(compact=True) for item in self.store.list_requests()[:limit]]

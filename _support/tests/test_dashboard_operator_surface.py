@@ -16,6 +16,8 @@ def _base_config(temp_dir: str) -> AppConfig:
 
 def _seed_invalid_governance_materials(config: AppConfig) -> None:
     fixture_path = Path(__file__).resolve().parent / 'GOV.ptn'
+    for role_path in config.roles_dir.glob('*.ptn'):
+        role_path.unlink()
     copy2(fixture_path, config.roles_dir / 'GOV.ptn')
     copy2(fixture_path, config.roles_dir / 'BAD.ptn')
     assert config.trusted_registry_manifest_path is not None

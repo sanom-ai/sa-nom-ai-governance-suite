@@ -1,0 +1,61 @@
+language "PTAG"
+module "GOV_CORE"
+version "1.0.0"
+owner "Executive Owner"
+context "SA-NOM AI Director"
+
+role GOV {
+  title: "GovAI-1"
+  stratum: 0
+  reports_to: NONE
+  escalation_to: EXEC_OWNER
+  safety_owner: EXEC_OWNER
+  purpose: "Govern, approve, supervise, and stop the system when necessary."
+  business_domain: "governance"
+  handled_resources: [engine, role_card, audit]
+}
+
+authority GOV {
+  allow: approve_policy, suspend_role, emergency_stop, review_audit
+  deny: bypass_ethics
+  require human_override for approve_group_policy
+}
+
+constraint GOV_BOUNDARY {
+  forbid GOV to bypass_ethics
+  require human_override for approve_group_policy
+}
+
+policy GOV_REVIEW_AUDIT {
+  when action == review_audit
+  and risk_score <= 0.60
+  then approve
+  else escalate
+}
+
+policy GOV_APPROVE_POLICY {
+  when action == approve_policy
+  and requester == EXEC_OWNER
+  then approve
+  else wait_human
+}
+
+policy GOV_SUSPEND_ROLE {
+  when action == suspend_role
+  and resource == role_card
+  then wait_human
+  else escalate
+}
+
+policy GOV_EMERGENCY_STOP {
+  when action == emergency_stop
+  and resource == engine
+  and requester == EXEC_OWNER
+  then approve
+  else wait_human
+}
+
+policy GOV_GROUP_POLICY {
+  when action == approve_group_policy
+  then wait_human
+}

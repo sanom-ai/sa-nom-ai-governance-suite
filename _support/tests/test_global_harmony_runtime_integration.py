@@ -127,7 +127,9 @@ def test_runtime_bootstraps_global_harmony_outside_repo_root(tmp_path, monkeypat
 def test_app_config_defaults_alignment_resources_to_bundled_catalog(tmp_path: Path) -> None:
     config = AppConfig(base_dir=tmp_path, persist_runtime=False)
 
-    assert config.alignment_resources_dir == DEFAULT_ALIGNMENT_CATALOG_DIR
+    assert config.alignment_resources_dir == tmp_path / 'resources' / 'alignment'
+    assert config.alignment_resources_dir.exists()
+    assert (config.alignment_resources_dir / 'eu_transparency_constitution.json').exists()
     assert config.alignment_default_region == 'eu'
 
 

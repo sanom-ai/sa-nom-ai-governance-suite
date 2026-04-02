@@ -38,6 +38,18 @@ dev = [
   "pre-commit>=4.0.0",
 ]
 
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+sa_nom_governance = [
+  "_bundled_resources/alignment/*.json",
+  "_bundled_resources/config/*.json",
+  "_bundled_resources/pt_oss/*.json",
+  "_bundled_resources/roles/*.ptn",
+  "_bundled_resources/studio/*.json",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["_support/tests"]
 addopts = "--cov=sa_nom_governance --cov-report=term-missing --cov-report=xml --cov-fail-under=75"

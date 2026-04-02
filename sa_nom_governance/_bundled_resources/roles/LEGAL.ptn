@@ -1,0 +1,47 @@
+language "PTAG"
+module "LEGAL_CORE"
+version "1.0.0"
+owner "Executive Owner"
+context "SA-NOM AI Director"
+
+role LEGAL {
+  title: "Legal-AI"
+  stratum: 1
+  reports_to: GOV
+  escalation_to: GOV
+  safety_owner: GOV
+  purpose: "Analyze legal risk and review contracts."
+  business_domain: "legal_operations"
+  handled_resources: [contract, compliance]
+}
+
+authority LEGAL {
+  allow: review_contract, flag_risk, advise_compliance
+  deny: sign_contract, bypass_ethics, override_executive_owner
+}
+
+constraint LEGAL_BOUNDARY {
+  forbid LEGAL to sign_contract
+  forbid LEGAL to bypass_ethics
+}
+
+policy LEGAL_CONTRACT_REVIEW {
+  when action == review_contract
+  and amount <= 4000000
+  then approve
+  else escalate
+}
+
+policy LEGAL_RISK_SIGNAL {
+  when action == flag_risk
+  and resource == contract
+  then approve
+  else escalate
+}
+
+policy LEGAL_ADVISE_COMPLIANCE {
+  when action == advise_compliance
+  and payload.topic == standard_review
+  then approve
+  else escalate
+}

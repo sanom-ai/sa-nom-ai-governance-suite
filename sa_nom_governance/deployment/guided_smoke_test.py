@@ -10,7 +10,7 @@ from sa_nom_governance.deployment.private_server_smoke_test import run_smoke
 from sa_nom_governance.deployment.provider_demo_flow import build_provider_demo_flow
 from sa_nom_governance.deployment.runtime_performance_baseline import export_runtime_performance_baseline
 from sa_nom_governance.guards.bootstrap_access_profiles import build_profiles
-from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.config import AppConfig, bundled_resources_dir
 from sa_nom_governance.utils.owner_registration import (
     build_owner_registration,
     load_owner_registration,
@@ -18,7 +18,7 @@ from sa_nom_governance.utils.owner_registration import (
     write_owner_registration,
 )
 
-BUNDLED_RESOURCES_DIR = Path(__file__).resolve().parents[2] / 'resources'
+BUNDLED_RESOURCES_DIR = bundled_resources_dir()
 
 
 def utc_now() -> str:
