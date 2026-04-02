@@ -4733,7 +4733,17 @@ function sessionTable(rows) {
 
 function auditTable(rows) {
   if (!rows.length) return emptyState('No audit events available.');
-  return `<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Role Flow</th><th>Outcome</th><th>Activation & Escalation</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(titleCase(row.action || '-'))}</strong><div class="muted">${escapeHtml(row.request_id || row.metadata?.request_id || '-')}</div></td><td>${renderRoleFlowCell(row)}</td><td>${statusBadge(row.outcome)}</td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.reason || '-')}</div><div class="muted">${escapeHtml(row.requester || row.metadata?.requester || '-')}</div></td></tr>`).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Role Flow</th><th>Outcome</th><th>Activation & Escalation</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => {
+    const requestId = row.request_id || row.metadata?.request_id || row.metadata?.context?.request_id || row.metadata?.context?.metadata?.origin_request_id || '';
+    const focused = isFocusedEntity('request', requestId) || isFocusedEntity('override', requestId);
+    const caseReference = renderCaseReferenceButton(row.case_id, row.case_status, {
+      sourceView: 'audit',
+      referenceId: requestId || row.action || '',
+      contextLabel: 'audit event',
+      label: row.case_id,
+    });
+    return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('request', requestId))}" data-focus-alt-key="${escapeHtml(buildFocusKey('override', requestId))}"><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(titleCase(row.action || '-'))}</strong>${caseReference ? `<div class="table-case-reference">${caseReference}</div>` : ''}<div class="muted">${escapeHtml(requestId || '-')}</div></td><td>${renderRoleFlowCell(row)}</td><td>${statusBadge(row.outcome)}</td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.reason || '-')}</div><div class="muted">${escapeHtml(row.requester || row.metadata?.requester || '-')}</div></td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 function retentionTable(rows) {

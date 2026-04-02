@@ -98,6 +98,7 @@ class DashboardSnapshotBuilder:
             overrides=overrides,
             human_ask=human_ask,
             role_private_studio=role_private_studio,
+            audit_entries=audit_entries,
             cases=cases,
         )
         operator_notification_center = self.operator_notification_center(
@@ -948,6 +949,7 @@ class DashboardSnapshotBuilder:
         overrides: list[dict[str, object]],
         human_ask: dict[str, object],
         role_private_studio: dict[str, object],
+        audit_entries: list[dict[str, object]],
         cases: dict[str, object],
     ) -> None:
         case_items = cases.get('items', []) if isinstance(cases.get('items', []), list) else []
@@ -1015,6 +1017,27 @@ class DashboardSnapshotBuilder:
         for item in studio_requests:
             request_id = str(item.get('request_id', '') or '').strip()
             ref = studio_refs.get(request_id)
+            if ref:
+                item.update(ref)
+
+        for item in audit_entries:
+            metadata = item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}
+            context = metadata.get('context', {}) if isinstance(metadata.get('context', {}), dict) else {}
+            context_metadata = context.get('metadata', {}) if isinstance(context.get('metadata', {}), dict) else {}
+            runtime_evidence = metadata.get('runtime_evidence', {}) if isinstance(metadata.get('runtime_evidence', {}), dict) else {}
+            workflow_bundle = runtime_evidence.get('workflow_bundle_summary', {}) if isinstance(runtime_evidence.get('workflow_bundle_summary', {}), dict) else {}
+            execution_plan = context_metadata.get('execution_plan', {}) if isinstance(context_metadata.get('execution_plan', {}), dict) else {}
+            human_override = metadata.get('human_override', {}) if isinstance(metadata.get('human_override', {}), dict) else {}
+            request_id = str(item.get('request_id') or context.get('request_id') or metadata.get('request_id') or '').strip()
+            workflow_id = str(workflow_bundle.get('execution_plan_id') or execution_plan.get('plan_id') or metadata.get('workflow_id') or '').strip()
+            override_id = str(human_override.get('request_id', '') or '').strip()
+            studio_request_id = str(metadata.get('studio_request_id', '') or '').strip()
+            ref = (
+                request_refs.get(request_id)
+                or workflow_refs.get(workflow_id)
+                or override_refs.get(override_id)
+                or studio_refs.get(studio_request_id)
+            )
             if ref:
                 item.update(ref)
 

@@ -449,6 +449,15 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
         request_row = next(item for item in snapshot.get('requests', []) if item.get('request_id') == request_id)
         override_row = next(item for item in snapshot.get('overrides', []) if item.get('request_id') == override.request_id)
         session_row = next(item for item in snapshot.get('human_ask', {}).get('sessions', []) if item.get('session_id') == session['session_id'])
+        audit_row = next(
+            item
+            for item in snapshot.get('audit', [])
+            if (
+                item.get('request_id') == request_id
+                or (item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}).get('request_id') == request_id
+                or ((item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}).get('context', {}) if isinstance((item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}).get('context', {}), dict) else {}).get('request_id') == request_id
+            )
+        )
 
         assert case_summary.get('cases_total', 0) >= 1
         assert snapshot.get('summary', {}).get('cases_total', 0) >= 1
@@ -460,6 +469,7 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
         assert request_row.get('case_id') == linked_case.get('case_id')
         assert override_row.get('case_id') == linked_case.get('case_id')
         assert session_row.get('case_id') == linked_case.get('case_id')
+        assert audit_row.get('case_id') == linked_case.get('case_id')
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(timeline_types)
 
 def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
