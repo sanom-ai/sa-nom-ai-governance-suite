@@ -1,15 +1,14 @@
-from dataclasses import asdict
 from datetime import datetime, timezone
 from math import ceil
 from pathlib import Path
 
 from sa_nom_governance.api.api_engine import EngineApplication, build_engine_app
-from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.compliance.retention_manager import RetentionManager
 from sa_nom_governance.deployment.deployment_profile import build_deployment_report
 from sa_nom_governance.deployment.go_live_readiness import build_go_live_readiness
-from sa_nom_governance.utils.registry import RoleRegistry
-from sa_nom_governance.compliance.retention_manager import RetentionManager
 from sa_nom_governance.ptag.role_loader import RoleLoader
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.registry import RoleRegistry
 
 
 class DashboardSnapshotBuilder:
@@ -75,6 +74,10 @@ class DashboardSnapshotBuilder:
             operator_queue_health=operator_queue_health,
             operator_notification_center=operator_notification_center,
         )
+        runtime_health = self.runtime_health(roles=roles, go_live_readiness=go_live_readiness)
+        governance_materials = runtime_health.get('governance_materials', {}) if isinstance(runtime_health.get('governance_materials', {}), dict) else {}
+        role_library = runtime_health.get('role_library', {}) if isinstance(runtime_health.get('role_library', {}), dict) else {}
+        role_hierarchy = runtime_health.get('role_hierarchy', {}) if isinstance(runtime_health.get('role_hierarchy', {}), dict) else {}
 
         conflicts = [request for request in requests if request['outcome'] == 'conflicted']
         escalated = [request for request in requests if request['outcome'] in {'escalated', 'waiting_human'}]
@@ -140,6 +143,9 @@ class DashboardSnapshotBuilder:
                 'operator_notification_channels_total': int(operator_notification_center.get('active_channel_total', 0) or 0),
                 'operator_notification_posture': str(operator_notification_delivery_readiness.get('posture', 'unknown')),
                 'operator_notification_external_ready': bool(operator_notification_delivery_readiness.get('external_routing_ready', False)),
+                'governance_materials_status': str(governance_materials.get('status', 'unknown')),
+                'invalid_roles_total': int(role_library.get('roles_invalid_total', 0) or 0),
+                'invalid_hierarchy_entries_total': int(role_hierarchy.get('invalid_entries_total', 0) or 0),
             },
             'requests': requests[:50],
             'overrides': overrides[:50],
@@ -165,7 +171,7 @@ class DashboardSnapshotBuilder:
             'first_run_readiness': first_run_readiness,
             'operator_decision_lanes': operator_decision_lanes,
             'runtime_alerts': runtime_alerts,
-            'runtime_health': self.runtime_health(roles=roles, go_live_readiness=go_live_readiness),
+            'runtime_health': runtime_health,
         }
 
 
@@ -645,7 +651,9 @@ class DashboardSnapshotBuilder:
             'role_private_studio': app_health.get('role_private_studio', {}),
             'human_ask': app_health.get('human_ask', {}),
             'runtime_backups': app_health.get('runtime_backups', {}),
+            'role_library': app_health.get('role_library', {}),
             'role_hierarchy': app_health.get('role_hierarchy', {}),
+            'governance_materials': app_health.get('governance_materials', {}),
             'role_transition_policy': app_health.get('role_transition_policy', {}),
             'persistence_layer': app_health.get('persistence_layer', {}),
             'compliance_frameworks': app_health.get('compliance_frameworks', {}),

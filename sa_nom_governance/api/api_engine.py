@@ -1,20 +1,20 @@
 from dataclasses import asdict
 
-from sa_nom_governance.guards.access_control import AccessControl
 from sa_nom_governance.audit.auditor_evidence_pack import AuditorEvidencePackBuilder
 from sa_nom_governance.compliance.compliance_registry import ComplianceFrameworkRegistry
-from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.compliance.retention_manager import RetentionManager
 from sa_nom_governance.core.core_engine import CoreEngine
 from sa_nom_governance.deployment.go_live_readiness import build_go_live_readiness
+from sa_nom_governance.deployment.runtime_backup_manager import RuntimeBackupManager
+from sa_nom_governance.guards.access_control import AccessControl
 from sa_nom_governance.human_ask.human_ask_service import HumanAskService
 from sa_nom_governance.integrations.integration_registry import IntegrationRegistry
 from sa_nom_governance.integrations.model_provider_registry import ModelProviderRegistry
-from sa_nom_governance.utils.registry import RoleRegistry
-from sa_nom_governance.compliance.retention_manager import RetentionManager
+from sa_nom_governance.integrations.webhook_dispatcher import WebhookDispatcher
 from sa_nom_governance.ptag.role_loader import RoleLoader
 from sa_nom_governance.studio.role_private_studio_service import RolePrivateStudioService
-from sa_nom_governance.deployment.runtime_backup_manager import RuntimeBackupManager
-from sa_nom_governance.integrations.webhook_dispatcher import WebhookDispatcher
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.registry import RoleRegistry
 
 
 class EngineApplication:
@@ -57,12 +57,21 @@ class EngineApplication:
         human_ask_summary = self.human_ask.human_ask_snapshot(limit=20).get('summary', {})
         backup_summary = self.backup_manager.summary()
         known_roles = roles if roles is not None else self.list_roles()
-        hierarchy_entries = [entry.to_dict() for entry in self.engine.hierarchy_registry.list_entries()]
-        hierarchy_summary = {
-            'roles_total': len(hierarchy_entries),
-            'root_roles': sorted(entry['role_id'] for entry in hierarchy_entries if entry.get('reports_to') in (None, 'NONE')),
-            'safety_owners': sorted({entry.get('safety_owner') for entry in hierarchy_entries if entry.get('safety_owner')}),
-            'max_stratum': max((int(entry.get('stratum', 0)) for entry in hierarchy_entries), default=0),
+        invalid_roles = [role for role in known_roles if role.get('status') == 'invalid']
+        hierarchy_summary = self.engine.hierarchy_registry.health()
+        governance_materials = {
+            'status': 'degraded' if invalid_roles or int(hierarchy_summary.get('invalid_entries_total', 0) or 0) > 0 else 'ready',
+            'invalid_roles_total': len(invalid_roles),
+            'invalid_roles': [
+                {
+                    'role_id': role.get('role_id'),
+                    'title': role.get('title'),
+                    'load_error': role.get('load_error', {}),
+                }
+                for role in invalid_roles
+            ],
+            'invalid_hierarchy_entries_total': int(hierarchy_summary.get('invalid_entries_total', 0) or 0),
+            'invalid_hierarchy_entries': hierarchy_summary.get('invalid_entries', []),
         }
         store_descriptors = {
             'audit': self.engine.audit_logger.ledger.descriptor().to_dict(),
@@ -103,7 +112,11 @@ class EngineApplication:
         }
 
         status = 'ok'
-        if not trusted_registry_health.get('signature_trusted', False) or audit_integrity.get('status') == 'broken':
+        if (
+            not trusted_registry_health.get('signature_trusted', False)
+            or audit_integrity.get('status') == 'broken'
+            or governance_materials.get('status') == 'degraded'
+        ):
             status = 'degraded'
 
         return {
@@ -116,6 +129,7 @@ class EngineApplication:
             'human_ask': human_ask_summary,
             'runtime_backups': backup_summary,
             'role_hierarchy': hierarchy_summary,
+            'governance_materials': governance_materials,
             'role_transition_policy': self.engine.role_transition_policy.health(),
             'persistence_layer': persistence_summary,
             'integration_registry': self.integration_registry.health(),
@@ -126,7 +140,10 @@ class EngineApplication:
             'runtime_recovery': self.engine.runtime_recovery_store.summary(),
             'role_library': {
                 'roles_total': len(known_roles),
+                'roles_ready_total': sum(1 for role in known_roles if role.get('status') != 'invalid'),
+                'roles_invalid_total': len(invalid_roles),
                 'trusted_verified': sum(1 for role in known_roles if role.get('trusted_manifest_signature_status') == 'verified'),
+                'invalid_roles': governance_materials.get('invalid_roles', []),
             },
         }
 
@@ -369,6 +386,92 @@ class EngineApplication:
         )
         return result
 
+    @staticmethod
+    def _role_load_error(
+        role_id: str,
+        path: object,
+        *,
+        stage: str,
+        exc: Exception | None = None,
+        message: str | None = None,
+    ) -> dict[str, object]:
+        detail = message or (str(exc) if exc is not None else f'Role {role_id} could not be loaded.')
+        error_type = type(exc).__name__ if exc is not None else 'GovernanceMaterialError'
+        return {
+            'role_id': role_id,
+            'source_path': str(path),
+            'stage': stage,
+            'error_type': error_type,
+            'message': detail,
+        }
+
+    def _invalid_role_record(
+        self,
+        role_id: str,
+        path: object,
+        *,
+        stage: str,
+        exc: Exception | None = None,
+        message: str | None = None,
+        validation_issues: list[object] | None = None,
+        headers: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        role_error = self._role_load_error(role_id, path, stage=stage, exc=exc, message=message)
+        header_values = headers or {}
+        return {
+            'role_id': role_id,
+            'title': role_id,
+            'purpose': '',
+            'stratum': None,
+            'reports_to': None,
+            'escalation_to': None,
+            'safety_owner': None,
+            'business_domain': None,
+            'handled_resources': [],
+            'allow': [],
+            'deny': [],
+            'requires': {},
+            'validation_issues': [asdict(issue) for issue in (validation_issues or [])],
+            'policies': [],
+            'constraints': [],
+            'trusted_source_origin': header_values.get('trusted_source_origin', 'unavailable'),
+            'trusted_sha256': header_values.get('trusted_sha256'),
+            'trusted_manifest_signature_status': header_values.get('trusted_manifest_signature_status') or 'error',
+            'trusted_manifest_key_id': header_values.get('trusted_manifest_key_id'),
+            'status': 'invalid',
+            'source_path': str(path),
+            'load_error': role_error,
+        }
+
+    @staticmethod
+    def _compiled_role_record(role_id: str, path: object, document) -> dict[str, object]:
+        role = document.roles.get(role_id)
+        authority = document.authorities.get(role_id)
+        return {
+            'role_id': role_id,
+            'title': role.fields.get('title') if role else role_id,
+            'purpose': role.fields.get('purpose') if role else '',
+            'stratum': role.fields.get('stratum') if role else None,
+            'reports_to': role.fields.get('reports_to') if role else None,
+            'escalation_to': role.fields.get('escalation_to') if role else None,
+            'safety_owner': role.fields.get('safety_owner') if role else None,
+            'business_domain': role.fields.get('business_domain') if role else None,
+            'handled_resources': role.fields.get('handled_resources') if role else [],
+            'allow': sorted(authority.allow) if authority else [],
+            'deny': sorted(authority.deny) if authority else [],
+            'requires': authority.require if authority else {},
+            'validation_issues': [asdict(issue) for issue in document.validation_issues],
+            'policies': sorted(document.policies.keys()),
+            'constraints': sorted(document.constraints.keys()),
+            'trusted_source_origin': document.headers.get('trusted_source_origin', 'unknown'),
+            'trusted_sha256': document.headers.get('trusted_sha256'),
+            'trusted_manifest_signature_status': document.headers.get('trusted_manifest_signature_status'),
+            'trusted_manifest_key_id': document.headers.get('trusted_manifest_key_id'),
+            'status': 'ready',
+            'source_path': str(path),
+            'load_error': None,
+        }
+
     def list_roles(self) -> list[dict[str, object]]:
         roles: list[dict[str, object]] = []
         for path in sorted(self.registry.roles_dir.glob('*.ptn')):
@@ -377,33 +480,24 @@ class EngineApplication:
                 continue
             try:
                 document = self.loader.load(role_id)
-            except Exception:
+            except Exception as exc:
+                roles.append(self._invalid_role_record(role_id, path, stage='load', exc=exc))
                 continue
             role = document.roles.get(role_id)
             authority = document.authorities.get(role_id)
-            roles.append(
-                {
-                    'role_id': role_id,
-                    'title': role.fields.get('title') if role else role_id,
-                    'purpose': role.fields.get('purpose') if role else '',
-                    'stratum': role.fields.get('stratum') if role else None,
-                    'reports_to': role.fields.get('reports_to') if role else None,
-                    'escalation_to': role.fields.get('escalation_to') if role else None,
-                    'safety_owner': role.fields.get('safety_owner') if role else None,
-                    'business_domain': role.fields.get('business_domain') if role else None,
-                    'handled_resources': role.fields.get('handled_resources') if role else [],
-                    'allow': sorted(authority.allow) if authority else [],
-                    'deny': sorted(authority.deny) if authority else [],
-                    'requires': authority.require if authority else {},
-                    'validation_issues': [asdict(issue) for issue in document.validation_issues],
-                    'policies': sorted(document.policies.keys()),
-                    'constraints': sorted(document.constraints.keys()),
-                    'trusted_source_origin': document.headers.get('trusted_source_origin', 'unknown'),
-                    'trusted_sha256': document.headers.get('trusted_sha256'),
-                    'trusted_manifest_signature_status': document.headers.get('trusted_manifest_signature_status'),
-                    'trusted_manifest_key_id': document.headers.get('trusted_manifest_key_id'),
-                }
-            )
+            if role is None or authority is None:
+                roles.append(
+                    self._invalid_role_record(
+                        role_id,
+                        path,
+                        stage='semantic',
+                        message=f'Role {role_id} is missing a compiled role or authority block.',
+                        validation_issues=document.validation_issues,
+                        headers=document.headers,
+                    )
+                )
+                continue
+            roles.append(self._compiled_role_record(role_id, path, document))
         return roles
 
     def audit_integrity(self) -> dict[str, object]:

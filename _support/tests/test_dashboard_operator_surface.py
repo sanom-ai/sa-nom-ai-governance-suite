@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from shutil import copy2
 from tempfile import TemporaryDirectory
 
+from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
 from sa_nom_governance.core.execution_context import ExecutionContext
 from sa_nom_governance.dashboard.dashboard_data import DashboardSnapshotBuilder
 from sa_nom_governance.utils.config import AppConfig
@@ -9,6 +11,22 @@ from sa_nom_governance.utils.config import AppConfig
 
 def _base_config(temp_dir: str) -> AppConfig:
     return AppConfig(base_dir=Path(temp_dir), persist_runtime=True, environment='development')
+
+
+def _seed_invalid_governance_materials(config: AppConfig) -> None:
+    fixture_path = Path(__file__).resolve().parent / 'GOV.ptn'
+    copy2(fixture_path, config.roles_dir / 'GOV.ptn')
+    copy2(fixture_path, config.roles_dir / 'BAD.ptn')
+    assert config.trusted_registry_manifest_path is not None
+    assert config.trusted_registry_cache_path is not None
+    write_trusted_registry_files(
+        roles_dir=config.roles_dir,
+        manifest_path=config.trusted_registry_manifest_path,
+        cache_path=config.trusted_registry_cache_path,
+        role_ids=['GOV'],
+        signing_key=config.trusted_registry_signing_key or 'sanom-dev-registry-key',
+        key_id=config.trusted_registry_key_id,
+    )
 
 
 def test_dashboard_snapshot_includes_operational_readiness_summary() -> None:
@@ -95,7 +113,6 @@ def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
         snapshot = DashboardSnapshotBuilder(config=config).build()
         operations = snapshot.get('operations', {})
         proof = operations.get('usability_proof', {}) if isinstance(operations, dict) else {}
-        doctor = operations.get('quick_start_doctor', {}) if isinstance(operations, dict) else {}
         summary = snapshot.get('summary', {})
 
         assert proof.get('status') == 'ready'
@@ -176,3 +193,51 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         assert pending_notification.get('dispatch_ready') is True
         assert pending_notification.get('channels') == ['dashboard', 'email']
         assert any(alert.get('alert_id') == 'operator_queue_pending_overrides' for alert in runtime_alerts)
+
+
+def test_engine_health_surfaces_invalid_governance_materials() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        _seed_invalid_governance_materials(config)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        roles = builder.app.list_roles()
+        invalid_role = next(role for role in roles if role.get('role_id') == 'BAD')
+        health = builder.app.health()
+        invalid_hierarchy = next(item for item in health.get('role_hierarchy', {}).get('invalid_entries', []) if item.get('role_id') == 'BAD')
+        invalid_role_health = next(item for item in health.get('role_library', {}).get('invalid_roles', []) if item.get('role_id') == 'BAD')
+
+        assert invalid_role.get('status') == 'invalid'
+        assert invalid_role.get('load_error', {}).get('stage') == 'load'
+        assert invalid_role.get('load_error', {}).get('error_type') == 'TrustedRegistryError'
+        assert health.get('status') == 'degraded'
+        assert health.get('governance_materials', {}).get('status') == 'degraded'
+        assert health.get('role_library', {}).get('roles_total') == 2
+        assert health.get('role_library', {}).get('roles_ready_total') == 1
+        assert health.get('role_library', {}).get('roles_invalid_total') == 1
+        assert invalid_role_health.get('load_error', {}).get('stage') == 'load'
+        assert health.get('role_hierarchy', {}).get('roles_total') == 1
+        assert health.get('role_hierarchy', {}).get('invalid_entries_total') == 1
+        assert invalid_hierarchy.get('error_type') == 'TrustedRegistryError'
+
+
+def test_dashboard_snapshot_exposes_invalid_governance_material_counts() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        _seed_invalid_governance_materials(config)
+        snapshot = DashboardSnapshotBuilder(config=config).build()
+
+        summary = snapshot.get('summary', {})
+        runtime_health = snapshot.get('runtime_health', {})
+        role_library = runtime_health.get('role_library', {}) if isinstance(runtime_health.get('role_library', {}), dict) else {}
+        governance_materials = runtime_health.get('governance_materials', {}) if isinstance(runtime_health.get('governance_materials', {}), dict) else {}
+        invalid_role = next(role for role in snapshot.get('roles', []) if role.get('role_id') == 'BAD')
+
+        assert runtime_health.get('engine_status') == 'degraded'
+        assert governance_materials.get('status') == 'degraded'
+        assert role_library.get('roles_invalid_total') == 1
+        assert summary.get('governance_materials_status') == 'degraded'
+        assert summary.get('invalid_roles_total') == 1
+        assert summary.get('invalid_hierarchy_entries_total') == 1
+        assert invalid_role.get('status') == 'invalid'
+        assert invalid_role.get('load_error', {}).get('stage') == 'load'
