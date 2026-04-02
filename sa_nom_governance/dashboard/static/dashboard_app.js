@@ -189,6 +189,7 @@ const VIEW_PERMISSIONS = {
 const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-dev-lane]',
   '[data-view-jump]',
+  '[data-case-scope-clear]',
   '[data-path-action]',
   '[data-studio-clear]',
   '[data-override-action]',
@@ -460,6 +461,17 @@ root.addEventListener('click', async (event) => {
     });
     state.view = targetView;
     updateNav();
+    render();
+    scrollDashboardToTop();
+    return;
+  }
+
+  const clearCaseScopeButton = event.target.closest('[data-case-scope-clear]');
+  if (clearCaseScopeButton) {
+    if (state.actionContext) {
+      state.actionContext.caseId = '';
+    }
+    state.lastError = `Showing the full ${VIEW_TITLES[state.view] || titleCase(state.view)} lane again.`;
     render();
     scrollDashboardToTop();
     return;
@@ -1202,19 +1214,20 @@ function render() {
     return;
   }
 
+  const scopedSnapshot = getCaseScopedSnapshot(snapshot);
   let viewContent = '';
   if (state.view === 'overview') viewContent = renderOverview(snapshot);
-  if (state.view === 'requests') viewContent = renderRequests(snapshot);
+  if (state.view === 'requests') viewContent = renderRequests(scopedSnapshot);
   if (state.view === 'cases') viewContent = renderCases(snapshot);
-  if (state.view === 'overrides') viewContent = renderOverridesView(snapshot);
-  if (state.view === 'conflicts') viewContent = renderConflicts(snapshot);
-  if (state.view === 'audit') viewContent = renderAudit(snapshot);
+  if (state.view === 'overrides') viewContent = renderOverridesView(scopedSnapshot);
+  if (state.view === 'conflicts') viewContent = renderConflicts(scopedSnapshot);
+  if (state.view === 'audit') viewContent = renderAudit(scopedSnapshot);
   if (state.view === 'studio') {
-    viewContent = renderStudio(snapshot.role_private_studio || { summary: {}, requests: [], examples: [] });
+    viewContent = renderStudio(scopedSnapshot.role_private_studio || { summary: {}, requests: [], examples: [] });
     if (state.studioEditorDraft) fillStudioForm(state.studioEditorDraft);
   }
   if (state.view === 'human_ask') viewContent = renderHumanAsk(
-    snapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
+    scopedSnapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
     {
       can,
       helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity, renderCaseReferenceButton },
@@ -1952,6 +1965,10 @@ function getActionContextCaseId() {
   return '';
 }
 
+function isCaseScopedView(view = state.view) {
+  return ['requests', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask'].includes(String(view || '').trim());
+}
+
 function getCaseById(snapshot, caseId = '') {
   const normalizedCaseId = String(caseId || '').trim();
   if (!normalizedCaseId) return null;
@@ -1959,8 +1976,59 @@ function getCaseById(snapshot, caseId = '') {
   return items.find((item) => String(item.case_id || '').trim() === normalizedCaseId) || null;
 }
 
+function filterRowsByCase(rows, caseId = '') {
+  const normalizedCaseId = String(caseId || '').trim();
+  if (!normalizedCaseId || !Array.isArray(rows)) return Array.isArray(rows) ? rows : [];
+  return rows.filter((row) => String(row?.case_id || '').trim() === normalizedCaseId);
+}
+
+function getCurrentViewCaseLinkedTotal(item) {
+  if (!item || typeof item !== 'object') return 0;
+  if (state.view === 'requests') return Array.isArray(item.linked_request_ids) ? item.linked_request_ids.length : 0;
+  if (state.view === 'overrides') return Array.isArray(item.linked_override_ids) ? item.linked_override_ids.length : 0;
+  if (state.view === 'conflicts') return Array.isArray(item.linked_request_ids) ? item.linked_request_ids.length : 0;
+  if (state.view === 'audit') return Number(item.audit_event_total || 0);
+  if (state.view === 'studio') return Array.isArray(item.linked_studio_request_ids) ? item.linked_studio_request_ids.length : 0;
+  if (state.view === 'human_ask') return Array.isArray(item.linked_session_ids) ? item.linked_session_ids.length : 0;
+  return 0;
+}
+
+function getCaseScopedSnapshot(snapshot) {
+  const caseId = getActionContextCaseId();
+  if (!caseId || !isCaseScopedView(state.view)) return snapshot;
+  const item = getCaseById(snapshot, caseId);
+  if (!item) return snapshot;
+  const requestIds = new Set(Array.isArray(item.linked_request_ids) ? item.linked_request_ids.map((value) => String(value)) : []);
+  const overrideIds = new Set(Array.isArray(item.linked_override_ids) ? item.linked_override_ids.map((value) => String(value)) : []);
+  const scopedLocks = Array.isArray(snapshot.locks)
+    ? snapshot.locks.filter((row) => {
+        const ownerRequestId = String(row?.owner_request_id || row?.request_id || '').trim();
+        return ownerRequestId ? (requestIds.has(ownerRequestId) || overrideIds.has(ownerRequestId)) : false;
+      })
+    : [];
+  return {
+    ...snapshot,
+    requests: filterRowsByCase(snapshot.requests || [], caseId),
+    overrides: filterRowsByCase(snapshot.overrides || [], caseId),
+    audit: filterRowsByCase(snapshot.audit || [], caseId),
+    locks: scopedLocks,
+    human_ask: snapshot.human_ask
+      ? {
+          ...snapshot.human_ask,
+          sessions: filterRowsByCase(snapshot.human_ask.sessions || [], caseId),
+        }
+      : snapshot.human_ask,
+    role_private_studio: snapshot.role_private_studio
+      ? {
+          ...snapshot.role_private_studio,
+          requests: filterRowsByCase(snapshot.role_private_studio.requests || [], caseId),
+        }
+      : snapshot.role_private_studio,
+  };
+}
+
 function renderCaseSpotlight(snapshot) {
-  if (state.view === 'cases') return '';
+  if (!isCaseScopedView(state.view)) return '';
   const caseId = getActionContextCaseId();
   if (!caseId) return '';
   const item = getCaseById(snapshot, caseId);
@@ -1968,6 +2036,8 @@ function renderCaseSpotlight(snapshot) {
   const continuity = item.continuity || {};
   const primaryView = item.primary_view || continuity.next_view || 'requests';
   const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView || 'overview');
+  const currentViewLabel = VIEW_TITLES[state.view] || titleCase(state.view || 'overview');
+  const currentViewLinkedTotal = getCurrentViewCaseLinkedTotal(item);
   const primaryFocus = resolveCasePrimaryFocus(item, primaryView);
   const proofLabel = item.workflow_proof_total > 0
     ? 'workflow proof attached'
@@ -1980,11 +2050,12 @@ function renderCaseSpotlight(snapshot) {
         <div>
           <div class="eyebrow muted">Case in motion</div>
           <h3 class="card-title">${escapeHtml(item.case_id || 'Governed case')}</h3>
-          <p class="card-subtitle">${escapeHtml(continuity.next_detail || 'This lane is still working inside one governed issue. Keep the next action tied to the same case so context, proof, and approvals stay connected.')}</p>
+          <p class="card-subtitle">${escapeHtml(`The work ledger below is filtered to this case inside ${currentViewLabel}. ${continuity.next_detail || 'Keep the next action tied to the same governed issue so context, proof, and approvals stay connected.'}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.status || 'monitoring')}${statusBadge(proofLabel)}</div>
       </div>
       ${keyValue([
+        ['Current lane', `${currentViewLabel} | ${String(currentViewLinkedTotal)} linked items`],
         ['Primary lane', primaryViewLabel],
         ['Next move', continuity.next_label || 'Continue governed work'],
         ['Audit events', String(item.audit_event_total || 0)],
@@ -2009,6 +2080,7 @@ function renderCaseSpotlight(snapshot) {
           detail: 'Return to the canonical case lane when you need the full linked work, timeline, and proof story again.',
           actionLabel: 'Open Cases',
         })}>Open Cases</button>
+        <button class="action-button action-button-muted" type="button" data-case-scope-clear="true">Show full ${escapeHtml(currentViewLabel)}</button>
       </div>
     </section>
   `;
