@@ -1,10 +1,10 @@
-[build-system]
+﻿[build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sa-nom-ai-governance-suite"
-version = "0.7.0"
+version = "0.7.1"
 description = "Open-core governance and orchestration toolkit for structured AI operations on private infrastructure."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -86,4 +86,5 @@ files = [
   "sa_nom_governance/core/decision_engine.py",
   "sa_nom_governance/core/request_consistency.py",
 ]
+
 
