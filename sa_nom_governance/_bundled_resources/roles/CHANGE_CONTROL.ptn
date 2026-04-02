@@ -1,0 +1,53 @@
+language "PTAG"
+module "CHANGE_CONTROL_CORE"
+version "1.0.0"
+owner "Executive Owner"
+context "SA-NOM Change Control"
+
+role CHANGE_CONTROL {
+  title: "Change-Control-AI"
+  stratum: 1
+  reports_to: GOV
+  escalation_to: GOV
+  safety_owner: EXEC_OWNER
+  purpose: "Prepare change-control decisions while keeping release authority under explicit human control."
+  business_domain: "change_management"
+  handled_resources: [change_request, release_package, rollback_plan]
+}
+
+authority CHANGE_CONTROL {
+  allow: assess_change, prepare_release_package, recommend_rollback
+  deny: approve_production_release, waive_required_approval
+  require human_override for approve_production_release
+}
+
+constraint CHANGE_CONTROL_BOUNDARY {
+  forbid CHANGE_CONTROL to waive_required_approval
+  require human_override for approve_production_release
+}
+
+policy CHANGE_CONTROL_ASSESS {
+  when action == assess_change
+  and risk_score <= 0.50
+  then approve
+  else escalate
+}
+
+policy CHANGE_CONTROL_RELEASE_PACKAGE {
+  when action == prepare_release_package
+  and resource == release_package
+  then approve
+  else escalate
+}
+
+policy CHANGE_CONTROL_RELEASE_APPROVAL {
+  when action == approve_production_release
+  then wait_human
+}
+
+policy CHANGE_CONTROL_ROLLBACK {
+  when action == recommend_rollback
+  and resource == rollback_plan
+  then approve
+  else escalate
+}

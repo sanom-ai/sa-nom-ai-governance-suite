@@ -1,0 +1,64 @@
+[
+  {
+    "target_id": "executive-ledger",
+    "name": "Executive Integration Ledger",
+    "category": "internal",
+    "kind": "webhook",
+    "status": "active",
+    "delivery_mode": "log_only",
+    "endpoint_url": "log://executive-ledger",
+    "subscribed_events": [
+      "runtime.*",
+      "role_private_studio.*",
+      "governance.*"
+    ],
+    "headers": {},
+    "description": "Default log-only outbound ledger for enterprise integration events.",
+    "verify_tls": true,
+    "timeout_seconds": 5,
+    "max_attempts": 1,
+    "retry_backoff_ms": 0,
+    "signing_policy": "none"
+  },
+  {
+    "target_id": "siem-bridge",
+    "name": "SIEM Bridge",
+    "category": "siem",
+    "kind": "webhook",
+    "status": "disabled",
+    "delivery_mode": "http",
+    "endpoint_url": "https://siem.example.local/intake",
+    "subscribed_events": [
+      "runtime.request.completed",
+      "runtime.override.reviewed",
+      "governance.evidence.exported"
+    ],
+    "headers": {},
+    "description": "Example outbound target for SIEM export.",
+    "verify_tls": true,
+    "timeout_seconds": 5,
+    "max_attempts": 3,
+    "retry_backoff_ms": 250,
+    "signing_policy": "hmac_sha256"
+  },
+  {
+    "target_id": "service-desk",
+    "name": "Service Desk Bridge",
+    "category": "ticketing",
+    "kind": "webhook",
+    "status": "disabled",
+    "delivery_mode": "http",
+    "endpoint_url": "https://tickets.example.local/webhook",
+    "subscribed_events": [
+      "role_private_studio.request.reviewed",
+      "role_private_studio.request.published"
+    ],
+    "headers": {},
+    "description": "Example outbound target for Jira or ServiceNow workflows.",
+    "verify_tls": true,
+    "timeout_seconds": 5,
+    "max_attempts": 3,
+    "retry_backoff_ms": 250,
+    "signing_policy": "hmac_sha256"
+  }
+]

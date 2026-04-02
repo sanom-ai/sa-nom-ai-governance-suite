@@ -1,15 +1,14 @@
-from dataclasses import asdict
 from datetime import datetime, timezone
 from math import ceil
 from pathlib import Path
 
 from sa_nom_governance.api.api_engine import EngineApplication, build_engine_app
-from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.compliance.retention_manager import RetentionManager
 from sa_nom_governance.deployment.deployment_profile import build_deployment_report
 from sa_nom_governance.deployment.go_live_readiness import build_go_live_readiness
-from sa_nom_governance.utils.registry import RoleRegistry
-from sa_nom_governance.compliance.retention_manager import RetentionManager
 from sa_nom_governance.ptag.role_loader import RoleLoader
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.registry import RoleRegistry
 
 
 class DashboardSnapshotBuilder:
@@ -26,15 +25,35 @@ class DashboardSnapshotBuilder:
         overrides = self.list_overrides()
         locks = self.list_locks()
         requests = self.list_requests(audit_entries=audit_entries, limit=200)
-        roles = self.list_roles()
+        raw_roles = self.app.list_roles()
+        access_control_health = self.access_control.health()
+        evidence_summary = self.app.evidence_pack_summary()
+        app_health = self.app.health(
+            roles=raw_roles,
+            access_control_health=access_control_health,
+            evidence_summary=evidence_summary,
+        )
+        compliance = self.compliance_snapshot(
+            roles=raw_roles,
+            runtime_health=app_health,
+            access_control_health=access_control_health,
+            evidence_summary=evidence_summary,
+        )
+        roles = self.list_roles(roles=raw_roles, compliance_snapshot=compliance)
         sessions = self.list_sessions()
         retention = self.retention_report()
         retention_plan = self.retention_plan()
         role_private_studio = self.role_private_studio()
         human_ask = self.human_ask()
         owner_registration = self.owner_registration()
-        go_live_readiness = self.go_live_readiness()
-        operational_readiness = self.app.operational_readiness(limit=50)
+        deployment_profile = build_deployment_report(self.config).to_dict()
+        go_live_readiness = self.go_live_readiness(
+            app_health=app_health,
+            access_control_health=access_control_health,
+            studio_snapshot=role_private_studio,
+            deployment_report=deployment_profile,
+        )
+        operational_readiness = self.app.operational_readiness(limit=50, health=app_health)
         operator_decision_lanes = self.build_operator_decision_lanes(operational_readiness)
         operations = self.operations()
         first_run_readiness = self.first_run_readiness(
@@ -48,10 +67,9 @@ class DashboardSnapshotBuilder:
             go_live_readiness=go_live_readiness,
             operations=operations,
         )
-        compliance = self.compliance_snapshot()
-        evidence_exports = self.evidence_exports()
+        evidence_exports = self.evidence_exports(summary=evidence_summary)
         integrations = self.integrations()
-        model_providers = self.model_providers()
+        model_providers = self.model_providers(health=app_health.get('model_providers', {}))
         operator_alert_policy = self.config.operator_alert_policy()
         operator_queue_health = self.operator_queue_health(
             overrides=overrides,
@@ -75,6 +93,17 @@ class DashboardSnapshotBuilder:
             operator_queue_health=operator_queue_health,
             operator_notification_center=operator_notification_center,
         )
+        runtime_health = self.runtime_health(
+            roles=roles,
+            go_live_readiness=go_live_readiness,
+            owner_registration=owner_registration,
+            app_health=app_health,
+            access_control_health=access_control_health,
+            deployment_profile=deployment_profile,
+        )
+        governance_materials = runtime_health.get('governance_materials', {}) if isinstance(runtime_health.get('governance_materials', {}), dict) else {}
+        role_library = runtime_health.get('role_library', {}) if isinstance(runtime_health.get('role_library', {}), dict) else {}
+        role_hierarchy = runtime_health.get('role_hierarchy', {}) if isinstance(runtime_health.get('role_hierarchy', {}), dict) else {}
 
         conflicts = [request for request in requests if request['outcome'] == 'conflicted']
         escalated = [request for request in requests if request['outcome'] in {'escalated', 'waiting_human'}]
@@ -84,7 +113,7 @@ class DashboardSnapshotBuilder:
             'generated_at': self._utc_now(),
             'product': 'SA-NOM AI Governance Suite',
             'environment': self.config.environment,
-            'owner_registration': self.owner_registration(),
+            'owner_registration': owner_registration,
             'summary': {
                 'requests_total': len(requests),
                 'pending_overrides': len(pending_overrides),
@@ -109,6 +138,11 @@ class DashboardSnapshotBuilder:
                 'human_inbox_open_total': operational_readiness.get('human_inbox', {}).get('open_total', 0),
                 'recovery_pending_total': operational_readiness.get('runtime_recovery', {}).get('pending_total', 0),
                 'dead_letter_total': operational_readiness.get('runtime_recovery', {}).get('dead_letter_total', 0),
+                'governed_autonomy_status': str(operational_readiness.get('governed_autonomy', {}).get('status', 'unknown')),
+                'governed_autonomy_action': str(operational_readiness.get('governed_autonomy', {}).get('recommended_runtime_action', 'none')),
+                'autonomous_inflight_total': int(operational_readiness.get('governed_autonomy', {}).get('autonomous_inflight_total', 0) or 0),
+                'human_gate_open_total': int(operational_readiness.get('governed_autonomy', {}).get('human_gate_open_total', 0) or 0),
+                'fail_closed_workflow_total': int(operational_readiness.get('governed_autonomy', {}).get('fail_closed_total', 0) or 0),
                 'operator_human_required_total': sum(
                     1 for lane in operator_decision_lanes if lane.get('disposition') == 'human_required'
                 ),
@@ -122,6 +156,8 @@ class DashboardSnapshotBuilder:
                 'usability_proof_criteria_passed_total': int(operations.get('usability_proof', {}).get('criteria_passed_total', 0) or 0),
                 'usability_proof_criteria_failed_total': int(operations.get('usability_proof', {}).get('criteria_failed_total', 0) or 0),
                 'quick_start_doctor_status': str(operations.get('quick_start_doctor', {}).get('status', 'missing')),
+                'runtime_performance_status': str(operations.get('runtime_performance_baseline', {}).get('status', 'missing')),
+                'runtime_performance_dashboard_elapsed_ms': float((operations.get('runtime_performance_baseline', {}) or {}).get('dashboard_snapshot_elapsed_ms', 0.0) or 0.0),
                 'first_run_readiness_status': str(first_run_readiness.get('status', 'blocked')),
                 'first_run_blockers_total': int(first_run_readiness.get('blockers_total', 0) or 0),
                 'first_run_advisories_total': int(first_run_readiness.get('advisories_total', 0) or 0),
@@ -140,6 +176,9 @@ class DashboardSnapshotBuilder:
                 'operator_notification_channels_total': int(operator_notification_center.get('active_channel_total', 0) or 0),
                 'operator_notification_posture': str(operator_notification_delivery_readiness.get('posture', 'unknown')),
                 'operator_notification_external_ready': bool(operator_notification_delivery_readiness.get('external_routing_ready', False)),
+                'governance_materials_status': str(governance_materials.get('status', 'unknown')),
+                'invalid_roles_total': int(role_library.get('roles_invalid_total', 0) or 0),
+                'invalid_hierarchy_entries_total': int(role_hierarchy.get('invalid_entries_total', 0) or 0),
             },
             'requests': requests[:50],
             'overrides': overrides[:50],
@@ -165,9 +204,8 @@ class DashboardSnapshotBuilder:
             'first_run_readiness': first_run_readiness,
             'operator_decision_lanes': operator_decision_lanes,
             'runtime_alerts': runtime_alerts,
-            'runtime_health': self.runtime_health(roles=roles, go_live_readiness=go_live_readiness),
+            'runtime_health': runtime_health,
         }
-
 
     @staticmethod
     def build_operator_decision_lanes(operational_readiness: dict[str, object]) -> list[dict[str, object]]:
@@ -296,13 +334,17 @@ class DashboardSnapshotBuilder:
     def list_sessions(self, status: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         return self.app.list_sessions(status=status)[:limit]
 
-    def list_roles(self) -> list[dict[str, object]]:
-        roles = self.app.list_roles()
-        compliance = self.app.compliance_snapshot()
+    def list_roles(
+        self,
+        roles: list[dict[str, object]] | None = None,
+        compliance_snapshot: dict[str, object] | None = None,
+    ) -> list[dict[str, object]]:
+        known_roles = [dict(role) for role in (roles if roles is not None else self.app.list_roles())]
+        compliance = compliance_snapshot if compliance_snapshot is not None else self.app.compliance_snapshot(roles=known_roles)
         mapping_index = {item['role_id']: item.get('controls', []) for item in compliance.get('role_mappings', [])}
-        for role in roles:
+        for role in known_roles:
             role['control_refs'] = mapping_index.get(role['role_id'], [])
-        return roles
+        return known_roles
 
     def role_private_studio(self, limit: int = 50) -> dict[str, object]:
         return self.app.studio_snapshot(limit=limit)
@@ -316,6 +358,7 @@ class DashboardSnapshotBuilder:
             'backups': self.app.list_runtime_backups(limit=limit),
             'usability_proof': self.usability_proof_summary(),
             'quick_start_doctor': self.quick_start_doctor_summary(),
+            'runtime_performance_baseline': self.runtime_performance_baseline_summary(),
         }
 
     def first_run_readiness(
@@ -419,6 +462,26 @@ class DashboardSnapshotBuilder:
             'required_failed_total': int(summary.get('required_failed_total', 0) or 0),
             'advisory_failed_total': int(summary.get('advisory_failed_total', 0) or 0),
             'next_actions': result.get('next_actions', []) if isinstance(result.get('next_actions'), list) else [],
+        }
+
+    def runtime_performance_baseline_summary(self) -> dict[str, object]:
+        from sa_nom_governance.deployment.runtime_performance_baseline import read_runtime_performance_baseline
+
+        result = read_runtime_performance_baseline(config=self.config)
+        summary = result.get('summary', {}) if isinstance(result.get('summary'), dict) else {}
+        return {
+            'status': str(result.get('status', 'missing')),
+            'available': bool(result.get('available', False)),
+            'artifact_path': str(result.get('output_path', self.config.review_dir / 'runtime_performance_baseline.json')),
+            'generated_at': result.get('generated_at'),
+            'slowest_metric': str(summary.get('slowest_metric', 'unknown')),
+            'slowest_elapsed_ms': float(summary.get('slowest_elapsed_ms', 0.0) or 0.0),
+            'health_elapsed_ms': float(summary.get('health_elapsed_ms', 0.0) or 0.0),
+            'operational_readiness_elapsed_ms': float(summary.get('operational_readiness_elapsed_ms', 0.0) or 0.0),
+            'dashboard_snapshot_elapsed_ms': float(summary.get('dashboard_snapshot_elapsed_ms', 0.0) or 0.0),
+            'warning_total': int(summary.get('warning_total', 0) or 0),
+            'critical_total': int(summary.get('critical_total', 0) or 0),
+            'failed_total': int(summary.get('failed_total', 0) or 0),
         }
 
     def first_run_action_center(
@@ -567,23 +630,49 @@ class DashboardSnapshotBuilder:
     def retention_plan(self) -> dict[str, object]:
         return self.app.retention_plan()
 
-    def go_live_readiness(self) -> dict[str, object]:
-        return build_go_live_readiness(self.config, app=self.app)
+    def go_live_readiness(
+        self,
+        *,
+        app_health: dict[str, object] | None = None,
+        access_control_health: dict[str, object] | None = None,
+        studio_snapshot: dict[str, object] | None = None,
+        deployment_report: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return build_go_live_readiness(
+            self.config,
+            app=self.app,
+            app_health=app_health,
+            access_health=access_control_health,
+            studio_snapshot=studio_snapshot,
+            deployment_report=deployment_report,
+        )
 
-    def compliance_snapshot(self) -> dict[str, object]:
-        return self.app.compliance_snapshot()
+    def compliance_snapshot(
+        self,
+        *,
+        roles: list[dict[str, object]] | None = None,
+        runtime_health: dict[str, object] | None = None,
+        access_control_health: dict[str, object] | None = None,
+        evidence_summary: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return self.app.compliance_snapshot(
+            roles=roles,
+            runtime_health=runtime_health,
+            access_control_health=access_control_health,
+            evidence_summary=evidence_summary,
+        )
 
-    def evidence_exports(self, limit: int = 20) -> dict[str, object]:
+    def evidence_exports(self, limit: int = 20, summary: dict[str, object] | None = None) -> dict[str, object]:
         return {
-            'summary': self.app.evidence_pack_summary(),
+            'summary': summary if summary is not None else self.app.evidence_pack_summary(),
             'exports': self.app.list_evidence_packs(limit=limit),
         }
 
     def integrations(self, limit: int = 50) -> dict[str, object]:
         return self.app.integration_snapshot(limit=limit)
 
-    def model_providers(self) -> dict[str, object]:
-        return self.app.model_provider_snapshot()
+    def model_providers(self, health: dict[str, object] | None = None) -> dict[str, object]:
+        return self.app.model_provider_snapshot(health=health)
 
     def owner_registration(self) -> dict[str, object]:
         registration = self.config.owner_registration()
@@ -606,14 +695,33 @@ class DashboardSnapshotBuilder:
             'registered_at': registration.registered_at,
         }
 
-    def runtime_health(self, roles: list[dict[str, object]] | None = None, go_live_readiness: dict[str, object] | None = None) -> dict[str, object]:
+    def runtime_health(
+        self,
+        roles: list[dict[str, object]] | None = None,
+        go_live_readiness: dict[str, object] | None = None,
+        *,
+        owner_registration: dict[str, object] | None = None,
+        app_health: dict[str, object] | None = None,
+        access_control_health: dict[str, object] | None = None,
+        deployment_profile: dict[str, object] | None = None,
+    ) -> dict[str, object]:
         known_roles = roles if roles is not None else self.list_roles()
-        app_health = self.app.health()
-        deployment_profile = build_deployment_report(self.config).to_dict()
-        readiness = go_live_readiness if go_live_readiness is not None else self.go_live_readiness()
+        cached_health = app_health if app_health is not None else self.app.health(roles=known_roles)
+        readiness = (
+            go_live_readiness
+            if go_live_readiness is not None
+            else self.go_live_readiness(
+                app_health=cached_health,
+                access_control_health=access_control_health,
+                deployment_report=deployment_profile,
+            )
+        )
+        registration = owner_registration if owner_registration is not None else self.owner_registration()
+        access_health = access_control_health if access_control_health is not None else self.access_control.health()
+        deployment = deployment_profile if deployment_profile is not None else build_deployment_report(self.config).to_dict()
         return {
-            'engine_status': app_health.get('status', 'unknown'),
-            'owner_registration': self.owner_registration(),
+            'engine_status': cached_health.get('status', 'unknown'),
+            'owner_registration': registration,
             'audit_store': self._file_health(self.config.audit_log_path),
             'override_store': self._file_health(self.config.override_store_path),
             'lock_store': self._file_health(self.config.lock_store_path),
@@ -633,27 +741,29 @@ class DashboardSnapshotBuilder:
             'integration_delivery_log': self._file_health(self.config.integration_delivery_log_path),
             'integration_dead_letter_log': self._file_health(self.config.integration_dead_letter_log_path),
             'integration_outbox_store': self._file_health(self.config.integration_outbox_path),
-            'trusted_registry': app_health.get('trusted_registry', {}),
-            'request_consistency': app_health.get('request_consistency', {}),
-            'audit_integrity': app_health.get('audit_integrity', {}),
-            'access_control': self.access_control.health(),
-            'deployment_profile': deployment_profile,
+            'trusted_registry': cached_health.get('trusted_registry', {}),
+            'request_consistency': cached_health.get('request_consistency', {}),
+            'audit_integrity': cached_health.get('audit_integrity', {}),
+            'access_control': access_health,
+            'deployment_profile': deployment,
             'go_live_readiness': readiness,
             'privileged_operations': readiness.get('privileged_operations', {}),
             'studio_structural': readiness.get('studio_structural', {}),
-            'retention': app_health.get('retention', self.retention_manager.summary()),
-            'role_private_studio': app_health.get('role_private_studio', {}),
-            'human_ask': app_health.get('human_ask', {}),
-            'runtime_backups': app_health.get('runtime_backups', {}),
-            'role_hierarchy': app_health.get('role_hierarchy', {}),
-            'role_transition_policy': app_health.get('role_transition_policy', {}),
-            'persistence_layer': app_health.get('persistence_layer', {}),
-            'compliance_frameworks': app_health.get('compliance_frameworks', {}),
-            'evidence_exports': app_health.get('evidence_exports', {}),
-            'integration_registry': app_health.get('integration_registry', {}),
-            'model_providers': app_health.get('model_providers', {}),
-            'integration_deliveries': app_health.get('integration_deliveries', {}),
-            'coordination_layer': app_health.get('coordination_layer', {}),
+            'retention': cached_health.get('retention', self.retention_manager.summary()),
+            'role_private_studio': cached_health.get('role_private_studio', {}),
+            'human_ask': cached_health.get('human_ask', {}),
+            'runtime_backups': cached_health.get('runtime_backups', {}),
+            'role_library': cached_health.get('role_library', {}),
+            'role_hierarchy': cached_health.get('role_hierarchy', {}),
+            'governance_materials': cached_health.get('governance_materials', {}),
+            'role_transition_policy': cached_health.get('role_transition_policy', {}),
+            'persistence_layer': cached_health.get('persistence_layer', {}),
+            'compliance_frameworks': cached_health.get('compliance_frameworks', {}),
+            'evidence_exports': cached_health.get('evidence_exports', {}),
+            'integration_registry': cached_health.get('integration_registry', {}),
+            'model_providers': cached_health.get('model_providers', {}),
+            'integration_deliveries': cached_health.get('integration_deliveries', {}),
+            'coordination_layer': cached_health.get('coordination_layer', {}),
             'ptag_modules': len(known_roles),
             'token_gate': 'enabled' if self.config.api_token else 'disabled',
             'legal_hold_file': self._file_health(self.config.legal_hold_path),

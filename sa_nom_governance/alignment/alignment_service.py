@@ -19,28 +19,54 @@ class GlobalHarmonyAlignmentService:
         self,
         catalog_dir: Path,
         *,
+        default_region_id: str | None = None,
         registry: RegionalConstitutionRegistry | None = None,
         evaluator: CulturalAlignmentEvaluator | None = None,
     ) -> None:
         self.registry = registry or RegionalConstitutionRegistry(catalog_dir)
         self.evaluator = evaluator or CulturalAlignmentEvaluator()
-        available_regions = self.registry.list_regions()
-        if not available_regions:
-            raise ValueError("Global Harmony alignment service requires at least one regional constitution.")
-        default_region_id = str(available_regions[0]["region_id"])
-        default_constitution = self.registry.load(default_region_id)
+        default_constitution, default_source, default_rationale = self._resolve_default_selection(default_region_id)
         self._active_selection = ActiveAlignmentSelection(
             region_id=default_constitution.region_id,
             constitutional_version=default_constitution.constitutional_version,
-            source="catalog-default",
+            source=default_source,
             selected_by="system",
-            rationale="Initialized from the first available catalog constitution.",
+            rationale=default_rationale,
             selected_at=self._utc_now(),
         )
 
     @property
     def active_selection(self) -> ActiveAlignmentSelection:
         return self._active_selection
+
+    def _resolve_default_selection(self, default_region_id: str | None) -> tuple[object, str, str]:
+        available_regions = self.registry.list_regions()
+        if not available_regions:
+            raise ValueError("Global Harmony alignment service requires at least one regional constitution.")
+        available_region_ids = {str(item["region_id"]) for item in available_regions}
+        requested_region_id = (default_region_id or "").strip()
+        if requested_region_id:
+            if requested_region_id not in available_region_ids:
+                available = ", ".join(sorted(available_region_ids)) or "none"
+                raise ValueError(
+                    f"Unknown default regional constitution: {requested_region_id}. Available regions: {available}"
+                )
+            constitution = self.registry.load(requested_region_id)
+            if requested_region_id == "eu":
+                return constitution, "catalog-default", "Initialized from the deterministic catalog default constitution."
+            return constitution, "configured-default", f"Initialized from explicit default region {requested_region_id}."
+        if "eu" in available_region_ids:
+            constitution = self.registry.load("eu")
+            return constitution, "catalog-default", "Initialized from the deterministic catalog default constitution."
+        if len(available_regions) == 1:
+            region_id = str(available_regions[0]["region_id"])
+            constitution = self.registry.load(region_id)
+            return constitution, "single-region-default", "Initialized from the only available catalog constitution."
+        available = ", ".join(sorted(available_region_ids)) or "none"
+        raise ValueError(
+            "Global Harmony alignment service requires an explicit default region when the catalog does not include the built-in default 'eu'. "
+            f"Available regions: {available}"
+        )
 
     def assess_switch(
         self,

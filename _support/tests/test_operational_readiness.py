@@ -113,7 +113,7 @@ def test_operational_readiness_reports_operator_pressure_and_backlogs(tmp_path: 
     readiness = app.operational_readiness(limit=20)
 
     assert readiness["status"] == "attention_required"
-    assert readiness["summary"]["blocked_workflow_total"] == 1
+    assert readiness["summary"]["blocked_workflow_total"] == 2
     assert readiness["summary"]["human_action_total"] == 0
     assert readiness["summary"]["clearance_total"] == 1
     assert readiness["summary"]["guarded_follow_up_total"] == 1
@@ -121,8 +121,17 @@ def test_operational_readiness_reports_operator_pressure_and_backlogs(tmp_path: 
     assert set(readiness["action_required"]) == {
         "clearance_review",
         "guarded_follow_up",
+        "human_decision",
         "recovery_resume",
     }
+    assert readiness["workflow"]["backlog_total"] >= 2
+    assert readiness["workflow"]["autonomous_inflight_total"] == 0
+    assert readiness["human_inbox"]["open_total"] >= 2
+    assert readiness["runtime_recovery"]["pending_total"] == 1
+    assert readiness["governed_autonomy"]["status"] == "blocked"
+    assert readiness["governed_autonomy"]["recommended_runtime_action"] == "recover_then_retry"
+    assert readiness["governed_autonomy"]["human_gate_open_total"] == 1
+    assert readiness["governed_autonomy"]["recovery_required_total"] == 1
     assert len(readiness["operator_visibility"]["workflow_backlog"]) >= 2
     assert len(readiness["operator_visibility"]["human_decision_inbox"]) >= 2
     assert len(readiness["operator_visibility"]["runtime_recovery_backlog"]) == 1
@@ -157,4 +166,8 @@ def test_operational_readiness_is_ready_when_no_operator_action_is_pending(tmp_p
     assert readiness["summary"]["workflow_total"] == 1
     assert readiness["summary"]["active_workflow_total"] == 0
     assert readiness["summary"]["action_required_total"] == 0
+    assert readiness["summary"]["governed_autonomy_status"] == "settled"
+    assert readiness["summary"]["recommended_runtime_action"] == "none"
+    assert readiness["workflow"]["backlog_total"] == 0
+    assert readiness["governed_autonomy"]["completed_total"] == 1
     assert readiness["action_required"] == []

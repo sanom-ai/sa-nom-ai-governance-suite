@@ -26,6 +26,8 @@ def test_quick_start_path_defaults_to_private_ollama_lane() -> None:
         assert quick_start['recommended_env_example'] == 'examples/.env.ollama.example'
         assert quick_start['entry_command'] == 'python scripts/quick_start_path.py'
         assert quick_start['operator_summary']['runtime_smoke_status'] == 'passed'
+        assert quick_start['operator_summary']['performance_status'] in {'ready', 'monitoring', 'critical', 'failed'}
+        assert quick_start['operator_summary']['performance_slowest_metric'] in {'health', 'operational_readiness', 'dashboard_snapshot'}
         assert quick_start['steps'][1]['action'].startswith('Run `python scripts/quick_start_path.py`')
 
 
@@ -37,6 +39,7 @@ def test_quick_start_path_surfaces_attention_when_runtime_smoke_is_skipped() -> 
         assert report['passed'] is False
         assert report['quick_start']['status'] == 'attention_required'
         assert report['quick_start']['operator_summary']['runtime_smoke_status'] == 'skipped'
+        assert report['quick_start']['operator_summary']['performance_status'] in {'ready', 'monitoring', 'critical', 'failed'}
         assert 'Runtime smoke test was skipped by request.' in report['next_actions']
 
 
@@ -59,7 +62,10 @@ def test_quick_start_doctor_reports_warn_or_pass_after_quick_start_bootstrap() -
 
         assert report['status'] in {'warn', 'pass'}
         assert report['summary']['required_failed_total'] == 0
-        assert report['summary']['checks_total'] >= 8
+        assert report['summary']['checks_total'] >= 10
+        check_ids = {item['check_id'] for item in report['checks']}
+        assert 'runtime_performance_baseline_present' in check_ids
+        assert 'runtime_performance_posture_recorded' in check_ids
 
 
 def test_quick_start_doctor_export_and_read_roundtrip() -> None:

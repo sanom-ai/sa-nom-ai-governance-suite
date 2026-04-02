@@ -1,0 +1,10 @@
+﻿language "PTAG"
+module "CORE_TERMS"
+version "1.0.0"
+owner "Executive Owner"
+
+dictionary CORE_TERMS {
+  ROLE = "An authority identity injected into the Core Engine for a specific governance context."
+  ACTION = "An operation that the system is allowed to evaluate or execute."
+  OVERRIDE = "A human decision that takes precedence over automated runtime behavior."
+}

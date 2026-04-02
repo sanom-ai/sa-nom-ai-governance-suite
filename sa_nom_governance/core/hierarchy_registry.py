@@ -76,6 +76,24 @@ class HierarchyEscalationDecision:
     notes: list[str] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class HierarchyLoadIssue:
+    role_id: str
+    source_path: str
+    stage: str
+    error_type: str
+    message: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "role_id": self.role_id,
+            "source_path": self.source_path,
+            "stage": self.stage,
+            "error_type": self.error_type,
+            "message": self.message,
+        }
+
+
 class HierarchyRegistry:
     SAFETY_DOMAINS = {"product_safety", "safety", "safety_operations"}
     SAFETY_RESOURCES = {"product_safety", "safety", "safety_incident", "safety_event", "safety_case"}
@@ -87,13 +105,15 @@ class HierarchyRegistry:
             fallback=DEFAULT_EXECUTIVE_OWNER_ID,
         )
         self._entries: dict[str, HierarchyEntry] | None = None
+        self._load_issues: list[HierarchyLoadIssue] | None = None
 
     def reload(self) -> None:
         self._entries = None
+        self._load_issues = None
 
     def entries(self) -> dict[str, HierarchyEntry]:
         if self._entries is None:
-            self._entries = self._load_entries()
+            self._entries, self._load_issues = self._load_entries()
         return self._entries
 
     def get(self, role_id: str) -> HierarchyEntry | None:
@@ -101,6 +121,22 @@ class HierarchyRegistry:
 
     def list_entries(self) -> list[HierarchyEntry]:
         return list(self.entries().values())
+
+    def load_issues(self) -> list[HierarchyLoadIssue]:
+        self.entries()
+        return list(self._load_issues or [])
+
+    def health(self) -> dict[str, object]:
+        entries = self.list_entries()
+        issues = [issue.to_dict() for issue in self.load_issues()]
+        return {
+            "roles_total": len(entries),
+            "root_roles": sorted(entry.role_id for entry in entries if entry.reports_to in (None, "NONE")),
+            "safety_owners": sorted({entry.safety_owner for entry in entries if entry.safety_owner}),
+            "max_stratum": max((entry.stratum for entry in entries), default=0),
+            "invalid_entries_total": len(issues),
+            "invalid_entries": issues,
+        }
 
     def default_escalation_target(self, role_id: str) -> str:
         entry = self.get(role_id)
@@ -145,19 +181,38 @@ class HierarchyRegistry:
 
         return None
 
-    def _load_entries(self) -> dict[str, HierarchyEntry]:
+    def _load_entries(self) -> tuple[dict[str, HierarchyEntry], list[HierarchyLoadIssue]]:
         entries: dict[str, HierarchyEntry] = {}
+        issues: list[HierarchyLoadIssue] = []
         for path in sorted(self.role_loader.registry.roles_dir.glob("*.ptn")):
             role_id = path.stem
             if role_id.lower() == "core_terms":
                 continue
             try:
                 document = self.role_loader.load(role_id)
-            except Exception:
+            except Exception as exc:
+                issues.append(
+                    HierarchyLoadIssue(
+                        role_id=role_id,
+                        source_path=str(path),
+                        stage="load",
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                    )
+                )
                 continue
             role = document.roles.get(role_id)
             authority = document.authorities.get(role_id)
             if role is None or authority is None:
+                issues.append(
+                    HierarchyLoadIssue(
+                        role_id=role_id,
+                        source_path=str(path),
+                        stage="semantic",
+                        error_type="MissingRoleAuthority",
+                        message=f"Role {role_id} is missing a compiled role or authority block.",
+                    )
+                )
                 continue
 
             fields = role.fields
@@ -194,7 +249,7 @@ class HierarchyRegistry:
                 executive_owner_id=executive_owner_id,
                 seat_id=seat_id,
             )
-        return entries
+        return entries, issues
 
     def _extract_handled_resources(self, fields: dict[str, object], document) -> set[str]:
         handled_resources = fields.get("handled_resources", [])

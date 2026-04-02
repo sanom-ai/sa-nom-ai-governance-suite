@@ -5,10 +5,10 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sa_nom_governance.deployment.guided_smoke_test import build_guided_smoke_test
 from sa_nom_governance.deployment.go_live_readiness import load_smoke_report
+from sa_nom_governance.deployment.guided_smoke_test import build_guided_smoke_test
+from sa_nom_governance.deployment.runtime_performance_baseline import read_runtime_performance_baseline
 from sa_nom_governance.utils.config import AppConfig
-
 
 DEFAULT_PRIVATE_LANE = 'private_local_ollama'
 
@@ -51,6 +51,8 @@ def _build_operator_summary(report: dict[str, object]) -> dict[str, object]:
     startup = report.get('startup', {}) if isinstance(report.get('startup'), dict) else {}
     runtime_smoke = report.get('runtime_smoke', {}) if isinstance(report.get('runtime_smoke'), dict) else {}
     provider = report.get('provider', {}) if isinstance(report.get('provider'), dict) else {}
+    performance = report.get('performance_baseline', {}) if isinstance(report.get('performance_baseline'), dict) else {}
+    performance_summary = performance.get('summary', {}) if isinstance(performance.get('summary', {}), dict) else {}
     ready = bool(report.get('passed'))
     return {
         'status': 'ready' if ready else 'attention_required',
@@ -59,6 +61,9 @@ def _build_operator_summary(report: dict[str, object]) -> dict[str, object]:
         'provider_status': provider.get('status', 'unknown'),
         'recommended_provider': provider.get('recommended_provider'),
         'selected_provider': provider.get('selected_provider'),
+        'performance_status': performance.get('status', 'unknown'),
+        'performance_slowest_metric': performance_summary.get('slowest_metric', 'unknown'),
+        'dashboard_snapshot_elapsed_ms': float(performance_summary.get('dashboard_snapshot_elapsed_ms', 0.0) or 0.0),
     }
 
 
@@ -96,6 +101,8 @@ def build_quick_start_doctor(config: AppConfig | None = None) -> dict[str, objec
     access_profiles_path = runtime_config.effective_access_profiles_path()
     trusted_manifest_path = runtime_config.trusted_registry_manifest_path
     usability_proof_path = runtime_config.review_dir / 'usability_proof_bundle.json'
+    runtime_performance_path = runtime_config.review_dir / 'runtime_performance_baseline.json'
+    performance_report = read_runtime_performance_baseline(config=runtime_config, output_path=runtime_performance_path)
     quick_start_script = runtime_config.base_dir / 'scripts' / 'quick_start_path.py'
     run_server_script = runtime_config.base_dir / 'scripts' / 'run_private_server.py'
     demo_script = runtime_config.base_dir / 'scripts' / 'nontechnical_demo_path.py'
@@ -180,6 +187,24 @@ def build_quick_start_doctor(config: AppConfig | None = None) -> dict[str, objec
         message='Usability proof bundle artifact is available.',
         path=usability_proof_path,
         next_step='Run `python scripts/usability_proof_bundle.py` to generate the artifact.',
+    )
+    add_check(
+        checks,
+        check_id='runtime_performance_baseline_present',
+        severity='advisory',
+        passed=bool(performance_report.get('available', False)),
+        message='Runtime performance baseline artifact is available.',
+        path=runtime_performance_path,
+        next_step='Run `python scripts/runtime_performance_baseline.py` or rerun `python scripts/guided_smoke_test.py` to capture the baseline.',
+    )
+    add_check(
+        checks,
+        check_id='runtime_performance_posture_recorded',
+        severity='advisory',
+        passed=str(performance_report.get('status', 'missing')) in {'ready', 'monitoring'},
+        message='Runtime performance posture is captured without critical or failed hot paths.',
+        path=runtime_performance_path,
+        next_step='Review the performance baseline and tighten dashboard/health hot paths before heavier automation if posture is critical or failed.',
     )
 
     required_failed = [item for item in checks if item['severity'] == 'required' and item['status'] == 'fail']

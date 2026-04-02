@@ -5,8 +5,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
+from sa_nom_governance.deployment.deployment_profile import build_deployment_report
+from sa_nom_governance.deployment.private_server_smoke_test import run_smoke
+from sa_nom_governance.deployment.provider_demo_flow import build_provider_demo_flow
+from sa_nom_governance.deployment.runtime_performance_baseline import export_runtime_performance_baseline
 from sa_nom_governance.guards.bootstrap_access_profiles import build_profiles
-from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.config import AppConfig, bundled_resources_dir
 from sa_nom_governance.utils.owner_registration import (
     build_owner_registration,
     load_owner_registration,
@@ -14,7 +18,7 @@ from sa_nom_governance.utils.owner_registration import (
     write_owner_registration,
 )
 
-BUNDLED_RESOURCES_DIR = Path(__file__).resolve().parents[2] / 'resources'
+BUNDLED_RESOURCES_DIR = bundled_resources_dir()
 
 
 def utc_now() -> str:
@@ -210,11 +214,6 @@ def ensure_trusted_registry(
         'role_ids': role_ids,
     }
 
-from sa_nom_governance.deployment.deployment_profile import build_deployment_report
-from sa_nom_governance.deployment.private_server_smoke_test import run_smoke
-from sa_nom_governance.deployment.provider_demo_flow import build_provider_demo_flow
-
-
 def build_next_actions(report: dict[str, object]) -> list[str]:
     actions: list[str] = []
     startup = report.get('startup', {})
@@ -295,6 +294,8 @@ def build_guided_smoke_test(
         smoke_result = run_smoke(runtime_config)
         runtime_smoke = {'status': 'passed' if smoke_result.get('passed', False) else 'failed', **smoke_result}
 
+    performance_baseline = export_runtime_performance_baseline(config=runtime_config)
+
     report = {
         'generated_at': utc_now(),
         'registration_code': normalize_registration_code(registration_code),
@@ -309,6 +310,11 @@ def build_guided_smoke_test(
         'startup': startup_report,
         'provider': provider_report,
         'runtime_smoke': runtime_smoke,
+        'performance_baseline': {
+            'status': performance_baseline.get('status', 'unknown'),
+            'output_path': performance_baseline.get('output_path'),
+            'summary': (performance_baseline.get('report', {}) or {}).get('summary', {}),
+        },
         'artifacts': {
             'owner_registration': str(runtime_config.owner_registration_path) if runtime_config.owner_registration_path else None,
             'access_profiles': str(runtime_config.access_profiles_path) if runtime_config.access_profiles_path else None,
@@ -316,9 +322,13 @@ def build_guided_smoke_test(
             'trusted_registry_manifest': str(runtime_config.trusted_registry_manifest_path) if runtime_config.trusted_registry_manifest_path else None,
             'trusted_registry_cache': str(runtime_config.trusted_registry_cache_path) if runtime_config.trusted_registry_cache_path else None,
             'runtime_smoke_report': str(runtime_config.startup_smoke_report_path) if runtime_config.startup_smoke_report_path else None,
+            'runtime_performance_baseline': performance_baseline.get('output_path'),
         },
     }
     report['next_actions'] = build_next_actions(report)
+    if str(report.get('performance_baseline', {}).get('status', 'ready')) in {'monitoring', 'critical', 'failed'}:
+        report['next_actions'].append('Review `python scripts/runtime_performance_baseline.py` output before calling the runtime ready for heavier automation.')
+        report['next_actions'] = dedupe_actions(report['next_actions'])
     report['passed'] = guided_smoke_passed(report)
     return report
 

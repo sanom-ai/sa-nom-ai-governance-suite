@@ -4,17 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sa-nom-ai-governance-suite"
-version = "0.5.0"
+version = "0.7.0"
 description = "Open-core governance and orchestration toolkit for structured AI operations on private infrastructure."
 readme = "README.md"
 requires-python = ">=3.14"
-license = { file = "LICENSE" }
+license = "AGPL-3.0-only"
 authors = [
   { name = "SA-NOM AI", email = "sanomaiarch@gmail.com" },
 ]
 keywords = ["ai-governance", "self-hosted", "audit", "compliance", "workflow-governance"]
 classifiers = [
-  "License :: OSI Approved :: GNU Affero General Public License v3",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.14",
@@ -37,6 +36,22 @@ dev = [
   "mypy>=1.19.0",
   "pre-commit>=4.0.0",
 ]
+
+[tool.setuptools]
+include-package-data = true
+license-files = ["LICENSE"]
+
+[tool.setuptools.package-data]
+sa_nom_governance = [
+  "_bundled_resources/alignment/*.json",
+  "_bundled_resources/config/*.json",
+  "_bundled_resources/pt_oss/*.json",
+  "_bundled_resources/roles/*.ptn",
+  "_bundled_resources/studio/*.json",
+]
+
+[tool.setuptools.packages.find]
+include = ["sa_nom_governance", "sa_nom_governance.*"]
 
 [tool.pytest.ini_options]
 testpaths = ["_support/tests"]

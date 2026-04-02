@@ -1,4 +1,5 @@
 import os
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -10,16 +11,41 @@ from sa_nom_governance.utils.owner_identity import (
 )
 from sa_nom_governance.utils.owner_registration import OwnerRegistration, load_owner_registration
 
+PACKAGE_DIR = Path(__file__).resolve().parents[1]
+SOURCE_TREE_ROOT = PACKAGE_DIR.parent
+BUNDLED_RESOURCES_SUBDIR = "_bundled_resources"
+
+
+def bundled_resources_dir() -> Path:
+    packaged_dir = PACKAGE_DIR / BUNDLED_RESOURCES_SUBDIR
+    if packaged_dir.exists():
+        return packaged_dir
+    return SOURCE_TREE_ROOT / "resources"
+
+
+def _package_base_dir() -> Path:
+    configured_home = os.getenv("SANOM_HOME", "").strip()
+    if configured_home:
+        configured_path = Path(configured_home)
+        return configured_path if configured_path.is_absolute() else (Path.cwd() / configured_path)
+    source_resources_dir = SOURCE_TREE_ROOT / "resources"
+    if (SOURCE_TREE_ROOT / "pyproject.toml").exists() and source_resources_dir.exists():
+        return SOURCE_TREE_ROOT
+    return Path.cwd()
+
 
 @dataclass(slots=True)
 class AppConfig:
     app_name: str = "SA-NOM AI Governance Suite"
     environment: str = field(default_factory=lambda: os.getenv("SANOM_ENV", "development"))
-    base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parents[2])
+    base_dir: Path = field(default_factory=_package_base_dir)
+    bundled_resources_root: Path = field(init=False)
     resources_dir: Path = field(init=False)
     config_resources_dir: Path = field(init=False)
     pt_oss_resources_dir: Path = field(init=False)
     studio_resources_dir: Path = field(init=False)
+    alignment_resources_dir: Path = field(init=False)
+    alignment_default_region: str = field(default_factory=lambda: os.getenv("SANOM_ALIGNMENT_DEFAULT_REGION", "eu").strip())
     persist_runtime: bool = True
     api_token: str | None = field(default_factory=lambda: os.getenv("SANOM_API_TOKEN"))
     server_host: str = field(default_factory=lambda: os.getenv("SANOM_SERVER_HOST", "127.0.0.1"))
@@ -115,10 +141,18 @@ class AppConfig:
     _owner_registration_loaded: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
+        self.bundled_resources_root = bundled_resources_dir()
         self.resources_dir = self.base_dir / "resources"
         self.config_resources_dir = self.resources_dir / "config"
         self.pt_oss_resources_dir = self.resources_dir / "pt_oss"
         self.studio_resources_dir = self.resources_dir / "studio"
+        alignment_dir = os.getenv("SANOM_ALIGNMENT_RESOURCES_DIR")
+        if alignment_dir:
+            alignment_path = Path(alignment_dir)
+            self.alignment_resources_dir = alignment_path if alignment_path.is_absolute() else self.base_dir / alignment_path
+        else:
+            self.alignment_resources_dir = self.resources_dir / "alignment"
+        self.alignment_default_region = self.alignment_default_region.strip() or "eu"
         self.roles_dir = self.resources_dir / "roles"
         self.dictionaries_dir = self.roles_dir
         self.runtime_dir = self.base_dir / "_runtime"
@@ -132,6 +166,7 @@ class AppConfig:
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.support_dir.mkdir(parents=True, exist_ok=True)
         self.review_dir.mkdir(parents=True, exist_ok=True)
+        self._seed_public_resources_from_bundle()
         self.owner_registration_path = self.runtime_dir / "owner_registration.json"
         self.access_profiles_path = self.runtime_dir / "access_profiles.json"
         self.pt_oss_foundation_path = self.pt_oss_resources_dir / "pt_oss_foundation.json"
@@ -180,6 +215,23 @@ class AppConfig:
             )
         if os.getenv("SANOM_STRICT_STARTUP_VALIDATION", "auto").strip().lower() == "auto":
             self.strict_startup_validation = self.environment != "development"
+
+    def _seed_public_resources_from_bundle(self) -> None:
+        source_root = self.bundled_resources_root
+        if not source_root.exists():
+            return
+        try:
+            if source_root.resolve() == self.resources_dir.resolve():
+                return
+        except OSError:
+            pass
+        for source_path in sorted(path for path in source_root.rglob("*") if path.is_file()):
+            relative_path = source_path.relative_to(source_root)
+            target_path = self.resources_dir / relative_path
+            if target_path.exists():
+                continue
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_path, target_path)
 
     def effective_access_profiles_path(self) -> Path | None:
         if self.access_profiles_path is not None and self.access_profiles_path.exists():

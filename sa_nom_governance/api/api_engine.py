@@ -1,20 +1,20 @@
 from dataclasses import asdict
 
-from sa_nom_governance.guards.access_control import AccessControl
 from sa_nom_governance.audit.auditor_evidence_pack import AuditorEvidencePackBuilder
 from sa_nom_governance.compliance.compliance_registry import ComplianceFrameworkRegistry
-from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.compliance.retention_manager import RetentionManager
 from sa_nom_governance.core.core_engine import CoreEngine
 from sa_nom_governance.deployment.go_live_readiness import build_go_live_readiness
+from sa_nom_governance.deployment.runtime_backup_manager import RuntimeBackupManager
+from sa_nom_governance.guards.access_control import AccessControl
 from sa_nom_governance.human_ask.human_ask_service import HumanAskService
 from sa_nom_governance.integrations.integration_registry import IntegrationRegistry
 from sa_nom_governance.integrations.model_provider_registry import ModelProviderRegistry
-from sa_nom_governance.utils.registry import RoleRegistry
-from sa_nom_governance.compliance.retention_manager import RetentionManager
+from sa_nom_governance.integrations.webhook_dispatcher import WebhookDispatcher
 from sa_nom_governance.ptag.role_loader import RoleLoader
 from sa_nom_governance.studio.role_private_studio_service import RolePrivateStudioService
-from sa_nom_governance.deployment.runtime_backup_manager import RuntimeBackupManager
-from sa_nom_governance.integrations.webhook_dispatcher import WebhookDispatcher
+from sa_nom_governance.utils.config import AppConfig
+from sa_nom_governance.utils.registry import RoleRegistry
 
 
 class EngineApplication:
@@ -56,13 +56,23 @@ class EngineApplication:
         studio_summary = self.role_private_studio.studio_snapshot(limit=20).get('summary', {})
         human_ask_summary = self.human_ask.human_ask_snapshot(limit=20).get('summary', {})
         backup_summary = self.backup_manager.summary()
+        dispatcher_health = self.integration_dispatcher.health()
         known_roles = roles if roles is not None else self.list_roles()
-        hierarchy_entries = [entry.to_dict() for entry in self.engine.hierarchy_registry.list_entries()]
-        hierarchy_summary = {
-            'roles_total': len(hierarchy_entries),
-            'root_roles': sorted(entry['role_id'] for entry in hierarchy_entries if entry.get('reports_to') in (None, 'NONE')),
-            'safety_owners': sorted({entry.get('safety_owner') for entry in hierarchy_entries if entry.get('safety_owner')}),
-            'max_stratum': max((int(entry.get('stratum', 0)) for entry in hierarchy_entries), default=0),
+        invalid_roles = [role for role in known_roles if role.get('status') == 'invalid']
+        hierarchy_summary = self.engine.hierarchy_registry.health()
+        governance_materials = {
+            'status': 'degraded' if invalid_roles or int(hierarchy_summary.get('invalid_entries_total', 0) or 0) > 0 else 'ready',
+            'invalid_roles_total': len(invalid_roles),
+            'invalid_roles': [
+                {
+                    'role_id': role.get('role_id'),
+                    'title': role.get('title'),
+                    'load_error': role.get('load_error', {}),
+                }
+                for role in invalid_roles
+            ],
+            'invalid_hierarchy_entries_total': int(hierarchy_summary.get('invalid_entries_total', 0) or 0),
+            'invalid_hierarchy_entries': hierarchy_summary.get('invalid_entries', []),
         }
         store_descriptors = {
             'audit': self.engine.audit_logger.ledger.descriptor().to_dict(),
@@ -103,7 +113,11 @@ class EngineApplication:
         }
 
         status = 'ok'
-        if not trusted_registry_health.get('signature_trusted', False) or audit_integrity.get('status') == 'broken':
+        if (
+            not trusted_registry_health.get('signature_trusted', False)
+            or audit_integrity.get('status') == 'broken'
+            or governance_materials.get('status') == 'degraded'
+        ):
             status = 'degraded'
 
         return {
@@ -116,45 +130,60 @@ class EngineApplication:
             'human_ask': human_ask_summary,
             'runtime_backups': backup_summary,
             'role_hierarchy': hierarchy_summary,
+            'governance_materials': governance_materials,
             'role_transition_policy': self.engine.role_transition_policy.health(),
             'persistence_layer': persistence_summary,
             'integration_registry': self.integration_registry.health(),
             'model_providers': self.model_provider_registry.health(),
-            'integration_deliveries': self.integration_dispatcher.health(),
-            'coordination_layer': self.integration_dispatcher.health().get('coordination', {}),
+            'integration_deliveries': dispatcher_health,
+            'coordination_layer': dispatcher_health.get('coordination', {}),
             'workflow_state': self.engine.workflow_state_store.summary(),
             'runtime_recovery': self.engine.runtime_recovery_store.summary(),
             'role_library': {
                 'roles_total': len(known_roles),
+                'roles_ready_total': sum(1 for role in known_roles if role.get('status') != 'invalid'),
+                'roles_invalid_total': len(invalid_roles),
                 'trusted_verified': sum(1 for role in known_roles if role.get('trusted_manifest_signature_status') == 'verified'),
+                'invalid_roles': governance_materials.get('invalid_roles', []),
             },
         }
 
-    def health(self) -> dict[str, object]:
-        roles = self.list_roles()
-        base = self._base_health(roles=roles)
-        access_health = self.access_control.health()
-        evidence_summary = self.evidence_builder.summary()
+    def health(
+        self,
+        *,
+        roles: list[dict[str, object]] | None = None,
+        access_control_health: dict[str, object] | None = None,
+        evidence_summary: dict[str, object] | None = None,
+        base_health: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        known_roles = roles if roles is not None else self.list_roles()
+        base = base_health if base_health is not None else self._base_health(roles=known_roles)
+        access_health = access_control_health if access_control_health is not None else self.access_control.health()
+        evidence = evidence_summary if evidence_summary is not None else self.evidence_builder.summary()
         compliance_snapshot = self.compliance_registry.build_snapshot(
             runtime_health=base,
             access_control_health=access_health,
-            roles=roles,
-            evidence_summary=evidence_summary,
+            roles=known_roles,
+            evidence_summary=evidence,
         )
         return {
             **base,
             'compliance_frameworks': compliance_snapshot['summary'],
-            'evidence_exports': evidence_summary,
+            'evidence_exports': evidence,
         }
 
-    def operational_readiness(self, *, limit: int = 50) -> dict[str, object]:
+    def operational_readiness(self, *, limit: int = 50, health: dict[str, object] | None = None) -> dict[str, object]:
         def inbox_state(item: dict[str, object]) -> str:
             inbox = item.get('human_decision_inbox')
             if isinstance(inbox, dict):
                 return str(inbox.get('inbox_state', 'autonomy_ready'))
             return 'autonomy_ready'
 
-        health = self.health()
+        def workflow_autonomy(item: dict[str, object]) -> dict[str, object]:
+            autonomy = item.get('governed_autonomy')
+            return dict(autonomy) if isinstance(autonomy, dict) else {}
+
+        health = health if health is not None else self.health()
         workflow_items = self.list_workflow_states(limit=limit)
         recovery_items = self.list_runtime_recovery_records(limit=limit)
         dead_letters = self.list_runtime_dead_letters(limit=limit)
@@ -163,33 +192,75 @@ class EngineApplication:
         blocked_workflows = [
             item
             for item in workflow_items
-            if str(item.get('current_state', '')) in {'blocked', 'awaiting_human_confirmation'}
+            if str(item.get('current_state', '')) in {'blocked', 'awaiting_human_confirmation', 'closed_with_exception'}
         ]
         active_workflows = [
             item
             for item in workflow_items
             if str(item.get('current_state', '')) not in {'completed', 'rejected'}
         ]
+        autonomous_inflight_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'autonomous_inflight'
+        ]
+        human_gate_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'human_gate_open'
+        ]
+        fail_closed_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'fail_closed'
+        ]
+        recovery_required_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'recovery_required'
+        ]
+        completed_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'completed'
+        ]
         dead_letter_records = [item for item in recovery_items if str(item.get('status', '')) == 'dead_letter']
         human_action_items = [item for item in inbox_items if inbox_state(item) == 'human_action_required']
         clearance_items = [item for item in inbox_items if inbox_state(item) == 'clearance_required']
         guarded_items = [item for item in inbox_items if inbox_state(item) == 'guarded_follow_up']
 
+        governed_autonomy_status = 'idle'
+        governed_autonomy_action = 'none'
+        if recovery_required_workflows:
+            governed_autonomy_status = 'blocked'
+            governed_autonomy_action = 'recover_then_retry'
+        elif fail_closed_workflows:
+            governed_autonomy_status = 'blocked'
+            governed_autonomy_action = 'review_blocked_workflow'
+        elif human_gate_workflows:
+            governed_autonomy_status = 'human_gated'
+            next_actions = {str(workflow_autonomy(item).get('next_action', 'await_human_gate')) for item in human_gate_workflows}
+            if 'await_clearance_review' in next_actions:
+                governed_autonomy_action = 'await_clearance_review'
+            elif 'await_human_review' in next_actions:
+                governed_autonomy_action = 'await_human_review'
+            elif 'await_guarded_follow_up' in next_actions:
+                governed_autonomy_action = 'await_guarded_follow_up'
+            else:
+                governed_autonomy_action = 'await_human_gate'
+        elif autonomous_inflight_workflows:
+            governed_autonomy_status = 'autonomous_inflight'
+            governed_autonomy_action = 'continue_autonomously'
+        elif workflow_items:
+            governed_autonomy_status = 'settled'
+
         status = 'ready'
-        if dead_letter_records or clearance_items:
+        if dead_letter_records or clearance_items or recovery_required_workflows or fail_closed_workflows:
             status = 'attention_required'
-        elif human_action_items or guarded_items or blocked_workflows:
+        elif human_action_items or guarded_items or human_gate_workflows or blocked_workflows:
             status = 'monitoring'
 
         action_required: list[str] = []
         if clearance_items:
             action_required.append('clearance_review')
-        if human_action_items:
+        if human_action_items or human_gate_workflows:
             action_required.append('human_decision')
-        if dead_letter_records:
+        if dead_letter_records or recovery_required_workflows:
             action_required.append('recovery_resume')
         if guarded_items:
             action_required.append('guarded_follow_up')
+        if fail_closed_workflows:
+            action_required.append('blocked_workflow_review')
 
         return {
             'status': status,
@@ -205,8 +276,41 @@ class EngineApplication:
                 'dead_letter_total': len(dead_letter_records),
                 'dead_letter_event_total': len(dead_letters),
                 'action_required_total': len(action_required),
+                'autonomous_inflight_total': len(autonomous_inflight_workflows),
+                'human_gate_open_total': len(human_gate_workflows),
+                'fail_closed_total': len(fail_closed_workflows),
+                'recovery_required_total': len(recovery_required_workflows),
+                'completed_workflow_total': len(completed_workflows),
+                'governed_autonomy_status': governed_autonomy_status,
+                'recommended_runtime_action': governed_autonomy_action,
             },
             'action_required': action_required,
+            'workflow': {
+                'backlog_total': len(active_workflows),
+                'blocked_total': len(blocked_workflows),
+                'autonomous_inflight_total': len(autonomous_inflight_workflows),
+                'completed_total': len(completed_workflows),
+            },
+            'human_inbox': {
+                'open_total': len(inbox_items),
+                'human_action_total': len(human_action_items),
+                'clearance_total': len(clearance_items),
+                'guarded_follow_up_total': len(guarded_items),
+            },
+            'runtime_recovery': {
+                'pending_total': len(recovery_items),
+                'dead_letter_total': len(dead_letter_records),
+                'dead_letter_event_total': len(dead_letters),
+            },
+            'governed_autonomy': {
+                'status': governed_autonomy_status,
+                'recommended_runtime_action': governed_autonomy_action,
+                'autonomous_inflight_total': len(autonomous_inflight_workflows),
+                'human_gate_open_total': len(human_gate_workflows),
+                'fail_closed_total': len(fail_closed_workflows),
+                'recovery_required_total': len(recovery_required_workflows),
+                'completed_total': len(completed_workflows),
+            },
             'health': {
                 'status': health.get('status', 'unknown'),
                 'persistence_layer': health.get('persistence_layer', {}),
@@ -369,6 +473,92 @@ class EngineApplication:
         )
         return result
 
+    @staticmethod
+    def _role_load_error(
+        role_id: str,
+        path: object,
+        *,
+        stage: str,
+        exc: Exception | None = None,
+        message: str | None = None,
+    ) -> dict[str, object]:
+        detail = message or (str(exc) if exc is not None else f'Role {role_id} could not be loaded.')
+        error_type = type(exc).__name__ if exc is not None else 'GovernanceMaterialError'
+        return {
+            'role_id': role_id,
+            'source_path': str(path),
+            'stage': stage,
+            'error_type': error_type,
+            'message': detail,
+        }
+
+    def _invalid_role_record(
+        self,
+        role_id: str,
+        path: object,
+        *,
+        stage: str,
+        exc: Exception | None = None,
+        message: str | None = None,
+        validation_issues: list[object] | None = None,
+        headers: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        role_error = self._role_load_error(role_id, path, stage=stage, exc=exc, message=message)
+        header_values = headers or {}
+        return {
+            'role_id': role_id,
+            'title': role_id,
+            'purpose': '',
+            'stratum': None,
+            'reports_to': None,
+            'escalation_to': None,
+            'safety_owner': None,
+            'business_domain': None,
+            'handled_resources': [],
+            'allow': [],
+            'deny': [],
+            'requires': {},
+            'validation_issues': [asdict(issue) for issue in (validation_issues or [])],
+            'policies': [],
+            'constraints': [],
+            'trusted_source_origin': header_values.get('trusted_source_origin', 'unavailable'),
+            'trusted_sha256': header_values.get('trusted_sha256'),
+            'trusted_manifest_signature_status': header_values.get('trusted_manifest_signature_status') or 'error',
+            'trusted_manifest_key_id': header_values.get('trusted_manifest_key_id'),
+            'status': 'invalid',
+            'source_path': str(path),
+            'load_error': role_error,
+        }
+
+    @staticmethod
+    def _compiled_role_record(role_id: str, path: object, document) -> dict[str, object]:
+        role = document.roles.get(role_id)
+        authority = document.authorities.get(role_id)
+        return {
+            'role_id': role_id,
+            'title': role.fields.get('title') if role else role_id,
+            'purpose': role.fields.get('purpose') if role else '',
+            'stratum': role.fields.get('stratum') if role else None,
+            'reports_to': role.fields.get('reports_to') if role else None,
+            'escalation_to': role.fields.get('escalation_to') if role else None,
+            'safety_owner': role.fields.get('safety_owner') if role else None,
+            'business_domain': role.fields.get('business_domain') if role else None,
+            'handled_resources': role.fields.get('handled_resources') if role else [],
+            'allow': sorted(authority.allow) if authority else [],
+            'deny': sorted(authority.deny) if authority else [],
+            'requires': authority.require if authority else {},
+            'validation_issues': [asdict(issue) for issue in document.validation_issues],
+            'policies': sorted(document.policies.keys()),
+            'constraints': sorted(document.constraints.keys()),
+            'trusted_source_origin': document.headers.get('trusted_source_origin', 'unknown'),
+            'trusted_sha256': document.headers.get('trusted_sha256'),
+            'trusted_manifest_signature_status': document.headers.get('trusted_manifest_signature_status'),
+            'trusted_manifest_key_id': document.headers.get('trusted_manifest_key_id'),
+            'status': 'ready',
+            'source_path': str(path),
+            'load_error': None,
+        }
+
     def list_roles(self) -> list[dict[str, object]]:
         roles: list[dict[str, object]] = []
         for path in sorted(self.registry.roles_dir.glob('*.ptn')):
@@ -377,33 +567,24 @@ class EngineApplication:
                 continue
             try:
                 document = self.loader.load(role_id)
-            except Exception:
+            except Exception as exc:
+                roles.append(self._invalid_role_record(role_id, path, stage='load', exc=exc))
                 continue
             role = document.roles.get(role_id)
             authority = document.authorities.get(role_id)
-            roles.append(
-                {
-                    'role_id': role_id,
-                    'title': role.fields.get('title') if role else role_id,
-                    'purpose': role.fields.get('purpose') if role else '',
-                    'stratum': role.fields.get('stratum') if role else None,
-                    'reports_to': role.fields.get('reports_to') if role else None,
-                    'escalation_to': role.fields.get('escalation_to') if role else None,
-                    'safety_owner': role.fields.get('safety_owner') if role else None,
-                    'business_domain': role.fields.get('business_domain') if role else None,
-                    'handled_resources': role.fields.get('handled_resources') if role else [],
-                    'allow': sorted(authority.allow) if authority else [],
-                    'deny': sorted(authority.deny) if authority else [],
-                    'requires': authority.require if authority else {},
-                    'validation_issues': [asdict(issue) for issue in document.validation_issues],
-                    'policies': sorted(document.policies.keys()),
-                    'constraints': sorted(document.constraints.keys()),
-                    'trusted_source_origin': document.headers.get('trusted_source_origin', 'unknown'),
-                    'trusted_sha256': document.headers.get('trusted_sha256'),
-                    'trusted_manifest_signature_status': document.headers.get('trusted_manifest_signature_status'),
-                    'trusted_manifest_key_id': document.headers.get('trusted_manifest_key_id'),
-                }
-            )
+            if role is None or authority is None:
+                roles.append(
+                    self._invalid_role_record(
+                        role_id,
+                        path,
+                        stage='semantic',
+                        message=f'Role {role_id} is missing a compiled role or authority block.',
+                        validation_issues=document.validation_issues,
+                        headers=document.headers,
+                    )
+                )
+                continue
+            roles.append(self._compiled_role_record(role_id, path, document))
         return roles
 
     def audit_integrity(self) -> dict[str, object]:
@@ -623,14 +804,23 @@ class EngineApplication:
         )
         return result
 
-    def compliance_snapshot(self) -> dict[str, object]:
-        roles = self.list_roles()
-        base = self._base_health(roles=roles)
+    def compliance_snapshot(
+        self,
+        *,
+        roles: list[dict[str, object]] | None = None,
+        runtime_health: dict[str, object] | None = None,
+        access_control_health: dict[str, object] | None = None,
+        evidence_summary: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        known_roles = roles if roles is not None else self.list_roles()
+        base = runtime_health if runtime_health is not None else self._base_health(roles=known_roles)
+        access_health = access_control_health if access_control_health is not None else self.access_control.health()
+        evidence = evidence_summary if evidence_summary is not None else self.evidence_builder.summary()
         return self.compliance_registry.build_snapshot(
             runtime_health=base,
-            access_control_health=self.access_control.health(),
-            roles=roles,
-            evidence_summary=self.evidence_builder.summary(),
+            access_control_health=access_health,
+            roles=known_roles,
+            evidence_summary=evidence,
         )
 
     def list_evidence_packs(self, limit: int = 20) -> list[dict[str, object]]:
@@ -750,6 +940,7 @@ class EngineApplication:
         return result
 
     def integration_snapshot(self, limit: int = 50) -> dict[str, object]:
+        dispatcher_health = self.integration_dispatcher.health()
         return {
             'summary': {
                 **self.integration_registry.health(),
@@ -759,10 +950,12 @@ class EngineApplication:
             'outbox': self.integration_dispatcher.list_outbox_jobs(limit=limit),
             'deliveries': self.integration_dispatcher.list_deliveries(limit=limit),
             'dead_letters': self.integration_dispatcher.list_dead_letters(limit=limit),
-            'coordination': self.integration_dispatcher.health().get('coordination', {}),
+            'coordination': dispatcher_health.get('coordination', {}),
         }
 
-    def model_provider_snapshot(self) -> dict[str, object]:
+    def model_provider_snapshot(self, *, health: dict[str, object] | None = None) -> dict[str, object]:
+        if isinstance(health, dict) and health:
+            return dict(health)
         return self.model_provider_registry.health()
 
     def probe_model_providers(self, requested_by: str, provider_id: str | None = None) -> dict[str, object]:

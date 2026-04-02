@@ -75,7 +75,20 @@ class CoreEngine:
         self.hierarchy_registry = HierarchyRegistry(role_loader, default_executive_owner_id=default_executive_owner_id)
         self.role_activation_router = RoleActivationRouter(self.hierarchy_registry)
         self.role_transition_policy = self.role_activation_router.transition_policy
-        self.global_harmony_alignment = GlobalHarmonyAlignmentService(Path('resources/alignment'))
+        alignment_catalog_dir = (
+            config.alignment_resources_dir
+            if config is not None
+            else Path(__file__).resolve().parents[2] / 'resources' / 'alignment'
+        )
+        alignment_default_region = (
+            config.alignment_default_region
+            if config is not None
+            else 'eu'
+        )
+        self.global_harmony_alignment = GlobalHarmonyAlignmentService(
+            alignment_catalog_dir,
+            default_region_id=alignment_default_region,
+        )
 
     def process(self, requester: str, action: str, role_id: str | None, payload: dict, metadata: dict | None = None):
         max_attempts = self._runtime_retry_max_attempts(metadata)
