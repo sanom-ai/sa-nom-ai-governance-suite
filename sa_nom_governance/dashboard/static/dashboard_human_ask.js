@@ -180,18 +180,34 @@ function renderHumanAskComposer(directory, sessions, canCreate, helpers) {
   const footer = canCreate
     ? '<p class="permission-note">Follow-up chains inherit context from a parent session when requested. Meeting mode accepts comma-separated role ids.</p>'
     : '<p class="permission-note">The current profile can read Human Ask records but cannot create new report or meeting requests.</p>';
+  const callableCount = entries.filter((entry) => entry.callable).length;
+  const consoleChips = [
+    `${callableCount} callable hats`,
+    `${meetingEntries.length} meeting-ready`,
+    `${sessions.length} parent sessions`,
+  ];
   return `
-    <article class="card stack">
-      <div>
-        <div class="eyebrow muted">Record Console</div>
-        <h3 class="card-title">Request a report or open a governed meeting record</h3>
-        <p class="card-subtitle">Choose whether one hat should report or several hats should meet around the same governed record.</p>
+    <article class="card stack human-ask-console-card">
+      <div class="human-ask-console-hero">
+        <div class="human-ask-console-copy">
+          <div class="eyebrow muted">Record Console</div>
+          <h3 class="card-title">Open a governed report or meeting record</h3>
+          <p class="card-subtitle">Start one report lane or gather several hats around the same governed record without leaving the Director surface.</p>
+        </div>
+        <div class="human-ask-console-chip-row">${consoleChips.map((label, index) => `<span class="status-chip human-ask-console-chip${index === 0 ? '' : ' human-ask-console-chip-soft'}">${escapeHtml(label)}</span>`).join('')}</div>
       </div>
-      <div class="trace-box compact-trace">
-        <strong>Mode guidance</strong>
-        ${modeGuidance}
+      <div class="human-ask-console-grid">
+        <div class="trace-box compact-trace human-ask-console-panel">
+          <strong>Mode guidance</strong>
+          <p class="muted">Use Report for one governed hat, or Meeting when several hats should respond inside the same record lane.</p>
+          ${modeGuidance}
+        </div>
+        <div class="trace-box compact-trace human-ask-console-panel human-ask-console-panel-accent">
+          <strong>Meeting quick hint</strong>
+          <p class="muted">${escapeHtml(`Use comma-separated role ids such as ${meetingHint}. The first resolved hat becomes the primary record lane while all hats remain visible in the same governed meeting record.`)}</p>
+        </div>
       </div>
-      <form id="human-ask-form" class="composer-grid">
+      <form id="human-ask-form" class="composer-grid human-ask-console-form">
         <div>
           <label class="permission-note" for="human-ask-mode">Mode</label>
           <select id="human-ask-mode"${disabledState}>
@@ -219,36 +235,32 @@ function renderHumanAskComposer(directory, sessions, canCreate, helpers) {
           <label class="permission-note" for="human-ask-meeting-roles">Meeting participant roles</label>
           <input id="human-ask-meeting-roles" type="text" placeholder="${escapeHtml(meetingHint)}"${disabledState}>
         </div>
-        <div class="composer-span">
-          <div class="trace-box compact-trace">
+        <div class="composer-span human-ask-console-picker-shell">
+          <div class="trace-box compact-trace human-ask-console-panel human-ask-console-picker">
             <strong>Meeting participant picker</strong>
-            ${meetingEntries.length ? `<div class="status-row">${meetingEntries.map((entry) => `
-              <label class="status-chip">
+            ${meetingEntries.length ? `<div class="human-ask-picker-grid">${meetingEntries.map((entry) => `
+              <label class="human-ask-picker-card">
                 <input type="checkbox" name="human-ask-meeting-role" value="${escapeHtml(entry.role_id)}"${disabledState}>
-                <span>${escapeHtml(`${entry.role_id} | ${entry.display_name}`)}</span>
+                <span class="human-ask-picker-copy">
+                  <span class="human-ask-picker-role">${escapeHtml(entry.role_id)}</span>
+                  <span class="human-ask-picker-name">${escapeHtml(entry.display_name || entry.role_id)}</span>
+                </span>
               </label>
             `).join('')}</div>` : '<p class="muted">No callable roles available for meeting selection.</p>'}
-          </div>
-        </div>
-        <div class="composer-span">
-          <div class="trace-box compact-trace">
-            <strong>Meeting quick hint</strong>
-            <p class="muted">${escapeHtml(`Use comma-separated role ids such as ${meetingHint}. The first resolved hat becomes the primary record lane while all hats appear in the meeting record.`)}</p>
           </div>
         </div>
         <div class="composer-span">
           <label class="permission-note" for="human-ask-prompt">Prompt</label>
           <textarea id="human-ask-prompt" rows="5" placeholder="Please report your governed posture, findings, and the next safe action."${disabledState}></textarea>
         </div>
-        <div class="composer-span inline-actions">
-          <button class="action-button" type="submit"${disabledState}>Create Record Request</button>
+        <div class="composer-span human-ask-console-action-row inline-actions">
+          <button class="action-button" type="submit"${disabledState}>Open Governed Record</button>
         </div>
       </form>
-      ${footer}
+      <div class="human-ask-console-footer">${footer}</div>
     </article>
   `;
 }
-
 function renderHumanAskDirectory(entries, canCreate, helpers) {
   const { escapeHtml, keyValue, statusBadge } = helpers;
   if (!entries.length) {
@@ -259,7 +271,7 @@ function renderHumanAskDirectory(entries, canCreate, helpers) {
       ? `<button class="action-button action-button-muted" data-human-ask-action="request-entry-record" data-entry-id="${escapeHtml(entry.entry_id)}" data-entry-label="${escapeHtml(entry.display_name)}">Request Report</button>`
       : '';
     return `
-      <article class="trace-box stack compact-trace">
+      <article class="trace-box stack compact-trace human-ask-directory-card">
         <div class="hero-heading">
           <div>
             <strong>${escapeHtml(entry.display_name)}</strong>
@@ -292,7 +304,7 @@ function renderHumanAskDirectory(entries, canCreate, helpers) {
         <h3 class="card-title">Current callable roles and drafts</h3>
         <p class="card-subtitle">Availability is derived from runtime locks, pending overrides, PT-OSS posture, and Role Private Studio readiness.</p>
       </div>
-      <div class="stack">${cards}</div>
+      <div class="human-ask-directory-grid">${cards}</div>
     </article>
   `;
 }
