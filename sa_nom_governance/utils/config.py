@@ -131,6 +131,7 @@ class AppConfig:
     session_store_path: Path | None = field(init=False, default=None)
     role_private_studio_store_path: Path | None = field(init=False, default=None)
     human_ask_store_path: Path | None = field(init=False, default=None)
+    document_store_path: Path | None = field(init=False, default=None)
     startup_smoke_report_path: Path | None = field(init=False, default=None)
     legal_hold_path: Path | None = field(init=False, default=None)
     integration_delivery_log_path: Path | None = field(init=False, default=None)
@@ -202,6 +203,7 @@ class AppConfig:
             self.session_store_path = self.runtime_dir / "runtime_session_store.json"
             self.role_private_studio_store_path = self.runtime_dir / "runtime_role_private_studio_store.json"
             self.human_ask_store_path = self.runtime_dir / "runtime_human_ask_store.json"
+            self.document_store_path = self.runtime_dir / "runtime_document_store.json"
             self.startup_smoke_report_path = self.runtime_dir / "runtime_startup_smoke.json"
             self.integration_delivery_log_path = self.runtime_dir / "runtime_integration_delivery_log.jsonl"
             self.integration_dead_letter_log_path = self.runtime_dir / "runtime_integration_dead_letters.jsonl"
