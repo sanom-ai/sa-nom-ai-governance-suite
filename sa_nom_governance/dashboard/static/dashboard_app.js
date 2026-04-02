@@ -2645,6 +2645,36 @@ function renderCaseWorkItems(item) {
   `;
 }
 
+function renderCaseContinuity(item) {
+  const continuity = item.continuity || {};
+  const nextView = continuity.next_view || item.primary_view || 'requests';
+  const nextViewLabel = VIEW_TITLES[nextView] || titleCase(nextView || 'overview');
+  const nextFocus = resolveCasePrimaryFocus(item, nextView);
+  return `
+    <div class="case-continuity-grid">
+      <article class="mini-card case-continuity-card">
+        <div class="eyebrow muted">Next governed move</div>
+        <strong>${escapeHtml(continuity.next_label || `Open ${nextViewLabel}`)}</strong>
+        <p class="muted">${escapeHtml(continuity.next_detail || 'Continue from the lead lane attached to this case.')}</p>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: nextView,
+          focusType: nextFocus.entityType,
+          focusId: nextFocus.entityId,
+          title: item.case_id ? `Case ${item.case_id} opened in ${nextViewLabel}.` : `Opened ${nextViewLabel}.`,
+          detail: continuity.next_detail || 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
+          actionLabel: `Open ${nextViewLabel}`,
+        })}>${escapeHtml(`Open ${nextViewLabel}`)}</button>
+      </article>
+      <article class="mini-card case-continuity-card">
+        <div class="eyebrow muted">Proof posture</div>
+        <strong>${escapeHtml(continuity.evidence_posture || 'proof starting')}</strong>
+        <p class="muted">${escapeHtml(continuity.evidence_detail || 'Case proof will strengthen as requests, decisions, and audit events accumulate.')}</p>
+        <span class="permission-note">Audit events ${escapeHtml(String(item.audit_event_total || 0))} | Timeline ${escapeHtml(String(item.timeline_total || 0))}</span>
+      </article>
+    </div>
+  `;
+}
+
 function renderCaseCard(item) {
   const timeline = Array.isArray(item.timeline) ? item.timeline : [];
   const linkedRefs = [
@@ -2680,6 +2710,7 @@ function renderCaseCard(item) {
         ['Audit events', String(item.audit_event_total || 0)],
         ['Timeline', String(item.timeline_total || 0)],
       ])}
+      ${renderCaseContinuity(item)}
       ${renderCaseWorkItems(item)}
       ${linkedRefs.length ? `<div class="case-reference-list">${linkedRefs.map((value) => `<span class="pill pill-muted">${escapeHtml(value)}</span>`).join('')}</div>` : ''}
       <div class="case-timeline">

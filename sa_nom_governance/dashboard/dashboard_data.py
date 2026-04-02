@@ -900,6 +900,38 @@ class DashboardSnapshotBuilder:
             linked_workflow_ids = sorted(case['linked_workflow_ids'])
             linked_studio_request_ids = sorted(case['linked_studio_request_ids'])
             audit_event_total = int(case.get('audit_event_total', 0) or 0)
+            timeline_total = len(timeline)
+            if status == 'blocked':
+                next_view = 'conflicts'
+                next_label = 'Resolve blocked lane'
+                next_detail = 'A blocked outcome or veto is holding this case. Clear the conflict or human stop before expecting AI to continue.'
+            elif status == 'human_required':
+                next_view = 'overrides' if int(case.get('pending_override_total', 0) or 0) > 0 else ('human_ask' if linked_session_ids else primary_view)
+                next_label = 'Work the human boundary'
+                next_detail = 'This case is paused behind a real human decision or guarded follow-up step.'
+            elif status == 'attention_required':
+                next_view = primary_view
+                next_label = 'Review the active lane'
+                next_detail = 'The case is still moving, but it needs operator follow-through before it can be treated as calm.'
+            elif status == 'active':
+                next_view = primary_view
+                next_label = 'Keep the case moving'
+                next_detail = 'Automation is progressing. Stay with the lead lane until the issue closes or reaches a human boundary.'
+            else:
+                next_view = 'audit' if audit_event_total else primary_view
+                next_label = 'Confirm the operating story'
+                next_detail = 'The case looks calm. Use the linked lane or proof history to confirm the story is complete.'
+
+            if audit_event_total > 0 and timeline_total >= 3:
+                evidence_posture = 'proof attached'
+                evidence_detail = 'Requests, decisions, and audit proof are already attached to this case.'
+            elif audit_event_total > 0 or timeline_total > 1:
+                evidence_posture = 'partial proof'
+                evidence_detail = 'The runtime has started building proof, but the case may still need another decision or export to feel complete.'
+            else:
+                evidence_posture = 'proof starting'
+                evidence_detail = 'This case is only lightly documented so far. Keep the next move tied to evidence as it grows.'
+
             items.append(
                 {
                     'case_id': display_id,
@@ -914,8 +946,15 @@ class DashboardSnapshotBuilder:
                     'linked_workflow_ids': linked_workflow_ids,
                     'linked_studio_request_ids': linked_studio_request_ids,
                     'audit_event_total': audit_event_total,
-                    'timeline_total': len(timeline),
+                    'timeline_total': timeline_total,
                     'timeline': timeline[:6],
+                    'continuity': {
+                        'next_view': next_view,
+                        'next_label': next_label,
+                        'next_detail': next_detail,
+                        'evidence_posture': evidence_posture,
+                        'evidence_detail': evidence_detail,
+                    },
                     'work_items': [
                         {
                             'kind': 'request',

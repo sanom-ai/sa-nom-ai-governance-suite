@@ -1088,6 +1088,21 @@ a {
   letter-spacing: 0.02em;
 }
 
+.case-continuity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.case-continuity-card {
+  gap: 10px;
+  background: linear-gradient(180deg, rgba(185, 146, 79, 0.08), rgba(255, 255, 255, 0.36));
+}
+
+.case-continuity-card .action-button {
+  width: fit-content;
+}
+
 .case-work-items {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));

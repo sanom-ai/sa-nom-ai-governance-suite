@@ -471,8 +471,12 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
         assert override_row.get('case_id') == linked_case.get('case_id')
         assert session_row.get('case_id') == linked_case.get('case_id')
         assert audit_row.get('case_id') == linked_case.get('case_id')
+        continuity = linked_case.get('continuity', {})
+
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(timeline_types)
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(work_item_kinds)
+        assert continuity.get('next_view') in {'overrides', 'human_ask', 'requests', 'audit', 'conflicts'}
+        assert continuity.get('evidence_posture') in {'proof attached', 'partial proof', 'proof starting'}
 
 def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
     with TemporaryDirectory() as temp_dir:
@@ -510,6 +514,7 @@ def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
         assert studio_row.get('case_status') == linked_case.get('status')
         assert studio_row.get('case_primary_view') == linked_case.get('primary_view')
         assert 'studio' in work_item_kinds
+        assert (linked_case.get('continuity', {}) or {}).get('next_view') in {'studio', 'audit', 'requests'}
 
 
 
