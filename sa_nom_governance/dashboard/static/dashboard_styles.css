@@ -2024,3 +2024,567 @@ button:focus-visible {
 .approval-flow-card .inline-actions {
   margin-top: 4px;
 }
+
+/* v0.7.2 local operator layout stability */
+.app-shell {
+  grid-template-columns: clamp(276px, 19vw, 316px) minmax(0, 1fr);
+}
+
+.app-shell > * {
+  min-width: 0;
+}
+
+.sidebar {
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 18px;
+}
+
+.sidebar-intel-grid {
+  grid-template-columns: 1fr;
+}
+
+.brand-copy p {
+  max-width: none;
+}
+
+.sidebar-intel-card,
+.topbar-ribbon-item,
+.topbar-glance-card,
+.nav-item,
+.main-panel,
+.topbar,
+.dashboard-root,
+.card,
+.table-card,
+.loading-card,
+.trace-box,
+.table-wrapper {
+  min-width: 0;
+}
+
+.health-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 468px), 1fr));
+  align-items: start;
+}
+
+.runtime-domain-card {
+  min-height: 100%;
+}
+
+.key-value-row {
+  align-items: flex-start;
+  min-width: 0;
+  gap: 14px;
+}
+
+.key-value-row > .muted {
+  flex: 0 0 clamp(110px, 24%, 176px);
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.key-value-row > strong,
+.key-value-row > .key-value-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.key-value-value {
+  display: block;
+  font-weight: 700;
+  color: inherit;
+}
+
+.key-value-value.key-value-path {
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 0.86rem;
+  color: var(--muted-strong);
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-card-primary .key-value-row .key-value-value {
+  color: #f7e9c6;
+}
+
+.topbar-glance {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.card-subtitle,
+.trace-box p,
+.sidebar-intel-copy,
+.timestamp {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 1080px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    max-height: none;
+    overflow: visible;
+    padding-right: 26px;
+  }
+}
+
+@media (max-width: 860px) {
+  .key-value-row {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .key-value-row > .muted,
+  .key-value-row > strong,
+  .key-value-row > .key-value-value {
+    flex: initial;
+    text-align: left;
+  }
+}
+/* v0.7.1 Human Ask console polish */
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.human-ask-console-card {
+  gap: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(226, 193, 135, 0.18), transparent 24%),
+    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(247, 239, 227, 0.88));
+}
+
+.human-ask-console-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.human-ask-console-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.human-ask-console-copy .card-title {
+  margin: 0;
+}
+
+.human-ask-console-copy .card-subtitle {
+  margin: 0;
+  max-width: 44rem;
+}
+
+.human-ask-console-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.human-ask-console-chip {
+  background: rgba(197, 154, 85, 0.14);
+  border-color: rgba(197, 154, 85, 0.22);
+}
+
+.human-ask-console-chip-soft {
+  background: rgba(23, 29, 40, 0.05);
+  border-color: rgba(23, 29, 40, 0.08);
+  color: var(--muted-strong);
+}
+
+.human-ask-console-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+  gap: 14px;
+}
+
+.human-ask-console-panel {
+  border-radius: 22px;
+  padding: 18px 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 240, 0.86), rgba(255, 255, 255, 0.46));
+  border: 1px solid rgba(197, 154, 85, 0.14);
+}
+
+.human-ask-console-panel strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--accent-deep);
+}
+
+.human-ask-console-panel p {
+  margin: 0 0 12px;
+}
+
+.human-ask-console-panel-accent {
+  background:
+    linear-gradient(180deg, rgba(248, 240, 224, 0.94), rgba(255, 250, 240, 0.62));
+}
+
+.human-ask-console-form {
+  padding: 18px 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(197, 154, 85, 0.14);
+}
+
+.human-ask-console-form > div,
+.human-ask-console-footer {
+  min-width: 0;
+}
+
+.human-ask-console-form .composer-span {
+  grid-column: 1 / -1;
+}
+
+.human-ask-console-form label.permission-note {
+  display: inline-block;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+}
+
+.human-ask-console-picker-shell {
+  margin-top: 2px;
+}
+
+.human-ask-console-picker .status-chip {
+  align-items: center;
+  gap: 8px;
+  padding-inline: 12px;
+}
+
+.human-ask-console-picker input[type="checkbox"] {
+  margin: 0;
+}
+
+.human-ask-console-action-row {
+  padding-top: 6px;
+  justify-content: flex-start;
+}
+
+.human-ask-console-action-row .action-button {
+  min-height: 46px;
+  padding-inline: 18px;
+}
+
+.human-ask-console-footer {
+  padding-top: 2px;
+}
+
+.human-ask-console-footer .permission-note {
+  margin: 0;
+}
+
+@media (max-width: 1180px) {
+  .human-ask-console-hero,
+  .human-ask-console-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .human-ask-console-chip-row {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 860px) {
+  .human-ask-console-form {
+    padding: 16px;
+  }
+}
+
+/* v0.7.1 Human Ask picker refinement */
+.human-ask-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.human-ask-picker-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(197, 154, 85, 0.18);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.96), rgba(250, 242, 229, 0.82));
+  cursor: pointer;
+}
+
+.human-ask-picker-card:hover {
+  border-color: rgba(197, 154, 85, 0.3);
+  box-shadow: 0 14px 24px rgba(118, 83, 28, 0.08);
+}
+
+.human-ask-picker-card input[type="checkbox"] {
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
+.human-ask-picker-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.human-ask-picker-role {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+
+.human-ask-picker-name {
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .human-ask-picker-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* v0.7.1 adaptive space system */
+.metrics-grid,
+.metrics-grid.metrics-grid-luxury,
+.split-grid,
+.card-grid,
+.health-grid,
+.overview-hero,
+.hero-split,
+.view-prelude-grid,
+.topbar-glance,
+.human-ask-console-grid,
+.human-ask-directory-grid,
+.human-ask-picker-grid {
+  align-items: start;
+  grid-auto-flow: row dense;
+}
+
+.metrics-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+}
+
+.metrics-grid.metrics-grid-luxury {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.split-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+}
+
+.card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.overview-hero {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+
+.hero-split {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  align-items: start;
+}
+
+.view-prelude-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.health-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+}
+
+.card,
+.table-card,
+.loading-card,
+.trace-box,
+.hero-card,
+.metric-card,
+.view-prelude-card,
+.runtime-domain-card,
+.record-posture-card,
+.human-ask-directory-card {
+  height: auto;
+  min-height: 0;
+  align-self: start;
+}
+
+.metric-card {
+  min-height: 148px;
+}
+
+.human-ask-console-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.human-ask-console-panel .key-value,
+.human-ask-directory-card .key-value {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 4px 18px;
+}
+
+.human-ask-console-panel .key-value-row,
+.human-ask-directory-card .key-value-row {
+  height: 100%;
+}
+
+.human-ask-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 16px;
+}
+
+.human-ask-directory-card {
+  gap: 14px;
+}
+
+.human-ask-directory-card .inline-actions {
+  margin-top: auto;
+}
+
+@media (max-width: 860px) {
+  .human-ask-console-panel .key-value,
+  .human-ask-directory-card .key-value {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* v0.7.1 path utility actions */
+.key-value-value-shell {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.key-value-path-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.key-value-action {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+}
+
+.key-value-action.action-button-muted {
+  background: rgba(23, 29, 40, 0.04);
+}
+
+@media (max-width: 860px) {
+  .key-value-value-shell {
+    justify-items: start;
+  }
+
+  .key-value-path-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* v0.7.1 metric architecture polish */
+.metrics-grid.metrics-grid-luxury {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.metric-card {
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 132px;
+}
+
+.metric-card .metric-value {
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.metric-card .metric-caption {
+  margin-top: 0;
+  max-width: 30ch;
+  text-wrap: pretty;
+}
+
+.metric-card-compact {
+  min-height: 118px;
+}
+
+.metric-card-wide {
+  grid-column: span 2;
+}
+
+.metric-card-feature {
+  grid-column: span 2;
+  min-height: 154px;
+}
+
+.metric-card-status .metric-value {
+  font-size: clamp(1.7rem, 2.4vw, 2.8rem);
+  line-height: 1;
+}
+
+.metric-card-wide .metric-value,
+.metric-card-feature .metric-value {
+  font-size: clamp(1.45rem, 1.9vw, 2.25rem);
+  line-height: 1.05;
+}
+
+@media (max-width: 1080px) {
+  .metric-card-wide,
+  .metric-card-feature {
+    grid-column: span 1;
+  }
+}
+
+/* v0.7.1 overview prelude balance */
+.view-prelude-overview .view-prelude-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.view-prelude-overview .view-prelude-card {
+  min-height: 118px;
+}
+
+.view-prelude-overview .view-prelude-card strong {
+  font-size: 1.05rem;
+}
+
+.view-prelude-overview .view-prelude-card .muted {
+  max-width: 28ch;
+}
+
+@media (max-width: 1080px) {
+  .view-prelude-overview .view-prelude-grid {
+    grid-template-columns: 1fr;
+  }
+}

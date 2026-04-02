@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js';
+﻿import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui7';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui7';
 
 const state = {
   view: 'overview',
@@ -50,16 +50,16 @@ const VIEW_TITLES = {
 };
 
 const VIEW_DESCRIPTIONS = {
-  overview: 'Executive runtime posture across governance, structural intelligence, and live operational readiness.',
-  requests: 'Trace governed execution intake, current outcomes, and the next controlled movement through the Director.',
-  overrides: 'Inspect only the boundaries where human intervention altered or halted the governed runtime path.',
-  conflicts: 'See active locks, consistency pressure, and the runtime contention surfaces that shape safe execution.',
-  audit: 'Review immutable chain activity, integrity posture, and evidence-oriented runtime history.',
-  studio: 'Author, validate, simulate, and publish Director hats through a governed private studio workflow.',
-  human_ask: 'Request report records or open meeting records without turning the operator into a manual workflow engine.',
-  sessions: 'Monitor session issuance, authentication continuity, expiry, and revocation across the private runtime.',
-  policies: 'Inspect PTAG-backed role packs, active hats, and the policy boundaries controlling the Director.',
-  health: 'Track deployment readiness, persistence, integrations, and infrastructure posture of the private server.',
+  overview: 'See governance, runtime, and readiness posture in one scan.',
+  requests: 'Submit governed work and follow where it goes next.',
+  overrides: 'Work only the decisions that crossed a human boundary.',
+  conflicts: 'Inspect locks, contention, and safe retry posture.',
+  audit: 'Review chain integrity, evidence, and trusted history.',
+  studio: 'Create, review, and publish governed AI roles.',
+  human_ask: 'Start governed report or meeting records from one place.',
+  sessions: 'Monitor short-lived access, expiry, and revocation.',
+  policies: 'Inspect active role packs and policy boundaries.',
+  health: 'Check deployment, storage, integrations, and runtime posture.',
 };
 
 const DEV_LANES = {
@@ -90,63 +90,76 @@ const VIEW_INTELLIGENCE = {
   overview: {
     eyebrow: 'Executive Radar',
     title: 'Stewardship posture across the Director',
-    narrative: 'This surface compresses trust, runtime movement, and structural signal into one executive scan so leaders can judge whether the Director is calm, pressured, or ready to scale.',
+    narrative: 'Use this page first when you need the fastest read on whether the Director is calm, guarded, or blocked.',
     emphasis: 'executive posture',
   },
   requests: {
     eyebrow: 'Runtime Intake',
     title: 'Governed flow through active demand',
-    narrative: 'Requests is the intake chamber of the AI Director core. It should read like controlled movement, not queue chaos, with clear evidence of where policy, overrides, and escalation start shaping execution.',
+    narrative: 'Use this page to submit work and follow the governed intake path.',
     emphasis: 'flow control',
   },
   overrides: {
     eyebrow: 'Boundary Changes',
     title: 'Human intervention only where autonomy ended',
-    narrative: 'Overrides should stay rare and explainable. This view is strongest when each entry clearly shows why human intervention changed or halted the governed runtime path.',
+    narrative: 'Use this page when automation stopped and a real human decision is required.',
     emphasis: 'human boundary',
   },
   conflicts: {
     eyebrow: 'Contention Map',
     title: 'Where safe execution is under pressure',
-    narrative: 'Conflicts and locks reveal where orchestration would become unsafe without discipline. The goal is not speed alone, but contention awareness with clean recovery paths.',
+    narrative: 'Use this page when requests stall behind locks, ordering, or shared resource pressure.',
     emphasis: 'contention pressure',
   },
   audit: {
     eyebrow: 'Evidence Ledger',
     title: 'Immutable history with trust posture visible',
-    narrative: 'Audit should feel like a sealed ledger, not a raw log dump. This view works best when integrity, maintenance readiness, and transition evidence are legible at a glance.',
+    narrative: 'Use this page when you need the trusted record of what happened and why.',
     emphasis: 'integrity chain',
   },
   studio: {
     eyebrow: 'Hat Factory',
     title: 'Role creation with structural and governance discipline',
-    narrative: 'Role Private Studio is where hats become publishable assets. Validation, simulation, PT-OSS, revision control, and trusted publication should read like one coherent promotion system.',
+    narrative: 'Use this page when a role needs drafting, review, simulation, or publication.',
     emphasis: 'publication lane',
   },
   human_ask: {
     eyebrow: 'Record Surface',
     title: 'Human request, AI report, governed record',
-    narrative: 'Human Ask stays narrow by design: one human requests a report or opens a meeting record, while the Director preserves transcript, scope boundary, and structural posture without creating manual operator work.',
+    narrative: 'Use this page when one human needs a governed report or a multi-hat meeting record.',
     emphasis: 'record discipline',
   },
   sessions: {
     eyebrow: 'Access Discipline',
     title: 'Short-lived runtime identity under control',
-    narrative: 'Sessions should feel operationally sharp: issuance, expiry, and revocation are visible so runtime access never drifts into ambiguity.',
+    narrative: 'Use this page when access posture, expiry, or revocation needs review.',
     emphasis: 'session control',
   },
   policies: {
     eyebrow: 'PTAG Library',
     title: 'Trusted hats and their authority graph',
-    narrative: 'Roles and Policies is the living policy library of the Director. It should show the shape of authority, safety ownership, and trusted manifest posture without forcing the operator to inspect raw PTAG first.',
+    narrative: 'Use this page when authority, safety ownership, or manifest trust needs inspection.',
     emphasis: 'policy library',
   },
   health: {
     eyebrow: 'Production Posture',
     title: 'Deployment readiness as an operating signal',
-    narrative: 'Health is not a checkbox list. It should answer whether this private server can be trusted to operate now, recover cleanly, and expose the right control surfaces beyond the owner account.',
+    narrative: 'Use this page when deployment posture, storage health, or integration readiness needs review.',
     emphasis: 'production hardening',
   },
+};
+
+const VIEW_USE_HINTS = {
+  overview: { value: 'Start here', note: 'Open this first for the quickest full-system scan.', tone: 'accent' },
+  requests: { value: 'Submit or trace work', note: 'Use this when you are creating a governed request or following its next lane.', tone: 'accent' },
+  overrides: { value: 'Resolve human decisions', note: 'Use this when the runtime paused and a human must approve or veto.', tone: 'warning' },
+  conflicts: { value: 'Unblock stalled work', note: 'Use this when locks or contention stop safe execution.', tone: 'warning' },
+  audit: { value: 'Prove what happened', note: 'Use this when you need evidence, reason, and chain integrity.', tone: 'accent' },
+  studio: { value: 'Build or publish a role', note: 'Use this when a hat needs editing, simulation, review, or publication.', tone: 'accent' },
+  human_ask: { value: 'Ask AI for a governed record', note: 'Use this for one-hat reports or multi-hat meeting records.', tone: 'accent' },
+  sessions: { value: 'Check who still has access', note: 'Use this when you need issuance, expiry, or revocation status.', tone: 'accent' },
+  policies: { value: 'Inspect role boundaries', note: 'Use this when authority, hierarchy, or safety ownership is unclear.', tone: 'accent' },
+  health: { value: 'Check runtime readiness', note: 'Use this when deployment, storage, or integrations need operator attention.', tone: 'accent' },
 };
 
 const VIEW_PERMISSIONS = {
@@ -356,6 +369,31 @@ root.addEventListener('click', async (event) => {
     updateNav();
     render();
     return;
+  }
+
+  const pathActionButton = event.target.closest('[data-path-action]');
+  if (pathActionButton) {
+    const action = pathActionButton.dataset.pathAction || '';
+    const pathValue = pathActionButton.dataset.pathValue || '';
+    try {
+      if (action === 'copy') {
+        await copyTextToClipboard(pathValue);
+        state.lastError = `Copied: ${compactPathForDisplay(pathValue)}`;
+        render();
+        return;
+      }
+      if (action === 'open-folder') {
+        const response = await apiFetch('/api/operator/open-path', { method: 'POST', body: JSON.stringify({ path: pathValue }) });
+        const result = response.result || {};
+        state.lastError = `Opened folder: ${compactPathForDisplay(result.opened_path || pathValue)}`;
+        render();
+        return;
+      }
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+      return;
+    }
   }
 
   const clearButton = event.target.closest('[data-studio-clear]');
@@ -753,6 +791,24 @@ async function loginWithAccessToken() {
   if (state.sessionToken) window.localStorage.setItem('sanom_session_token', state.sessionToken);
 }
 
+async function copyTextToClipboard(text) {
+  const value = String(text || '').trim();
+  if (!value) return;
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const field = document.createElement('textarea');
+  field.value = value;
+  field.setAttribute('readonly', 'true');
+  field.style.position = 'fixed';
+  field.style.opacity = '0';
+  document.body.appendChild(field);
+  field.select();
+  document.execCommand('copy');
+  document.body.removeChild(field);
+}
+
 async function apiFetch(path, options = {}, auth = {}) {
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (auth.useSession && state.sessionToken) headers['X-SA-NOM-Session'] = state.sessionToken;
@@ -915,7 +971,9 @@ function buildRuntimeAlerts(snapshot) {
 
 function renderViewPrelude(snapshot) {
   const cues = buildViewCues(snapshot);
-  if (!cues.length) return '';
+  const usageCue = buildViewUseHint();
+  const visibleCues = usageCue ? [usageCue, ...cues] : cues;
+  if (!visibleCues.length) return '';
   const profile = VIEW_INTELLIGENCE[state.view] || {
     eyebrow: 'View Intelligence',
     title: `${VIEW_TITLES[state.view]} focus`,
@@ -933,7 +991,7 @@ function renderViewPrelude(snapshot) {
         <div class="hero-chip-row">${statusBadge(profile.emphasis)}${statusBadge(snapshot.environment || 'runtime')}</div>
       </div>
       <div class="view-prelude-grid">
-        ${cues.map((cue) => `
+        ${visibleCues.map((cue) => `
           <article class="view-prelude-card${cue.tone ? ` view-prelude-card-${escapeHtml(cue.tone)}` : ''}">
             <span class="view-prelude-label">${escapeHtml(cue.label)}</span>
             <strong>${escapeHtml(String(cue.value))}</strong>
@@ -943,6 +1001,17 @@ function renderViewPrelude(snapshot) {
       </div>
     </section>
   `;
+}
+
+function buildViewUseHint() {
+  const hint = VIEW_USE_HINTS[state.view];
+  if (!hint) return null;
+  return {
+    label: 'Use this page when',
+    value: hint.value,
+    note: hint.note,
+    tone: hint.tone || 'accent',
+  };
 }
 
 function buildViewCues(snapshot) {
@@ -2179,7 +2248,7 @@ function renderStudioGovernanceItem(item, lane) {
       </div>
       <div class="inline-actions">
         <button class="action-button ${isSelected ? '' : 'action-button-muted'}" data-studio-governance-select="true" data-request-id="${escapeHtml(item.request_id)}">${isSelected ? 'Selected' : 'Open Panel'}</button>
-        ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Request Report</button>` : ''}
+        ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Start Report</button>` : ''}
         ${canEdit ? `<button class="action-button action-button-muted" data-studio-action="load" data-request-id="${escapeHtml(item.request_id)}">Load</button>` : ''}
         ${canApprove ? `<button class="action-button action-button-muted" data-studio-action="approve" data-request-id="${escapeHtml(item.request_id)}">Approve</button>` : ''}
         ${canRequestChanges ? `<button class="action-button action-button-muted" data-studio-action="request_changes" data-request-id="${escapeHtml(item.request_id)}">Changes</button>` : ''}
@@ -2253,7 +2322,7 @@ function renderStudioGovernancePanel(item) {
         <textarea id="studio-governance-note" class="studio-governance-note" placeholder="Approved for publish because validation passed, simulation passed, and authority boundaries are appropriate.">${escapeHtml(noteValue)}</textarea>
         ${renderGateSummary(readiness.gates || {})}
         <div class="inline-actions">
-          ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Request Report</button>` : ''}
+          ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Start Report</button>` : ''}
           ${canLoad ? `<button class="action-button action-button-muted" data-studio-panel-action="load" data-request-id="${escapeHtml(item.request_id)}">Load into Editor</button>` : ''}
           ${canRefresh ? `<button class="action-button action-button-muted" data-studio-panel-action="refresh" data-request-id="${escapeHtml(item.request_id)}">Refresh Draft</button>` : ''}
           ${canRestore ? `<button class="action-button action-button-muted" data-studio-panel-action="restore_revision" data-request-id="${escapeHtml(item.request_id)}">Restore Review Revision</button>` : ''}
@@ -2548,7 +2617,7 @@ function renderReviewTimeline(timeline) {
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(titleCase(item.decision || 'review'))}</strong>
-          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} Â· ${item.reviewer || '-'}`)}</p>
+          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${item.reviewer || '-'}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.decision || 'review')}</div>
       </div>
@@ -2565,7 +2634,7 @@ function renderSimulationHistory(history) {
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(`Revision ${item.revision_number || 0}`)}</strong>
-          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} Â· ${shortTime(item.generated_at)}`)}</p>
+          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${shortTime(item.generated_at)}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.status || 'not_run')}</div>
       </div>
@@ -2834,7 +2903,7 @@ function renderHealth(runtimeHealth, availableProfiles, retentionReport, operati
   const cards = Object.entries(runtimeHealth)
     .filter(([key]) => !['go_live_readiness', 'runtime_backups', 'privileged_operations', 'studio_structural', 'owner_registration'].includes(key))
     .map(([key, value]) => typeof value === 'object' && value !== null
-        ? `<article class="card stack"><div><div class="eyebrow muted">Runtime domain</div><h3 class="card-title">${titleCase(key)}</h3><p class="card-subtitle">Live operational posture for ${escapeHtml(titleCase(key).toLowerCase())}.</p></div>${keyValue(Object.entries(value).map(([entryKey, entryValue]) => [titleCase(entryKey), typeof entryValue === 'object' && entryValue !== null ? JSON.stringify(entryValue) : String(entryValue)]))}</article>`
+        ? `<article class="card stack runtime-domain-card"><div><div class="eyebrow muted">Runtime domain</div><h3 class="card-title">${titleCase(key)}</h3><p class="card-subtitle">Current posture for ${escapeHtml(titleCase(key).toLowerCase())}.</p></div>${keyValue(Object.entries(value).map(([entryKey, entryValue]) => [titleCase(entryKey), typeof entryValue === 'object' && entryValue !== null ? JSON.stringify(entryValue) : String(entryValue)]))}</article>`
         : metricCard(titleCase(key), String(value), 'default', 'Scalar runtime posture signal.'))
     .join('');
   const profileRows = availableProfiles.map((profile) => [profile.display_name, `${profile.role_name} | ${profile.permissions.length} permissions`]);
@@ -2845,7 +2914,7 @@ function renderHealth(runtimeHealth, availableProfiles, retentionReport, operati
           <div>
             <div class="eyebrow muted">Runtime Health</div>
             <h2 class="hero-title">Enterprise readiness is visible as an operating posture, not a hidden checklist.</h2>
-            <p class="hero-subtitle">Health brings together go-live status, trust, access hardening, session posture, retention signals, and operational recovery evidence in one executive control surface.</p>
+            <p class="hero-subtitle">Health brings go-live, trust, storage, and recovery signals into one operator view.</p>
           </div>
           <div class="hero-chip-row">
             ${statusBadge(goLive?.status || 'blocked')}
@@ -3045,7 +3114,7 @@ function renderOwnerRegistrationPanel(ownerRegistration, options = {}) {
         </div>
       </div>
       ${keyValue(summaryRows)}
-      ${registration.path ? `<div class="trace-box compact-trace"><strong>Registration file</strong><p class="muted">${escapeHtml(registration.path)}</p></div>` : ''}
+      ${registration.path ? `<div class="trace-box compact-trace"><strong>Registration file</strong>${keyValue([['Path', registration.path]])}</div>` : ''}
       ${form}
     </section>
   `;
@@ -3174,7 +3243,7 @@ function renderStudioRequestCard(item) {
         <p class="muted">${escapeHtml(structuralNote)}</p>
       </div>
       <div class="inline-actions">
-        ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Request Report</button>` : ''}
+        ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Start Report</button>` : ''}
         ${canEdit ? `<button class="action-button action-button-muted" data-studio-action="load" data-request-id="${escapeHtml(item.request_id)}">Load into Editor</button>` : ''}
         ${canEdit ? `<button class="action-button action-button-muted" data-studio-action="refresh" data-request-id="${escapeHtml(item.request_id)}">Refresh</button>` : ''}
         ${canReview && item.status !== 'published' ? `<button class="action-button" data-studio-action="approve" data-request-id="${escapeHtml(item.request_id)}">Approve</button>` : ''}
@@ -3292,7 +3361,7 @@ function renderStudioRevisionSelector(requestId, availableRevisions, currentRevi
   if (!availableRevisions.length) return '';
   const buildOptions = (selectedRevisionNumber) => availableRevisions.map((revision) => {
     const revisionNumber = revision.revision_number || 0;
-    const label = `Revision ${revisionNumber} Â· ${revision.trigger || 'refresh'} Â· ${shortTime(revision.generated_at)}`;
+    const label = `Revision ${revisionNumber} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${revision.trigger || 'refresh'} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${shortTime(revision.generated_at)}`;
     const selected = revisionNumber === selectedRevisionNumber ? ' selected' : '';
     return `<option value="${escapeHtml(String(revisionNumber))}"${selected}>${escapeHtml(label)}</option>`;
   }).join('');
@@ -3500,12 +3569,93 @@ function wrapTableCard(title, tableHtml, subtitle = '') {
   return `<article class="table-card"><div class="table-card-head"><div><div class="eyebrow muted">Runtime Table</div><h3 class="table-title">${escapeHtml(title)}</h3>${subtitle ? `<p class="card-subtitle">${escapeHtml(subtitle)}</p>` : ''}</div></div><div class="table-wrapper">${tableHtml}</div></article>`;
 }
 
+function looksLikePathValue(key, value) {
+  const normalizedKey = String(key || '').toLowerCase();
+  const text = String(value || '').trim();
+  if (!text || text === '-') return false;
+  if (normalizedKey.includes('path') || normalizedKey.includes('file') || normalizedKey.includes('directory') || normalizedKey.includes('manifest') || normalizedKey.includes('archive') || normalizedKey.includes('store')) {
+    return true;
+  }
+  if (/^[a-z]:\\/i.test(text) || text.startsWith('\\')) return true;
+  if (/^https?:\/\//i.test(text)) return text.length > 52;
+  if (text.includes('/') || text.includes('\\')) {
+    return /(_runtime|resources|docs|examples|\.jsonl?$|\.md$|\.ptn$|\.log$|\.zip$|\.ya?ml$|\.txt$|\.csv$)/i.test(text);
+  }
+  return false;
+}
+
+function looksLikeLocalFilePath(value) {
+  const text = String(value || '').trim();
+  return /^[a-z]:\\/i.test(text) || text.startsWith('\\');
+}
+
+function compactPathForDisplay(value) {
+  const text = String(value || '');
+  if (text.length <= 56) return text;
+  if (/^https?:\/\//i.test(text)) {
+    try {
+      const url = new URL(text);
+      const tail = url.pathname.length > 26 ? `...${url.pathname.slice(-26)}` : (url.pathname || '/');
+      return `${url.origin}${tail}`;
+    } catch (error) {
+      // Ignore malformed URLs and fall through to generic compaction.
+    }
+  }
+  const separator = text.includes('\\') ? '\\' : '/';
+  const parts = text.split(/[\\/]+/).filter(Boolean);
+  if (parts.length >= 2) return `...${separator}${parts.slice(-2).join(separator)}`;
+  return `${text.slice(0, 22)}...${text.slice(-18)}`;
+}
+
+function renderPathActionButtons(rawValue, pathLike) {
+  const text = String(rawValue || '').trim();
+  if (!pathLike || !text || text === '-') return '';
+  const localPath = looksLikeLocalFilePath(text);
+  const copyLabel = localPath ? 'Copy path' : 'Copy value';
+  const actions = [
+    `<button class="action-button action-button-muted key-value-action" type="button" data-path-action="copy" data-path-value="${escapeHtml(text)}">${copyLabel}</button>`,
+  ];
+  if (localPath) {
+    actions.push(`<button class="action-button action-button-muted key-value-action" type="button" data-path-action="open-folder" data-path-value="${escapeHtml(text)}">Open folder</button>`);
+  }
+  return `<span class="key-value-path-actions">${actions.join('')}</span>`;
+}
+
+function renderKeyValueValue(key, value) {
+  const rawValue = String(value ?? '-');
+  const pathLike = looksLikePathValue(key, rawValue);
+  const displayValue = pathLike ? compactPathForDisplay(rawValue) : rawValue;
+  const titleAttr = rawValue && displayValue !== rawValue ? ` title="${escapeHtml(rawValue)}"` : '';
+  const classes = ['key-value-value'];
+  if (pathLike) classes.push('key-value-path');
+  const valueLabel = `<span class="${classes.join(' ')}"${titleAttr}>${escapeHtml(displayValue)}</span>`;
+  const actions = renderPathActionButtons(rawValue, pathLike);
+  if (!actions) return valueLabel;
+  return `<span class="key-value-value-shell">${valueLabel}${actions}</span>`;
+}
+
 function keyValue(rows) {
-  return `<div class="key-value">${rows.map(([key, value]) => `<div class="key-value-row"><span class="muted">${escapeHtml(key)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}</div>`;
+  return `<div class="key-value">${rows.map(([key, value]) => `<div class="key-value-row"><span class="muted">${escapeHtml(key)}</span>${renderKeyValueValue(key, value)}</div>`).join('')}</div>`;
 }
 
 function metricCard(label, value, tone = 'default', caption = '') {
-  return `<article class="card metric-card metric-card-${escapeHtml(String(tone))}"><span class="metric-label">${escapeHtml(label)}</span><span class="metric-value">${escapeHtml(String(value))}</span>${caption ? `<span class="metric-caption">${escapeHtml(caption)}</span>` : ''}</article>`;
+  const normalizedValue = formatMetricValue(value);
+  const normalizedLabel = String(label || '');
+  const normalizedCaption = String(caption || '');
+  const cardClasses = [
+    'card',
+    'metric-card',
+    `metric-card-${escapeHtml(String(tone))}`,
+  ];
+  const valueLength = normalizedValue.length;
+  const captionLength = normalizedCaption.length;
+  const labelLength = normalizedLabel.length;
+  const isStatusLike = /^[A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+)*$/.test(normalizedValue) && valueLength <= 22;
+  if (valueLength <= 2 && captionLength <= 72) cardClasses.push('metric-card-compact');
+  if (valueLength >= 14 || captionLength >= 96 || labelLength >= 20) cardClasses.push('metric-card-wide');
+  if (valueLength >= 22 || captionLength >= 140) cardClasses.push('metric-card-feature');
+  if (isStatusLike) cardClasses.push('metric-card-status');
+  return `<article class="${cardClasses.join(' ')}"><span class="metric-label">${escapeHtml(normalizedLabel)}</span><span class="metric-value">${escapeHtml(normalizedValue)}</span>${normalizedCaption ? `<span class="metric-caption">${escapeHtml(normalizedCaption)}</span>` : ''}</article>`;
 }
 
 function emptyState(message) {
@@ -3721,6 +3871,20 @@ function titleCase(value) {
   return String(value).replace(/_/g, ' ').split(' ').filter(Boolean).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
 
+function formatMetricValue(value) {
+  const text = String(value ?? '-').trim();
+  if (!text) return '-';
+  if (/^[a-z]+(?:[_-][a-z0-9]+)+$/.test(text)) {
+    return text
+      .replace(/[_-]+/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+  return text;
+}
+
 function formatHumanAskModeLabel(value) {
   const mode = String(value || 'report');
   if (mode === 'report') return 'Report';
@@ -3730,6 +3894,9 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
+
+
 
 
 
