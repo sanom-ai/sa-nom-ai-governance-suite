@@ -3,11 +3,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
+from sa_nom_governance.studio.role_private_studio_service import RolePrivateStudioService
 from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.utils.owner_registration import OwnerRegistration, utc_now, write_owner_registration
 from sa_nom_governance.utils.registry import RoleRegistry
-from sa_nom_governance.studio.role_private_studio_service import RolePrivateStudioService
-
 
 BASE_PAYLOAD = {
     "role_name": "Contract Review Analyst",
@@ -806,9 +805,41 @@ def test_role_private_studio_publish_response_surfaces_registry_signature_visibi
         published = service.publish_request(created["request_id"], published_by="EXEC_OWNER")
 
         summary = published["summary"]
+        publish_artifact = published["publish_artifact"]
         assert summary["publication_posture"] == "published"
         assert summary["publish_signature_status"] == "verified"
         assert summary["registry_verified"] is True
+        assert summary["live_hash_verified"] is True
+        assert summary["publish_trust_posture"] == "trusted_live"
+        assert summary["published_from_current_revision"] is True
+        assert summary["publish_manifest_key_id"]
+        assert summary["publish_signed_by"]
+        assert summary["publish_signature_mode"] == "sha256_manifest_hmac"
+        assert publish_artifact["live_hash_verified"] is True
+        assert publish_artifact["publish_trust_posture"] == "trusted_live"
+
+
+def test_role_private_studio_detects_live_hash_drift_after_publish():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        created = service.create_request(BASE_PAYLOAD, requested_by="EXEC_OWNER")
+        service.review_request(created["request_id"], reviewer="EXEC_OWNER", decision="approve", note="Approved for publish.")
+        published = service.publish_request(created["request_id"], published_by="EXEC_OWNER")
+        role_path = Path(published["publish_artifact"]["role_path"])
+        role_path.write_text(role_path.read_text(encoding="utf-8") + "\n# drift\n", encoding="utf-8")
+
+        refreshed = service.get_request(created["request_id"])
+        summary = refreshed["summary"]
+        snapshot = service.studio_snapshot(limit=10)
+        snapshot_summary = snapshot["summary"]
+
+        assert summary["registry_verified"] is True
+        assert summary["live_hash_verified"] is False
+        assert summary["publish_trust_posture"] == "live_drift"
+        assert summary["published_from_current_revision"] is True
+        assert snapshot_summary["published_live_hash_verified_total"] == 0
+        assert snapshot_summary["trust_attention_total"] >= 1
 
 
 def test_role_private_studio_snapshot_reports_restore_override_and_publish_signals():
@@ -860,4 +891,8 @@ def test_role_private_studio_snapshot_reports_restore_override_and_publish_signa
         assert summary["restored_request_total"] >= 1
         assert summary["publisher_ready_total"] >= 1
         assert summary["published_registry_verified_total"] >= 1
+        assert summary["published_live_hash_verified_total"] >= 1
+        assert summary["published_current_revision_total"] >= 1
+        assert summary["trusted_live_total"] >= 1
+        assert summary["trust_attention_total"] == 0
         assert summary["revision_drift_total"] >= 1

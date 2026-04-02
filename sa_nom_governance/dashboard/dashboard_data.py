@@ -88,6 +88,7 @@ class DashboardSnapshotBuilder:
         runtime_alerts = self.runtime_alerts(
             human_ask=human_ask,
             role_private_studio=role_private_studio,
+            evidence_exports=evidence_exports,
             go_live_readiness=go_live_readiness,
             operational_readiness=operational_readiness,
             operator_queue_health=operator_queue_health,
@@ -127,6 +128,10 @@ class DashboardSnapshotBuilder:
                 'studio_manual_override_total': int(role_private_studio.get('summary', {}).get('manual_override_total', 0) or 0),
                 'studio_restored_request_total': int(role_private_studio.get('summary', {}).get('restored_request_total', 0) or 0),
                 'studio_registry_verified_total': int(role_private_studio.get('summary', {}).get('published_registry_verified_total', 0) or 0),
+                'studio_live_hash_verified_total': int(role_private_studio.get('summary', {}).get('published_live_hash_verified_total', 0) or 0),
+                'studio_trusted_live_total': int(role_private_studio.get('summary', {}).get('trusted_live_total', 0) or 0),
+                'studio_trust_attention_total': int(role_private_studio.get('summary', {}).get('trust_attention_total', 0) or 0),
+                'studio_published_current_revision_total': int(role_private_studio.get('summary', {}).get('published_current_revision_total', 0) or 0),
                 'studio_revision_drift_total': int(role_private_studio.get('summary', {}).get('revision_drift_total', 0) or 0),
                 'studio_structural_guarded_total': role_private_studio.get('summary', {}).get('structural_guarded_total', 0),
                 'studio_structural_blocked_total': role_private_studio.get('summary', {}).get('structural_blocked_total', 0),
@@ -174,6 +179,11 @@ class DashboardSnapshotBuilder:
                 'first_run_action_required_total': int((operations.get('first_run_action_center', {}) or {}).get('required_total', 0) or 0),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
+                'workflow_proof_total': int(evidence_exports.get('summary', {}).get('workflow_proof_total', 0) or 0),
+                'evidence_posture': str(evidence_exports.get('summary', {}).get('posture', 'missing')),
+                'evidence_attention_total': int(evidence_exports.get('summary', {}).get('attention_total', 0) or 0),
+                'evidence_tamper_evident_total': int(evidence_exports.get('summary', {}).get('tamper_evident_total', 0) or 0),
+                'evidence_trusted_role_mismatch_total': int(evidence_exports.get('summary', {}).get('trusted_role_mismatch_total', 0) or 0),
                 'integration_targets_total': integrations.get('summary', {}).get('targets_total', 0),
                 'integration_deliveries_total': integrations.get('summary', {}).get('deliveries_total', 0),
                 'integration_failures_total': integrations.get('summary', {}).get('failed_total', 0),
@@ -675,6 +685,7 @@ class DashboardSnapshotBuilder:
         return {
             'summary': summary if summary is not None else self.app.evidence_pack_summary(),
             'exports': self.app.list_evidence_packs(limit=limit),
+            'workflow_proofs': self.app.list_workflow_proof_bundles(limit=limit),
         }
 
     def integrations(self, limit: int = 50) -> dict[str, object]:
@@ -1028,6 +1039,7 @@ class DashboardSnapshotBuilder:
         *,
         human_ask: dict[str, object],
         role_private_studio: dict[str, object],
+        evidence_exports: dict[str, object],
         go_live_readiness: dict[str, object],
         operational_readiness: dict[str, object],
         operator_queue_health: dict[str, object],
@@ -1038,6 +1050,7 @@ class DashboardSnapshotBuilder:
         owner_registration = self.owner_registration()
         sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
         studio_summary = role_private_studio.get('summary', {}) if isinstance(role_private_studio.get('summary', {}), dict) else {}
+        evidence_summary = evidence_exports.get('summary', {}) if isinstance(evidence_exports.get('summary', {}), dict) else {}
 
         if not owner_registration.get('registered'):
             alerts.append(
@@ -1250,6 +1263,54 @@ class DashboardSnapshotBuilder:
                         'guarded_total': structural_guarded_total,
                         'blocked_total': structural_blocked_total,
                         'ready_total': int(studio_summary.get('ready_to_publish_total', 0) or 0),
+                    },
+                }
+            )
+
+        trust_attention_total = int(studio_summary.get('trust_attention_total', 0) or 0)
+        published_total = int(studio_summary.get('published_total', 0) or 0)
+        published_live_hash_verified_total = int(studio_summary.get('published_live_hash_verified_total', 0) or 0)
+        published_current_revision_total = int(studio_summary.get('published_current_revision_total', 0) or 0)
+        if trust_attention_total:
+            alerts.append(
+                {
+                    'alert_id': 'studio_trusted_registry_drift',
+                    'tone': 'danger',
+                    'eyebrow': 'Trusted publication drift',
+                    'title': 'Published studio roles have drifted from their trusted registry contract',
+                    'message': 'One or more published role packs no longer match the trusted live hash, signature posture, or approved revision contract. Review them before treating the role library as fully trusted.',
+                    'view': 'studio',
+                    'action_label': 'Review published roles',
+                    'badge': f'{trust_attention_total} roles',
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'published_total': published_total,
+                        'published_live_hash_verified_total': published_live_hash_verified_total,
+                        'published_current_revision_total': published_current_revision_total,
+                    },
+                }
+            )
+
+        evidence_attention_total = int(evidence_summary.get('attention_total', 0) or 0)
+        trusted_role_mismatch_total = int(evidence_summary.get('trusted_role_mismatch_total', 0) or 0)
+        latest_export = evidence_summary.get('latest_export', {}) if isinstance(evidence_summary.get('latest_export', {}), dict) else {}
+        if evidence_attention_total:
+            alerts.append(
+                {
+                    'alert_id': 'evidence_export_attention',
+                    'tone': 'danger',
+                    'eyebrow': 'Evidence integrity posture',
+                    'title': 'Recent evidence exports captured audit or trust attention signals',
+                    'message': 'The latest evidence pack shows integrity attention, so exported proof should be reviewed before it is treated as a clean auditor-ready bundle.',
+                    'view': 'health',
+                    'action_label': 'Open Evidence Exports',
+                    'badge': f'{evidence_attention_total} exports',
+                    'timestamp': str(latest_export.get('created_at') or self._utc_now()),
+                    'details': {
+                        'latest_pack_id': latest_export.get('pack_id') or '-',
+                        'audit_chain_status': latest_export.get('audit_chain_status') or 'unknown',
+                        'trusted_registry_signature_status': latest_export.get('trusted_registry_signature_status') or 'unknown',
+                        'trusted_role_mismatch_total': trusted_role_mismatch_total,
                     },
                 }
             )

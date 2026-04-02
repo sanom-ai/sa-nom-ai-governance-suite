@@ -1,9 +1,10 @@
 import json
 from copy import deepcopy
+from pathlib import Path
 from uuid import uuid4
 
 from sa_nom_governance.audit.audit_logger import AuditLogger
-from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
+from sa_nom_governance.compliance.trusted_registry import compute_sha256, write_trusted_registry_files
 from sa_nom_governance.ptag.pt_oss_engine import PTOSSEngine
 from sa_nom_governance.studio.role_private_studio_diff import build_revision_delta
 from sa_nom_governance.studio.role_private_studio_generator import RolePrivateStudioGenerator
@@ -249,6 +250,21 @@ class RolePrivateStudioService:
         manual_revision_total = sum(1 for item in revisions if str(item.get('ptag_source_mode', 'generated')) == 'manual')
         current_revision = int(summary.get('current_revision', 0) or 0)
         latest_diff = latest_revision.get('diff_summary', {}) if isinstance(latest_revision.get('diff_summary', {}), dict) else {}
+        normalized_spec = payload.get('normalized_spec', {}) if isinstance(payload.get('normalized_spec', {}), dict) else {}
+        role_id = str((summary.get('role_id') or normalized_spec.get('role_id') or publish_artifact.get('role_id') or '')).strip()
+        trusted_manifest = self.registry.trusted_registry.manifest if isinstance(self.registry.trusted_registry.manifest, dict) else {}
+        manifest_roles = trusted_manifest.get('roles', {}) if isinstance(trusted_manifest.get('roles', {}), dict) else {}
+        manifest_signature = trusted_manifest.get('signature', {}) if isinstance(trusted_manifest.get('signature', {}), dict) else {}
+        manifest_entry = manifest_roles.get(role_id, {}) if role_id else {}
+        role_path_value = str(publish_artifact.get('role_path', '') or '')
+        live_sha256 = ''
+        live_hash_verified = False
+        if role_path_value:
+            role_path = Path(role_path_value)
+            if role_path.exists() and role_path.is_file():
+                live_sha256 = compute_sha256(role_path.read_text(encoding='utf-8'))
+                trusted_sha256 = str(publish_artifact.get('trusted_sha256') or manifest_entry.get('sha256') or '')
+                live_hash_verified = bool(trusted_sha256 and live_sha256 == trusted_sha256)
         if current_revision <= 1:
             revision_drift_status = 'initial'
         elif any(bool((latest_diff.get(section, {}) or {}).get('changed', False)) for section in {'structured_jd', 'ptag', 'validation', 'simulation'} if isinstance(latest_diff.get(section, {}), dict)):
@@ -269,6 +285,35 @@ class RolePrivateStudioService:
             publication_posture = 'in_review'
         publish_signature_status = str(publish_artifact.get('manifest_signature_status', 'not_published')) if publish_artifact else 'not_published'
         registry_verified = publish_signature_status == 'verified'
+        manifest_key_id = str(publish_artifact.get('manifest_key_id') or manifest_signature.get('key_id') or '') if publish_artifact else ''
+        publish_signed_by = str(manifest_signature.get('signed_by') or self.config.trusted_registry_signed_by or '') if publish_artifact else ''
+        publish_signature_mode = str(manifest_entry.get('signature_mode') or 'sha256_manifest_hmac') if publish_artifact else ''
+        registry_registered_at = str(manifest_entry.get('registered_at') or publish_artifact.get('published_at') or '') if publish_artifact else ''
+        published_from_current_revision = bool(publish_artifact and int(publish_artifact.get('revision_number', 0) or 0) == current_revision)
+        if not publish_artifact:
+            publish_trust_posture = 'not_published'
+        elif publish_signature_status != 'verified':
+            publish_trust_posture = 'signature_invalid'
+        elif not live_hash_verified:
+            publish_trust_posture = 'live_drift'
+        elif not published_from_current_revision:
+            publish_trust_posture = 'stale_publication'
+        else:
+            publish_trust_posture = 'trusted_live'
+        if publish_artifact:
+            publish_artifact.update(
+                {
+                    'manifest_key_id': manifest_key_id,
+                    'manifest_signed_by': publish_signed_by,
+                    'signature_mode': publish_signature_mode,
+                    'registry_registered_at': registry_registered_at,
+                    'live_sha256': live_sha256,
+                    'live_hash_verified': live_hash_verified,
+                    'published_from_current_revision': published_from_current_revision,
+                    'publish_trust_posture': publish_trust_posture,
+                }
+            )
+            payload['publish_artifact'] = publish_artifact
         summary.update(
             {
                 'latest_trigger': str(latest_revision.get('trigger', 'create')) if latest_revision else 'create',
@@ -278,6 +323,13 @@ class RolePrivateStudioService:
                 'restore_available': len(revisions) > 1,
                 'publication_posture': publication_posture,
                 'publish_signature_status': publish_signature_status,
+                'publish_manifest_key_id': manifest_key_id,
+                'publish_signed_by': publish_signed_by,
+                'publish_signature_mode': publish_signature_mode,
+                'publish_trust_posture': publish_trust_posture,
+                'published_from_current_revision': published_from_current_revision,
+                'live_hash_verified': live_hash_verified,
+                'live_sha256': live_sha256,
                 'registry_verified': registry_verified,
                 'publisher_ready': publication_posture == 'publisher_ready',
                 'revision_drift_status': revision_drift_status,
@@ -312,6 +364,10 @@ class RolePrivateStudioService:
                 'manual_override_total': sum(1 for item in requests if (item.get('summary') or {}).get('ptag_override_present')),
                 'restored_request_total': sum(1 for item in requests if int((item.get('summary') or {}).get('restored_revision_total', 0) or 0) > 0),
                 'published_registry_verified_total': sum(1 for item in requests if (item.get('summary') or {}).get('registry_verified')),
+                'published_live_hash_verified_total': sum(1 for item in requests if (item.get('summary') or {}).get('live_hash_verified')),
+                'published_current_revision_total': sum(1 for item in requests if (item.get('summary') or {}).get('published_from_current_revision')),
+                'trusted_live_total': sum(1 for item in requests if (item.get('summary') or {}).get('publish_trust_posture') == 'trusted_live'),
+                'trust_attention_total': sum(1 for item in requests if (item.get('summary') or {}).get('publish_trust_posture') in {'signature_invalid', 'live_drift', 'stale_publication'}),
                 'revision_drift_total': sum(1 for item in requests if (item.get('summary') or {}).get('revision_drift_status') == 'changed'),
                 'review_pending_total': sum(1 for item in requests if (item.get('summary') or {}).get('publication_posture') in {'in_review', 'changes_requested', 'structural_review', 'blocked'}),
                 'structural_guarded_total': structural_guarded_total,

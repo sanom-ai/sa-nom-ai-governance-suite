@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta, timezone
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from shutil import copy2
 from tempfile import TemporaryDirectory
@@ -521,8 +521,66 @@ def test_dashboard_snapshot_surfaces_role_private_studio_revision_and_publish_si
         assert studio_summary.get('restored_request_total', 0) >= 1
         assert studio_summary.get('publisher_ready_total', 0) >= 1
         assert studio_summary.get('published_registry_verified_total', 0) >= 1
+        assert studio_summary.get('published_live_hash_verified_total', 0) >= 1
+        assert studio_summary.get('published_current_revision_total', 0) >= 1
+        assert studio_summary.get('trusted_live_total', 0) >= 1
+        assert studio_summary.get('trust_attention_total', 0) == 0
         assert summary.get('studio_manual_override_total', 0) >= 1
         assert summary.get('studio_restored_request_total', 0) >= 1
         assert summary.get('studio_publisher_ready_total', 0) >= 1
         assert summary.get('studio_registry_verified_total', 0) >= 1
+        assert summary.get('studio_live_hash_verified_total', 0) >= 1
+        assert summary.get('studio_trusted_live_total', 0) >= 1
+        assert summary.get('studio_trust_attention_total', 0) == 0
         assert any(alert.get('alert_id') == 'studio_revision_governance' for alert in runtime_alerts)
+
+
+def test_dashboard_snapshot_surfaces_evidence_attention_and_registry_drift() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        payload = {
+            'role_name': 'Trust Drift Dashboard Analyst',
+            'purpose': 'Review trusted publication drift visibility.',
+            'reporting_line': 'LEGAL',
+            'business_domain': 'legal_operations',
+            'operating_mode': 'indirect',
+            'assigned_user_id': 'LEGAL_MANAGER_20',
+            'executive_owner_id': 'EXEC_OWNER',
+            'seat_id': 'OPS-DASH-TRUST',
+            'responsibilities': ['review incoming contracts', 'flag risk'],
+            'allowed_actions': ['review_contract', 'flag_risk', 'advise_compliance'],
+            'forbidden_actions': ['sign_contract'],
+            'wait_human_actions': [],
+            'handled_resources': ['contract'],
+            'financial_sensitivity': 'medium',
+            'legal_sensitivity': 'high',
+            'compliance_sensitivity': 'high',
+        }
+
+        created = builder.app.role_private_studio.create_request(payload, requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.review_request(created['request_id'], reviewer='EXEC_OWNER', decision='approve', note='Approved for publish.')
+        published = builder.app.role_private_studio.publish_request(created['request_id'], published_by='EXEC_OWNER')
+        role_path = Path(published['publish_artifact']['role_path'])
+        role_path.write_text(role_path.read_text(encoding='utf-8') + '\n# trust drift\n', encoding='utf-8')
+        builder.app.create_evidence_pack(requested_by='EXEC_OWNER')
+
+        snapshot = builder.build()
+        studio_summary = snapshot.get('role_private_studio', {}).get('summary', {})
+        evidence_summary = snapshot.get('evidence_exports', {}).get('summary', {})
+        summary = snapshot.get('summary', {})
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+
+        assert studio_summary.get('trust_attention_total', 0) >= 1
+        assert studio_summary.get('published_live_hash_verified_total', 0) == 0
+        assert summary.get('studio_trust_attention_total', 0) >= 1
+        assert summary.get('studio_live_hash_verified_total', 0) == 0
+        assert evidence_summary.get('attention_total', 0) >= 1
+        assert evidence_summary.get('trusted_role_mismatch_total', 0) >= 1
+        assert evidence_summary.get('posture') == 'attention_required'
+        assert summary.get('evidence_posture') == 'attention_required'
+        assert summary.get('evidence_attention_total', 0) >= 1
+        assert summary.get('evidence_trusted_role_mismatch_total', 0) >= 1
+        assert any(alert.get('alert_id') == 'studio_trusted_registry_drift' for alert in runtime_alerts)
+        assert any(alert.get('alert_id') == 'evidence_export_attention' for alert in runtime_alerts)
