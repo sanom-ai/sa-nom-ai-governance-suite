@@ -127,6 +127,7 @@ export function renderHumanAsk(humanAsk, { can, helpers }) {
     titleCase,
     buildFocusKey,
     isFocusedEntity,
+    renderCaseReferenceButton,
   } = helpers;
   const summary = humanAsk.summary || {};
   const directory = humanAsk.callable_directory || { summary: {}, entries: [] };
@@ -183,7 +184,7 @@ export function renderHumanAsk(humanAsk, { can, helpers }) {
           <p class="card-subtitle">Each record keeps the prompt, transcript, and boundary trace together for later review.</p>
         </div>
       </div>
-      ${sessions.length ? `<div class="stack">${sessions.map((session) => renderHumanAskSessionCard(session, { escapeHtml, keyValue, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity })).join('')}</div>` : `<div class="empty-state-shell"><div class="hero-heading"><div><div class="eyebrow muted">Transcript lane idle</div><strong>No Human Ask records exist yet.</strong><p class="muted">Start a governed report or meeting record from the console above, and the first transcript will appear here with scope, posture, and evidence context attached.</p></div><div class="hero-chip-row"><span class="pill">record lane empty</span><span class="pill">start from console</span></div></div></div>`}
+      ${sessions.length ? `<div class="stack">${sessions.map((session) => renderHumanAskSessionCard(session, { escapeHtml, keyValue, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity, renderCaseReferenceButton })).join('')}</div>` : `<div class="empty-state-shell"><div class="hero-heading"><div><div class="eyebrow muted">Transcript lane idle</div><strong>No Human Ask records exist yet.</strong><p class="muted">Start a governed report or meeting record from the console above, and the first transcript will appear here with scope, posture, and evidence context attached.</p></div><div class="hero-chip-row"><span class="pill">record lane empty</span><span class="pill">start from console</span></div></div></div>`}
     </section>
   `;
 }
@@ -337,7 +338,7 @@ function renderHumanAskDirectory(entries, canCreate, helpers) {
 }
 
 function renderHumanAskSessionCard(session, helpers) {
-  const { escapeHtml, keyValue, shortTime, statusBadge, titleCase } = helpers;
+  const { escapeHtml, keyValue, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity, renderCaseReferenceButton } = helpers;
   const decision = session.decision_summary || {};
   const participant = session.participant || {};
   const participants = Array.isArray(session.metadata?.participants) ? session.metadata.participants : [];
@@ -355,6 +356,14 @@ function renderHumanAskSessionCard(session, helpers) {
     : '';
   const sessionRecordCard = sessionRecord ? renderHumanAskSessionRecord(sessionRecord, decision, { escapeHtml, keyValue, titleCase }) : '';
   const boundaryAlertCard = renderHumanAskBoundaryAlert(session, decision, directorDisposition, { escapeHtml });
+  const caseReference = renderCaseReferenceButton
+    ? renderCaseReferenceButton(session.case_id, session.case_status, {
+        sourceView: 'human_ask',
+        referenceId: session.session_id,
+        contextLabel: 'Human Ask record',
+        label: session.case_id,
+      })
+    : '';
   return `
     <article class="trace-box stack human-ask-session-card${isFocusedEntity && isFocusedEntity('human_ask_session', session.session_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey ? buildFocusKey('human_ask_session', session.session_id) : `human_ask_session:${session.session_id}`)}">
       <div class="hero-heading">
@@ -371,6 +380,7 @@ function renderHumanAskSessionCard(session, helpers) {
         </div>
       </div>
       <p class="muted">${escapeHtml(session.prompt || '')}</p>
+      ${caseReference ? `<div class="human-ask-case-reference">${caseReference}</div>` : ''}
       ${participantChips}
       <section class="record-posture-grid">
         <article class="trace-box compact-trace record-posture-card">

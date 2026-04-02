@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from math import ceil
 from pathlib import Path
 
@@ -85,6 +85,21 @@ class DashboardSnapshotBuilder:
             operational_readiness=operational_readiness,
             operator_queue_health=operator_queue_health,
             operator_decision_lanes=operator_decision_lanes,
+        )
+        cases = self.case_backbone(
+            requests=requests,
+            overrides=overrides,
+            human_ask=human_ask,
+            role_private_studio=role_private_studio,
+            audit_entries=audit_entries,
+        )
+        self._attach_case_refs(
+            requests=requests,
+            overrides=overrides,
+            human_ask=human_ask,
+            role_private_studio=role_private_studio,
+            audit_entries=audit_entries,
+            cases=cases,
         )
         operator_notification_center = self.operator_notification_center(
             queue_health=operator_queue_health,
@@ -225,6 +240,11 @@ class DashboardSnapshotBuilder:
                 'work_inbox_human_required_total': int((unified_work_inbox.get('summary', {}) or {}).get('human_required_total', 0) or 0),
                 'work_inbox_blocked_total': int((unified_work_inbox.get('summary', {}) or {}).get('blocked_total', 0) or 0),
                 'work_inbox_primary_view': str((unified_work_inbox.get('summary', {}) or {}).get('primary_view', 'overview')),
+                'cases_total': int((cases.get('summary', {}) or {}).get('cases_total', 0) or 0),
+                'cases_attention_total': int((cases.get('summary', {}) or {}).get('attention_total', 0) or 0),
+                'cases_human_required_total': int((cases.get('summary', {}) or {}).get('human_required_total', 0) or 0),
+                'cases_blocked_total': int((cases.get('summary', {}) or {}).get('blocked_total', 0) or 0),
+                'cases_primary_view': str((cases.get('summary', {}) or {}).get('primary_view', 'overview')),
                 'operator_notification_candidates_total': int(operator_notification_center.get('dispatch_candidates_total', 0) or 0),
                 'operator_notification_channels_total': int(operator_notification_center.get('active_channel_total', 0) or 0),
                 'operator_notification_posture': str(operator_notification_delivery_readiness.get('posture', 'unknown')),
@@ -243,6 +263,7 @@ class DashboardSnapshotBuilder:
             'retention_plan': retention_plan,
             'role_private_studio': role_private_studio,
             'human_ask': human_ask,
+            'cases': cases,
             'operations': operations,
             'compliance': compliance,
             'evidence_exports': evidence_exports,
@@ -393,6 +414,13 @@ class DashboardSnapshotBuilder:
                     'ordering_status': consistency.get('ordering_status', 'none'),
                     'event_stream': consistency.get('event_stream', '-'),
                     'event_sequence': consistency.get('event_sequence', '-'),
+                    'workflow_id': str(
+                        (
+                            context_metadata.get('execution_plan', {})
+                            if isinstance(context_metadata.get('execution_plan', {}), dict)
+                            else {}
+                        ).get('plan_id', '')
+                    ),
                     'previous_role': role_transition.get('previous_role'),
                     'new_role': role_transition.get('new_role'),
                     'requested_role': role_transition.get('requested_role'),
@@ -533,6 +561,664 @@ class DashboardSnapshotBuilder:
 
     def human_ask(self, limit: int = 50) -> dict[str, object]:
         return self.app.human_ask_snapshot(limit=limit)
+
+
+    def case_backbone(
+        self,
+        *,
+        requests: list[dict[str, object]],
+        overrides: list[dict[str, object]],
+        human_ask: dict[str, object],
+        role_private_studio: dict[str, object],
+        audit_entries: list[dict[str, object]],
+        limit: int = 40,
+    ) -> dict[str, object]:
+        sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
+        studio_requests = role_private_studio.get('requests', []) if isinstance(role_private_studio.get('requests', []), list) else []
+        alias_to_case: dict[str, str] = {}
+        cases: dict[str, dict[str, object]] = {}
+
+        def case_shell(case_key: str) -> dict[str, object]:
+            return {
+                'case_key': case_key,
+                'aliases': set(),
+                'linked_request_ids': set(),
+                'linked_override_ids': set(),
+                'linked_session_ids': set(),
+                'linked_workflow_ids': set(),
+                'linked_studio_request_ids': set(),
+                'timeline': [],
+                'opened_at': None,
+                'updated_at': None,
+                'pending_override_total': 0,
+                'waiting_human_total': 0,
+                'blocked_total': 0,
+                'attention_total': 0,
+                'active_total': 0,
+                'audit_event_total': 0,
+                'evidence_export_total': 0,
+                'workflow_proof_total': 0,
+                'latest_proof_event': None,
+            }
+
+        def merge_case(target: dict[str, object], source: dict[str, object]) -> None:
+            for field in [
+                'aliases',
+                'linked_request_ids',
+                'linked_override_ids',
+                'linked_session_ids',
+                'linked_workflow_ids',
+                'linked_studio_request_ids',
+            ]:
+                target[field].update(source[field])
+            target['timeline'].extend(source['timeline'])
+            for field in ['pending_override_total', 'waiting_human_total', 'blocked_total', 'attention_total', 'active_total', 'audit_event_total', 'evidence_export_total', 'workflow_proof_total']:
+                target[field] += int(source.get(field, 0) or 0)
+            target_proof = target.get('latest_proof_event') if isinstance(target.get('latest_proof_event'), dict) else None
+            source_proof = source.get('latest_proof_event') if isinstance(source.get('latest_proof_event'), dict) else None
+            if source_proof and (not target_proof or str(source_proof.get('timestamp', '') or '') >= str(target_proof.get('timestamp', '') or '')):
+                target['latest_proof_event'] = source_proof
+            opened_at = [value for value in [target.get('opened_at'), source.get('opened_at')] if value]
+            updated_at = [value for value in [target.get('updated_at'), source.get('updated_at')] if value]
+            target['opened_at'] = min(opened_at) if opened_at else None
+            target['updated_at'] = max(updated_at) if updated_at else None
+
+        def ensure_case(aliases: list[str]) -> tuple[str, dict[str, object]]:
+            normalized = [alias for alias in aliases if alias]
+            existing_keys: list[str] = []
+            for alias in normalized:
+                case_key = alias_to_case.get(alias)
+                if case_key and case_key not in existing_keys:
+                    existing_keys.append(case_key)
+            if not existing_keys:
+                case_key = normalized[0] if normalized else f'synthetic:{len(cases) + 1}'
+                cases[case_key] = case_shell(case_key)
+            else:
+                case_key = existing_keys[0]
+                if case_key not in cases:
+                    cases[case_key] = case_shell(case_key)
+                for duplicate in existing_keys[1:]:
+                    if duplicate == case_key or duplicate not in cases:
+                        continue
+                    merge_case(cases[case_key], cases.pop(duplicate))
+                    for alias, mapped in list(alias_to_case.items()):
+                        if mapped == duplicate:
+                            alias_to_case[alias] = case_key
+            case = cases[case_key]
+            for alias in normalized:
+                alias_to_case[alias] = case_key
+                case['aliases'].add(alias)
+            return case_key, case
+
+        def touch_case(case: dict[str, object], *, timestamp: object, event: dict[str, object], request_id: str = '', override_id: str = '', session_id: str = '', workflow_id: str = '', studio_request_id: str = '', pending_override: bool = False, waiting_human: bool = False, blocked: bool = False, attention: bool = False, active: bool = False, audit_event: bool = False, evidence_export: bool = False, workflow_proof: bool = False, proof_event: dict[str, object] | None = None) -> None:
+            stamp = str(timestamp or '').strip()
+            if stamp:
+                case['opened_at'] = min([value for value in [case.get('opened_at'), stamp] if value]) if case.get('opened_at') else stamp
+                case['updated_at'] = max([value for value in [case.get('updated_at'), stamp] if value]) if case.get('updated_at') else stamp
+            if request_id:
+                case['linked_request_ids'].add(request_id)
+            if override_id:
+                case['linked_override_ids'].add(override_id)
+            if session_id:
+                case['linked_session_ids'].add(session_id)
+            if workflow_id:
+                case['linked_workflow_ids'].add(workflow_id)
+            if studio_request_id:
+                case['linked_studio_request_ids'].add(studio_request_id)
+            if pending_override:
+                case['pending_override_total'] += 1
+            if waiting_human:
+                case['waiting_human_total'] += 1
+            if blocked:
+                case['blocked_total'] += 1
+            if attention:
+                case['attention_total'] += 1
+            if active:
+                case['active_total'] += 1
+            if audit_event:
+                case['audit_event_total'] += 1
+            if evidence_export:
+                case['evidence_export_total'] += 1
+            if workflow_proof:
+                case['workflow_proof_total'] += 1
+            if isinstance(proof_event, dict):
+                current_proof = case.get('latest_proof_event') if isinstance(case.get('latest_proof_event'), dict) else None
+                if not current_proof or str(proof_event.get('timestamp', '') or '') >= str(current_proof.get('timestamp', '') or ''):
+                    case['latest_proof_event'] = proof_event
+            case['timeline'].append(event)
+
+        for item in requests:
+            request_id = str(item.get('request_id', '') or '').strip()
+            workflow_id = str(item.get('workflow_id', '') or '').strip()
+            override_id = str(item.get('human_override_request_id', '') or '').strip()
+            aliases = []
+            if request_id:
+                aliases.append(f'request:{request_id}')
+            if workflow_id:
+                aliases.append(f'workflow:{workflow_id}')
+            if override_id:
+                aliases.append(f'override:{override_id}')
+            _, case = ensure_case(aliases)
+            outcome = str(item.get('outcome', 'unknown') or 'unknown')
+            touch_case(
+                case,
+                timestamp=item.get('timestamp'),
+                request_id=request_id,
+                workflow_id=workflow_id,
+                override_id=override_id,
+                blocked=outcome in {'blocked', 'conflicted'} or str(item.get('authority_gate_outcome', '')) == 'blocked',
+                waiting_human=outcome in {'waiting_human', 'human_required'} or bool(item.get('human_override_request_id')),
+                attention=outcome in {'escalated', 'waiting_human', 'human_required'} or bool(item.get('authority_gate_triggered')),
+                active=True,
+                event={
+                    'timestamp': item.get('timestamp'),
+                    'event_type': 'request',
+                    'status': outcome,
+                    'view': 'requests',
+                    'reference': request_id or workflow_id or '-',
+                    'title': f"{str(item.get('action', 'request') or 'request')} request",
+                    'detail': str(item.get('reason') or item.get('switch_reason') or item.get('resource') or 'Governed request recorded in the runtime ledger.'),
+                },
+            )
+
+        for item in overrides:
+            override_id = str(item.get('request_id', '') or '').strip()
+            origin_request_id = str(item.get('origin_request_id', item.get('request_id', '')) or '').strip()
+            workflow_id = str(item.get('workflow_id', '') or '').strip()
+            aliases = []
+            if override_id:
+                aliases.append(f'override:{override_id}')
+            if origin_request_id:
+                aliases.append(f'request:{origin_request_id}')
+            if workflow_id:
+                aliases.append(f'workflow:{workflow_id}')
+            _, case = ensure_case(aliases)
+            status = str(item.get('status', 'unknown') or 'unknown')
+            touch_case(
+                case,
+                timestamp=item.get('resolved_at') or item.get('created_at'),
+                request_id=origin_request_id,
+                override_id=override_id,
+                workflow_id=workflow_id,
+                pending_override=status == 'pending',
+                waiting_human=status == 'pending',
+                blocked=status == 'vetoed',
+                attention=status in {'pending', 'vetoed'},
+                active=True,
+                event={
+                    'timestamp': item.get('resolved_at') or item.get('created_at'),
+                    'event_type': 'override',
+                    'status': status,
+                    'view': 'overrides',
+                    'reference': override_id or origin_request_id or '-',
+                    'title': 'Human override decision',
+                    'detail': str(item.get('reason') or item.get('required_by') or 'Human boundary state changed.'),
+                },
+            )
+
+        for item in sessions:
+            metadata = item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}
+            decision_summary = item.get('decision_summary', {}) if isinstance(item.get('decision_summary', {}), dict) else {}
+            participant = item.get('participant', {}) if isinstance(item.get('participant', {}), dict) else {}
+            summary = item.get('summary', {}) if isinstance(item.get('summary', {}), dict) else {}
+            inbox = metadata.get('human_decision_inbox', {}) if isinstance(metadata.get('human_decision_inbox', {}), dict) else {}
+            execution_plan = metadata.get('execution_plan', {}) if isinstance(metadata.get('execution_plan', {}), dict) else {}
+            if not execution_plan:
+                execution_plan = inbox.get('execution_plan', {}) if isinstance(inbox.get('execution_plan', {}), dict) else {}
+            session_id = str(item.get('session_id', '') or '').strip()
+            origin_request_id = str(metadata.get('origin_request_id', metadata.get('request_id', '')) or '').strip()
+            workflow_id = str(execution_plan.get('plan_id', summary.get('queue_execution_plan_id', '')) or '').strip()
+            studio_request_id = str(metadata.get('studio_request_id', '') or '').strip()
+            aliases = []
+            if session_id:
+                aliases.append(f'session:{session_id}')
+            if origin_request_id:
+                aliases.append(f'request:{origin_request_id}')
+            if workflow_id:
+                aliases.append(f'workflow:{workflow_id}')
+            if studio_request_id:
+                aliases.append(f'studio:{studio_request_id}')
+            _, case = ensure_case(aliases)
+            status = str(item.get('status', 'unknown') or 'unknown')
+            scope_status = str((decision_summary.get('metadata', {}) if isinstance(decision_summary.get('metadata', {}), dict) else {}).get('scope_status', ''))
+            posture = str(summary.get('governed_reporting_posture', '') or '')
+            touch_case(
+                case,
+                timestamp=item.get('updated_at') or item.get('created_at'),
+                request_id=origin_request_id,
+                session_id=session_id,
+                workflow_id=workflow_id,
+                studio_request_id=studio_request_id,
+                waiting_human=status in {'waiting_human', 'escalated'} or scope_status == 'human_only_boundary',
+                attention=status in {'waiting_human', 'escalated'} or posture in {'guarded_follow_up', 'human_gated'} or summary.get('confidence_band') == 'guarded',
+                active=True,
+                event={
+                    'timestamp': item.get('updated_at') or item.get('created_at'),
+                    'event_type': 'human_ask',
+                    'status': status,
+                    'view': 'human_ask',
+                    'reference': session_id or origin_request_id or workflow_id or '-',
+                    'title': 'Human Ask record',
+                    'detail': str(participant.get('display_name') or participant.get('role_id') or item.get('mode') or 'Governed record captured.'),
+                },
+            )
+
+        for item in studio_requests:
+            studio_request_id = str(item.get('request_id', '') or '').strip()
+            aliases = [f'studio:{studio_request_id}'] if studio_request_id else []
+            _, case = ensure_case(aliases)
+            status = str(item.get('status', 'unknown') or 'unknown')
+            structured_jd = item.get('structured_jd', {}) if isinstance(item.get('structured_jd', {}), dict) else {}
+            publish_readiness = item.get('publish_readiness', {}) if isinstance(item.get('publish_readiness', {}), dict) else {}
+            touch_case(
+                case,
+                timestamp=item.get('updated_at') or item.get('created_at'),
+                studio_request_id=studio_request_id,
+                attention=status in {'changes_requested'} or str(publish_readiness.get('status', '')) in {'guarded', 'blocked'},
+                active=True,
+                event={
+                    'timestamp': item.get('updated_at') or item.get('created_at'),
+                    'event_type': 'studio',
+                    'status': status,
+                    'view': 'studio',
+                    'reference': studio_request_id or '-',
+                    'title': 'Role Private Studio request',
+                    'detail': str(structured_jd.get('role_name') or structured_jd.get('purpose') or 'Governed role authoring activity recorded.'),
+                },
+            )
+
+        for entry in audit_entries:
+            metadata = entry.get('metadata', {}) if isinstance(entry.get('metadata', {}), dict) else {}
+            context = metadata.get('context', {}) if isinstance(metadata.get('context', {}), dict) else {}
+            context_metadata = context.get('metadata', {}) if isinstance(context.get('metadata', {}), dict) else {}
+            runtime_evidence = metadata.get('runtime_evidence', {}) if isinstance(metadata.get('runtime_evidence', {}), dict) else {}
+            workflow_bundle = runtime_evidence.get('workflow_bundle_summary', {}) if isinstance(runtime_evidence.get('workflow_bundle_summary', {}), dict) else {}
+            execution_plan = context_metadata.get('execution_plan', {}) if isinstance(context_metadata.get('execution_plan', {}), dict) else {}
+            human_override = metadata.get('human_override', {}) if isinstance(metadata.get('human_override', {}), dict) else {}
+            request_id = str(entry.get('request_id') or context.get('request_id') or metadata.get('request_id') or '').strip()
+            workflow_id = str(workflow_bundle.get('execution_plan_id') or execution_plan.get('plan_id') or metadata.get('workflow_id') or '').strip()
+            override_id = str(human_override.get('request_id', '') or '').strip()
+            studio_request_id = str(metadata.get('studio_request_id', '') or '').strip()
+            aliases = []
+            if request_id:
+                aliases.append(f'request:{request_id}')
+            if workflow_id:
+                aliases.append(f'workflow:{workflow_id}')
+            if override_id:
+                aliases.append(f'override:{override_id}')
+            if studio_request_id:
+                aliases.append(f'studio:{studio_request_id}')
+            if not aliases:
+                continue
+            _, case = ensure_case(aliases)
+            action = str(entry.get('action', 'audit_event') or 'audit_event')
+            outcome = str(entry.get('outcome', 'recorded') or 'recorded')
+            is_evidence_export = action == 'evidence_export'
+            is_workflow_proof = action == 'workflow_proof_export'
+            proof_event = None
+            if is_evidence_export or is_workflow_proof:
+                proof_event = {
+                    'action': action,
+                    'status': outcome,
+                    'reference': request_id or workflow_id or studio_request_id or '-',
+                    'timestamp': entry.get('timestamp'),
+                    'detail': str(entry.get('reason') or metadata.get('requested_by') or 'Proof artifact recorded.'),
+                }
+            touch_case(
+                case,
+                timestamp=entry.get('timestamp'),
+                request_id=request_id,
+                override_id=override_id,
+                workflow_id=workflow_id,
+                studio_request_id=studio_request_id,
+                attention=(is_evidence_export or is_workflow_proof) and outcome != 'completed',
+                audit_event=True,
+                evidence_export=is_evidence_export,
+                workflow_proof=is_workflow_proof,
+                proof_event=proof_event,
+                event={
+                    'timestamp': entry.get('timestamp'),
+                    'event_type': 'audit',
+                    'status': outcome,
+                    'view': 'audit',
+                    'reference': request_id or workflow_id or studio_request_id or '-',
+                    'title': f'{action} audit event',
+                    'detail': str(entry.get('reason') or metadata.get('requested_by') or 'Audit event recorded.'),
+                },
+            )
+
+        items: list[dict[str, object]] = []
+        for case in cases.values():
+            timeline = sorted(
+                case['timeline'],
+                key=lambda item: (str(item.get('timestamp', '') or ''), str(item.get('reference', '') or '')),
+                reverse=True,
+            )
+            if case['blocked_total'] > 0:
+                status = 'blocked'
+            elif case['pending_override_total'] > 0 or case['waiting_human_total'] > 0:
+                status = 'human_required'
+            elif case['attention_total'] > 0:
+                status = 'attention_required'
+            elif case['active_total'] > 0:
+                status = 'active'
+            else:
+                status = 'monitoring'
+            if case['pending_override_total'] > 0:
+                primary_view = 'overrides'
+            elif case['blocked_total'] > 0:
+                primary_view = 'conflicts'
+            elif case['linked_request_ids']:
+                primary_view = 'requests'
+            elif case['linked_studio_request_ids']:
+                primary_view = 'studio'
+            elif case['linked_session_ids']:
+                primary_view = 'human_ask'
+            else:
+                primary_view = 'audit'
+            display_id = self._case_display_id(case['case_key'])
+            title = (
+                next(iter(sorted(case['linked_request_ids'])), '')
+                or next(iter(sorted(case['linked_studio_request_ids'])), '')
+                or next(iter(sorted(case['linked_session_ids'])), '')
+                or display_id
+            )
+            linked_request_ids = sorted(case['linked_request_ids'])
+            linked_override_ids = sorted(case['linked_override_ids'])
+            linked_session_ids = sorted(case['linked_session_ids'])
+            linked_workflow_ids = sorted(case['linked_workflow_ids'])
+            linked_studio_request_ids = sorted(case['linked_studio_request_ids'])
+            audit_event_total = int(case.get('audit_event_total', 0) or 0)
+            timeline_total = len(timeline)
+            if status == 'blocked':
+                next_view = 'conflicts'
+                next_label = 'Resolve blocked lane'
+                next_detail = 'A blocked outcome or veto is holding this case. Clear the conflict or human stop before expecting AI to continue.'
+            elif status == 'human_required':
+                next_view = 'overrides' if int(case.get('pending_override_total', 0) or 0) > 0 else ('human_ask' if linked_session_ids else primary_view)
+                next_label = 'Work the human boundary'
+                next_detail = 'This case is paused behind a real human decision or guarded follow-up step.'
+            elif status == 'attention_required':
+                next_view = primary_view
+                next_label = 'Review the active lane'
+                next_detail = 'The case is still moving, but it needs operator follow-through before it can be treated as calm.'
+            elif status == 'active':
+                next_view = primary_view
+                next_label = 'Keep the case moving'
+                next_detail = 'Automation is progressing. Stay with the lead lane until the issue closes or reaches a human boundary.'
+            else:
+                next_view = 'audit' if audit_event_total else primary_view
+                next_label = 'Confirm the operating story'
+                next_detail = 'The case looks calm. Use the linked lane or proof history to confirm the story is complete.'
+
+            evidence_export_total = int(case.get('evidence_export_total', 0) or 0)
+            workflow_proof_total = int(case.get('workflow_proof_total', 0) or 0)
+            latest_proof_event = case.get('latest_proof_event') if isinstance(case.get('latest_proof_event'), dict) else None
+            if workflow_proof_total > 0:
+                evidence_posture = 'proof attached'
+                evidence_detail = 'A workflow proof bundle is attached, so the case already has exportable runtime proof for review.'
+            elif evidence_export_total > 0 or (audit_event_total > 0 and timeline_total >= 3):
+                evidence_posture = 'partial proof'
+                evidence_detail = 'The runtime has exported or recorded proof, but the case may still need another decision or a workflow-specific bundle.'
+            else:
+                evidence_posture = 'proof starting'
+                evidence_detail = 'This case is only lightly documented so far. Keep the next move tied to evidence as it grows.'
+
+            follow_up_actions: list[dict[str, str]] = []
+            follow_up_actions.append({
+                'label': next_label,
+                'detail': next_detail,
+                'view': next_view,
+                'tone': status,
+            })
+            if workflow_proof_total > 0:
+                follow_up_actions.append({
+                    'label': 'Inspect proof history',
+                    'detail': 'Open Audit to review the attached workflow proof bundle and confirm the case is ready for closure or handoff.',
+                    'view': 'audit',
+                    'tone': 'proof',
+                })
+            else:
+                follow_up_actions.append({
+                    'label': 'Inspect proof history',
+                    'detail': 'Open Audit to verify whether this case still needs evidence export or workflow proof before closure.',
+                    'view': 'audit',
+                    'tone': 'proof',
+                })
+            if linked_session_ids and status in {'human_required', 'attention_required'}:
+                follow_up_actions.append({
+                    'label': 'Refresh governed record',
+                    'detail': 'Review the linked Human Ask record so the narrative stays current before the next decision.',
+                    'view': 'human_ask',
+                    'tone': 'follow_up',
+                })
+            elif linked_studio_request_ids and primary_view != 'studio':
+                follow_up_actions.append({
+                    'label': 'Review linked studio draft',
+                    'detail': 'Open the Studio lane if this case still depends on a governed role draft or publication outcome.',
+                    'view': 'studio',
+                    'tone': 'follow_up',
+                })
+            deduped_follow_ups = []
+            seen_follow_up_views = set()
+            for action_item in follow_up_actions:
+                action_view = str(action_item.get('view', '') or '')
+                if action_view in seen_follow_up_views:
+                    continue
+                seen_follow_up_views.add(action_view)
+                deduped_follow_ups.append(action_item)
+
+            items.append(
+                {
+                    'case_id': display_id,
+                    'status': status,
+                    'primary_view': primary_view,
+                    'title': title,
+                    'opened_at': case.get('opened_at'),
+                    'updated_at': case.get('updated_at'),
+                    'linked_request_ids': linked_request_ids,
+                    'linked_override_ids': linked_override_ids,
+                    'linked_session_ids': linked_session_ids,
+                    'linked_workflow_ids': linked_workflow_ids,
+                    'linked_studio_request_ids': linked_studio_request_ids,
+                    'audit_event_total': audit_event_total,
+                    'evidence_export_total': evidence_export_total,
+                    'workflow_proof_total': workflow_proof_total,
+                    'latest_proof_event': latest_proof_event,
+                    'timeline_total': timeline_total,
+                    'timeline': timeline[:6],
+                    'continuity': {
+                        'next_view': next_view,
+                        'next_label': next_label,
+                        'next_detail': next_detail,
+                        'evidence_posture': evidence_posture,
+                        'evidence_detail': evidence_detail,
+                        'follow_up_actions': deduped_follow_ups[:3],
+                    },
+                    'work_items': [
+                        {
+                            'kind': 'request',
+                            'label': 'Requests',
+                            'total': len(linked_request_ids),
+                            'view': 'requests',
+                            'ids': linked_request_ids[:3],
+                        },
+                        {
+                            'kind': 'override',
+                            'label': 'Overrides',
+                            'total': len(linked_override_ids),
+                            'view': 'overrides',
+                            'ids': linked_override_ids[:3],
+                        },
+                        {
+                            'kind': 'human_ask',
+                            'label': 'Human Ask',
+                            'total': len(linked_session_ids),
+                            'view': 'human_ask',
+                            'ids': linked_session_ids[:3],
+                        },
+                        {
+                            'kind': 'studio',
+                            'label': 'Studio drafts',
+                            'total': len(linked_studio_request_ids),
+                            'view': 'studio',
+                            'ids': linked_studio_request_ids[:3],
+                        },
+                        {
+                            'kind': 'audit',
+                            'label': 'Audit events',
+                            'total': audit_event_total,
+                            'view': 'audit',
+                            'ids': linked_request_ids[:1] or linked_override_ids[:1] or linked_studio_request_ids[:1],
+                        },
+                    ],
+                    'summary': {
+                        'pending_override_total': int(case.get('pending_override_total', 0) or 0),
+                        'waiting_human_total': int(case.get('waiting_human_total', 0) or 0),
+                        'blocked_total': int(case.get('blocked_total', 0) or 0),
+                        'attention_total': int(case.get('attention_total', 0) or 0),
+                    },
+                }
+            )
+
+        priority = {
+            'blocked': 0,
+            'human_required': 1,
+            'attention_required': 2,
+            'active': 3,
+            'monitoring': 4,
+        }
+        items.sort(key=lambda item: (priority.get(str(item.get('status', 'monitoring')), 5), str(item.get('updated_at', '') or ''), str(item.get('case_id', ''))), reverse=False)
+        attention_total = sum(1 for item in items if str(item.get('status', '')) in {'blocked', 'human_required', 'attention_required'})
+        human_required_total = sum(1 for item in items if str(item.get('status', '')) == 'human_required')
+        blocked_total = sum(1 for item in items if str(item.get('status', '')) == 'blocked')
+        primary_view = items[0].get('primary_view', 'overview') if items else 'overview'
+        return {
+            'summary': {
+                'cases_total': len(items),
+                'attention_total': attention_total,
+                'human_required_total': human_required_total,
+                'blocked_total': blocked_total,
+                'primary_view': primary_view,
+            },
+            'items': items[:limit],
+        }
+
+    @staticmethod
+    def _attach_case_refs(
+        *,
+        requests: list[dict[str, object]],
+        overrides: list[dict[str, object]],
+        human_ask: dict[str, object],
+        role_private_studio: dict[str, object],
+        audit_entries: list[dict[str, object]],
+        cases: dict[str, object],
+    ) -> None:
+        case_items = cases.get('items', []) if isinstance(cases.get('items', []), list) else []
+        request_refs: dict[str, dict[str, str]] = {}
+        override_refs: dict[str, dict[str, str]] = {}
+        session_refs: dict[str, dict[str, str]] = {}
+        workflow_refs: dict[str, dict[str, str]] = {}
+        studio_refs: dict[str, dict[str, str]] = {}
+
+        def payload(item: dict[str, object]) -> dict[str, str]:
+            return {
+                'case_id': str(item.get('case_id', '') or ''),
+                'case_status': str(item.get('status', 'monitoring') or 'monitoring'),
+                'case_primary_view': str(item.get('primary_view', 'overview') or 'overview'),
+            }
+
+        for item in case_items:
+            ref = payload(item)
+            if not ref['case_id']:
+                continue
+            for request_id in item.get('linked_request_ids', []) if isinstance(item.get('linked_request_ids', []), list) else []:
+                request_refs[str(request_id)] = ref
+            for override_id in item.get('linked_override_ids', []) if isinstance(item.get('linked_override_ids', []), list) else []:
+                override_refs[str(override_id)] = ref
+            for session_id in item.get('linked_session_ids', []) if isinstance(item.get('linked_session_ids', []), list) else []:
+                session_refs[str(session_id)] = ref
+            for workflow_id in item.get('linked_workflow_ids', []) if isinstance(item.get('linked_workflow_ids', []), list) else []:
+                workflow_refs[str(workflow_id)] = ref
+            for studio_request_id in item.get('linked_studio_request_ids', []) if isinstance(item.get('linked_studio_request_ids', []), list) else []:
+                studio_refs[str(studio_request_id)] = ref
+
+        for item in requests:
+            request_id = str(item.get('request_id', '') or '').strip()
+            workflow_id = str(item.get('workflow_id', '') or '').strip()
+            override_id = str(item.get('human_override_request_id', '') or '').strip()
+            ref = request_refs.get(request_id) or workflow_refs.get(workflow_id) or override_refs.get(override_id)
+            if ref:
+                item.update(ref)
+
+        for item in overrides:
+            override_id = str(item.get('request_id', '') or '').strip()
+            origin_request_id = str(item.get('origin_request_id', item.get('request_id', '')) or '').strip()
+            workflow_id = str(item.get('workflow_id', '') or '').strip()
+            ref = override_refs.get(override_id) or request_refs.get(origin_request_id) or workflow_refs.get(workflow_id)
+            if ref:
+                item.update(ref)
+
+        sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
+        for item in sessions:
+            metadata = item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}
+            summary = item.get('summary', {}) if isinstance(item.get('summary', {}), dict) else {}
+            inbox = metadata.get('human_decision_inbox', {}) if isinstance(metadata.get('human_decision_inbox', {}), dict) else {}
+            execution_plan = metadata.get('execution_plan', {}) if isinstance(metadata.get('execution_plan', {}), dict) else {}
+            if not execution_plan:
+                execution_plan = inbox.get('execution_plan', {}) if isinstance(inbox.get('execution_plan', {}), dict) else {}
+            session_id = str(item.get('session_id', '') or '').strip()
+            origin_request_id = str(metadata.get('origin_request_id', metadata.get('request_id', '')) or '').strip()
+            workflow_id = str(execution_plan.get('plan_id', summary.get('queue_execution_plan_id', '')) or '').strip()
+            studio_request_id = str(metadata.get('studio_request_id', '') or '').strip()
+            ref = session_refs.get(session_id) or request_refs.get(origin_request_id) or workflow_refs.get(workflow_id) or studio_refs.get(studio_request_id)
+            if ref:
+                item.update(ref)
+
+        studio_requests = role_private_studio.get('requests', []) if isinstance(role_private_studio.get('requests', []), list) else []
+        for item in studio_requests:
+            request_id = str(item.get('request_id', '') or '').strip()
+            ref = studio_refs.get(request_id)
+            if ref:
+                item.update(ref)
+
+        for item in audit_entries:
+            metadata = item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}
+            context = metadata.get('context', {}) if isinstance(metadata.get('context', {}), dict) else {}
+            context_metadata = context.get('metadata', {}) if isinstance(context.get('metadata', {}), dict) else {}
+            runtime_evidence = metadata.get('runtime_evidence', {}) if isinstance(metadata.get('runtime_evidence', {}), dict) else {}
+            workflow_bundle = runtime_evidence.get('workflow_bundle_summary', {}) if isinstance(runtime_evidence.get('workflow_bundle_summary', {}), dict) else {}
+            execution_plan = context_metadata.get('execution_plan', {}) if isinstance(context_metadata.get('execution_plan', {}), dict) else {}
+            human_override = metadata.get('human_override', {}) if isinstance(metadata.get('human_override', {}), dict) else {}
+            request_id = str(item.get('request_id') or context.get('request_id') or metadata.get('request_id') or '').strip()
+            workflow_id = str(workflow_bundle.get('execution_plan_id') or execution_plan.get('plan_id') or metadata.get('workflow_id') or '').strip()
+            override_id = str(human_override.get('request_id', '') or '').strip()
+            studio_request_id = str(metadata.get('studio_request_id', '') or '').strip()
+            ref = (
+                request_refs.get(request_id)
+                or workflow_refs.get(workflow_id)
+                or override_refs.get(override_id)
+                or studio_refs.get(studio_request_id)
+            )
+            if ref:
+                item.update(ref)
+
+
+    @staticmethod
+    def _case_display_id(case_key: str) -> str:
+        prefix, _, value = str(case_key).partition(':')
+        cleaned = value or case_key
+        if prefix == 'request':
+            return f'CASE-REQ-{cleaned}'
+        if prefix == 'workflow':
+            return f'CASE-WF-{cleaned}'
+        if prefix == 'override':
+            return f'CASE-OVR-{cleaned}'
+        if prefix == 'session':
+            return f'CASE-ASK-{cleaned}'
+        if prefix == 'studio':
+            return f'CASE-STUDIO-{cleaned}'
+        return f'CASE-{cleaned}'
 
     def operations(self, limit: int = 10) -> dict[str, object]:
         return {

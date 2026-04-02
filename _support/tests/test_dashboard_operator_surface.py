@@ -382,6 +382,204 @@ def test_dashboard_snapshot_exposes_unified_work_inbox_surface() -> None:
         assert snapshot.get('summary', {}).get('work_inbox_primary_view') == summary.get('primary_view')
 
 
+
+
+def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        request_result = builder.app.request(
+            requester='operator@example.com',
+            role_id='GOV',
+            action='approve_policy',
+            payload={'resource': 'contract', 'resource_id': 'C-CASE-001'},
+            metadata={
+                'execution_plan': {
+                    'plan_id': 'plan-case-001',
+                    'step_id': 'step-intake',
+                }
+            },
+        )
+        request_id = request_result.metadata['request_id']
+
+        context = ExecutionContext(
+            request_id=request_id,
+            requester='operator@example.com',
+            action='approve_policy',
+            role_id='GOV',
+            payload={'resource': 'contract', 'resource_id': 'C-CASE-001'},
+            metadata={
+                'origin_request_id': request_id,
+                'execution_plan': {
+                    'plan_id': 'plan-case-001',
+                    'step_id': 'step-human-review',
+                },
+            },
+        )
+        override = builder.app.engine.human_override.create_state(
+            context,
+            required_by='reviewer@example.com',
+            reason='High-risk action requires human review.',
+        )
+        builder.app.engine.human_override._persist()
+
+        session = builder.app.create_human_ask_session(
+            {
+                'role_id': 'GOV',
+                'prompt': 'Summarize the current governed case posture.',
+                'metadata': {
+                    'origin_request_id': request_id,
+                    'execution_plan': {
+                        'plan_id': 'plan-case-001',
+                        'step_id': 'step-human-review',
+                    },
+                },
+            },
+            requested_by='EXEC_OWNER',
+        )
+
+        snapshot = builder.build()
+        cases_surface = snapshot.get('cases', {})
+        case_summary = cases_surface.get('summary', {}) if isinstance(cases_surface, dict) else {}
+        case_items = cases_surface.get('items', []) if isinstance(cases_surface, dict) else []
+
+        linked_case = next(item for item in case_items if request_id in item.get('linked_request_ids', []))
+        timeline_types = {entry.get('event_type') for entry in linked_case.get('timeline', [])}
+        work_item_kinds = {entry.get('kind') for entry in linked_case.get('work_items', []) if int(entry.get('total', 0) or 0) > 0}
+        request_row = next(item for item in snapshot.get('requests', []) if item.get('request_id') == request_id)
+        override_row = next(item for item in snapshot.get('overrides', []) if item.get('request_id') == override.request_id)
+        session_row = next(item for item in snapshot.get('human_ask', {}).get('sessions', []) if item.get('session_id') == session['session_id'])
+        audit_row = next(
+            item
+            for item in snapshot.get('audit', [])
+            if (
+                item.get('request_id') == request_id
+                or (item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}).get('request_id') == request_id
+                or ((item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}).get('context', {}) if isinstance((item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}).get('context', {}), dict) else {}).get('request_id') == request_id
+            )
+        )
+
+        assert case_summary.get('cases_total', 0) >= 1
+        assert snapshot.get('summary', {}).get('cases_total', 0) >= 1
+        assert case_summary.get('primary_view') in {'overrides', 'requests', 'human_ask', 'audit'}
+        assert linked_case.get('status') in {'human_required', 'attention_required', 'active', 'blocked'}
+        assert override.request_id in linked_case.get('linked_override_ids', [])
+        assert session['session_id'] in linked_case.get('linked_session_ids', [])
+        assert 'plan-case-001' in linked_case.get('linked_workflow_ids', [])
+        assert request_row.get('case_id') == linked_case.get('case_id')
+        assert override_row.get('case_id') == linked_case.get('case_id')
+        assert session_row.get('case_id') == linked_case.get('case_id')
+        assert audit_row.get('case_id') == linked_case.get('case_id')
+        continuity = linked_case.get('continuity', {})
+
+        assert {'request', 'override', 'human_ask', 'audit'}.issubset(timeline_types)
+        assert {'request', 'override', 'human_ask', 'audit'}.issubset(work_item_kinds)
+        assert continuity.get('next_view') in {'overrides', 'human_ask', 'requests', 'audit', 'conflicts'}
+        assert continuity.get('evidence_posture') in {'proof attached', 'partial proof', 'proof starting'}
+
+
+
+def test_dashboard_snapshot_surfaces_case_proof_and_follow_up_cues() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        pending = builder.app.request(
+            requester='operator@example.com',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'CASE-PROOF-001', 'amount': 1000000},
+            metadata={
+                'authority_contract': {'approval_gate': 'human_required'},
+                'execution_plan': {
+                    'plan_id': 'plan-case-proof-001',
+                    'step_id': 'step-human-check',
+                    'intent': 'Prepare proof-aware case review',
+                    'expected_output': 'Human review package',
+                    'stop_condition': 'human_checkpoint',
+                    'step_index': 2,
+                    'total_steps': 4,
+                    'checkpoint_required': True,
+                },
+            },
+        )
+        request_id = pending.metadata['request_id']
+
+        builder.app.create_human_ask_session(
+            {
+                'role_id': 'GOV',
+                'prompt': 'Summarize the proof posture for this governed case.',
+                'metadata': {
+                    'origin_request_id': request_id,
+                    'execution_plan': {
+                        'plan_id': 'plan-case-proof-001',
+                        'step_id': 'step-human-check',
+                    },
+                },
+            },
+            requested_by='EXEC_OWNER',
+        )
+
+        builder.app.approve_override(
+            pending.human_override['request_id'],
+            resolved_by='EXEC_OWNER',
+            note='Workflow proof bundle validation.',
+        )
+        builder.app.create_workflow_proof_bundle('plan-case-proof-001', requested_by='EXEC_OWNER')
+
+        snapshot = builder.build()
+        case_items = snapshot.get('cases', {}).get('items', [])
+        linked_case = next(item for item in case_items if request_id in item.get('linked_request_ids', []))
+        continuity = linked_case.get('continuity', {}) if isinstance(linked_case.get('continuity', {}), dict) else {}
+        latest_proof = linked_case.get('latest_proof_event', {}) if isinstance(linked_case.get('latest_proof_event', {}), dict) else {}
+        follow_up_views = {entry.get('view') for entry in continuity.get('follow_up_actions', []) if isinstance(entry, dict)}
+
+        assert linked_case.get('workflow_proof_total', 0) >= 1
+        assert continuity.get('evidence_posture') == 'proof attached'
+        assert latest_proof.get('action') == 'workflow_proof_export'
+        assert 'audit' in follow_up_views
+        assert continuity.get('next_view') in {'requests', 'audit', 'human_ask'}
+def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        studio_request = builder.app.role_private_studio.create_request(
+            {
+                'role_name': 'Case Backbone Studio Analyst',
+                'purpose': 'Keep studio authoring linked into the canonical case lane.',
+                'reporting_line': 'LEGAL',
+                'business_domain': 'case_backbone',
+                'operating_mode': 'direct',
+                'assigned_user_id': 'LEGAL_MANAGER_CASE',
+                'executive_owner_id': 'EXEC_OWNER',
+                'seat_id': 'OPS-CASE-STUDIO',
+                'responsibilities': ['Prepare governed role updates'],
+                'allowed_actions': ['review_contract'],
+                'forbidden_actions': ['approve_contract'],
+                'wait_human_actions': ['approve_contract'],
+                'handled_resources': ['contract'],
+                'sample_scenarios': ['Role draft needs linked case visibility'],
+            },
+            requested_by='EXEC_OWNER',
+        )
+
+        snapshot = builder.build()
+        studio_rows = snapshot.get('role_private_studio', {}).get('requests', [])
+        studio_row = next(item for item in studio_rows if item.get('request_id') == studio_request['request_id'])
+        case_items = snapshot.get('cases', {}).get('items', [])
+        linked_case = next(item for item in case_items if studio_request['request_id'] in item.get('linked_studio_request_ids', []))
+        work_item_kinds = {entry.get('kind') for entry in linked_case.get('work_items', []) if int(entry.get('total', 0) or 0) > 0}
+
+        assert studio_row.get('case_id') == linked_case.get('case_id')
+        assert studio_row.get('case_status') == linked_case.get('status')
+        assert studio_row.get('case_primary_view') == linked_case.get('primary_view')
+        assert 'studio' in work_item_kinds
+        assert (linked_case.get('continuity', {}) or {}).get('next_view') in {'studio', 'audit', 'requests'}
+
+
+
 def test_dashboard_notification_delivery_readiness_turns_ready_for_active_external_channels() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)

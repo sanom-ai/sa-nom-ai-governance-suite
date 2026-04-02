@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui13';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.3-ui15';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui13';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.3-ui15';
 
 const state = {
   view: 'overview',
@@ -40,6 +40,7 @@ const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
 const VIEW_TITLES = {
   overview: 'Overview',
   requests: 'Requests',
+  cases: 'Cases',
   overrides: 'Overrides',
   conflicts: 'Conflicts & Locks',
   audit: 'Audit Trail',
@@ -53,6 +54,7 @@ const VIEW_TITLES = {
 const VIEW_DESCRIPTIONS = {
   overview: 'See governance, runtime, and readiness posture in one scan.',
   requests: 'Submit governed work and follow where it goes next.',
+  cases: 'Follow one governed issue across requests, overrides, Human Ask, and audit proof.',
   overrides: 'Work only the decisions that crossed a human boundary.',
   conflicts: 'Inspect locks, contention, and safe retry posture.',
   audit: 'Review chain integrity, evidence, and trusted history.',
@@ -99,6 +101,12 @@ const VIEW_INTELLIGENCE = {
     title: 'Governed flow through active demand',
     narrative: 'Use this page to submit work and follow the governed intake path.',
     emphasis: 'flow control',
+  },
+  cases: {
+    eyebrow: 'Case Backbone',
+    title: 'One governed issue, one readable operating story',
+    narrative: 'Use this page when you need the linked request, override, Human Ask, and audit trail in one place.',
+    emphasis: 'end-to-end trace',
   },
   overrides: {
     eyebrow: 'Boundary Changes',
@@ -153,6 +161,7 @@ const VIEW_INTELLIGENCE = {
 const VIEW_USE_HINTS = {
   overview: { value: 'Start here', note: 'Open this first for the quickest full-system scan.', tone: 'accent' },
   requests: { value: 'Submit or trace work', note: 'Use this when you are creating a governed request or following its next lane.', tone: 'accent' },
+  cases: { value: 'Trace the whole issue', note: 'Use this when one business issue spans requests, approvals, records, and evidence.', tone: 'accent' },
   overrides: { value: 'Resolve human decisions', note: 'Use this when the runtime paused and a human must approve or veto.', tone: 'warning' },
   conflicts: { value: 'Unblock stalled work', note: 'Use this when locks or contention stop safe execution.', tone: 'warning' },
   audit: { value: 'Prove what happened', note: 'Use this when you need evidence, reason, and chain integrity.', tone: 'accent' },
@@ -166,6 +175,7 @@ const VIEW_USE_HINTS = {
 const VIEW_PERMISSIONS = {
   overview: 'dashboard.read',
   requests: 'requests.read',
+  cases: 'dashboard.read',
   overrides: 'overrides.read',
   conflicts: 'locks.read',
   audit: 'audit.read',
@@ -179,6 +189,7 @@ const VIEW_PERMISSIONS = {
 const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-dev-lane]',
   '[data-view-jump]',
+  '[data-case-scope-clear]',
   '[data-path-action]',
   '[data-studio-clear]',
   '[data-override-action]',
@@ -435,8 +446,32 @@ root.addEventListener('click', async (event) => {
 
   const viewJumpButton = event.target.closest('[data-view-jump]');
   if (viewJumpButton) {
-    state.view = viewJumpButton.dataset.viewJump || state.view;
+    const targetView = viewJumpButton.dataset.viewJump || state.view;
+    const focusType = viewJumpButton.dataset.viewJumpFocusType || '';
+    const focusId = viewJumpButton.dataset.viewJumpFocusId || '';
+    const caseId = viewJumpButton.dataset.viewJumpCaseId || '';
+    setActionContext({
+      entityType: focusType,
+      entityId: focusId,
+      caseId,
+      view: targetView,
+      title: viewJumpButton.dataset.viewJumpTitle || `Moved to ${VIEW_TITLES[targetView] || titleCase(targetView)}.`,
+      detail: viewJumpButton.dataset.viewJumpDetail || 'The linked governed item stays highlighted in the next lane so you can continue without hunting for it.',
+      actionLabel: viewJumpButton.dataset.viewJumpActionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+    });
+    state.view = targetView;
     updateNav();
+    render();
+    scrollDashboardToTop();
+    return;
+  }
+
+  const clearCaseScopeButton = event.target.closest('[data-case-scope-clear]');
+  if (clearCaseScopeButton) {
+    if (state.actionContext) {
+      state.actionContext.caseId = '';
+    }
+    state.lastError = `Showing the full ${VIEW_TITLES[state.view] || titleCase(state.view)} lane again.`;
     render();
     scrollDashboardToTop();
     return;
@@ -954,12 +989,16 @@ function buildFocusKey(entityType, entityId) {
   return type && id ? `${type}:${id}` : '';
 }
 
-function setActionContext({ entityType = '', entityId = '', view = '', title = '', detail = '', actionLabel = '' } = {}) {
-  const focusKey = buildFocusKey(entityType, entityId);
+function setActionContext({ entityType = '', entityId = '', caseId = '', view = '', title = '', detail = '', actionLabel = '' } = {}) {
+  const normalizedEntityType = String(entityType || '').trim();
+  const normalizedEntityId = String(entityId || '').trim();
+  const normalizedCaseId = String(caseId || (normalizedEntityType === 'case' ? normalizedEntityId : '')).trim();
+  const focusKey = buildFocusKey(normalizedEntityType, normalizedEntityId);
   const targetView = view || state.view || 'overview';
   state.actionContext = {
-    entityType: String(entityType || '').trim(),
-    entityId: String(entityId || '').trim(),
+    entityType: normalizedEntityType,
+    entityId: normalizedEntityId,
+    caseId: normalizedCaseId,
     focusKey,
     view: targetView,
     title: title || 'Latest governed result',
@@ -1175,29 +1214,32 @@ function render() {
     return;
   }
 
+  const scopedSnapshot = getCaseScopedSnapshot(snapshot);
   let viewContent = '';
   if (state.view === 'overview') viewContent = renderOverview(snapshot);
-  if (state.view === 'requests') viewContent = renderRequests(snapshot);
-  if (state.view === 'overrides') viewContent = renderOverridesView(snapshot);
-  if (state.view === 'conflicts') viewContent = renderConflicts(snapshot);
-  if (state.view === 'audit') viewContent = renderAudit(snapshot);
+  if (state.view === 'requests') viewContent = renderRequests(scopedSnapshot);
+  if (state.view === 'cases') viewContent = renderCases(snapshot);
+  if (state.view === 'overrides') viewContent = renderOverridesView(scopedSnapshot);
+  if (state.view === 'conflicts') viewContent = renderConflicts(scopedSnapshot);
+  if (state.view === 'audit') viewContent = renderAudit(scopedSnapshot);
   if (state.view === 'studio') {
-    viewContent = renderStudio(snapshot.role_private_studio || { summary: {}, requests: [], examples: [] });
+    viewContent = renderStudio(scopedSnapshot.role_private_studio || { summary: {}, requests: [], examples: [] });
     if (state.studioEditorDraft) fillStudioForm(state.studioEditorDraft);
   }
   if (state.view === 'human_ask') viewContent = renderHumanAsk(
-    snapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
+    scopedSnapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
     {
       can,
-      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity },
+      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity, renderCaseReferenceButton },
     },
   );
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
   const focusedInbox = state.view === 'overview' ? '' : renderFocusedWorkInbox(snapshot, state.view);
+  const caseSpotlight = renderCaseSpotlight(snapshot);
   const workLanguageGuide = renderWorkLanguageGuide(snapshot);
-  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${workLanguageGuide}${focusedInbox}${viewContent}`;
+  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
   focusActionContextTarget();
 }
@@ -1553,11 +1595,50 @@ function buildWorkflowGuide(snapshot) {
   const requests = snapshot.requests || [];
   const overrides = snapshot.overrides || [];
   const roles = snapshot.roles || [];
+  const caseSummary = snapshot.cases?.summary || {};
+  const caseItems = Array.isArray(snapshot.cases?.items) ? snapshot.cases.items : [];
   const pendingOverrides = overrides.filter((item) => item.status === 'pending').length;
   const conflicts = requests.filter((item) => item.outcome === 'conflicted').length;
   const validationIssueTotal = roles.reduce((sum, role) => sum + ((role.validation_issues || []).length), 0);
   const related = [];
   let primary = null;
+
+  if (state.view === 'cases') {
+    const leadCase = caseItems[0] || null;
+    if (leadCase) {
+      const leadView = leadCase.primary_view || 'requests';
+      primary = {
+        view: leadView,
+        eyebrow: 'Next governed move',
+        title: 'Open the lead operating lane for the current case',
+        detail: 'Cases group requests, approvals, Human Ask records, and audit proof so the next move stays attached to the same governed issue.',
+        badge: leadCase.status || 'monitoring',
+        actionLabel: `Open ${VIEW_TITLES[leadView] || leadView}`,
+        details: [
+          ['Case', leadCase.case_id || '-'],
+          ['Timeline events', String(leadCase.timeline_total || 0)],
+          ['Linked requests', String((leadCase.linked_request_ids || []).length)],
+        ],
+      };
+      const relatedViews = [leadView, 'requests', 'overrides', 'human_ask', 'audit'].filter((value, index, array) => value && array.indexOf(value) === index && value !== leadView);
+      related.push(...relatedViews.slice(0, 3).map((view) => ({
+        view,
+        eyebrow: 'Related view',
+        note: 'Open the matching lane to keep the case, decision, and evidence story connected.',
+        actionLabel: `Open ${VIEW_TITLES[view] || view}`,
+      })));
+    } else {
+      primary = {
+        view: 'requests',
+        eyebrow: 'Next governed move',
+        title: 'Start from Requests to create the first linked case',
+        detail: 'Once a governed request, Human Ask record, or studio activity is recorded, this view will group the issue into one readable case.',
+        badge: 'start case',
+        actionLabel: 'Open Requests',
+      };
+      related.push({ view: 'overview', eyebrow: 'Related view', note: 'Overview is still the fastest place to read current runtime posture.', actionLabel: 'Open Overview' });
+    }
+  }
 
   if (state.view === 'overview') {
     if ((goLive.status || 'blocked') !== 'ready' || (summary.runtime_alert_total || 0)) {
@@ -1876,6 +1957,135 @@ function applyActionContextToWorkflowGuide(primary, related) {
     related: nextRelated.filter((item) => item.view !== continuityPrimary.view),
   };
 }
+
+function getActionContextCaseId() {
+  const context = state.actionContext || {};
+  if (context.caseId) return String(context.caseId).trim();
+  if (context.entityType === 'case' && context.entityId) return String(context.entityId).trim();
+  return '';
+}
+
+function isCaseScopedView(view = state.view) {
+  return ['requests', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask'].includes(String(view || '').trim());
+}
+
+function getCaseById(snapshot, caseId = '') {
+  const normalizedCaseId = String(caseId || '').trim();
+  if (!normalizedCaseId) return null;
+  const items = Array.isArray(snapshot?.cases?.items) ? snapshot.cases.items : [];
+  return items.find((item) => String(item.case_id || '').trim() === normalizedCaseId) || null;
+}
+
+function filterRowsByCase(rows, caseId = '') {
+  const normalizedCaseId = String(caseId || '').trim();
+  if (!normalizedCaseId || !Array.isArray(rows)) return Array.isArray(rows) ? rows : [];
+  return rows.filter((row) => String(row?.case_id || '').trim() === normalizedCaseId);
+}
+
+function getCurrentViewCaseLinkedTotal(item) {
+  if (!item || typeof item !== 'object') return 0;
+  if (state.view === 'requests') return Array.isArray(item.linked_request_ids) ? item.linked_request_ids.length : 0;
+  if (state.view === 'overrides') return Array.isArray(item.linked_override_ids) ? item.linked_override_ids.length : 0;
+  if (state.view === 'conflicts') return Array.isArray(item.linked_request_ids) ? item.linked_request_ids.length : 0;
+  if (state.view === 'audit') return Number(item.audit_event_total || 0);
+  if (state.view === 'studio') return Array.isArray(item.linked_studio_request_ids) ? item.linked_studio_request_ids.length : 0;
+  if (state.view === 'human_ask') return Array.isArray(item.linked_session_ids) ? item.linked_session_ids.length : 0;
+  return 0;
+}
+
+function getCaseScopedSnapshot(snapshot) {
+  const caseId = getActionContextCaseId();
+  if (!caseId || !isCaseScopedView(state.view)) return snapshot;
+  const item = getCaseById(snapshot, caseId);
+  if (!item) return snapshot;
+  const requestIds = new Set(Array.isArray(item.linked_request_ids) ? item.linked_request_ids.map((value) => String(value)) : []);
+  const overrideIds = new Set(Array.isArray(item.linked_override_ids) ? item.linked_override_ids.map((value) => String(value)) : []);
+  const scopedLocks = Array.isArray(snapshot.locks)
+    ? snapshot.locks.filter((row) => {
+        const ownerRequestId = String(row?.owner_request_id || row?.request_id || '').trim();
+        return ownerRequestId ? (requestIds.has(ownerRequestId) || overrideIds.has(ownerRequestId)) : false;
+      })
+    : [];
+  return {
+    ...snapshot,
+    requests: filterRowsByCase(snapshot.requests || [], caseId),
+    overrides: filterRowsByCase(snapshot.overrides || [], caseId),
+    audit: filterRowsByCase(snapshot.audit || [], caseId),
+    locks: scopedLocks,
+    human_ask: snapshot.human_ask
+      ? {
+          ...snapshot.human_ask,
+          sessions: filterRowsByCase(snapshot.human_ask.sessions || [], caseId),
+        }
+      : snapshot.human_ask,
+    role_private_studio: snapshot.role_private_studio
+      ? {
+          ...snapshot.role_private_studio,
+          requests: filterRowsByCase(snapshot.role_private_studio.requests || [], caseId),
+        }
+      : snapshot.role_private_studio,
+  };
+}
+
+function renderCaseSpotlight(snapshot) {
+  if (!isCaseScopedView(state.view)) return '';
+  const caseId = getActionContextCaseId();
+  if (!caseId) return '';
+  const item = getCaseById(snapshot, caseId);
+  if (!item) return '';
+  const continuity = item.continuity || {};
+  const primaryView = item.primary_view || continuity.next_view || 'requests';
+  const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView || 'overview');
+  const currentViewLabel = VIEW_TITLES[state.view] || titleCase(state.view || 'overview');
+  const currentViewLinkedTotal = getCurrentViewCaseLinkedTotal(item);
+  const primaryFocus = resolveCasePrimaryFocus(item, primaryView);
+  const proofLabel = item.workflow_proof_total > 0
+    ? 'workflow proof attached'
+    : item.evidence_export_total > 0
+      ? 'evidence export recorded'
+      : 'proof still building';
+  return `
+    <section class="card stack case-spotlight-card${isFocusedEntity('case', item.case_id) ? ' focused-record' : ''}" data-focus-alt-key="${escapeHtml(buildFocusKey('case', item.case_id))}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Case in motion</div>
+          <h3 class="card-title">${escapeHtml(item.case_id || 'Governed case')}</h3>
+          <p class="card-subtitle">${escapeHtml(`The work ledger below is filtered to this case inside ${currentViewLabel}. ${continuity.next_detail || 'Keep the next action tied to the same governed issue so context, proof, and approvals stay connected.'}`)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(item.status || 'monitoring')}${statusBadge(proofLabel)}</div>
+      </div>
+      ${keyValue([
+        ['Current lane', `${currentViewLabel} | ${String(currentViewLinkedTotal)} linked items`],
+        ['Primary lane', primaryViewLabel],
+        ['Next move', continuity.next_label || 'Continue governed work'],
+        ['Audit events', String(item.audit_event_total || 0)],
+        ['Workflow proof', String(item.workflow_proof_total || 0)],
+      ])}
+      <div class="inline-actions">
+        <button class="action-button" type="button" ${buildViewJumpAttributes({
+          view: primaryView,
+          focusType: primaryFocus.entityType,
+          focusId: primaryFocus.entityId,
+          caseId: item.case_id,
+          title: item.case_id ? `Case ${item.case_id} opened in ${primaryViewLabel}.` : `Opened ${primaryViewLabel}.`,
+          detail: continuity.next_detail || 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
+          actionLabel: `Open ${primaryViewLabel}`,
+        })}>${escapeHtml(`Continue in ${primaryViewLabel}`)}</button>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: 'cases',
+          focusType: 'case',
+          focusId: item.case_id,
+          caseId: item.case_id,
+          title: item.case_id ? `Case ${item.case_id} reopened in Cases.` : 'Opened Cases.',
+          detail: 'Return to the canonical case lane when you need the full linked work, timeline, and proof story again.',
+          actionLabel: 'Open Cases',
+        })}>Open Cases</button>
+        <button class="action-button action-button-muted" type="button" data-case-scope-clear="true">Show full ${escapeHtml(currentViewLabel)}</button>
+      </div>
+    </section>
+  `;
+}
+
 function studioReadinessTone(readiness) {
   const status = String(readiness?.status || 'blocked');
   if (status === 'published' || status === 'ready') return 'success';
@@ -2050,6 +2260,7 @@ function renderOverview(snapshot) {
     </section>
       <section class="metrics-grid metrics-grid-luxury">
         ${metricCard('Requests', snapshot.summary.requests_total, 'default', 'Governed runtime submissions in the current live view.')}
+      ${metricCard('Cases', snapshot.summary.cases_total || 0, 'accent', 'Linked governed issues tracked across request, approval, record, and evidence lanes.')}
         ${metricCard('Runtime alerts', snapshot.summary.runtime_alert_total || runtimeAlerts.length, (snapshot.summary.runtime_alert_critical_total || 0) ? 'danger' : (snapshot.summary.runtime_alert_total || runtimeAlerts.length) ? 'warning' : 'success', 'Conditions where the Director paused or governance pressure is still active.')}
         ${metricCard('Pending overrides', snapshot.summary.pending_overrides, 'warning', 'Human approvals waiting in the executive queue.')}
         ${metricCard('Active locks', snapshot.summary.active_locks, 'accent', 'Resources currently protected from conflicting execution.')}
@@ -2063,6 +2274,7 @@ function renderOverview(snapshot) {
         ${metricCard('Integrations', snapshot.summary.integration_targets_total || 0, 'accent', 'Configured outbound targets across webhook, SIEM, and ticketing lanes.')}
         ${metricCard('Outbound deliveries', snapshot.summary.integration_deliveries_total || 0, snapshot.summary.integration_failures_total ? 'warning' : 'success', 'Outbound integration delivery records currently visible in the runtime ledger.')}
         ${metricCard('Operator attention', snapshot.summary.operator_attention_total || 0, (snapshot.summary.operator_attention_total || 0) ? 'warning' : 'success', 'Queue lanes that crossed the unified operator alert policy and now need attention.')}
+      ${metricCard('Cases needing attention', snapshot.summary.cases_attention_total || 0, (snapshot.summary.cases_attention_total || 0) ? 'warning' : 'success', 'Cases that are blocked, waiting on a human, or need closer governed follow-through.')}
         ${metricCard('Operator critical', snapshot.summary.operator_critical_total || 0, (snapshot.summary.operator_critical_total || 0) ? 'danger' : 'success', 'Queue lanes that are critical or stale under the shared operator aging policy.')}
         ${metricCard('Notify candidates', snapshot.summary.operator_notification_candidates_total || 0, (snapshot.summary.operator_notification_candidates_total || 0) ? 'accent' : 'success', 'Queue lanes that would route through the unified operator notification plan.')}
       </section>
@@ -2466,6 +2678,355 @@ function renderNotificationCenter(alerts) {
       </div>
     </section>
   `;
+}
+
+
+function renderCases(snapshot) {
+  const casesSurface = snapshot.cases || { summary: {}, items: [] };
+  const summary = casesSurface.summary || {};
+  const items = Array.isArray(casesSurface.items) ? casesSurface.items : [];
+  const leadCase = items[0] || null;
+  const latestCaseLabel = leadCase
+    ? `${leadCase.case_id} | ${shortTime(leadCase.updated_at)}`
+    : 'No linked governed issue has been grouped into a case yet.';
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Canonical Case Backbone</div>
+            <h2 class="hero-title">Track one governed issue across requests, approvals, records, and proof.</h2>
+            <p class="hero-subtitle">Cases keep the working lane, human boundary, Human Ask record, and audit history tied to the same operating story so the next move is easier to see.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(summary.human_required_total ? 'human required' : (summary.blocked_total ? 'blocked paths present' : 'linked cases stable'))}
+            ${statusBadge(summary.primary_view || 'overview')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Cases in view', String(summary.cases_total || 0)],
+            ['Human required', String(summary.human_required_total || 0)],
+            ['Blocked', String(summary.blocked_total || 0)],
+            ['Attention', String(summary.attention_total || 0)],
+            ['Primary lane', VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview')],
+          ])}
+          <div class="hero-note">
+            <strong>Operator standard</strong>
+            <p>Stay with the case until the issue is either resolved, handed to the correct human boundary, or fully documented with enough proof for later review.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Case reading guide</div>
+          <h3 class="card-title">What this lane answers quickly</h3>
+          <p class="card-subtitle">Use Cases when the same business issue now spans more than one runtime surface and you do not want to reconstruct the story by hand.</p>
+        </div>
+        ${keyValue([
+          ['Latest case', latestCaseLabel],
+          ['Trace model', 'Request to override to record to audit'],
+          ['Primary job', 'Follow the issue, not just the individual event'],
+          ['Proof stance', 'Keep the human and AI narrative attached'],
+        ])}
+        <div class="trace-box"><strong>Case note</strong><p class="muted">A case is not a new source of truth. It is the stitched operating view built from the governed records the runtime already captured.</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Cases', summary.cases_total || 0, 'accent', 'Linked governed issues currently visible in the dashboard work surface.')}
+      ${metricCard('Human required', summary.human_required_total || 0, (summary.human_required_total || 0) ? 'warning' : 'success', 'Cases currently waiting on a real human decision or boundary confirmation.')}
+      ${metricCard('Blocked', summary.blocked_total || 0, (summary.blocked_total || 0) ? 'danger' : 'success', 'Cases currently held behind a blocked outcome or vetoed path.')}
+      ${metricCard('Attention', summary.attention_total || 0, (summary.attention_total || 0) ? 'warning' : 'success', 'Cases that still need extra operator follow-through even if they are not hard blocked.')}
+    </section>
+    <section class="case-grid">
+      ${items.length ? items.map((item) => renderCaseCard(item)).join('') : renderCaseEmptyState()}
+    </section>
+  `;
+}
+
+function resolveCaseWorkItemFocus(workItem = {}) {
+  const ids = Array.isArray(workItem.ids) ? workItem.ids : [];
+  const firstId = ids[0] || '';
+  switch (workItem.kind) {
+    case 'request':
+      return { entityType: 'request', entityId: firstId };
+    case 'override':
+      return { entityType: 'override', entityId: firstId };
+    case 'human_ask':
+      return { entityType: 'human_ask_session', entityId: firstId };
+    case 'studio':
+      return { entityType: 'studio_request', entityId: firstId };
+    case 'audit':
+      return { entityType: firstId ? 'request' : 'case', entityId: firstId || '' };
+    default:
+      return { entityType: 'case', entityId: '' };
+  }
+}
+
+function renderCaseWorkItems(item) {
+  const workItems = Array.isArray(item.work_items) ? item.work_items.filter((entry) => Number(entry.total || 0) > 0) : [];
+  if (!workItems.length) return '';
+  return `
+    <div class="case-work-items">
+      ${workItems.map((entry) => {
+        const focus = resolveCaseWorkItemFocus(entry);
+        const viewLabel = VIEW_TITLES[entry.view] || titleCase(entry.view || 'overview');
+        const idPreview = (Array.isArray(entry.ids) ? entry.ids : []).slice(0, 2).filter(Boolean).join(' | ');
+        return `
+          <article class="mini-card case-work-item">
+            <div class="eyebrow muted">${escapeHtml(entry.label || 'Work item')}</div>
+            <div class="case-work-item-value">${escapeHtml(String(entry.total || 0))}</div>
+            <p class="muted">${escapeHtml(idPreview || `Open ${viewLabel} to review linked work.`)}</p>
+            <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+              view: entry.view || 'overview',
+              focusType: focus.entityType,
+              focusId: focus.entityId,
+              caseId: item.case_id,
+              title: item.case_id ? `Case ${item.case_id} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
+              detail: `Use ${viewLabel} to inspect the linked ${String(entry.label || 'work').toLowerCase()}.`,
+              actionLabel: `Open ${viewLabel}`,
+            })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+          </article>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderCaseContinuity(item) {
+  const continuity = item.continuity || {};
+  const nextView = continuity.next_view || item.primary_view || 'requests';
+  const nextViewLabel = VIEW_TITLES[nextView] || titleCase(nextView || 'overview');
+  const nextFocus = resolveCasePrimaryFocus(item, nextView);
+  const latestProof = item.latest_proof_event || null;
+  const followUps = Array.isArray(continuity.follow_up_actions) ? continuity.follow_up_actions : [];
+  return `
+    <div class="case-continuity-grid">
+      <article class="mini-card case-continuity-card">
+        <div class="eyebrow muted">Next governed move</div>
+        <strong>${escapeHtml(continuity.next_label || `Open ${nextViewLabel}`)}</strong>
+        <p class="muted">${escapeHtml(continuity.next_detail || 'Continue from the lead lane attached to this case.')}</p>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: nextView,
+          focusType: nextFocus.entityType,
+          focusId: nextFocus.entityId,
+          caseId: item.case_id,
+          title: item.case_id ? `Case ${item.case_id} opened in ${nextViewLabel}.` : `Opened ${nextViewLabel}.`,
+          detail: continuity.next_detail || 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
+          actionLabel: `Open ${nextViewLabel}`,
+        })}>${escapeHtml(`Open ${nextViewLabel}`)}</button>
+      </article>
+      <article class="mini-card case-continuity-card">
+        <div class="eyebrow muted">Proof posture</div>
+        <strong>${escapeHtml(continuity.evidence_posture || 'proof starting')}</strong>
+        <p class="muted">${escapeHtml(continuity.evidence_detail || 'Case proof will strengthen as requests, decisions, and audit events accumulate.')}</p>
+        <span class="permission-note">Audit ${escapeHtml(String(item.audit_event_total || 0))} | Exports ${escapeHtml(String(item.evidence_export_total || 0))} | Workflow proof ${escapeHtml(String(item.workflow_proof_total || 0))}</span>
+        ${latestProof ? `<div class="case-proof-note"><strong>${escapeHtml(titleCase(latestProof.action || 'proof event'))}</strong><p class="muted">${escapeHtml(latestProof.detail || 'Latest proof artifact recorded.')}</p><span class="permission-note">${escapeHtml(shortTime(latestProof.timestamp))} | ${escapeHtml(latestProof.status || 'recorded')} | ${escapeHtml(latestProof.reference || '-')}</span></div>` : ''}
+      </article>
+    </div>
+    ${followUps.length ? `<div class="case-follow-up-grid">${followUps.map((entry) => {
+      const view = entry.view || 'overview';
+      const viewLabel = VIEW_TITLES[view] || titleCase(view || 'overview');
+      const focus = resolveCasePrimaryFocus(item, view);
+      return `<article class="mini-card case-follow-up-item">
+        <div class="eyebrow muted">Follow-up</div>
+        <strong>${escapeHtml(entry.label || `Open ${viewLabel}`)}</strong>
+        <p class="muted">${escapeHtml(entry.detail || 'Continue the governed flow from the linked lane.')}</p>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view,
+          focusType: focus.entityType,
+          focusId: focus.entityId,
+          caseId: item.case_id,
+          title: item.case_id ? `Case ${item.case_id} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
+          detail: entry.detail || 'Continue the governed flow from the linked lane.',
+          actionLabel: `Open ${viewLabel}`,
+        })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+      </article>`;
+    }).join('')}</div>` : ''}
+  `;
+}
+
+function renderCaseCard(item) {
+  const timeline = Array.isArray(item.timeline) ? item.timeline : [];
+  const linkedRefs = [
+    ...(item.linked_request_ids || []).slice(0, 3),
+    ...(item.linked_override_ids || []).slice(0, 2),
+    ...(item.linked_session_ids || []).slice(0, 2),
+    ...(item.linked_workflow_ids || []).slice(0, 2),
+    ...(item.linked_studio_request_ids || []).slice(0, 2),
+  ].filter(Boolean);
+  const primaryView = item.primary_view || 'requests';
+  const primaryFocus = resolveCasePrimaryFocus(item, primaryView);
+  const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView);
+  const secondaryView = primaryView !== 'audit' ? 'audit' : 'requests';
+  const secondaryViewLabel = VIEW_TITLES[secondaryView] || titleCase(secondaryView);
+  return `
+    <article class="card stack case-card${isFocusedEntity('case', item.case_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id))}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(item.case_id || 'CASE')}</div>
+          <h3 class="card-title">${escapeHtml(item.title || item.case_id || 'Governed case')}</h3>
+          <p class="card-subtitle">${escapeHtml(`Updated ${shortTime(item.updated_at)} | Opened ${shortTime(item.opened_at)}`)}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(item.status || 'monitoring')}
+          ${statusBadge(primaryViewLabel)}
+        </div>
+      </div>
+      ${keyValue([
+        ['Requests', String((item.linked_request_ids || []).length)],
+        ['Overrides', String((item.linked_override_ids || []).length)],
+        ['Human Ask', String((item.linked_session_ids || []).length)],
+        ['Workflow refs', String((item.linked_workflow_ids || []).length)],
+        ['Audit events', String(item.audit_event_total || 0)],
+        ['Timeline', String(item.timeline_total || 0)],
+      ])}
+      ${renderCaseContinuity(item)}
+      ${renderCaseWorkItems(item)}
+      ${linkedRefs.length ? `<div class="case-reference-list">${linkedRefs.map((value) => `<span class="pill pill-muted">${escapeHtml(value)}</span>`).join('')}</div>` : ''}
+      <div class="case-timeline">
+        ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry, item.case_id)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" ${buildViewJumpAttributes({
+          view: primaryView,
+          focusType: primaryFocus.entityType,
+          focusId: primaryFocus.entityId,
+          caseId: item.case_id,
+          title: item.case_id ? `Case ${item.case_id} opened in ${primaryViewLabel}.` : `Opened ${primaryViewLabel}.`,
+          detail: 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
+          actionLabel: `Open ${primaryViewLabel}`,
+        })}>${escapeHtml(`Open ${primaryViewLabel}`)}</button>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: secondaryView,
+          caseId: item.case_id,
+          title: item.case_id ? `Case ${item.case_id} opened in ${secondaryViewLabel}.` : `Opened ${secondaryViewLabel}.`,
+          detail: secondaryView === 'audit' ? 'Use Audit to verify the evidence trail attached to this case.' : 'Use Requests to reopen the linked runtime intake lane.',
+          actionLabel: `Open ${secondaryViewLabel}`,
+        })}>${escapeHtml(`Open ${secondaryViewLabel}`)}</button>
+      </div>
+    </article>
+  `;
+}
+
+function resolveCaseTimelineFocus(entry = {}) {
+  const eventType = String(entry?.event_type || '').trim();
+  const reference = String(entry?.reference || '').trim();
+  if (!reference) return { entityType: 'case', entityId: '' };
+  if (eventType === 'request') return { entityType: 'request', entityId: reference };
+  if (eventType === 'override') return { entityType: 'override', entityId: reference };
+  if (eventType === 'human_ask') return { entityType: 'human_ask_session', entityId: reference };
+  if (eventType === 'studio') return { entityType: 'studio_request', entityId: reference };
+  if (eventType === 'audit') return { entityType: 'request', entityId: reference };
+  return { entityType: 'case', entityId: '' };
+}
+
+function renderCaseTimelineEntry(entry, caseId = '') {
+  const view = entry.view || 'overview';
+  const viewLabel = VIEW_TITLES[view] || titleCase(view || 'overview');
+  const focus = resolveCaseTimelineFocus(entry);
+  return `
+    <article class="mini-card stack case-timeline-item">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(shortTime(entry.timestamp))}</div>
+          <strong>${escapeHtml(entry.title || 'Case event')}</strong>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(entry.status || 'recorded')}
+          ${statusBadge(viewLabel)}
+        </div>
+      </div>
+      <p class="muted">${escapeHtml(entry.detail || 'Governed case event recorded.')}</p>
+      <span class="permission-note">Ref ${escapeHtml(entry.reference || '-')}</span>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view,
+          focusType: focus.entityType,
+          focusId: focus.entityId,
+          caseId,
+          title: caseId ? `Case ${caseId} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
+          detail: `Continue this case from the ${viewLabel} lane using the linked event reference.`,
+          actionLabel: `Open ${viewLabel}`,
+        })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderCaseEmptyState() {
+  return `
+    <article class="card stack case-card case-card-empty">
+      <div>
+        <div class="eyebrow muted">Case lane empty</div>
+        <h3 class="card-title">No linked governed case is visible yet</h3>
+        <p class="card-subtitle">Start from Requests, Human Ask, or Role Private Studio. As soon as the runtime captures related work, this lane will stitch the issue into one readable case.</p>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-view-jump="requests">Open Requests</button>
+        <button class="action-button action-button-muted" type="button" data-view-jump="overview">Open Overview</button>
+      </div>
+    </article>
+  `;
+}
+
+function buildViewJumpAttributes({ view = '', focusType = '', focusId = '', caseId = '', title = '', detail = '', actionLabel = '' } = {}) {
+  const attrs = [`data-view-jump="${escapeHtml(view || 'overview')}"`];
+  if (focusType) attrs.push(`data-view-jump-focus-type="${escapeHtml(focusType)}"`);
+  if (focusId) attrs.push(`data-view-jump-focus-id="${escapeHtml(focusId)}"`);
+  if (caseId) attrs.push(`data-view-jump-case-id="${escapeHtml(caseId)}"`);
+  if (title) attrs.push(`data-view-jump-title="${escapeHtml(title)}"`);
+  if (detail) attrs.push(`data-view-jump-detail="${escapeHtml(detail)}"`);
+  if (actionLabel) attrs.push(`data-view-jump-action-label="${escapeHtml(actionLabel)}"`);
+  return attrs.join(' ');
+}
+
+function renderCaseReferenceButton(caseId, caseStatus = '', { sourceView = 'overview', referenceId = '', contextLabel = 'governed work item', label = '' } = {}) {
+  const normalizedCaseId = String(caseId || '').trim();
+  if (!normalizedCaseId) return '';
+  const sourceViewLabel = VIEW_TITLES[sourceView] || titleCase(sourceView || 'overview');
+  const title = referenceId
+    ? `Case ${normalizedCaseId} linked from ${contextLabel} ${referenceId}.`
+    : `Case ${normalizedCaseId} linked from ${sourceViewLabel}.`;
+  const detail = `This ${contextLabel} is already linked into the canonical Cases lane, so you can inspect the full operating story without leaving dashboard flow.`;
+  return `
+    <span class="case-reference-inline">
+      <button class="pill pill-muted case-link-button" type="button" ${buildViewJumpAttributes({
+        view: 'cases',
+        focusType: 'case',
+        focusId: normalizedCaseId,
+        title,
+        detail,
+        actionLabel: 'Open Cases',
+      })}>${escapeHtml(label || normalizedCaseId)}</button>
+      ${caseStatus ? statusBadge(caseStatus) : ''}
+    </span>
+  `;
+}
+
+function resolveCasePrimaryFocus(item, primaryView = '') {
+  const view = primaryView || item.primary_view || 'requests';
+  if (view === 'overrides') {
+    const overrideId = (item.linked_override_ids || [])[0] || (item.linked_request_ids || [])[0] || '';
+    return { entityType: overrideId ? 'override' : '', entityId: overrideId };
+  }
+  if (view === 'human_ask') {
+    const sessionId = (item.linked_session_ids || [])[0] || '';
+    return { entityType: sessionId ? 'human_ask_session' : '', entityId: sessionId };
+  }
+  if (view === 'studio') {
+    const studioRequestId = (item.linked_studio_request_ids || [])[0] || '';
+    return { entityType: studioRequestId ? 'studio_request' : '', entityId: studioRequestId };
+  }
+  if (view === 'conflicts') {
+    const requestId = (item.linked_request_ids || [])[0] || (item.linked_override_ids || [])[0] || '';
+    return { entityType: requestId ? 'request' : '', entityId: requestId };
+  }
+  if (view === 'audit') {
+    return { entityType: '', entityId: '' };
+  }
+  const requestId = (item.linked_request_ids || [])[0] || '';
+  return { entityType: requestId ? 'request' : '', entityId: requestId };
 }
 
 function renderRequests(snapshot) {
@@ -4104,6 +4665,12 @@ function renderStudioRequestCard(item) {
     : readiness.status === 'ready'
       ? 'Structural posture is clear enough for trusted publication.'
       : (readiness.blockers?.[0] || 'This draft still needs validation, simulation, or review movement before publication.');
+  const caseReference = renderCaseReferenceButton(item.case_id, item.case_status, {
+    sourceView: 'studio',
+    referenceId: item.request_id,
+    contextLabel: 'studio draft',
+    label: item.case_id,
+  });
   return `
     <article class="card stack${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <div class="hero-heading">
@@ -4111,6 +4678,7 @@ function renderStudioRequestCard(item) {
           <div class="eyebrow muted">${escapeHtml(summary.role_id || item.request_id)}</div>
           <h3 class="card-title">${escapeHtml(item.structured_jd.role_name || item.request_id)}</h3>
           <p class="card-subtitle">${escapeHtml(item.structured_jd.purpose || 'No purpose provided.')}</p>
+          ${caseReference ? `<div class="table-case-reference">${caseReference}</div>` : ''}
         </div>
         <div class="hero-chip-row">
           ${statusBadge(item.status)}
@@ -4407,12 +4975,30 @@ function renderPtagPreview(source, maxLines = 18) {
 
 function requestTable(rows) {
   if (!rows.length) return emptyState('No request records available.');
-  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => { const focused = isFocusedEntity('request', row.request_id) || isFocusedEntity('override', row.request_id); return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('request', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('override', row.request_id))}"><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`; }).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => {
+    const focused = isFocusedEntity('request', row.request_id) || isFocusedEntity('override', row.request_id);
+    const caseReference = renderCaseReferenceButton(row.case_id, row.case_status, {
+      sourceView: 'requests',
+      referenceId: row.request_id,
+      contextLabel: 'request',
+      label: row.case_id,
+    });
+    return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('request', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('override', row.request_id))}"><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong>${caseReference ? `<div class="table-case-reference">${caseReference}</div>` : ''}<div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 function overrideTable(rows) {
   if (!rows.length) return emptyState('No overrides available.');
-  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => { const focused = isFocusedEntity('override', row.request_id) || isFocusedEntity('request', row.request_id); return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('override', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('request', row.request_id))}"><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`; }).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => {
+    const focused = isFocusedEntity('override', row.request_id) || isFocusedEntity('request', row.request_id);
+    const caseReference = renderCaseReferenceButton(row.case_id, row.case_status, {
+      sourceView: 'overrides',
+      referenceId: row.request_id,
+      contextLabel: 'override packet',
+      label: row.case_id,
+    });
+    return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('override', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('request', row.request_id))}"><td><strong>${escapeHtml(row.request_id)}</strong>${caseReference ? `<div class="table-case-reference">${caseReference}</div>` : ''}<div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 function lockTable(rows) {
@@ -4427,7 +5013,17 @@ function sessionTable(rows) {
 
 function auditTable(rows) {
   if (!rows.length) return emptyState('No audit events available.');
-  return `<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Role Flow</th><th>Outcome</th><th>Activation & Escalation</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(titleCase(row.action || '-'))}</strong><div class="muted">${escapeHtml(row.request_id || row.metadata?.request_id || '-')}</div></td><td>${renderRoleFlowCell(row)}</td><td>${statusBadge(row.outcome)}</td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.reason || '-')}</div><div class="muted">${escapeHtml(row.requester || row.metadata?.requester || '-')}</div></td></tr>`).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Time</th><th>Event</th><th>Role Flow</th><th>Outcome</th><th>Activation & Escalation</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => {
+    const requestId = row.request_id || row.metadata?.request_id || row.metadata?.context?.request_id || row.metadata?.context?.metadata?.origin_request_id || '';
+    const focused = isFocusedEntity('request', requestId) || isFocusedEntity('override', requestId);
+    const caseReference = renderCaseReferenceButton(row.case_id, row.case_status, {
+      sourceView: 'audit',
+      referenceId: requestId || row.action || '',
+      contextLabel: 'audit event',
+      label: row.case_id,
+    });
+    return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('request', requestId))}" data-focus-alt-key="${escapeHtml(buildFocusKey('override', requestId))}"><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(titleCase(row.action || '-'))}</strong>${caseReference ? `<div class="table-case-reference">${caseReference}</div>` : ''}<div class="muted">${escapeHtml(requestId || '-')}</div></td><td>${renderRoleFlowCell(row)}</td><td>${statusBadge(row.outcome)}</td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.reason || '-')}</div><div class="muted">${escapeHtml(row.requester || row.metadata?.requester || '-')}</div></td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 function retentionTable(rows) {

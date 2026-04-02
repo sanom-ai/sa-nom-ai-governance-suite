@@ -1088,6 +1088,65 @@ a {
   letter-spacing: 0.02em;
 }
 
+.case-continuity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.case-continuity-card {
+  gap: 10px;
+  background: linear-gradient(180deg, rgba(185, 146, 79, 0.08), rgba(255, 255, 255, 0.36));
+}
+
+.case-continuity-card .action-button {
+  width: fit-content;
+}
+
+.case-proof-note {
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+
+.case-follow-up-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.case-follow-up-item {
+  gap: 10px;
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.case-follow-up-item .action-button {
+  width: fit-content;
+}
+
+.case-work-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.case-work-item {
+  gap: 10px;
+  background: rgba(255, 253, 248, 0.74);
+}
+
+.case-work-item-value {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--ink-strong);
+  line-height: 1;
+}
+
+.case-work-item .action-button {
+  width: fit-content;
+}
+
 .empty-state {
   color: var(--muted);
   padding: 22px 0 10px;
@@ -2690,4 +2749,65 @@ button:focus-visible {
   background:
     radial-gradient(circle at top right, rgba(197, 154, 85, 0.1), transparent 36%),
     linear-gradient(180deg, rgba(255, 251, 244, 0.92), rgba(255, 255, 255, 0.82));
+}
+
+
+.case-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.case-card {
+  min-height: 100%;
+}
+
+.case-card-empty {
+  grid-column: 1 / -1;
+}
+
+.case-reference-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.case-timeline {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.case-timeline-item {
+  border: 1px solid rgba(52, 64, 84, 0.08);
+}
+
+.case-reference-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.case-link-button {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.case-link-button:hover {
+  background: rgba(222, 192, 135, 0.18);
+  color: var(--accent-deep);
+  border-color: rgba(185, 146, 79, 0.26);
+}
+
+.case-link-button:focus-visible {
+  outline: 2px solid rgba(185, 146, 79, 0.4);
+  outline-offset: 2px;
+}
+
+.table-case-reference {
+  margin-top: 8px;
+}
+
+.human-ask-case-reference {
+  margin: 2px 0 4px;
 }
