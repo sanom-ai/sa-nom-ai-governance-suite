@@ -122,7 +122,9 @@ def test_deployment_profile_warns_when_privileged_permissions_are_owner_only() -
 
         assert gap_check["status"] == "warning"
         assert "session.manage" in gap_check["message"]
-        assert "studio.publish" in gap_check["message"]
+        assert 'studio.publish' in gap_check['message']
+        assert 'documents.publish' in gap_check['message']
+        assert 'documents.archive' in gap_check['message']
 
 
 def test_deployment_profile_accepts_delegated_privileged_permissions() -> None:
@@ -149,7 +151,7 @@ def test_deployment_profile_accepts_delegated_privileged_permissions() -> None:
                             "retention.manage",
                             "audit.manage",
                             "ops.manage",
-                            "studio.publish",
+                            "studio.publish","documents.publish","documents.archive",
                         ],
                     },
                     {

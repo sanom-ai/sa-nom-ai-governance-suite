@@ -893,6 +893,7 @@ class DashboardSnapshotBuilder:
             workflow_id = str(workflow_bundle.get('execution_plan_id') or execution_plan.get('plan_id') or metadata.get('workflow_id') or '').strip()
             override_id = str(human_override.get('request_id', '') or '').strip()
             studio_request_id = str(metadata.get('studio_request_id', '') or '').strip()
+            document_id = str(metadata.get('document_id', '') or '').strip()
             aliases = []
             if request_id:
                 aliases.append(f'request:{request_id}')
@@ -902,6 +903,8 @@ class DashboardSnapshotBuilder:
                 aliases.append(f'override:{override_id}')
             if studio_request_id:
                 aliases.append(f'studio:{studio_request_id}')
+            if document_id:
+                aliases.append(f'document:{document_id}')
             if not aliases:
                 continue
             _, case = ensure_case(aliases)
@@ -914,7 +917,7 @@ class DashboardSnapshotBuilder:
                 proof_event = {
                     'action': action,
                     'status': outcome,
-                    'reference': request_id or workflow_id or studio_request_id or '-',
+                    'reference': request_id or workflow_id or studio_request_id or document_id or '-',
                     'timestamp': entry.get('timestamp'),
                     'detail': str(entry.get('reason') or metadata.get('requested_by') or 'Proof artifact recorded.'),
                 }
@@ -925,6 +928,7 @@ class DashboardSnapshotBuilder:
                 override_id=override_id,
                 workflow_id=workflow_id,
                 studio_request_id=studio_request_id,
+                document_id=document_id,
                 attention=(is_evidence_export or is_workflow_proof) and outcome != 'completed',
                 audit_event=True,
                 evidence_export=is_evidence_export,
@@ -935,7 +939,7 @@ class DashboardSnapshotBuilder:
                     'event_type': 'audit',
                     'status': outcome,
                     'view': 'audit',
-                    'reference': request_id or workflow_id or studio_request_id or '-',
+                    'reference': request_id or workflow_id or studio_request_id or document_id or '-',
                     'title': f'{action} audit event',
                     'detail': str(entry.get('reason') or metadata.get('requested_by') or 'Audit event recorded.'),
                 },

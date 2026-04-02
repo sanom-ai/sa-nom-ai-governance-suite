@@ -11,6 +11,7 @@ from sa_nom_governance.guards.access_control import AccessProfile
 from sa_nom_governance.api.api_engine import build_engine_app
 from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.dashboard.dashboard_data import DashboardSnapshotBuilder
+from sa_nom_governance.documents.document_service import GovernedDocumentService
 from sa_nom_governance.deployment.deployment_profile import build_deployment_report, validate_startup_or_raise
 from sa_nom_governance.utils.owner_registration import (
     build_owner_registration,
@@ -42,6 +43,7 @@ class DashboardService:
         self.deployment_report = build_deployment_report(config)
         self.app = build_engine_app(config)
         self.snapshot_builder = DashboardSnapshotBuilder(config=config, app=self.app)
+        self.document_center = GovernedDocumentService(config)
         self.access_control = self.app.access_control
         self.base_dir = Path(config.base_dir)
         self.static_dir = Path(__file__).resolve().parent / 'static'
@@ -73,6 +75,8 @@ class DashboardService:
             snapshot['role_private_studio'] = {'summary': {}, 'requests': [], 'template': {}, 'examples': []}
         if not profile.can('human_ask.read'):
             snapshot['human_ask'] = {'summary': {}, 'sessions': [], 'callable_directory': {'summary': {}, 'entries': []}}
+        if not profile.can('documents.read'):
+            snapshot['documents'] = {'summary': {}, 'items': [], 'document_classes': [], 'human_ask_report': {'summary': {}, 'items': [], 'narrative': ''}}
         if not profile.can('compliance.read'):
             snapshot['compliance'] = {'summary': {}, 'frameworks': [], 'role_mappings': [], 'capabilities': {}}
         if not profile.can('evidence.read'):
@@ -119,6 +123,7 @@ class DashboardService:
         self.deployment_report = build_deployment_report(self.config)
         self.access_control = self.app.access_control
         self.snapshot_builder = DashboardSnapshotBuilder(config=self.config, app=self.app)
+        self.document_center = GovernedDocumentService(self.config)
         self.record_security_event(
             action='owner_registration_updated',
             outcome='updated',
@@ -334,6 +339,133 @@ class DashboardService:
     def callable_directory(self, limit: int = 200):
         return self.app.list_callable_directory(limit=limit)
 
+    def documents(self, limit: int = 100):
+        return self.snapshot_builder.documents(limit=limit)
+
+    def _refresh_document_runtime(self) -> None:
+        self.document_center = GovernedDocumentService(self.config)
+        self.snapshot_builder = DashboardSnapshotBuilder(config=self.config, app=self.app)
+
+    def create_document(self, payload: dict[str, object], profile: AccessProfile):
+        item = self.document_center.create_document(payload, created_by=str(payload.get('created_by') or profile.display_name))
+        self.record_runtime_event(
+            active_role='DOCUMENT',
+            action='governed_document_created',
+            outcome='created',
+            reason='Governed document created from dashboard.',
+            metadata={
+                'document_id': item.get('document_id'),
+                'document_number': item.get('document_number'),
+                'document_class': item.get('document_class'),
+                'case_id': item.get('case_id'),
+                'created_by': profile.display_name,
+            },
+        )
+        self._refresh_document_runtime()
+        return item
+
+    def update_document(self, document_id: str, payload: dict[str, object], profile: AccessProfile):
+        document = self.document_center.store.get_document(document_id)
+        current_revision = document.current_revision()
+        actor = str(payload.get('updated_by') or profile.display_name)
+        if current_revision.status in {'published', 'superseded', 'archived'}:
+            item = self.document_center.create_revision(document_id, payload, created_by=actor)
+            action = 'governed_document_revision_created'
+            reason = 'Governed document next revision created from dashboard.'
+        else:
+            item = self.document_center.update_draft(document_id, payload, updated_by=actor)
+            action = 'governed_document_updated'
+            reason = 'Governed document draft updated from dashboard.'
+        self.record_runtime_event(
+            active_role='DOCUMENT',
+            action=action,
+            outcome='draft',
+            reason=reason,
+            metadata={
+                'document_id': item.get('document_id'),
+                'document_number': item.get('document_number'),
+                'document_class': item.get('document_class'),
+                'case_id': item.get('case_id'),
+                'updated_by': actor,
+                'current_revision_number': item.get('current_revision_number'),
+            },
+        )
+        self._refresh_document_runtime()
+        return item
+
+    def submit_document_review(self, document_id: str, payload: dict[str, object], profile: AccessProfile):
+        actor = str(payload.get('submitted_by') or profile.display_name)
+        item = self.document_center.submit_review(document_id, submitted_by=actor, note=str(payload.get('note') or 'Submitted from dashboard.'))
+        self.record_runtime_event(
+            active_role='DOCUMENT',
+            action='governed_document_review_submitted',
+            outcome='in_review',
+            reason='Governed document submitted for review from dashboard.',
+            metadata={
+                'document_id': item.get('document_id'),
+                'document_number': item.get('document_number'),
+                'case_id': item.get('case_id'),
+                'submitted_by': actor,
+            },
+        )
+        self._refresh_document_runtime()
+        return item
+
+    def approve_document(self, document_id: str, payload: dict[str, object], profile: AccessProfile):
+        actor = str(payload.get('approved_by') or profile.display_name)
+        item = self.document_center.approve_document(document_id, approved_by=actor, note=str(payload.get('note') or 'Approved from dashboard.'))
+        self.record_runtime_event(
+            active_role='DOCUMENT',
+            action='governed_document_approved',
+            outcome='approved',
+            reason='Governed document approved from dashboard.',
+            metadata={
+                'document_id': item.get('document_id'),
+                'document_number': item.get('document_number'),
+                'case_id': item.get('case_id'),
+                'approved_by': actor,
+            },
+        )
+        self._refresh_document_runtime()
+        return item
+
+    def publish_document(self, document_id: str, payload: dict[str, object], profile: AccessProfile):
+        actor = str(payload.get('published_by') or profile.display_name)
+        item = self.document_center.publish_document(document_id, published_by=actor, note=str(payload.get('note') or 'Published from dashboard.'))
+        self.record_runtime_event(
+            active_role='DOCUMENT',
+            action='governed_document_published',
+            outcome='published',
+            reason='Governed document published from dashboard.',
+            metadata={
+                'document_id': item.get('document_id'),
+                'document_number': item.get('document_number'),
+                'case_id': item.get('case_id'),
+                'published_by': actor,
+                'published_revision_number': item.get('published_revision_number'),
+            },
+        )
+        self._refresh_document_runtime()
+        return item
+
+    def archive_document(self, document_id: str, payload: dict[str, object], profile: AccessProfile):
+        actor = str(payload.get('archived_by') or profile.display_name)
+        item = self.document_center.archive_document(document_id, archived_by=actor, note=str(payload.get('note') or 'Archived from dashboard.'))
+        self.record_runtime_event(
+            active_role='DOCUMENT',
+            action='governed_document_archived',
+            outcome='archived',
+            reason='Governed document archived from dashboard.',
+            metadata={
+                'document_id': item.get('document_id'),
+                'document_number': item.get('document_number'),
+                'case_id': item.get('case_id'),
+                'archived_by': actor,
+            },
+        )
+        self._refresh_document_runtime()
+        return item
+
     def create_human_ask_session(self, payload: dict[str, object], profile: AccessProfile):
         return self.app.create_human_ask_session(payload, requested_by=profile.display_name)
 
@@ -389,8 +521,11 @@ class DashboardService:
         dry_run = dry_run_raw if isinstance(dry_run_raw, bool) else str(dry_run_raw).strip().lower() not in {'0', 'false', 'no'}
         return self.app.enforce_retention(dry_run=dry_run)
 
+    def record_runtime_event(self, active_role: str, action: str, outcome: str, reason: str, metadata: dict[str, object]) -> None:
+        self.app.engine.audit_logger.record_event(active_role=active_role, action=action, outcome=outcome, reason=reason, metadata=metadata)
+
     def record_security_event(self, action: str, outcome: str, reason: str, metadata: dict[str, object]) -> None:
-        self.app.engine.audit_logger.record_event(active_role='SECURITY', action=action, outcome=outcome, reason=reason, metadata=metadata)
+        self.record_runtime_event(active_role='SECURITY', action=action, outcome=outcome, reason=reason, metadata=metadata)
 
 
 class DashboardRequestHandler(SimpleHTTPRequestHandler):
@@ -435,6 +570,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('health.read', lambda profile: self._respond_json(HTTPStatus.OK, self.service.health(profile)))
         if parsed.path == '/api/requests':
             return self._require_and_run('requests.read', lambda profile: self._respond_json(HTTPStatus.OK, {'items': self.service.list_requests(limit=limit), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/documents':
+            return self._require_and_run('documents.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.documents(limit=limit), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/overrides':
             return self._require_and_run('overrides.read', lambda profile: self._respond_json(HTTPStatus.OK, {'items': self.service.list_overrides(status=status, limit=limit), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/locks':
@@ -510,6 +647,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._respond_json(HTTPStatus.OK, result)
         if parsed.path == '/api/request':
             return self._require_and_run('request.create', lambda profile: self._respond_json(HTTPStatus.OK, self.service.create_request(payload, profile)))
+        if parsed.path == '/api/documents':
+            return self._require_and_run('documents.create', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.create_document(payload, profile), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/retention/enforce':
             return self._require_and_run('retention.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.enforce_retention(payload), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/audit/reseal':
@@ -547,6 +686,19 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
                 return self._require_and_run('override.review', lambda profile: self._respond_json(HTTPStatus.OK, self.service.approve_override(request_id, payload, profile)))
             if parts[3] == 'veto':
                 return self._require_and_run('override.review', lambda profile: self._respond_json(HTTPStatus.OK, self.service.veto_override(request_id, payload, profile)))
+        if len(parts) == 4 and parts[0] == 'api' and parts[1] == 'documents':
+            document_id = unquote(parts[2])
+            action = parts[3]
+            if action == 'update':
+                return self._require_and_run('documents.create', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.update_document(document_id, payload, profile), 'session': profile.to_public_dict()}))
+            if action == 'submit-review':
+                return self._require_and_run('documents.create', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.submit_document_review(document_id, payload, profile), 'session': profile.to_public_dict()}))
+            if action == 'approve':
+                return self._require_and_run('documents.review', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.approve_document(document_id, payload, profile), 'session': profile.to_public_dict()}))
+            if action == 'publish':
+                return self._require_and_run('documents.publish', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.publish_document(document_id, payload, profile), 'session': profile.to_public_dict()}))
+            if action == 'archive':
+                return self._require_and_run('documents.archive', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.archive_document(document_id, payload, profile), 'session': profile.to_public_dict()}))
         if len(parts) == 5 and parts[0] == 'api' and parts[1] == 'role-private-studio' and parts[2] == 'requests':
             request_id = unquote(parts[3])
             action = parts[4]

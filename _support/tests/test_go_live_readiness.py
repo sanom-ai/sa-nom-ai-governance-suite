@@ -82,7 +82,7 @@ def test_go_live_readiness_has_no_legacy_advisory_when_audit_is_fully_verified()
         assert config.access_profiles_path is not None
         config.access_profiles_path.write_text(
             (
-                '[{"profile_id":"operator-one","display_name":"Operator One","role_name":"operator","token_hash":"hash-1","permissions":["dashboard.read","requests.read","request.create","studio.read","studio.create","human_ask.read","human_ask.create","session.manage","retention.manage","audit.manage","ops.manage","studio.publish"]},'
+                '[{"profile_id":"operator-one","display_name":"Operator One","role_name":"operator","token_hash":"hash-1","permissions":["dashboard.read","requests.read","request.create","studio.read","studio.create","human_ask.read","human_ask.create","session.manage","retention.manage","audit.manage","ops.manage","studio.publish","documents.publish","documents.archive"]},'
                 '{"profile_id":"reviewer-one","display_name":"Reviewer One","role_name":"reviewer","token_hash":"hash-2"},'
                 '{"profile_id":"auditor-one","display_name":"Auditor One","role_name":"auditor","token_hash":"hash-3"},'
                 '{"profile_id":"viewer-one","display_name":"Viewer One","role_name":"viewer","token_hash":"hash-4"}]'

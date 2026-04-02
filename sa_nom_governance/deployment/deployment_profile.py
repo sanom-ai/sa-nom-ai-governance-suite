@@ -209,6 +209,8 @@ def _inspect_access_profiles(config: AppConfig) -> list[DeploymentCheck]:
         'audit.manage': 'audit reseal',
         'ops.manage': 'runtime backup operations',
         'studio.publish': 'Role Private Studio publication',
+        'documents.publish': 'governed document publication',
+        'documents.archive': 'governed document archival',
     }
     missing_privileged_permissions = sorted(
         permission for permission in privileged_permissions if permission not in delegated_permissions

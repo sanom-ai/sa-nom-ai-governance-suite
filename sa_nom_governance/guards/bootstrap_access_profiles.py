@@ -20,6 +20,8 @@ PRIVILEGED_OPERATOR_PERMISSIONS = {
     'audit.manage',
     'ops.manage',
     'studio.publish',
+    'documents.publish',
+    'documents.archive',
 }
 
 

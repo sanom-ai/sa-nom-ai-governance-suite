@@ -3,7 +3,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
+from sa_nom_governance.dashboard.dashboard_server import DashboardService
 from sa_nom_governance.documents.document_service import GovernedDocumentService
+from sa_nom_governance.guards.access_control import AccessControl, AccessProfile
+from sa_nom_governance.guards.bootstrap_access_profiles import PRIVILEGED_OPERATOR_PERMISSIONS
 from sa_nom_governance.utils.config import AppConfig
 
 
@@ -28,6 +31,27 @@ def build_service(temp_path: Path) -> GovernedDocumentService:
         trusted_registry_signing_key="registry-key",
     )
     return GovernedDocumentService(config=config)
+
+def build_dashboard_service(temp_path: Path) -> DashboardService:
+    config = AppConfig(
+        base_dir=temp_path,
+        environment="development",
+        api_token="owner-token",
+        trusted_registry_signing_key="registry-key",
+    )
+    return DashboardService(config=config)
+
+
+def build_profile(role_name: str, *, extra_permissions: set[str] | None = None) -> AccessProfile:
+    permissions = set(AccessControl.DEFAULT_PERMISSIONS[role_name])
+    if extra_permissions:
+        permissions.update(extra_permissions)
+    return AccessProfile(
+        profile_id=f'{role_name}-test',
+        display_name=role_name.title(),
+        role_name=role_name,
+        permissions=permissions,
+    )
 
 
 def test_document_create_assigns_numbering_metadata_and_store_path():
@@ -174,3 +198,67 @@ def test_document_human_ask_report_and_archive_flow():
         assert report["summary"]["archived_total"] == 1
         assert created["document_number"] in report["narrative"]
         assert active_documents == []
+
+
+def test_document_permissions_are_present_in_default_and_privileged_profiles():
+    assert 'documents.read' in AccessControl.DEFAULT_PERMISSIONS['viewer']
+    assert 'documents.read' in AccessControl.DEFAULT_PERMISSIONS['reviewer']
+    assert 'documents.review' in AccessControl.DEFAULT_PERMISSIONS['reviewer']
+    assert 'documents.read' in AccessControl.DEFAULT_PERMISSIONS['operator']
+    assert 'documents.create' in AccessControl.DEFAULT_PERMISSIONS['operator']
+    assert {'documents.publish', 'documents.archive'} <= PRIVILEGED_OPERATOR_PERMISSIONS
+
+
+def test_dashboard_document_runtime_flow_records_auditable_lifecycle_events():
+    with workspace_temp_dir() as temp_path:
+        service = build_dashboard_service(temp_path)
+        operator = build_profile('operator')
+        reviewer = build_profile('reviewer')
+        publisher = build_profile('operator', extra_permissions={'documents.publish', 'documents.archive'})
+
+        created = service.create_document(
+            {
+                'title': 'Incident Response Playbook',
+                'document_class': 'procedure',
+                'content': 'Initial incident response workflow.',
+                'case_id': 'request:req_9001',
+                'owner_id': 'OPS_OWNER',
+                'approver_id': 'SEC_OWNER',
+                'retention_code': 'RET-SEC-5Y',
+                'business_domain': 'security_operations',
+                'tags': ['incident', 'playbook'],
+                'metadata': {'severity': 'high'},
+            },
+            operator,
+        )
+        updated = service.update_document(
+            created['document_id'],
+            {
+                'content': 'Updated incident workflow with containment step.',
+                'change_note': 'Add containment guidance',
+                'metadata': {'severity': 'high', 'phase': 'containment'},
+            },
+            operator,
+        )
+        in_review = service.submit_document_review(created['document_id'], {'note': 'Ready for review'}, operator)
+        approved = service.approve_document(created['document_id'], {'note': 'Approved for release'}, reviewer)
+        published = service.publish_document(created['document_id'], {'note': 'Publish into runtime'}, publisher)
+        archived = service.archive_document(created['document_id'], {'note': 'Superseded by next major version'}, publisher)
+        documents_snapshot = service.documents(limit=10)
+        audit_items = service.list_audit(limit=20)
+        audit_actions = {str(item.get('action') or '') for item in audit_items}
+
+        assert updated['current_revision']['change_note'] == 'Add containment guidance'
+        assert in_review['status'] == 'in_review'
+        assert approved['status'] == 'approved'
+        assert published['status'] == 'published'
+        assert archived['status'] == 'archived'
+        assert documents_snapshot['summary']['documents_total'] == 1
+        assert documents_snapshot['summary']['archived_total'] == 1
+        assert created['document_number'] == documents_snapshot['items'][0]['document_number']
+        assert 'governed_document_created' in audit_actions
+        assert 'governed_document_updated' in audit_actions
+        assert 'governed_document_review_submitted' in audit_actions
+        assert 'governed_document_approved' in audit_actions
+        assert 'governed_document_published' in audit_actions
+        assert 'governed_document_archived' in audit_actions
