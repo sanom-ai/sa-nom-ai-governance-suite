@@ -106,10 +106,10 @@ class AuthResult:
 
 class AccessControl:
     DEFAULT_PERMISSIONS = {
-        'viewer': {'dashboard.read', 'requests.read', 'roles.read', 'health.read', 'studio.read', 'human_ask.read'},
-        'reviewer': {'dashboard.read', 'requests.read', 'overrides.read', 'override.review', 'locks.read', 'roles.read', 'health.read', 'studio.read', 'studio.review', 'compliance.read', 'integration.read', 'human_ask.read'},
-        'auditor': {'dashboard.read', 'requests.read', 'overrides.read', 'locks.read', 'audit.read', 'roles.read', 'health.read', 'sessions.read', 'studio.read', 'compliance.read', 'evidence.read', 'evidence.export', 'integration.read', 'human_ask.read'},
-        'operator': {'dashboard.read', 'requests.read', 'request.create', 'overrides.read', 'override.review', 'locks.read', 'audit.read', 'roles.read', 'health.read', 'studio.read', 'studio.create', 'compliance.read', 'integration.read', 'human_ask.read', 'human_ask.create'},
+        'viewer': {'dashboard.read', 'requests.read', 'roles.read', 'health.read', 'studio.read', 'human_ask.read', 'documents.read'},
+        'reviewer': {'dashboard.read', 'requests.read', 'overrides.read', 'override.review', 'locks.read', 'roles.read', 'health.read', 'studio.read', 'studio.review', 'compliance.read', 'integration.read', 'human_ask.read', 'documents.read', 'documents.review'},
+        'auditor': {'dashboard.read', 'requests.read', 'overrides.read', 'locks.read', 'audit.read', 'roles.read', 'health.read', 'sessions.read', 'studio.read', 'compliance.read', 'evidence.read', 'evidence.export', 'integration.read', 'human_ask.read', 'documents.read'},
+        'operator': {'dashboard.read', 'requests.read', 'request.create', 'overrides.read', 'override.review', 'locks.read', 'audit.read', 'roles.read', 'health.read', 'studio.read', 'studio.create', 'compliance.read', 'integration.read', 'human_ask.read', 'human_ask.create', 'documents.read', 'documents.create'},
         'owner': {'*'},
     }
 

@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.3-ui15';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.4-ui2';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.3-ui15';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.4-ui2';
 
 const state = {
   view: 'overview',
@@ -10,6 +10,7 @@ const state = {
   sessionToken: window.localStorage.getItem('sanom_session_token') || '',
   authRequired: false,
   lastError: '',
+  documentEditingId: null,
   studioEditingRequestId: null,
   studioEditorDraft: null,
   studioGovernanceRequestId: null,
@@ -18,6 +19,14 @@ const state = {
   studioPtagDrafts: {},
   studioPtagHistory: {},
   actionContext: null,
+  documentFilters: {
+    query: '',
+    status: '',
+    documentClass: '',
+    caseId: '',
+    activeOnly: false,
+  },
+  documentSearchResult: null,
 };
 
 const root = document.getElementById('dashboard-root');
@@ -41,6 +50,7 @@ const VIEW_TITLES = {
   overview: 'Overview',
   requests: 'Requests',
   cases: 'Cases',
+  documents: 'Documents',
   overrides: 'Overrides',
   conflicts: 'Conflicts & Locks',
   audit: 'Audit Trail',
@@ -54,7 +64,8 @@ const VIEW_TITLES = {
 const VIEW_DESCRIPTIONS = {
   overview: 'See governance, runtime, and readiness posture in one scan.',
   requests: 'Submit governed work and follow where it goes next.',
-  cases: 'Follow one governed issue across requests, overrides, Human Ask, and audit proof.',
+  cases: 'Follow one governed issue across requests, overrides, Human Ask, documents, and audit proof.',
+  documents: 'Work governed documents as live runtime objects, not static files.',
   overrides: 'Work only the decisions that crossed a human boundary.',
   conflicts: 'Inspect locks, contention, and safe retry posture.',
   audit: 'Review chain integrity, evidence, and trusted history.',
@@ -105,8 +116,14 @@ const VIEW_INTELLIGENCE = {
   cases: {
     eyebrow: 'Case Backbone',
     title: 'One governed issue, one readable operating story',
-    narrative: 'Use this page when you need the linked request, override, Human Ask, and audit trail in one place.',
+    narrative: 'Use this page when you need the linked request, override, Human Ask, document, and audit trail in one place.',
     emphasis: 'end-to-end trace',
+  },
+  documents: {
+    eyebrow: 'Document Runtime',
+    title: 'Governed documents as live operating objects',
+    narrative: 'Use this page when a draft, review, publish, or supersede flow must stay tied to runtime proof and case continuity.',
+    emphasis: 'document lifecycle',
   },
   overrides: {
     eyebrow: 'Boundary Changes',
@@ -161,7 +178,8 @@ const VIEW_INTELLIGENCE = {
 const VIEW_USE_HINTS = {
   overview: { value: 'Start here', note: 'Open this first for the quickest full-system scan.', tone: 'accent' },
   requests: { value: 'Submit or trace work', note: 'Use this when you are creating a governed request or following its next lane.', tone: 'accent' },
-  cases: { value: 'Trace the whole issue', note: 'Use this when one business issue spans requests, approvals, records, and evidence.', tone: 'accent' },
+  cases: { value: 'Trace the whole issue', note: 'Use this when one business issue spans requests, approvals, records, documents, and evidence.', tone: 'accent' },
+  documents: { value: 'Work the governed document lane', note: 'Use this when draft, review, publish, archive, or active-version logic matters.', tone: 'accent' },
   overrides: { value: 'Resolve human decisions', note: 'Use this when the runtime paused and a human must approve or veto.', tone: 'warning' },
   conflicts: { value: 'Unblock stalled work', note: 'Use this when locks or contention stop safe execution.', tone: 'warning' },
   audit: { value: 'Prove what happened', note: 'Use this when you need evidence, reason, and chain integrity.', tone: 'accent' },
@@ -176,6 +194,7 @@ const VIEW_PERMISSIONS = {
   overview: 'dashboard.read',
   requests: 'requests.read',
   cases: 'dashboard.read',
+  documents: 'documents.read',
   overrides: 'overrides.read',
   conflicts: 'locks.read',
   audit: 'audit.read',
@@ -228,6 +247,7 @@ logoutButton.addEventListener('click', async () => {
   state.session = null;
   state.authRequired = true;
   state.studioEditingRequestId = null;
+  state.documentEditingId = null;
   state.studioEditorDraft = null;
   state.studioGovernanceRequestId = null;
   state.studioGovernanceNotes = {};
@@ -235,6 +255,14 @@ logoutButton.addEventListener('click', async () => {
   state.studioPtagDrafts = {};
   state.studioPtagHistory = {};
   state.actionContext = null;
+  state.documentFilters = {
+    query: '',
+    status: '',
+    documentClass: '',
+    caseId: '',
+    activeOnly: false,
+  };
+  state.documentSearchResult = null;
   window.localStorage.removeItem('sanom_api_token');
   window.localStorage.removeItem('sanom_session_token');
   render();
@@ -363,6 +391,60 @@ root.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (event.target.id === 'document-form') {
+    event.preventDefault();
+    try {
+      const payload = buildDocumentPayload(document);
+      const editingDocumentId = state.documentEditingId;
+      const response = await apiFetch(editingDocumentId ? `/api/documents/${encodeURIComponent(editingDocumentId)}/update` : '/api/documents', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      const item = response.item || response;
+      const documentId = extractEntityId(response, ['document_id']) || editingDocumentId;
+      const documentLabel = item.document_number || documentId || 'document';
+      state.lastError = editingDocumentId
+        ? `Governed document ${documentLabel} saved into the runtime.`
+        : `Governed document ${documentLabel} created in the runtime.`;
+      setActionContext({
+        entityType: 'document',
+        entityId: documentId,
+        caseId: item.case_id || '',
+        view: 'documents',
+        title: editingDocumentId
+          ? `Document ${documentLabel} is ready for the next governed move.`
+          : `Document ${documentLabel} entered the governed document lane.`,
+        detail: editingDocumentId
+          ? 'The updated draft remains highlighted so review, publish, or archive can continue without hunting for it.'
+          : 'The new governed document stays highlighted in the Documents lane and is stitched back into case continuity when a case id is present.',
+        actionLabel: 'Open Documents',
+      });
+      clearDocumentEditor();
+      state.view = 'documents';
+      updateNav();
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  if (event.target.id === 'document-search-form') {
+    event.preventDefault();
+    syncDocumentFiltersFromForm(document);
+    try {
+      await withButtonBusy(event.submitter, () => refreshDocumentSearchResults({ silent: false }), 'Searching...');
+      state.view = 'documents';
+      updateNav();
+      scrollDashboardToTop();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
   if (event.target.id === 'owner-registration-form') {
     event.preventDefault();
     try {
@@ -461,6 +543,13 @@ root.addEventListener('click', async (event) => {
     });
     state.view = targetView;
     updateNav();
+    if (targetView === 'documents' && documentFiltersActive()) {
+      try {
+        await refreshDocumentSearchResults({ silent: true, skipRender: true });
+      } catch (error) {
+        state.lastError = String(error.message || error);
+      }
+    }
     render();
     scrollDashboardToTop();
     return;
@@ -470,6 +559,13 @@ root.addEventListener('click', async (event) => {
   if (clearCaseScopeButton) {
     if (state.actionContext) {
       state.actionContext.caseId = '';
+    }
+    if (state.view === 'documents' && documentFiltersActive()) {
+      try {
+        await refreshDocumentSearchResults({ silent: true, skipRender: true });
+      } catch (error) {
+        state.lastError = String(error.message || error);
+      }
     }
     state.lastError = `Showing the full ${VIEW_TITLES[state.view] || titleCase(state.view)} lane again.`;
     render();
@@ -502,6 +598,36 @@ root.addEventListener('click', async (event) => {
     }
   }
 
+  const clearDocumentFilterButton = event.target.closest('[data-document-filter-clear]');
+  if (clearDocumentFilterButton) {
+    clearDocumentFilters();
+    state.lastError = 'Document runtime search cleared.';
+    render();
+    scrollDashboardToTop();
+    return;
+  }
+
+  const useCurrentCaseFilterButton = event.target.closest('[data-document-filter-current-case]');
+  if (useCurrentCaseFilterButton) {
+    state.documentFilters.caseId = getActionContextCaseId() || '';
+    try {
+      await refreshDocumentSearchResults({ silent: false });
+      scrollDashboardToTop();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  const clearDocumentButton = event.target.closest('[data-document-clear]');
+  if (clearDocumentButton) {
+    clearDocumentEditor();
+    state.lastError = 'Document editor cleared.';
+    render();
+    return;
+  }
+
   const clearButton = event.target.closest('[data-studio-clear]');
   if (clearButton) {
     clearStudioEditor();
@@ -526,6 +652,89 @@ root.addEventListener('click', async (event) => {
         detail: 'The override queue refreshed and the matching review row stays highlighted for follow-through.',
         actionLabel: 'Open override queue',
       });
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
+  const documentButton = event.target.closest('[data-document-action]');
+  if (documentButton) {
+    const action = documentButton.dataset.documentAction || '';
+    const documentId = documentButton.dataset.documentId || '';
+    const item = getDocumentById(state.snapshot, documentId);
+    const documentLabel = item?.document_number || documentId || 'document';
+    try {
+      if (action === 'load') {
+        loadDocumentIntoEditor(documentId);
+        state.lastError = `${documentLabel} loaded into the document editor.`;
+        setActionContext({
+          entityType: 'document',
+          entityId: documentId,
+          caseId: item?.case_id || '',
+          view: 'documents',
+          title: `${documentLabel} loaded into the document editor.`,
+          detail: 'Continue in the same lane to update the working draft or prepare the next governed revision.',
+          actionLabel: 'Open Documents',
+        });
+        render();
+        scrollDashboardToTop();
+        focusDocumentEditor();
+        return;
+      }
+
+      let endpoint = '';
+      let payload = {};
+      if (action === 'submit-review') {
+        const note = window.prompt(`Submit ${documentLabel} for review note`, 'Submitted from dashboard.');
+        if (note === null) return;
+        endpoint = `/api/documents/${encodeURIComponent(documentId)}/submit-review`;
+        payload = { note };
+      }
+      if (action === 'approve') {
+        const note = window.prompt(`Approve ${documentLabel} note`, 'Approved from dashboard.');
+        if (note === null) return;
+        endpoint = `/api/documents/${encodeURIComponent(documentId)}/approve`;
+        payload = { note };
+      }
+      if (action === 'publish') {
+        const note = window.prompt(`Publish ${documentLabel} note`, 'Published from dashboard.');
+        if (note === null) return;
+        endpoint = `/api/documents/${encodeURIComponent(documentId)}/publish`;
+        payload = { note };
+      }
+      if (action === 'archive') {
+        const note = window.prompt(`Archive ${documentLabel} note`, 'Archived from dashboard.');
+        if (note === null) return;
+        endpoint = `/api/documents/${encodeURIComponent(documentId)}/archive`;
+        payload = { note };
+      }
+      if (!endpoint) return;
+
+      const response = await apiFetch(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+      const updated = response.item || response;
+      const nextDocumentId = extractEntityId(response, ['document_id']) || documentId;
+      const nextLabel = updated.document_number || nextDocumentId || documentLabel;
+      const nextStatus = formatStatusLabel(updated.status || action.replace('-', ' '));
+      state.lastError = `${nextLabel} is now ${nextStatus}.`;
+      setActionContext({
+        entityType: 'document',
+        entityId: nextDocumentId,
+        caseId: updated.case_id || item?.case_id || '',
+        view: 'documents',
+        title: `${nextLabel} is now ${nextStatus}.`,
+        detail: action === 'submit-review'
+          ? 'The document stays highlighted in the review lane so the next reviewer can keep moving from the same governed record.'
+          : action === 'approve'
+            ? 'The approved document now sits in the publish-ready lane with the same case and active-version context.'
+            : action === 'publish'
+              ? 'The publish move keeps the same document highlighted so active-version and proof continuity can be verified immediately.'
+              : 'The archived document remains traceable through the same lane and linked case story.',
+        actionLabel: 'Open Documents',
+      });
+      if (state.documentEditingId === nextDocumentId) clearDocumentEditor();
       await loadDashboard();
     } catch (error) {
       state.lastError = String(error.message || error);
@@ -732,6 +941,7 @@ root.addEventListener('click', async (event) => {
     const template = library.find((item) => item.template_id === templateId);
     if (!template || !template.payload) return;
     state.studioEditingRequestId = null;
+  state.documentEditingId = null;
     state.studioEditorDraft = template.payload;
     fillStudioForm(template.payload);
     state.lastError = `Applied template ${template.label || template.template_id} to the Studio form.`;
@@ -1118,6 +1328,11 @@ async function loadDashboard() {
     state.snapshot = snapshot;
     state.session = snapshot.session || null;
     state.authRequired = false;
+    if (state.view === 'documents' && documentFiltersActive()) {
+      await refreshDocumentSearchResults({ silent: true, skipRender: true });
+    } else if (!documentFiltersActive()) {
+      state.documentSearchResult = null;
+    }
     render();
   } catch (error) {
     const message = String(error.message || error);
@@ -1156,6 +1371,92 @@ async function copyTextToClipboard(text) {
   field.select();
   document.execCommand('copy');
   document.body.removeChild(field);
+}
+
+
+function getDocumentFilterState() {
+  return {
+    query: String(state.documentFilters?.query || '').trim(),
+    status: String(state.documentFilters?.status || '').trim(),
+    documentClass: String(state.documentFilters?.documentClass || '').trim(),
+    caseId: String(state.documentFilters?.caseId || '').trim(),
+    activeOnly: Boolean(state.documentFilters?.activeOnly),
+  };
+}
+
+function getEffectiveDocumentFilterState() {
+  const filters = getDocumentFilterState();
+  if (!filters.caseId) {
+    filters.caseId = getActionContextCaseId() || '';
+  }
+  return filters;
+}
+
+function documentFiltersActive(filters = getDocumentFilterState()) {
+  return Boolean(filters.query || filters.status || filters.documentClass || filters.caseId || filters.activeOnly);
+}
+
+function syncDocumentFiltersFromForm(documentRef = document) {
+  state.documentFilters = {
+    query: documentRef.getElementById('document-search-query')?.value.trim() || '',
+    status: documentRef.getElementById('document-search-status')?.value.trim() || '',
+    documentClass: documentRef.getElementById('document-search-class')?.value.trim() || '',
+    caseId: documentRef.getElementById('document-search-case-id')?.value.trim() || '',
+    activeOnly: Boolean(documentRef.getElementById('document-search-active-only')?.checked),
+  };
+  return getDocumentFilterState();
+}
+
+function clearDocumentFilters() {
+  state.documentFilters = {
+    query: '',
+    status: '',
+    documentClass: '',
+    caseId: '',
+    activeOnly: false,
+  };
+  state.documentSearchResult = null;
+}
+
+function buildDocumentQueryString(filters = getEffectiveDocumentFilterState()) {
+  const params = new URLSearchParams();
+  if (filters.query) params.set('query', filters.query);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.documentClass) params.set('document_class', filters.documentClass);
+  if (filters.caseId) params.set('case_id', filters.caseId);
+  if (filters.activeOnly) params.set('active_only', 'true');
+  params.set('limit', '100');
+  return params.toString();
+}
+
+async function refreshDocumentSearchResults({ silent = false, skipRender = false } = {}) {
+  const filters = getDocumentFilterState();
+  if (!documentFiltersActive(filters)) {
+    state.documentSearchResult = null;
+    if (!skipRender) render();
+    return null;
+  }
+  const response = await apiFetch(`/api/documents?${buildDocumentQueryString(getEffectiveDocumentFilterState())}`);
+  state.documentSearchResult = response.item || null;
+  if (!silent) {
+    const total = Number(state.documentSearchResult?.summary?.documents_total || 0);
+    state.lastError = total
+      ? `Showing ${total} governed document${total === 1 ? '' : 's'} from the current runtime search.`
+      : 'No governed documents matched the current runtime search.';
+  }
+  if (!skipRender) render();
+  return state.documentSearchResult;
+}
+
+function buildDocumentFilterPills(filters = getDocumentFilterState(), effectiveFilters = getEffectiveDocumentFilterState()) {
+  const pills = [];
+  if (filters.query) pills.push(`Query: ${filters.query}`);
+  if (filters.status) pills.push(`Status: ${formatStatusLabel(filters.status)}`);
+  if (filters.documentClass) pills.push(`Class: ${titleCase(filters.documentClass.replaceAll('_', ' '))}`);
+  if (filters.caseId) pills.push(`Case: ${filters.caseId}`);
+  if (filters.activeOnly) pills.push('Active only');
+  if (effectiveFilters.caseId && !filters.caseId) pills.push(`Case scope: ${effectiveFilters.caseId}`);
+  return pills;
 }
 
 async function apiFetch(path, options = {}, auth = {}) {
@@ -1219,6 +1520,7 @@ function render() {
   if (state.view === 'overview') viewContent = renderOverview(snapshot);
   if (state.view === 'requests') viewContent = renderRequests(scopedSnapshot);
   if (state.view === 'cases') viewContent = renderCases(snapshot);
+  if (state.view === 'documents') viewContent = renderDocuments(scopedSnapshot);
   if (state.view === 'overrides') viewContent = renderOverridesView(scopedSnapshot);
   if (state.view === 'conflicts') viewContent = renderConflicts(scopedSnapshot);
   if (state.view === 'audit') viewContent = renderAudit(scopedSnapshot);
@@ -1966,7 +2268,7 @@ function getActionContextCaseId() {
 }
 
 function isCaseScopedView(view = state.view) {
-  return ['requests', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask'].includes(String(view || '').trim());
+  return ['requests', 'documents', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask'].includes(String(view || '').trim());
 }
 
 function getCaseById(snapshot, caseId = '') {
@@ -1990,6 +2292,7 @@ function getCurrentViewCaseLinkedTotal(item) {
   if (state.view === 'audit') return Number(item.audit_event_total || 0);
   if (state.view === 'studio') return Array.isArray(item.linked_studio_request_ids) ? item.linked_studio_request_ids.length : 0;
   if (state.view === 'human_ask') return Array.isArray(item.linked_session_ids) ? item.linked_session_ids.length : 0;
+  if (state.view === 'documents') return Array.isArray(item.linked_document_ids) ? item.linked_document_ids.length : 0;
   return 0;
 }
 
@@ -2024,6 +2327,12 @@ function getCaseScopedSnapshot(snapshot) {
           requests: filterRowsByCase(snapshot.role_private_studio.requests || [], caseId),
         }
       : snapshot.role_private_studio,
+    documents: snapshot.documents
+      ? {
+          ...snapshot.documents,
+          items: filterRowsByCase(snapshot.documents.items || [], caseId),
+        }
+      : snapshot.documents,
   };
 }
 
@@ -2236,6 +2545,7 @@ function renderOverview(snapshot) {
             ['Audit integrity', auditIntegrity.status || 'unknown'],
             ['PTAG role packs', String((snapshot.roles || []).length)],
             ['Active sessions', String((snapshot.sessions || []).length)],
+            ['Governed documents', String(snapshot.summary.documents_total || 0)],
           ])}
         </div>
       </article>
@@ -2261,6 +2571,7 @@ function renderOverview(snapshot) {
       <section class="metrics-grid metrics-grid-luxury">
         ${metricCard('Requests', snapshot.summary.requests_total, 'default', 'Governed runtime submissions in the current live view.')}
       ${metricCard('Cases', snapshot.summary.cases_total || 0, 'accent', 'Linked governed issues tracked across request, approval, record, and evidence lanes.')}
+        ${metricCard('Documents', snapshot.summary.documents_total || 0, 'accent', 'Governed documents tracked with lifecycle, numbering, and case continuity.')}
         ${metricCard('Runtime alerts', snapshot.summary.runtime_alert_total || runtimeAlerts.length, (snapshot.summary.runtime_alert_critical_total || 0) ? 'danger' : (snapshot.summary.runtime_alert_total || runtimeAlerts.length) ? 'warning' : 'success', 'Conditions where the Director paused or governance pressure is still active.')}
         ${metricCard('Pending overrides', snapshot.summary.pending_overrides, 'warning', 'Human approvals waiting in the executive queue.')}
         ${metricCard('Active locks', snapshot.summary.active_locks, 'accent', 'Resources currently protected from conflicting execution.')}
@@ -2756,6 +3067,8 @@ function resolveCaseWorkItemFocus(workItem = {}) {
       return { entityType: 'human_ask_session', entityId: firstId };
     case 'studio':
       return { entityType: 'studio_request', entityId: firstId };
+    case 'document':
+      return { entityType: 'document', entityId: firstId };
     case 'audit':
       return { entityType: firstId ? 'request' : 'case', entityId: firstId || '' };
     default:
@@ -2877,6 +3190,7 @@ function renderCaseCard(item) {
         ['Requests', String((item.linked_request_ids || []).length)],
         ['Overrides', String((item.linked_override_ids || []).length)],
         ['Human Ask', String((item.linked_session_ids || []).length)],
+        ['Documents', String((item.linked_document_ids || []).length)],
         ['Workflow refs', String((item.linked_workflow_ids || []).length)],
         ['Audit events', String(item.audit_event_total || 0)],
         ['Timeline', String(item.timeline_total || 0)],
@@ -2917,6 +3231,7 @@ function resolveCaseTimelineFocus(entry = {}) {
   if (eventType === 'override') return { entityType: 'override', entityId: reference };
   if (eventType === 'human_ask') return { entityType: 'human_ask_session', entityId: reference };
   if (eventType === 'studio') return { entityType: 'studio_request', entityId: reference };
+  if (eventType === 'document') return { entityType: 'document', entityId: reference };
   if (eventType === 'audit') return { entityType: 'request', entityId: reference };
   return { entityType: 'case', entityId: '' };
 }
@@ -2960,14 +3275,411 @@ function renderCaseEmptyState() {
       <div>
         <div class="eyebrow muted">Case lane empty</div>
         <h3 class="card-title">No linked governed case is visible yet</h3>
-        <p class="card-subtitle">Start from Requests, Human Ask, or Role Private Studio. As soon as the runtime captures related work, this lane will stitch the issue into one readable case.</p>
+        <p class="card-subtitle">Start from Requests, Human Ask, Role Private Studio, or Documents. As soon as the runtime captures related work, this lane will stitch the issue into one readable case.</p>
       </div>
       <div class="inline-actions">
         <button class="action-button" type="button" data-view-jump="requests">Open Requests</button>
+        <button class="action-button action-button-muted" type="button" data-view-jump="documents">Open Documents</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderDocuments(snapshot) {
+  const documentsSurfaceBase = snapshot.documents || { summary: {}, items: [], document_classes: [], human_ask_report: { summary: {}, items: [], narrative: '' } };
+  const explicitFilters = getDocumentFilterState();
+  const retrievalActive = documentFiltersActive(explicitFilters);
+  const documentsSurface = retrievalActive && state.documentSearchResult ? state.documentSearchResult : documentsSurfaceBase;
+  const summary = documentsSurface.summary || {};
+  const items = Array.isArray(documentsSurface.items) ? documentsSurface.items : [];
+  const classes = Array.isArray(documentsSurface.document_classes) ? documentsSurface.document_classes : [];
+  const humanAskReport = documentsSurface.human_ask_report || documentsSurfaceBase.human_ask_report || { summary: {}, items: [], narrative: '' };
+  const latestLabel = items.length
+    ? `${items[0].document_number} | ${shortTime(items[0].updated_at)}`
+    : retrievalActive
+      ? 'No governed document matched the current runtime search.'
+      : 'No governed document has been created yet.';
+  const classChips = Object.entries(summary.document_class_counts || {})
+    .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0))
+    .slice(0, 5);
+  const workQueues = Array.isArray(snapshot.unified_work_inbox?.items)
+    ? snapshot.unified_work_inbox.items.filter((item) => item.view === 'documents')
+    : [];
+  const editingDocument = getDocumentById(state.snapshot, state.documentEditingId);
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Governed Document Center Runtime</div>
+            <h2 class="hero-title">Draft, review, publish, supersede, and archive documents inside the governed runtime.</h2>
+            <p class="hero-subtitle">This lane turns documents into first-class runtime objects with numbering, active-version logic, case linkage, and reviewable proof instead of leaving them as static files outside the operating story.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(retrievalActive ? 'filtered runtime scope' : (summary.in_review_total ? 'review active' : (summary.published_total ? 'published documents live' : 'document runtime ready')))}
+            ${statusBadge(summary.case_linked_total ? 'case linked' : 'standalone lane')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Latest document', latestLabel],
+            ['Documents in scope', String(summary.documents_total || 0)],
+            ['Published', String(summary.published_total || 0)],
+            ['In review', String(summary.in_review_total || 0)],
+            ['Case linked', String(summary.case_linked_total || 0)],
+          ])}
+          <div class="hero-note">
+            <strong>Operator standard</strong>
+            <p>Use this lane when the document itself is the governed object that must remain readable across revision work, publication posture, and linked case evidence.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Document reporting</div>
+          <h3 class="card-title">Human Ask over document state</h3>
+          <p class="card-subtitle">A governed summary of the current document surface so operators can ask for document posture without reconstructing state by hand.</p>
+        </div>
+        ${keyValue([
+          ['Narrative scope', String(humanAskReport.summary?.documents_total || 0)],
+          ['Published', String(humanAskReport.summary?.published_total || 0)],
+          ['In review', String(humanAskReport.summary?.in_review_total || 0)],
+          ['Archived', String(humanAskReport.summary?.archived_total || 0)],
+        ])}
+        <div class="trace-box"><strong>Human Ask narrative</strong><p class="muted">${escapeHtml(humanAskReport.narrative || 'No governed document report is available yet.')}</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Documents', summary.documents_total || 0, 'accent', retrievalActive ? 'Governed documents visible in the current runtime retrieval scope.' : 'Governed documents currently tracked in the runtime ledger.')}
+      ${metricCard('Published', summary.published_total || 0, (summary.published_total || 0) ? 'success' : 'default', 'Documents whose active revision is already published.')}
+      ${metricCard('In review', summary.in_review_total || 0, (summary.in_review_total || 0) ? 'warning' : 'success', 'Drafts currently sitting in the formal review lane.')}
+      ${metricCard('Approved', summary.approved_total || 0, (summary.approved_total || 0) ? 'accent' : 'default', 'Documents approved but not yet pushed through publish.')}
+      ${metricCard('Drafts', summary.draft_total || 0, (summary.draft_total || 0) ? 'accent' : 'success', 'Working revisions that still need review or publication decisions.')}
+      ${metricCard('Case linked', summary.case_linked_total || 0, (summary.case_linked_total || 0) ? 'accent' : 'default', 'Documents already tied into a governed business issue or operating story.')}
+    </section>
+    <section class="split-grid">
+      ${renderDocumentRetrievalCard(classes, summary, explicitFilters, retrievalActive)}
+      ${renderDocumentWorkQueues(workQueues)}
+    </section>
+    <section class="split-grid">
+      ${renderDocumentEditorCard(classes, editingDocument)}
+      ${renderDocumentRuntimeContractCard(classes, classChips)}
+    </section>
+    <section class="case-grid">
+      ${items.length ? items.map((item) => renderDocumentCard(item)).join('') : renderDocumentEmptyState(retrievalActive)}
+    </section>
+  `;
+}
+
+function renderDocumentRetrievalCard(classes, summary, filters, retrievalActive) {
+  const effectiveFilters = getEffectiveDocumentFilterState();
+  const pills = buildDocumentFilterPills(filters, effectiveFilters);
+  const classDistribution = Object.entries(summary.document_class_counts || {})
+    .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0))
+    .slice(0, 4);
+  const scopedCaseId = getActionContextCaseId() || '';
+  return `
+    <article class="card stack">
+      <div><div class="eyebrow muted">Document retrieval</div><h3 class="card-title">Find the governed document you need</h3><p class="card-subtitle">Search the live runtime by title, status, class, or case without losing lifecycle continuity.</p></div>
+      <form id="document-search-form" class="composer-grid">
+        <div class="span-2"><label class="permission-note" for="document-search-query">Search query</label><input id="document-search-query" value="${escapeHtml(filters.query || '')}" placeholder="Vendor policy, escalation, retention, finance" /></div>
+        <div><label class="permission-note" for="document-search-status">Status</label><select id="document-search-status">${renderSelectOptions([
+          ['', 'All statuses'],
+          ['draft', 'Draft'],
+          ['in_review', 'In review'],
+          ['approved', 'Approved'],
+          ['published', 'Published'],
+          ['archived', 'Archived'],
+        ], filters.status || '')}</select></div>
+        <div><label class="permission-note" for="document-search-class">Document class</label><select id="document-search-class">${renderSelectOptions([
+          ['', 'All classes'],
+          ...classes.map((entry) => [entry.document_class || '', entry.label || entry.document_class || 'Document']),
+        ], filters.documentClass || '')}</select></div>
+        <div><label class="permission-note" for="document-search-case-id">Case id</label><input id="document-search-case-id" value="${escapeHtml(filters.caseId || '')}" placeholder="request:req_001 or CASE-DOC-001" /></div>
+        <div class="span-2"><label class="permission-note" for="document-search-active-only"><input id="document-search-active-only" type="checkbox"${filters.activeOnly ? ' checked' : ''} /> Active documents only</label></div>
+        <div class="span-2 inline-actions">
+          <button class="action-button" type="submit">Apply runtime search</button>
+          <button class="action-button action-button-muted" type="button" data-document-filter-clear="true">Clear filters</button>
+          ${scopedCaseId && !filters.caseId ? '<button class="action-button action-button-muted" type="button" data-document-filter-current-case="true">Use current case</button>' : ''}
+        </div>
+      </form>
+      <div class="trace-box"><strong>Runtime retrieval</strong><p class="muted">${escapeHtml(retrievalActive ? `Showing ${summary.documents_total || 0} governed documents from the current runtime search.` : 'Showing the live document center surface. Apply a runtime search when you need to narrow the lane by query, status, class, or case.')}</p></div>
+      ${pills.length ? `<div class="hero-chip-row">${pills.map((pill) => `<span class="pill">${escapeHtml(pill)}</span>`).join('')}</div>` : '<span class="permission-note">No retrieval filters are active.</span>'}
+      ${keyValue([
+        ['Visible results', String(summary.documents_total || 0)],
+        ['Published', String(summary.published_total || 0)],
+        ['In review', String(summary.in_review_total || 0)],
+        ['Approved', String(summary.approved_total || 0)],
+        ['Case linked', String(summary.case_linked_total || 0)],
+      ])}
+      ${classDistribution.length ? `<div class="trace-box"><strong>Class distribution</strong>${keyValue(classDistribution.map(([label, total]) => [titleCase(String(label).replaceAll('_', ' ')), String(total || 0)]))}</div>` : ''}
+    </article>
+  `;
+}
+
+function renderDocumentRuntimeContractCard(classes, classChips) {
+  return `
+    <article class="card stack">
+      <div><div class="eyebrow muted">Document runtime contract</div><h3 class="card-title">What this lane guarantees</h3><p class="card-subtitle">This surface is about lifecycle control and readable retrieval, not just file storage.</p></div>
+      <div class="hero-chip-row">${(classes.length ? classes : []).map((entry) => `<span class="pill">${escapeHtml(entry.label || entry.document_class || 'Document')} | ${escapeHtml(entry.prefix || '-')}</span>`).join('')}</div>
+      ${classChips.length ? keyValue(classChips.map(([label, total]) => [titleCase(String(label).replaceAll('_', ' ')), String(total || 0)])) : '<p class="muted">No class distribution is available yet.</p>'}
+      ${keyValue([
+        ['Numbering', 'Class prefix plus year plus sequence'],
+        ['Active version', 'Published revision stays active until a newer approved revision is published'],
+        ['Lifecycle', 'Draft to review to approval to publish to supersede or archive'],
+        ['Proof continuity', 'Documents can stay tied to cases, Human Ask, and audit history'],
+      ])}
+    </article>
+  `;
+}
+
+function renderDocumentCard(item) {
+  const currentRevision = item.current_revision || {};
+  const activeRevision = item.active_revision || {};
+  const summary = item.summary || {};
+  const caseReference = renderCaseReferenceButton(item.case_id, item.case_status, {
+    sourceView: 'documents',
+    referenceId: item.document_id,
+    contextLabel: 'governed document',
+    label: item.case_id,
+  });
+  return `
+    <article class="card stack case-card${isFocusedEntity('document', item.document_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('document', item.document_id))}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(item.document_number || item.document_id || 'Document')}</div>
+          <h3 class="card-title">${escapeHtml(item.title || 'Governed document')}</h3>
+          <p class="card-subtitle">${escapeHtml(item.document_class_label || titleCase(item.document_class || 'document'))} | Updated ${shortTime(item.updated_at)}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(item.status || 'draft')}
+          ${statusBadge(summary.active_revision_status || 'active revision')}
+        </div>
+      </div>
+      ${keyValue([
+        ['Owner', item.owner_id || '-'],
+        ['Approver', item.approver_id || '-'],
+        ['Retention', item.retention_code || '-'],
+        ['Business domain', item.business_domain || '-'],
+        ['Current revision', String(item.current_revision_number || 0)],
+        ['Active revision', String(item.active_revision_number || 0)],
+        ['Published revision', item.published_revision_number == null ? '-' : String(item.published_revision_number)],
+      ])}
+      <div class="trace-box"><strong>Active-version logic</strong><p class="muted">${escapeHtml(summary.active_version_logic || 'The current revision remains active until lifecycle rules move it forward.')}</p></div>
+      <div class="split-grid">
+        <article class="mini-card">
+          <div class="eyebrow muted">Working revision</div>
+          <strong>${escapeHtml(currentRevision.title || item.title || 'Current revision')}</strong>
+          <p class="muted">${escapeHtml(formatStatusLabel(currentRevision.status || 'draft'))} | Updated ${escapeHtml(shortTime(currentRevision.updated_at))}</p>
+          <span class="permission-note">Revision ${escapeHtml(String(currentRevision.revision_number || item.current_revision_number || 0))} | ${escapeHtml(currentRevision.updated_by || item.owner_id || '-')}</span>
+        </article>
+        <article class="mini-card">
+          <div class="eyebrow muted">Active revision</div>
+          <strong>${escapeHtml(activeRevision.title || item.title || 'Active revision')}</strong>
+          <p class="muted">${escapeHtml(formatStatusLabel(activeRevision.status || item.status || 'active'))} | Updated ${escapeHtml(shortTime(activeRevision.updated_at || item.updated_at))}</p>
+          <span class="permission-note">Revision ${escapeHtml(String(activeRevision.revision_number || item.active_revision_number || 0))} | Published ${escapeHtml(shortTime(activeRevision.published_at || ''))}</span>
+        </article>
+      </div>
+      <div class="hero-chip-row">${(Array.isArray(item.tags) ? item.tags : []).slice(0, 4).map((tag) => `<span class="pill pill-muted">${escapeHtml(tag)}</span>`).join('') || '<span class="pill pill-muted">No tags</span>'}</div>
+      <div class="trace-box"><strong>Case continuity</strong><p class="muted">${escapeHtml(item.case_reference ? `Document case reference: ${item.case_reference}.` : 'No originating case reference was written into this document yet.')}</p>${caseReference || '<span class="permission-note">This document is not yet stitched into a canonical dashboard case.</span>'}</div>
+      <div class="inline-actions">
+        ${renderDocumentActionButtons(item)}
+        ${item.case_id ? `<button class="action-button" type="button" ${buildViewJumpAttributes({
+          view: 'cases',
+          focusType: 'case',
+          focusId: item.case_id,
+          caseId: item.case_id,
+          title: `Case ${item.case_id} opened from document ${item.document_number || item.document_id}.`,
+          detail: 'Use Cases to see the linked request, approval, Human Ask, and evidence story around this governed document.',
+          actionLabel: 'Open Cases',
+        })}>Open Cases</button>` : ''}
+        <button class="action-button action-button-muted" type="button" data-view-jump="audit">Open Audit</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderDocumentEmptyState() {
+  return `
+    <article class="card stack case-card case-card-empty">
+      <div>
+        <div class="eyebrow muted">Document lane empty</div>
+        <h3 class="card-title">No governed documents are active yet</h3>
+        <p class="card-subtitle">As soon as a governed document is drafted, reviewed, published, or archived inside the runtime, it will appear here as a first-class operating object.</p>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-document-clear="true">Clear editor</button>
+        <button class="action-button action-button-muted" type="button" data-view-jump="cases">Open Cases</button>
         <button class="action-button action-button-muted" type="button" data-view-jump="overview">Open Overview</button>
       </div>
     </article>
   `;
+}
+
+function renderDocumentEditorCard(classes, editingDocument) {
+  if (!can('documents.create')) {
+    return `
+      <article class="card stack">
+        <div><div class="eyebrow muted">Document editor</div><h3 class="card-title">Read-only lane</h3><p class="card-subtitle">This profile can inspect documents, but document authoring and lifecycle changes remain gated to an operator or owner lane.</p></div>
+        <div class="trace-box"><strong>Next governed move</strong><p class="muted">Follow the review or publish queue here, then switch to an authorized runtime lane when the document needs to move.</p></div>
+      </article>
+    `;
+  }
+  const currentRevision = editingDocument?.current_revision || {};
+  const selectedClass = editingDocument?.document_class || classes[0]?.document_class || 'policy';
+  const tagsValue = Array.isArray(editingDocument?.tags) ? editingDocument.tags.join(', ') : '';
+  const metadataValue = formatDocumentEditorMetadata(currentRevision.metadata || {});
+  const caseId = editingDocument?.case_reference || editingDocument?.case_id || getActionContextCaseId() || '';
+  const editingClosedRevision = ['published', 'superseded', 'archived'].includes(String(currentRevision.status || '').trim());
+  return `
+    <article class="card stack">
+      <div><div class="eyebrow muted">Document editor</div><h3 class="card-title">${editingDocument ? 'Continue governed document work' : 'Create governed document'}</h3><p class="card-subtitle">${editingDocument ? (editingClosedRevision ? 'Saving from this editor will create the next working revision because the current revision is already closed.' : 'Update the working draft and keep the same governed document in motion.') : 'Start a governed document with numbering, case linkage, lifecycle metadata, and a runtime-owned revision from the same lane.'}</p></div>
+      ${editingDocument ? `<div class="trace-box"><strong>Editing</strong><p class="muted">${escapeHtml(editingDocument.document_number || editingDocument.document_id || 'Document')} | ${escapeHtml(formatStatusLabel(currentRevision.status || editingDocument.status || 'draft'))}</p></div>` : ''}
+      <form id="document-form" class="composer-grid">
+        <div><label class="permission-note" for="document-title">Title</label><input id="document-title" value="${escapeHtml(editingDocument?.title || '')}" placeholder="Vendor Risk Policy" /></div>
+        <div><label class="permission-note" for="document-class">Document class</label><select id="document-class">${classes.map((entry) => `<option value="${escapeHtml(entry.document_class || '')}"${String(entry.document_class || '') === String(selectedClass || '') ? ' selected' : ''}>${escapeHtml(entry.label || entry.document_class || 'Document')}</option>`).join('')}</select></div>
+        <div><label class="permission-note" for="document-case-id">Case id</label><input id="document-case-id" value="${escapeHtml(caseId)}" placeholder="request:req_001 or CASE-DOC-001" /></div>
+        <div><label class="permission-note" for="document-owner-id">Owner id</label><input id="document-owner-id" value="${escapeHtml(editingDocument?.owner_id || studioExecutiveOwnerId())}" placeholder="EXEC_OWNER" /></div>
+        <div><label class="permission-note" for="document-approver-id">Approver id</label><input id="document-approver-id" value="${escapeHtml(editingDocument?.approver_id || 'REVIEW_OWNER')}" placeholder="LEGAL_OWNER" /></div>
+        <div><label class="permission-note" for="document-retention-code">Retention code</label><input id="document-retention-code" value="${escapeHtml(editingDocument?.retention_code || '')}" placeholder="RET-POL-7Y" /></div>
+        <div><label class="permission-note" for="document-business-domain">Business domain</label><input id="document-business-domain" value="${escapeHtml(editingDocument?.business_domain || '')}" placeholder="legal_operations" /></div>
+        <div><label class="permission-note" for="document-tags">Tags</label><input id="document-tags" value="${escapeHtml(tagsValue)}" placeholder="policy, vendor, legal" /></div>
+        <div class="span-2"><label class="permission-note" for="document-content">Document content</label><textarea id="document-content" placeholder="Write the governed document body here.">${escapeHtml(currentRevision.content || '')}</textarea></div>
+        <div class="span-2"><label class="permission-note" for="document-metadata">Metadata (JSON)</label><textarea id="document-metadata" placeholder='{"region": "th", "criticality": "medium"}'>${escapeHtml(metadataValue)}</textarea></div>
+        <div class="span-2"><label class="permission-note" for="document-change-note">Change note</label><textarea id="document-change-note" placeholder="Explain what changed in this revision.">${escapeHtml(currentRevision.change_note || '')}</textarea></div>
+        <div class="span-2 inline-actions">
+          <button class="action-button" type="submit">${editingDocument ? (editingClosedRevision ? 'Create Next Revision' : 'Save Draft') : 'Create Document'}</button>
+          <button class="action-button action-button-muted" type="button" data-document-clear="true">Clear editor</button>
+        </div>
+      </form>
+    </article>
+  `;
+}
+
+function renderDocumentWorkQueues(items) {
+  return `
+    <article class="card stack">
+      <div><div class="eyebrow muted">Document work lanes</div><h3 class="card-title">Review and publish queues</h3><p class="card-subtitle">These queues tell you whether the document runtime is waiting on authoring, approval, or controlled release.</p></div>
+      ${items.length ? items.map((item) => `
+        <div class="trace-box">
+          <strong>${escapeHtml(item.title || 'Document queue')}</strong>
+          <p class="muted">${escapeHtml(item.next_step || 'Continue inside the governed document lane.')}</p>
+          ${keyValue([
+            ['Disposition', formatStatusLabel(item.disposition || 'monitoring')],
+            ['Open items', String(item.total || 0)],
+            ['Oldest age (hrs)', String(item.oldest_age_hours || 0)],
+            ['Sample refs', (item.sample_references || []).join(', ') || '-'],
+          ])}
+          <div class="inline-actions">
+            <button class="action-button" type="button" ${buildViewJumpAttributes({
+              view: 'documents',
+              title: `${item.title || 'Document queue'} opened.`,
+              detail: item.operator_note || item.next_step || 'Continue in the governed document lane.',
+              actionLabel: 'Open Documents',
+            })}>Open Documents</button>
+          </div>
+        </div>`).join('') : '<p class="muted">No document review or publish queues are active right now. Draft, review, and publish work will appear here as soon as the runtime needs attention.</p>'}
+    </article>
+  `;
+}
+
+function renderSelectOptions(options, selectedValue = '') {
+  return options.map(([value, label]) => `<option value="${escapeHtml(value || '')}"${String(value || '') === String(selectedValue || '') ? ' selected' : ''}>${escapeHtml(label || value || '')}</option>`).join('');
+}
+
+function renderDocumentActionButtons(item) {
+  const currentStatus = String(item.current_revision?.status || item.status || 'draft').trim();
+  const actions = [];
+  if (can('documents.create')) {
+    const loadLabel = ['published', 'superseded', 'archived'].includes(currentStatus) ? 'Prepare next revision' : 'Load into editor';
+    actions.push(`<button class="action-button" type="button" data-document-action="load" data-document-id="${escapeHtml(item.document_id || '')}">${loadLabel}</button>`);
+    if (currentStatus === 'draft') {
+      actions.push(`<button class="action-button action-button-muted" type="button" data-document-action="submit-review" data-document-id="${escapeHtml(item.document_id || '')}">Submit review</button>`);
+    }
+  }
+  if (can('documents.review') && currentStatus === 'in_review') {
+    actions.push(`<button class="action-button" type="button" data-document-action="approve" data-document-id="${escapeHtml(item.document_id || '')}">Approve</button>`);
+  }
+  if (can('documents.publish') && currentStatus === 'approved') {
+    actions.push(`<button class="action-button" type="button" data-document-action="publish" data-document-id="${escapeHtml(item.document_id || '')}">Publish</button>`);
+  }
+  if (can('documents.archive') && ['draft', 'in_review', 'approved', 'published'].includes(currentStatus)) {
+    actions.push(`<button class="action-button action-button-muted" type="button" data-document-action="archive" data-document-id="${escapeHtml(item.document_id || '')}">Archive</button>`);
+  }
+  return actions.join('');
+}
+
+function getDocumentById(snapshot, documentId = '') {
+  const normalizedDocumentId = String(documentId || '').trim();
+  if (!normalizedDocumentId) return null;
+  const items = Array.isArray(snapshot?.documents?.items) ? snapshot.documents.items : [];
+  return items.find((item) => String(item.document_id || '').trim() === normalizedDocumentId) || null;
+}
+
+function formatDocumentEditorMetadata(metadata) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) || !Object.keys(metadata).length) return '';
+  return JSON.stringify(metadata, null, 2);
+}
+
+function buildDocumentPayload(documentRef) {
+  return {
+    title: documentRef.getElementById('document-title')?.value.trim() || '',
+    document_class: documentRef.getElementById('document-class')?.value.trim() || 'policy',
+    case_id: documentRef.getElementById('document-case-id')?.value.trim() || getActionContextCaseId() || '',
+    owner_id: documentRef.getElementById('document-owner-id')?.value.trim() || '',
+    approver_id: documentRef.getElementById('document-approver-id')?.value.trim() || '',
+    retention_code: documentRef.getElementById('document-retention-code')?.value.trim() || '',
+    business_domain: documentRef.getElementById('document-business-domain')?.value.trim() || '',
+    tags: parseListField('document-tags'),
+    content: documentRef.getElementById('document-content')?.value || '',
+    metadata: parseJsonField('document-metadata'),
+    change_note: documentRef.getElementById('document-change-note')?.value.trim() || '',
+  };
+}
+
+function clearDocumentEditor() {
+  state.documentEditingId = null;
+  setInputValue('document-title', '');
+  setSelectValue('document-class', 'policy');
+  setInputValue('document-case-id', getActionContextCaseId() || '');
+  setInputValue('document-owner-id', studioExecutiveOwnerId());
+  setInputValue('document-approver-id', 'REVIEW_OWNER');
+  setInputValue('document-retention-code', '');
+  setInputValue('document-business-domain', '');
+  setInputValue('document-tags', '');
+  setInputValue('document-content', '');
+  setInputValue('document-metadata', '');
+  setInputValue('document-change-note', '');
+}
+
+function fillDocumentForm(item) {
+  if (!item) return;
+  const currentRevision = item.current_revision || {};
+  state.documentEditingId = item.document_id || null;
+  setInputValue('document-title', item.title || '');
+  setSelectValue('document-class', item.document_class || 'policy');
+  setInputValue('document-case-id', item.case_reference || item.case_id || '');
+  setInputValue('document-owner-id', item.owner_id || studioExecutiveOwnerId());
+  setInputValue('document-approver-id', item.approver_id || 'REVIEW_OWNER');
+  setInputValue('document-retention-code', item.retention_code || '');
+  setInputValue('document-business-domain', item.business_domain || '');
+  setInputValue('document-tags', Array.isArray(item.tags) ? item.tags.join(', ') : '');
+  setInputValue('document-content', currentRevision.content || '');
+  setInputValue('document-metadata', formatDocumentEditorMetadata(currentRevision.metadata || {}));
+  setInputValue('document-change-note', currentRevision.change_note || '');
+}
+
+function loadDocumentIntoEditor(documentId) {
+  const item = getDocumentById(state.snapshot, documentId);
+  if (!item) throw new Error('The selected governed document is no longer available in the current snapshot.');
+  fillDocumentForm(item);
+}
+
+function focusDocumentEditor() {
+  window.requestAnimationFrame(() => {
+    const anchor = document.getElementById('document-title');
+    if (anchor) anchor.focus({ preventScroll: true });
+  });
 }
 
 function buildViewJumpAttributes({ view = '', focusType = '', focusId = '', caseId = '', title = '', detail = '', actionLabel = '' } = {}) {
@@ -3017,6 +3729,10 @@ function resolveCasePrimaryFocus(item, primaryView = '') {
   if (view === 'studio') {
     const studioRequestId = (item.linked_studio_request_ids || [])[0] || '';
     return { entityType: studioRequestId ? 'studio_request' : '', entityId: studioRequestId };
+  }
+  if (view === 'documents') {
+    const documentId = (item.linked_document_ids || [])[0] || '';
+    return { entityType: documentId ? 'document' : '', entityId: documentId };
   }
   if (view === 'conflicts') {
     const requestId = (item.linked_request_ids || [])[0] || (item.linked_override_ids || [])[0] || '';
@@ -5480,6 +6196,7 @@ function studioPayloadFromForm() {
 
 function clearStudioEditor() {
   state.studioEditingRequestId = null;
+  state.documentEditingId = null;
   state.studioEditorDraft = null;
   fillStudioForm({
     role_name: '',
