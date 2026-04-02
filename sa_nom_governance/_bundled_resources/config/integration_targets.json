@@ -3,6 +3,7 @@
     "target_id": "executive-ledger",
     "name": "Executive Integration Ledger",
     "category": "internal",
+    "platform": "ledger",
     "kind": "webhook",
     "status": "active",
     "delivery_mode": "log_only",
@@ -11,6 +12,13 @@
       "runtime.*",
       "role_private_studio.*",
       "governance.*"
+    ],
+    "notification_channels": [
+      "dashboard"
+    ],
+    "capability_tags": [
+      "internal_ledger",
+      "evidence"
     ],
     "headers": {},
     "description": "Default log-only outbound ledger for enterprise integration events.",
@@ -24,6 +32,7 @@
     "target_id": "siem-bridge",
     "name": "SIEM Bridge",
     "category": "siem",
+    "platform": "siem",
     "kind": "webhook",
     "status": "disabled",
     "delivery_mode": "http",
@@ -32,6 +41,14 @@
       "runtime.request.completed",
       "runtime.override.reviewed",
       "governance.evidence.exported"
+    ],
+    "notification_channels": [
+      "siem",
+      "webhook"
+    ],
+    "capability_tags": [
+      "security_ops",
+      "alert_export"
     ],
     "headers": {},
     "description": "Example outbound target for SIEM export.",
@@ -42,19 +59,148 @@
     "signing_policy": "hmac_sha256"
   },
   {
-    "target_id": "service-desk",
-    "name": "Service Desk Bridge",
-    "category": "ticketing",
+    "target_id": "slack-bridge",
+    "name": "Slack Alert Bridge",
+    "category": "chatops",
+    "platform": "slack",
     "kind": "webhook",
     "status": "disabled",
     "delivery_mode": "http",
-    "endpoint_url": "https://tickets.example.local/webhook",
+    "endpoint_url": "https://hooks.slack.com/services/example",
     "subscribed_events": [
-      "role_private_studio.request.reviewed",
-      "role_private_studio.request.published"
+      "runtime.override.created",
+      "runtime.recovery.required",
+      "governance.notification.*"
+    ],
+    "notification_channels": [
+      "slack",
+      "webhook"
+    ],
+    "capability_tags": [
+      "chatops",
+      "operator_alerting"
     ],
     "headers": {},
-    "description": "Example outbound target for Jira or ServiceNow workflows.",
+    "description": "Example outbound target for Slack operator alerts.",
+    "verify_tls": true,
+    "timeout_seconds": 5,
+    "max_attempts": 3,
+    "retry_backoff_ms": 250,
+    "signing_policy": "hmac_sha256"
+  },
+  {
+    "target_id": "teams-bridge",
+    "name": "Teams Alert Bridge",
+    "category": "chatops",
+    "platform": "teams",
+    "kind": "webhook",
+    "status": "disabled",
+    "delivery_mode": "http",
+    "endpoint_url": "https://outlook.office.com/webhook/example",
+    "subscribed_events": [
+      "runtime.override.created",
+      "runtime.recovery.required",
+      "governance.notification.*"
+    ],
+    "notification_channels": [
+      "teams",
+      "webhook"
+    ],
+    "capability_tags": [
+      "chatops",
+      "operator_alerting"
+    ],
+    "headers": {},
+    "description": "Example outbound target for Microsoft Teams operator alerts.",
+    "verify_tls": true,
+    "timeout_seconds": 5,
+    "max_attempts": 3,
+    "retry_backoff_ms": 250,
+    "signing_policy": "hmac_sha256"
+  },
+  {
+    "target_id": "jira-service-desk",
+    "name": "Jira Service Desk Bridge",
+    "category": "ticketing",
+    "platform": "jira",
+    "kind": "webhook",
+    "status": "disabled",
+    "delivery_mode": "http",
+    "endpoint_url": "https://jira.example.local/rest/api/2/issue",
+    "subscribed_events": [
+      "role_private_studio.request.reviewed",
+      "role_private_studio.request.published",
+      "runtime.recovery.required"
+    ],
+    "notification_channels": [
+      "jira",
+      "ticketing",
+      "webhook"
+    ],
+    "capability_tags": [
+      "ticketing",
+      "workflow_handoff"
+    ],
+    "headers": {},
+    "description": "Example outbound target for Jira ticketing workflows.",
+    "verify_tls": true,
+    "timeout_seconds": 5,
+    "max_attempts": 3,
+    "retry_backoff_ms": 250,
+    "signing_policy": "hmac_sha256"
+  },
+  {
+    "target_id": "servicenow-service-desk",
+    "name": "ServiceNow Bridge",
+    "category": "ticketing",
+    "platform": "servicenow",
+    "kind": "webhook",
+    "status": "disabled",
+    "delivery_mode": "http",
+    "endpoint_url": "https://servicenow.example.local/api/now/table/incident",
+    "subscribed_events": [
+      "role_private_studio.request.reviewed",
+      "role_private_studio.request.published",
+      "runtime.recovery.required"
+    ],
+    "notification_channels": [
+      "servicenow",
+      "ticketing",
+      "webhook"
+    ],
+    "capability_tags": [
+      "ticketing",
+      "workflow_handoff"
+    ],
+    "headers": {},
+    "description": "Example outbound target for ServiceNow ticketing workflows.",
+    "verify_tls": true,
+    "timeout_seconds": 5,
+    "max_attempts": 3,
+    "retry_backoff_ms": 250,
+    "signing_policy": "hmac_sha256"
+  },
+  {
+    "target_id": "custom-webhook",
+    "name": "Custom Webhook Bridge",
+    "category": "custom",
+    "platform": "custom_webhook",
+    "kind": "webhook",
+    "status": "disabled",
+    "delivery_mode": "http",
+    "endpoint_url": "https://example.local/sanom/webhook",
+    "subscribed_events": [
+      "*"
+    ],
+    "notification_channels": [
+      "webhook"
+    ],
+    "capability_tags": [
+      "custom",
+      "extensibility"
+    ],
+    "headers": {},
+    "description": "Example outbound target for custom governed integrations.",
     "verify_tls": true,
     "timeout_seconds": 5,
     "max_attempts": 3,

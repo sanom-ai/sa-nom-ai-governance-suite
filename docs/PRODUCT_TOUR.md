@@ -1,4 +1,4 @@
-# Product Tour
+﻿# Product Tour
 
 Use this guide when you want a compact walkthrough of how SA-NOM moves from role definition to governed runtime execution.
 
@@ -114,6 +114,25 @@ It is that the runtime shows:
 - provider posture
 - compliance alignment
 
+## 8. Flagship Capability Proof Surface
+
+By the `v0.7.1` line, the strongest operator-proof story is not one isolated feature.
+It is the way eight governed surfaces reinforce each other:
+
+- `Role Private Studio` turns job intent into revision-aware, publication-aware governed roles.
+- `Human Ask` lets humans pull governed reporting with freshness and confidence posture visible.
+- `PT-OSS Structural Intelligence` shows whether a role or workflow is structurally healthy enough to trust.
+- `Authority Guard + Resource Lock` keeps action decisions and conflict recovery explicit.
+- `Audit Chain + Evidence Pack` keeps verification and review anchored in tamper-evident evidence.
+- `Trusted Registry` keeps published roles tied to explicit organizational trust.
+- `Integration Outbound` gives runtime events a webhook-first path into SIEM, chat-ops, ticketing, and custom systems.
+- `Human Alert + Escalation Notification` keeps blocked, guarded, and human-required posture visible to operators.
+
+These are not separate product families.
+They are one governed operating path viewed from different operator needs.
+
+See [FEATURE_MATRIX.md](FEATURE_MATRIX.md) for the current boundary language and [GOVERNED_HITL_OPERATIONS.md](GOVERNED_HITL_OPERATIONS.md) for the operator-oriented HITL model.
+
 ## Best Demo Order
 
 1. Run `python scripts/guided_smoke_test.py --registration-code DEMO-ORG`.
@@ -128,5 +147,8 @@ It is that the runtime shows:
 - [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md)
 - [PROVIDER_SETUP.md](PROVIDER_SETUP.md)
 - [DEPLOYMENT.md](DEPLOYMENT.md)
+
+
+
 
 

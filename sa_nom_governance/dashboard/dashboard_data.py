@@ -25,6 +25,7 @@ class DashboardSnapshotBuilder:
         overrides = self.list_overrides()
         locks = self.list_locks()
         requests = self.list_requests(audit_entries=audit_entries, limit=200)
+        guardrail_surface = self.guardrail_surface(requests=requests, overrides=overrides, locks=locks)
         raw_roles = self.app.list_roles()
         access_control_health = self.access_control.health()
         evidence_summary = self.app.evidence_pack_summary()
@@ -88,10 +89,12 @@ class DashboardSnapshotBuilder:
         runtime_alerts = self.runtime_alerts(
             human_ask=human_ask,
             role_private_studio=role_private_studio,
+            evidence_exports=evidence_exports,
             go_live_readiness=go_live_readiness,
             operational_readiness=operational_readiness,
             operator_queue_health=operator_queue_health,
             operator_notification_center=operator_notification_center,
+            guardrail_surface=guardrail_surface,
         )
         runtime_health = self.runtime_health(
             roles=roles,
@@ -104,6 +107,8 @@ class DashboardSnapshotBuilder:
         governance_materials = runtime_health.get('governance_materials', {}) if isinstance(runtime_health.get('governance_materials', {}), dict) else {}
         role_library = runtime_health.get('role_library', {}) if isinstance(runtime_health.get('role_library', {}), dict) else {}
         role_hierarchy = runtime_health.get('role_hierarchy', {}) if isinstance(runtime_health.get('role_hierarchy', {}), dict) else {}
+        studio_summary = role_private_studio.get('summary', {}) if isinstance(role_private_studio.get('summary', {}), dict) else {}
+        guardrail_summary = guardrail_surface.get('summary', {}) if isinstance(guardrail_surface.get('summary', {}), dict) else {}
 
         conflicts = [request for request in requests if request['outcome'] == 'conflicted']
         escalated = [request for request in requests if request['outcome'] in {'escalated', 'waiting_human'}]
@@ -121,12 +126,34 @@ class DashboardSnapshotBuilder:
                 'conflicts_total': len(conflicts),
                 'escalated_total': len(escalated),
                 'audit_events': len(audit_entries),
-                'studio_requests_total': role_private_studio.get('summary', {}).get('requests_total', 0),
-                'studio_ready_to_publish_total': role_private_studio.get('summary', {}).get('ready_to_publish_total', 0),
-                'studio_structural_guarded_total': role_private_studio.get('summary', {}).get('structural_guarded_total', 0),
-                'studio_structural_blocked_total': role_private_studio.get('summary', {}).get('structural_blocked_total', 0),
+                'studio_requests_total': studio_summary.get('requests_total', 0),
+                'studio_ready_to_publish_total': studio_summary.get('ready_to_publish_total', 0),
+                'studio_publisher_ready_total': int(studio_summary.get('publisher_ready_total', 0) or 0),
+                'studio_manual_override_total': int(studio_summary.get('manual_override_total', 0) or 0),
+                'studio_restored_request_total': int(studio_summary.get('restored_request_total', 0) or 0),
+                'studio_registry_verified_total': int(studio_summary.get('published_registry_verified_total', 0) or 0),
+                'studio_live_hash_verified_total': int(studio_summary.get('published_live_hash_verified_total', 0) or 0),
+                'studio_trusted_live_total': int(studio_summary.get('trusted_live_total', 0) or 0),
+                'studio_trust_attention_total': int(studio_summary.get('trust_attention_total', 0) or 0),
+                'studio_published_current_revision_total': int(studio_summary.get('published_current_revision_total', 0) or 0),
+                'studio_revision_drift_total': int(studio_summary.get('revision_drift_total', 0) or 0),
+                'studio_structural_guarded_total': int(studio_summary.get('structural_guarded_total', 0) or 0),
+                'studio_structural_blocked_total': int(studio_summary.get('structural_blocked_total', 0) or 0),
+                'studio_structural_ready_total': int(studio_summary.get('structural_ready_total', 0) or 0),
+                'studio_structural_review_total': int(studio_summary.get('structural_review_total', 0) or 0),
+                'studio_pt_oss_watch_total': int(studio_summary.get('pt_oss_watch_total', 0) or 0),
+                'studio_pt_oss_elevated_total': int(studio_summary.get('pt_oss_elevated_total', 0) or 0),
+                'studio_pt_oss_healthy_total': int(studio_summary.get('pt_oss_healthy_total', 0) or 0),
+                'studio_pt_oss_critical_total': int(studio_summary.get('pt_oss_critical_total', 0) or 0),
+                'studio_pt_oss_public_sector_total': int(studio_summary.get('pt_oss_public_sector_mode_total', 0) or 0),
+                'studio_pt_oss_blocking_issue_total': int(studio_summary.get('pt_oss_blocking_issue_total', 0) or 0),
+                'studio_pt_oss_high_risk_metric_total': int(studio_summary.get('pt_oss_high_risk_metric_total', 0) or 0),
                 'human_ask_sessions_total': human_ask.get('summary', {}).get('sessions_total', 0),
                 'human_ask_callable_total': human_ask.get('summary', {}).get('callable_total', 0),
+                'human_ask_low_confidence_total': int(human_ask.get('summary', {}).get('low_confidence_total', 0) or 0),
+                'human_ask_guarded_confidence_total': int(human_ask.get('summary', {}).get('guarded_confidence_total', 0) or 0),
+                'human_ask_stale_total': int(human_ask.get('summary', {}).get('stale_total', 0) or 0),
+                'human_ask_human_gated_total': int(human_ask.get('summary', {}).get('human_gated_posture_total', 0) or 0),
                 'go_live_status': go_live_readiness.get('status', 'blocked'),
                 'privileged_operations_status': go_live_readiness.get('privileged_operations', {}).get('status', 'unknown'),
                 'runtime_alert_total': len(runtime_alerts),
@@ -143,6 +170,14 @@ class DashboardSnapshotBuilder:
                 'autonomous_inflight_total': int(operational_readiness.get('governed_autonomy', {}).get('autonomous_inflight_total', 0) or 0),
                 'human_gate_open_total': int(operational_readiness.get('governed_autonomy', {}).get('human_gate_open_total', 0) or 0),
                 'fail_closed_workflow_total': int(operational_readiness.get('governed_autonomy', {}).get('fail_closed_total', 0) or 0),
+                'guardrail_posture': str(guardrail_surface.get('posture', 'unknown')),
+                'authority_guard_total': int(guardrail_summary.get('authority_guard_total', 0) or 0),
+                'authority_guard_human_required_total': int(guardrail_summary.get('authority_guard_human_required_total', 0) or 0),
+                'authority_guard_blocked_total': int(guardrail_summary.get('authority_guard_blocked_total', 0) or 0),
+                'authority_guard_resumed_total': int(guardrail_summary.get('authority_guard_resumed_total', 0) or 0),
+                'resource_lock_active_total': int(guardrail_summary.get('resource_lock_active_total', 0) or 0),
+                'resource_lock_waiting_total': int(guardrail_summary.get('resource_lock_waiting_total', 0) or 0),
+                'resource_lock_conflict_total': int(guardrail_summary.get('resource_lock_conflict_total', 0) or 0),
                 'operator_human_required_total': sum(
                     1 for lane in operator_decision_lanes if lane.get('disposition') == 'human_required'
                 ),
@@ -165,6 +200,11 @@ class DashboardSnapshotBuilder:
                 'first_run_action_required_total': int((operations.get('first_run_action_center', {}) or {}).get('required_total', 0) or 0),
                 'frameworks_total': compliance.get('summary', {}).get('frameworks_total', 0),
                 'evidence_exports_total': evidence_exports.get('summary', {}).get('exports_total', 0),
+                'workflow_proof_total': int(evidence_exports.get('summary', {}).get('workflow_proof_total', 0) or 0),
+                'evidence_posture': str(evidence_exports.get('summary', {}).get('posture', 'missing')),
+                'evidence_attention_total': int(evidence_exports.get('summary', {}).get('attention_total', 0) or 0),
+                'evidence_tamper_evident_total': int(evidence_exports.get('summary', {}).get('tamper_evident_total', 0) or 0),
+                'evidence_trusted_role_mismatch_total': int(evidence_exports.get('summary', {}).get('trusted_role_mismatch_total', 0) or 0),
                 'integration_targets_total': integrations.get('summary', {}).get('targets_total', 0),
                 'integration_deliveries_total': integrations.get('summary', {}).get('deliveries_total', 0),
                 'integration_failures_total': integrations.get('summary', {}).get('failed_total', 0),
@@ -193,6 +233,7 @@ class DashboardSnapshotBuilder:
             'operations': operations,
             'compliance': compliance,
             'evidence_exports': evidence_exports,
+            'guardrail_surface': guardrail_surface,
             'integrations': integrations,
             'model_providers': model_providers,
             'operator_alert_policy': operator_alert_policy,
@@ -287,12 +328,24 @@ class DashboardSnapshotBuilder:
         entries = audit_entries if audit_entries is not None else self.list_audit(limit=max(limit * 3, 100))
         requests: list[dict[str, object]] = []
         for entry in entries:
-            metadata = entry.get('metadata', {})
-            context = metadata.get('context', {})
+            metadata = entry.get('metadata', {}) if isinstance(entry.get('metadata', {}), dict) else {}
+            context = metadata.get('context', {}) if isinstance(metadata.get('context', {}), dict) else {}
             if not context or str(entry.get('action', '')).startswith('override_'):
                 continue
-            consistency = context.get('metadata', {}).get('request_consistency', {})
+            context_metadata = context.get('metadata', {}) if isinstance(context.get('metadata', {}), dict) else {}
+            consistency = context_metadata.get('request_consistency', {}) if isinstance(context_metadata.get('request_consistency', {}), dict) else {}
             role_transition = context.get('role_transition', {}) if isinstance(context.get('role_transition', {}), dict) else {}
+            authority_gate = context_metadata.get('authority_gate', {}) if isinstance(context_metadata.get('authority_gate', {}), dict) else {}
+            resource_lock = metadata.get('resource_lock', {}) if isinstance(metadata.get('resource_lock', {}), dict) else {}
+            if not resource_lock:
+                resource_lock = context_metadata.get('resource_lock', {}) if isinstance(context_metadata.get('resource_lock', {}), dict) else {}
+            conflict_lock = metadata.get('conflict_lock', {}) if isinstance(metadata.get('conflict_lock', {}), dict) else {}
+            if not conflict_lock:
+                conflict_lock = context_metadata.get('conflict_lock', {}) if isinstance(context_metadata.get('conflict_lock', {}), dict) else {}
+            human_override = metadata.get('human_override', {}) if isinstance(metadata.get('human_override', {}), dict) else {}
+            if not human_override:
+                human_override = context_metadata.get('human_override', {}) if isinstance(context_metadata.get('human_override', {}), dict) else {}
+            authority_gate_triggered = bool(authority_gate.get('gate_triggered', False))
             requests.append(
                 {
                     'request_id': context.get('request_id', 'unknown'),
@@ -306,6 +359,22 @@ class DashboardSnapshotBuilder:
                     'risk_score': context.get('risk_score', 0.0),
                     'resource': self._resource_label(context.get('payload', {})),
                     'decision_trace': metadata.get('decision_trace', {}),
+                    'authority_gate_triggered': authority_gate_triggered,
+                    'authority_gate_outcome': str(authority_gate.get('outcome', 'passthrough' if not authority_gate_triggered else 'unknown')),
+                    'authority_gate_source_id': authority_gate.get('source_id'),
+                    'authority_gate_reason': authority_gate.get('reason'),
+                    'authority_gate_requires_human_confirmation': bool(authority_gate.get('requires_human_confirmation', False)),
+                    'authority_gate_decision_mode': str(authority_gate.get('decision_mode', 'policy_fallback') or 'policy_fallback'),
+                    'authority_gate_resume_request_id': authority_gate.get('resumed_from_override_request_id'),
+                    'resource_lock_status': resource_lock.get('status'),
+                    'resource_lock_key': resource_lock.get('resource_key'),
+                    'resource_lock_owner_request_id': resource_lock.get('owner_request_id'),
+                    'conflict_lock_status': conflict_lock.get('status'),
+                    'conflict_lock_key': conflict_lock.get('resource_key'),
+                    'conflict_lock_owner_request_id': conflict_lock.get('owner_request_id'),
+                    'human_override_request_id': human_override.get('request_id'),
+                    'human_override_status': human_override.get('status'),
+                    'human_override_approver_role': human_override.get('approver_role'),
                     'idempotency_status': consistency.get('idempotency_status', 'none'),
                     'ordering_status': consistency.get('ordering_status', 'none'),
                     'event_stream': consistency.get('event_stream', '-'),
@@ -327,6 +396,105 @@ class DashboardSnapshotBuilder:
 
     def list_locks(self, status: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         return self.app.list_locks(status=status)[:limit]
+
+    def guardrail_surface(
+        self,
+        *,
+        requests: list[dict[str, object]],
+        overrides: list[dict[str, object]],
+        locks: list[dict[str, object]],
+        limit: int = 25,
+    ) -> dict[str, object]:
+        authority_guarded = [
+            item
+            for item in requests
+            if bool(item.get('authority_gate_triggered', False)) or bool(item.get('human_override_request_id'))
+        ]
+        authority_human_required = [
+            item
+            for item in requests
+            if bool(item.get('authority_gate_requires_human_confirmation', False))
+            or bool(item.get('human_override_request_id'))
+            or str(item.get('outcome', '')) in {'waiting_human', 'human_required'}
+        ]
+        authority_blocked = [
+            item
+            for item in authority_guarded
+            if str(item.get('authority_gate_outcome', '')) == 'blocked'
+            or str(item.get('outcome', '')) == 'blocked'
+        ]
+        authority_resumed = [item for item in authority_guarded if str(item.get('authority_gate_source_id', '')) == 'human_override_resume']
+        waiting_locks = [item for item in locks if str(item.get('status', '')) == 'waiting_human']
+        active_locks = [item for item in locks if str(item.get('status', '')) == 'active']
+        conflict_requests = [item for item in requests if item.get('conflict_lock_key') not in {None, ''}]
+        if authority_blocked or conflict_requests:
+            posture = 'attention_required'
+        elif authority_human_required or waiting_locks or active_locks or overrides:
+            posture = 'governed'
+        else:
+            posture = 'ready'
+        items: list[dict[str, object]] = []
+        if authority_human_required:
+            latest = authority_human_required[0]
+            items.append(
+                {
+                    'lane_id': 'authority_human_confirmation',
+                    'status': 'warning',
+                    'title': 'Authority guard is holding requests for human confirmation',
+                    'detail': latest.get('reason') or latest.get('authority_gate_reason') or 'Authority gate requires review.',
+                    'request_total': len(authority_human_required),
+                    'view': 'requests',
+                }
+            )
+        if authority_blocked:
+            latest = authority_blocked[0]
+            items.append(
+                {
+                    'lane_id': 'authority_blocked',
+                    'status': 'critical',
+                    'title': 'Authority guard blocked governed requests',
+                    'detail': latest.get('reason') or latest.get('authority_gate_reason') or 'Authority contract blocked execution.',
+                    'request_total': len(authority_blocked),
+                    'view': 'requests',
+                }
+            )
+        if conflict_requests or waiting_locks:
+            latest_conflict = conflict_requests[0] if conflict_requests else None
+            latest_lock = waiting_locks[0] if waiting_locks else (active_locks[0] if active_locks else {})
+            items.append(
+                {
+                    'lane_id': 'resource_lock_contention',
+                    'status': 'critical' if conflict_requests else 'warning',
+                    'title': 'Resource lock is actively governing concurrent access',
+                    'detail': (
+                        latest_conflict.get('conflict_lock_key')
+                        if latest_conflict is not None
+                        else latest_lock.get('resource_key')
+                        or 'Governed resource lock is active.'
+                    ),
+                    'request_total': len(conflict_requests),
+                    'waiting_lock_total': len(waiting_locks),
+                    'view': 'requests',
+                }
+            )
+        return {
+            'posture': posture,
+            'summary': {
+                'posture': posture,
+                'authority_guard_total': len(authority_guarded),
+                'authority_guard_human_required_total': len(authority_human_required),
+                'authority_guard_blocked_total': len(authority_blocked),
+                'authority_guard_resumed_total': len(authority_resumed),
+                'resource_lock_active_total': len(active_locks),
+                'resource_lock_waiting_total': len(waiting_locks),
+                'resource_lock_conflict_total': len(conflict_requests),
+                'pending_override_total': sum(1 for item in overrides if str(item.get('status', '')) == 'pending'),
+            },
+            'items': items[:limit],
+            'authority_requests': authority_guarded[:limit],
+            'conflicted_requests': conflict_requests[:limit],
+            'locks': locks[:limit],
+        }
 
     def list_audit(self, limit: int = 200) -> list[dict[str, object]]:
         return self.app.list_audit(limit=limit)
@@ -666,6 +834,7 @@ class DashboardSnapshotBuilder:
         return {
             'summary': summary if summary is not None else self.app.evidence_pack_summary(),
             'exports': self.app.list_evidence_packs(limit=limit),
+            'workflow_proofs': self.app.list_workflow_proof_bundles(limit=limit),
         }
 
     def integrations(self, limit: int = 50) -> dict[str, object]:
@@ -854,7 +1023,8 @@ class DashboardSnapshotBuilder:
                 continue
             channels = severity_channels.get(status, default_channels)
             channels = [str(channel) for channel in channels if str(channel)] if isinstance(channels, list) else default_channels
-            for channel in channels:
+            normalized_channels = self._normalize_notification_channels(channels)
+            for channel in normalized_channels:
                 channel_totals[channel] = channel_totals.get(channel, 0) + 1
             items.append(
                 {
@@ -866,8 +1036,10 @@ class DashboardSnapshotBuilder:
                     'severity': status,
                     'oldest_age_hours': int(item.get('oldest_age_hours', 0) or 0),
                     'oldest_reference': item.get('oldest_reference'),
-                    'channels': channels,
-                    'dispatch_ready': enabled and bool(channels),
+                    'channels': normalized_channels,
+                    'internal_channels': [channel for channel in normalized_channels if self._notification_channel_scope(channel) == 'internal'],
+                    'external_channels': [channel for channel in normalized_channels if self._notification_channel_scope(channel) == 'external'],
+                    'dispatch_ready': enabled and bool(normalized_channels),
                 }
             )
 
@@ -880,6 +1052,8 @@ class DashboardSnapshotBuilder:
             {
                 'channel': channel,
                 'active_total': total,
+                'scope': self._notification_channel_scope(channel),
+                'family': self._notification_channel_family(channel),
             }
             for channel, total in sorted(channel_totals.items(), key=lambda entry: (-entry[1], entry[0]))
         ]
@@ -891,6 +1065,8 @@ class DashboardSnapshotBuilder:
             'items': items,
             'channels': channels,
             'active_channel_total': len(channels),
+            'internal_channel_total': sum(1 for item in channels if item.get('scope') == 'internal'),
+            'external_channel_total': sum(1 for item in channels if item.get('scope') == 'external'),
             'dispatch_candidates_total': len(items),
             'dispatch_ready_total': sum(1 for item in items if item.get('dispatch_ready')),
             'highest_severity': highest_severity,
@@ -910,7 +1086,25 @@ class DashboardSnapshotBuilder:
         deliveries_total = int(summary.get('deliveries_total', 0) or 0)
         dispatch_candidates_total = int(notification_center.get('dispatch_candidates_total', 0) or 0)
         enabled = bool(notification_center.get('enabled', True))
-        external_routing_ready = http_enabled and active_targets > 0
+
+        configured_external_channels = sorted(
+            channel
+            for channel in summary.get('notification_channels_configured', [])
+            if self._notification_channel_scope(str(channel)) == 'external'
+        )
+        active_external_channels = sorted(
+            channel
+            for channel in summary.get('notification_channels_active', [])
+            if self._notification_channel_scope(str(channel)) == 'external'
+        )
+        requested_external_channels = sorted(
+            item.get('channel')
+            for item in notification_center.get('channels', []) if isinstance(item, dict)
+            if self._notification_channel_scope(str(item.get('channel', ''))) == 'external'
+        )
+        missing_external_channels = [channel for channel in requested_external_channels if channel not in configured_external_channels]
+        inactive_external_channels = [channel for channel in requested_external_channels if channel in configured_external_channels and channel not in active_external_channels]
+        external_routing_ready = bool(requested_external_channels) and http_enabled and not missing_external_channels and not inactive_external_channels
 
         if not enabled:
             posture = 'disabled'
@@ -918,7 +1112,9 @@ class DashboardSnapshotBuilder:
             posture = 'degraded'
         elif outbox_total > 0:
             posture = 'pressured'
-        elif external_routing_ready or dispatch_candidates_total <= 0:
+        elif requested_external_channels and external_routing_ready:
+            posture = 'ready'
+        elif dispatch_candidates_total <= 0:
             posture = 'ready'
         else:
             posture = 'dashboard_only'
@@ -926,10 +1122,14 @@ class DashboardSnapshotBuilder:
         next_actions: list[dict[str, str]] = []
         if not enabled:
             next_actions.append({'label': 'Immediate action', 'detail': 'Re-enable operator notifications or maintain strict manual dashboard review until routing is restored.'})
-        if not http_enabled:
-            next_actions.append({'label': 'Enable HTTP', 'detail': 'Turn on outbound HTTP integrations before expecting external alert delivery.'})
-        if http_enabled and active_targets <= 0:
-            next_actions.append({'label': 'Add active target', 'detail': 'Configure at least one active integration target so alerts can leave the dashboard.'})
+        if requested_external_channels and not http_enabled:
+            next_actions.append({'label': 'Enable HTTP', 'detail': 'Turn on outbound HTTP integrations before expecting external operator delivery.'})
+        if missing_external_channels:
+            next_actions.append({'label': 'Add channel targets', 'detail': f"Configure explicit integration targets for: {', '.join(missing_external_channels)}."})
+        if inactive_external_channels:
+            next_actions.append({'label': 'Activate configured routes', 'detail': f"The following external channels are configured but not active: {', '.join(inactive_external_channels)}."})
+        if http_enabled and requested_external_channels and active_targets <= 0:
+            next_actions.append({'label': 'Add active target', 'detail': 'Configure at least one active HTTP integration target so alerts can leave the dashboard.'})
         if failed_total > 0:
             next_actions.append({'label': 'Review failed deliveries', 'detail': 'Inspect failed deliveries and dead letters before trusting external routing.'})
         if outbox_total > 0:
@@ -948,24 +1148,60 @@ class DashboardSnapshotBuilder:
             'failed_total': failed_total,
             'outbox_total': outbox_total,
             'highest_severity': str(notification_center.get('highest_severity', 'ready')),
+            'configured_external_channels': configured_external_channels,
+            'active_external_channels': active_external_channels,
+            'requested_external_channels': requested_external_channels,
+            'missing_external_channels': missing_external_channels,
+            'inactive_external_channels': inactive_external_channels,
+            'platforms_configured': [str(item) for item in summary.get('platforms_configured', []) if str(item)],
+            'platforms_active': [str(item) for item in summary.get('platforms_active', []) if str(item)],
             'next_actions': next_actions,
         }
+
+    @staticmethod
+    def _normalize_notification_channels(channels: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for channel in channels:
+            value = str(channel).strip().lower()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            normalized.append(value)
+        return normalized or ['dashboard']
+
+    @staticmethod
+    def _notification_channel_scope(channel: str) -> str:
+        return 'internal' if str(channel).strip().lower() in {'dashboard', 'email'} else 'external'
+
+    @staticmethod
+    def _notification_channel_family(channel: str) -> str:
+        value = str(channel).strip().lower()
+        if value in {'jira', 'servicenow'}:
+            return 'ticketing'
+        if value in {'slack', 'teams'}:
+            return 'chatops'
+        return value or 'unknown'
 
     def runtime_alerts(
         self,
         *,
         human_ask: dict[str, object],
         role_private_studio: dict[str, object],
+        evidence_exports: dict[str, object],
         go_live_readiness: dict[str, object],
         operational_readiness: dict[str, object],
         operator_queue_health: dict[str, object],
         operator_notification_center: dict[str, object],
+        guardrail_surface: dict[str, object],
         limit: int = 12,
     ) -> list[dict[str, object]]:
         alerts: list[dict[str, object]] = []
         owner_registration = self.owner_registration()
         sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
         studio_summary = role_private_studio.get('summary', {}) if isinstance(role_private_studio.get('summary', {}), dict) else {}
+        evidence_summary = evidence_exports.get('summary', {}) if isinstance(evidence_exports.get('summary', {}), dict) else {}
+        guardrail_summary = guardrail_surface.get('summary', {}) if isinstance(guardrail_surface.get('summary', {}), dict) else {}
 
         if not owner_registration.get('registered'):
             alerts.append(
@@ -1014,6 +1250,18 @@ class DashboardSnapshotBuilder:
             if session.get('status') == 'waiting_human'
             or (((session.get('decision_summary') or {}).get('metadata', {}) or {}).get('scope_status') == 'human_only_boundary')
         ]
+        guarded_confidence_sessions = [
+            session
+            for session in sessions
+            if ((session.get('summary') or {}).get('confidence_band') == 'guarded')
+            and ((session.get('summary') or {}).get('governed_reporting_posture') in {'autonomy_ready', 'guarded_follow_up'})
+        ]
+        stale_follow_up_sessions = [
+            session
+            for session in sessions
+            if ((session.get('summary') or {}).get('freshness_status') == 'stale')
+            and ((session.get('summary') or {}).get('governed_reporting_posture') != 'autonomy_ready')
+        ]
         blocked_sessions = [session for session in sessions if session.get('status') == 'blocked']
 
         if out_of_scope_sessions:
@@ -1058,6 +1306,52 @@ class DashboardSnapshotBuilder:
                 }
             )
 
+        if guarded_confidence_sessions:
+            latest = guarded_confidence_sessions[0]
+            alerts.append(
+                {
+                    'alert_id': 'human_ask_guarded_confidence',
+                    'tone': 'warning',
+                    'eyebrow': 'Confidence guard',
+                    'title': 'Human Ask confidence is near the escalation threshold',
+                    'message': 'The Director kept the reporting lane governed, but confidence is close enough to the configured threshold that operators should review the follow-up posture before treating it as fully settled.',
+                    'view': 'human_ask',
+                    'action_label': 'Review governed reports',
+                    'badge': f"{len(guarded_confidence_sessions)} guarded",
+                    'timestamp': latest.get('updated_at') or latest.get('created_at') or self._utc_now(),
+                    'details': {
+                        'records_total': len(guarded_confidence_sessions),
+                        'latest_participant': ((latest.get('participant') or {}).get('display_name') or (latest.get('summary') or {}).get('participant') or '-'),
+                        'latest_session_id': latest.get('session_id', '-'),
+                        'confidence_threshold': float((latest.get('summary') or {}).get('confidence_threshold', 0.0) or 0.0),
+                    },
+                }
+            )
+
+        if stale_follow_up_sessions:
+            latest = stale_follow_up_sessions[0]
+            oldest_age_hours = max(int((session.get('summary') or {}).get('freshness_age_hours', 0) or 0) for session in stale_follow_up_sessions)
+            posture_set = {str((session.get('summary') or {}).get('governed_reporting_posture', 'autonomy_ready')) for session in stale_follow_up_sessions}
+            alerts.append(
+                {
+                    'alert_id': 'human_ask_stale_follow_up',
+                    'tone': 'danger' if posture_set & {'human_gated', 'blocked'} else 'warning',
+                    'eyebrow': 'Freshness posture',
+                    'title': 'Human Ask follow-up records have gone stale',
+                    'message': 'Some governed reporting records are now outside the freshness window and should be refreshed or resolved before operators rely on them as current status.',
+                    'view': 'human_ask',
+                    'action_label': 'Refresh governed reports',
+                    'badge': f"{len(stale_follow_up_sessions)} stale",
+                    'timestamp': latest.get('updated_at') or latest.get('created_at') or self._utc_now(),
+                    'details': {
+                        'records_total': len(stale_follow_up_sessions),
+                        'latest_participant': ((latest.get('participant') or {}).get('display_name') or (latest.get('summary') or {}).get('participant') or '-'),
+                        'latest_session_id': latest.get('session_id', '-'),
+                        'oldest_age_hours': oldest_age_hours,
+                    },
+                }
+            )
+
         if blocked_sessions:
             latest = blocked_sessions[0]
             alerts.append(
@@ -1079,8 +1373,37 @@ class DashboardSnapshotBuilder:
                 }
             )
 
+        manual_override_total = int(studio_summary.get('manual_override_total', 0) or 0)
+        restored_request_total = int(studio_summary.get('restored_request_total', 0) or 0)
+        publisher_ready_total = int(studio_summary.get('publisher_ready_total', 0) or 0)
         structural_guarded_total = int(studio_summary.get('structural_guarded_total', 0) or 0)
         structural_blocked_total = int(studio_summary.get('structural_blocked_total', 0) or 0)
+        structural_ready_total = int(studio_summary.get('structural_ready_total', 0) or 0)
+        pt_oss_critical_total = int(studio_summary.get('pt_oss_critical_total', 0) or 0)
+        pt_oss_public_sector_total = int(studio_summary.get('pt_oss_public_sector_mode_total', 0) or 0)
+        authority_human_required_total = int(guardrail_summary.get('authority_guard_human_required_total', 0) or 0)
+        authority_blocked_total = int(guardrail_summary.get('authority_guard_blocked_total', 0) or 0)
+        resource_lock_waiting_total = int(guardrail_summary.get('resource_lock_waiting_total', 0) or 0)
+        resource_lock_conflict_total = int(guardrail_summary.get('resource_lock_conflict_total', 0) or 0)
+        if manual_override_total or restored_request_total:
+            alerts.append(
+                {
+                    'alert_id': 'studio_revision_governance',
+                    'tone': 'warning',
+                    'eyebrow': 'Studio revision governance',
+                    'title': 'Role Private Studio has drafts with manual or restored revision state',
+                    'message': 'Some studio drafts carry manual PTAG edits or restored revisions. Keep review and publication checks explicit before treating them as ready for trusted release.',
+                    'view': 'studio',
+                    'action_label': 'Open Studio',
+                    'badge': f"{manual_override_total + restored_request_total} drafts",
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'manual_override_total': manual_override_total,
+                        'restored_request_total': restored_request_total,
+                        'publisher_ready_total': publisher_ready_total,
+                    },
+                }
+            )
         if structural_guarded_total or structural_blocked_total:
             tone = 'danger' if structural_blocked_total else 'warning'
             alerts.append(
@@ -1098,6 +1421,97 @@ class DashboardSnapshotBuilder:
                         'guarded_total': structural_guarded_total,
                         'blocked_total': structural_blocked_total,
                         'ready_total': int(studio_summary.get('ready_to_publish_total', 0) or 0),
+                        'structural_ready_total': structural_ready_total,
+                        'pt_oss_critical_total': pt_oss_critical_total,
+                        'pt_oss_public_sector_total': pt_oss_public_sector_total,
+                    },
+                }
+            )
+
+        if authority_human_required_total or authority_blocked_total:
+            alerts.append(
+                {
+                    'alert_id': 'authority_guard_attention',
+                    'tone': 'danger' if authority_blocked_total else 'warning',
+                    'eyebrow': 'Authority guard',
+                    'title': 'Authority Guard is actively holding governed requests',
+                    'message': 'Some requests were blocked or paused for human confirmation because authority boundaries were triggered as designed.',
+                    'view': 'requests',
+                    'action_label': 'Review governed requests',
+                    'badge': f"{authority_human_required_total + authority_blocked_total} requests",
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'authority_human_required_total': authority_human_required_total,
+                        'authority_blocked_total': authority_blocked_total,
+                        'resource_lock_waiting_total': resource_lock_waiting_total,
+                    },
+                }
+            )
+
+        if resource_lock_waiting_total or resource_lock_conflict_total:
+            alerts.append(
+                {
+                    'alert_id': 'resource_lock_pressure',
+                    'tone': 'danger' if resource_lock_conflict_total else 'warning',
+                    'eyebrow': 'Resource lock',
+                    'title': 'Resource Lock is governing live contention or held approvals',
+                    'message': 'Concurrent access to governed resources is currently serialized by lock state, conflict detection, or pending human review.',
+                    'view': 'requests',
+                    'action_label': 'Review lock state',
+                    'badge': f"{resource_lock_waiting_total + resource_lock_conflict_total} signals",
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'resource_lock_waiting_total': resource_lock_waiting_total,
+                        'resource_lock_conflict_total': resource_lock_conflict_total,
+                        'authority_guard_human_required_total': authority_human_required_total,
+                    },
+                }
+            )
+
+        trust_attention_total = int(studio_summary.get('trust_attention_total', 0) or 0)
+        published_total = int(studio_summary.get('published_total', 0) or 0)
+        published_live_hash_verified_total = int(studio_summary.get('published_live_hash_verified_total', 0) or 0)
+        published_current_revision_total = int(studio_summary.get('published_current_revision_total', 0) or 0)
+        if trust_attention_total:
+            alerts.append(
+                {
+                    'alert_id': 'studio_trusted_registry_drift',
+                    'tone': 'danger',
+                    'eyebrow': 'Trusted publication drift',
+                    'title': 'Published studio roles have drifted from their trusted registry contract',
+                    'message': 'One or more published role packs no longer match the trusted live hash, signature posture, or approved revision contract. Review them before treating the role library as fully trusted.',
+                    'view': 'studio',
+                    'action_label': 'Review published roles',
+                    'badge': f'{trust_attention_total} roles',
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'published_total': published_total,
+                        'published_live_hash_verified_total': published_live_hash_verified_total,
+                        'published_current_revision_total': published_current_revision_total,
+                    },
+                }
+            )
+
+        evidence_attention_total = int(evidence_summary.get('attention_total', 0) or 0)
+        trusted_role_mismatch_total = int(evidence_summary.get('trusted_role_mismatch_total', 0) or 0)
+        latest_export = evidence_summary.get('latest_export', {}) if isinstance(evidence_summary.get('latest_export', {}), dict) else {}
+        if evidence_attention_total:
+            alerts.append(
+                {
+                    'alert_id': 'evidence_export_attention',
+                    'tone': 'danger',
+                    'eyebrow': 'Evidence integrity posture',
+                    'title': 'Recent evidence exports captured audit or trust attention signals',
+                    'message': 'The latest evidence pack shows integrity attention, so exported proof should be reviewed before it is treated as a clean auditor-ready bundle.',
+                    'view': 'health',
+                    'action_label': 'Open Evidence Exports',
+                    'badge': f'{evidence_attention_total} exports',
+                    'timestamp': str(latest_export.get('created_at') or self._utc_now()),
+                    'details': {
+                        'latest_pack_id': latest_export.get('pack_id') or '-',
+                        'audit_chain_status': latest_export.get('audit_chain_status') or 'unknown',
+                        'trusted_registry_signature_status': latest_export.get('trusted_registry_signature_status') or 'unknown',
+                        'trusted_role_mismatch_total': trusted_role_mismatch_total,
                     },
                 }
             )

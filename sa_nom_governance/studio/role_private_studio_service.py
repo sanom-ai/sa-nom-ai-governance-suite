@@ -1,9 +1,10 @@
 import json
 from copy import deepcopy
+from pathlib import Path
 from uuid import uuid4
 
 from sa_nom_governance.audit.audit_logger import AuditLogger
-from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
+from sa_nom_governance.compliance.trusted_registry import compute_sha256, write_trusted_registry_files
 from sa_nom_governance.ptag.pt_oss_engine import PTOSSEngine
 from sa_nom_governance.studio.role_private_studio_diff import build_revision_delta
 from sa_nom_governance.studio.role_private_studio_generator import RolePrivateStudioGenerator
@@ -237,14 +238,141 @@ class RolePrivateStudioService:
             legacy_examples_path = config.base_dir / 'role_private_studio_examples.json'
             self.examples_path = legacy_examples_path if legacy_examples_path.exists() else bundled_examples_path
 
+    def _request_payload(self, request: RolePrivateStudioRequest, *, compact: bool = False) -> dict[str, object]:
+        payload = request.to_dict(compact=compact)
+        summary = payload.get('summary', {}) if isinstance(payload.get('summary', {}), dict) else {}
+        revisions = payload.get('revisions', []) if isinstance(payload.get('revisions', []), list) else []
+        publish_artifact = payload.get('publish_artifact', {}) if isinstance(payload.get('publish_artifact', {}), dict) else {}
+        publish_readiness = payload.get('publish_readiness', {}) if isinstance(payload.get('publish_readiness', {}), dict) else {}
+        publication_workflow = payload.get('publication_workflow', {}) if isinstance(payload.get('publication_workflow', {}), dict) else {}
+        coverage_summary = payload.get('coverage_summary', {}) if isinstance(payload.get('coverage_summary', {}), dict) else {}
+        latest_revision = revisions[-1] if revisions else {}
+        restore_total = sum(1 for item in revisions if str(item.get('trigger', '')).startswith('restore_'))
+        manual_revision_total = sum(1 for item in revisions if str(item.get('ptag_source_mode', 'generated')) == 'manual')
+        current_revision = int(summary.get('current_revision', 0) or 0)
+        latest_diff = latest_revision.get('diff_summary', {}) if isinstance(latest_revision.get('diff_summary', {}), dict) else {}
+        normalized_spec = payload.get('normalized_spec', {}) if isinstance(payload.get('normalized_spec', {}), dict) else {}
+        role_id = str((summary.get('role_id') or normalized_spec.get('role_id') or publish_artifact.get('role_id') or '')).strip()
+        trusted_manifest = self.registry.trusted_registry.manifest if isinstance(self.registry.trusted_registry.manifest, dict) else {}
+        manifest_roles = trusted_manifest.get('roles', {}) if isinstance(trusted_manifest.get('roles', {}), dict) else {}
+        manifest_signature = trusted_manifest.get('signature', {}) if isinstance(trusted_manifest.get('signature', {}), dict) else {}
+        manifest_entry = manifest_roles.get(role_id, {}) if role_id else {}
+        role_path_value = str(publish_artifact.get('role_path', '') or '')
+        live_sha256 = ''
+        live_hash_verified = False
+        if role_path_value:
+            role_path = Path(role_path_value)
+            if role_path.exists() and role_path.is_file():
+                live_sha256 = compute_sha256(role_path.read_text(encoding='utf-8'))
+                trusted_sha256 = str(publish_artifact.get('trusted_sha256') or manifest_entry.get('sha256') or '')
+                live_hash_verified = bool(trusted_sha256 and live_sha256 == trusted_sha256)
+        if current_revision <= 1:
+            revision_drift_status = 'initial'
+        elif any(bool((latest_diff.get(section, {}) or {}).get('changed', False)) for section in {'structured_jd', 'ptag', 'validation', 'simulation'} if isinstance(latest_diff.get(section, {}), dict)):
+            revision_drift_status = 'changed'
+        else:
+            revision_drift_status = 'stable'
+        if publish_artifact:
+            publication_posture = 'published'
+        elif str(publication_workflow.get('status', 'in_progress')) == 'publisher_ready' or str(publish_readiness.get('status', 'blocked')) == 'ready':
+            publication_posture = 'publisher_ready'
+        elif payload.get('status') == 'changes_requested':
+            publication_posture = 'changes_requested'
+        elif str(publish_readiness.get('status', 'blocked')) == 'guarded':
+            publication_posture = 'structural_review'
+        elif str(publish_readiness.get('status', 'blocked')) == 'blocked':
+            publication_posture = 'blocked'
+        else:
+            publication_posture = 'in_review'
+        publish_signature_status = str(publish_artifact.get('manifest_signature_status', 'not_published')) if publish_artifact else 'not_published'
+        registry_verified = publish_signature_status == 'verified'
+        manifest_key_id = str(publish_artifact.get('manifest_key_id') or manifest_signature.get('key_id') or '') if publish_artifact else ''
+        publish_signed_by = str(manifest_signature.get('signed_by') or self.config.trusted_registry_signed_by or '') if publish_artifact else ''
+        publish_signature_mode = str(manifest_entry.get('signature_mode') or 'sha256_manifest_hmac') if publish_artifact else ''
+        registry_registered_at = str(manifest_entry.get('registered_at') or publish_artifact.get('published_at') or '') if publish_artifact else ''
+        published_from_current_revision = bool(publish_artifact and int(publish_artifact.get('revision_number', 0) or 0) == current_revision)
+        if not publish_artifact:
+            publish_trust_posture = 'not_published'
+        elif publish_signature_status != 'verified':
+            publish_trust_posture = 'signature_invalid'
+        elif not live_hash_verified:
+            publish_trust_posture = 'live_drift'
+        elif not published_from_current_revision:
+            publish_trust_posture = 'stale_publication'
+        else:
+            publish_trust_posture = 'trusted_live'
+        pt_oss_summary = publish_readiness.get('pt_oss_summary', {}) if isinstance(publish_readiness.get('pt_oss_summary', {}), dict) else {}
+        pt_oss_context = pt_oss_summary.get('context', {}) if isinstance(pt_oss_summary.get('context', {}), dict) else {}
+        pt_oss_signals = pt_oss_context.get('signals', {}) if isinstance(pt_oss_context.get('signals', {}), dict) else {}
+        pt_oss_metrics = pt_oss_summary.get('metrics', []) if isinstance(pt_oss_summary.get('metrics', []), list) else []
+        pt_oss_blockers = pt_oss_summary.get('blockers', []) if isinstance(pt_oss_summary.get('blockers', []), list) else []
+        pt_oss_blocking_issue_total = sum(1 for item in pt_oss_blockers if bool(item.get('blocks_publish', False)))
+        pt_oss_critical_issue_total = sum(1 for item in pt_oss_blockers if str(item.get('severity', '')) == 'critical')
+        pt_oss_high_risk_metric_total = sum(1 for item in pt_oss_metrics if str(item.get('risk_level', '')) in {'high', 'critical'})
+        policy_coverage = coverage_summary.get('policy', {}) if isinstance(coverage_summary.get('policy', {}), dict) else {}
+        hierarchy_coverage = coverage_summary.get('hierarchy', {}) if isinstance(coverage_summary.get('hierarchy', {}), dict) else {}
+        escalation_coverage = coverage_summary.get('escalation', {}) if isinstance(coverage_summary.get('escalation', {}), dict) else {}
+        structural_state = str(publish_readiness.get('structural_state', 'blocked') or 'blocked')
+        structural_gate_reason = str(publish_readiness.get('structural_gate_reason', '') or '')
+        if publish_artifact:
+            publish_artifact.update(
+                {
+                    'manifest_key_id': manifest_key_id,
+                    'manifest_signed_by': publish_signed_by,
+                    'signature_mode': publish_signature_mode,
+                    'registry_registered_at': registry_registered_at,
+                    'live_sha256': live_sha256,
+                    'live_hash_verified': live_hash_verified,
+                    'published_from_current_revision': published_from_current_revision,
+                    'publish_trust_posture': publish_trust_posture,
+                }
+            )
+            payload['publish_artifact'] = publish_artifact
+        summary.update(
+            {
+                'latest_trigger': str(latest_revision.get('trigger', 'create')) if latest_revision else 'create',
+                'latest_revision_generated_at': str(latest_revision.get('generated_at', payload.get('updated_at', ''))) if latest_revision else str(payload.get('updated_at', '')),
+                'restored_revision_total': restore_total,
+                'manual_revision_total': manual_revision_total,
+                'restore_available': len(revisions) > 1,
+                'publication_posture': publication_posture,
+                'publish_signature_status': publish_signature_status,
+                'publish_manifest_key_id': manifest_key_id,
+                'publish_signed_by': publish_signed_by,
+                'publish_signature_mode': publish_signature_mode,
+                'publish_trust_posture': publish_trust_posture,
+                'published_from_current_revision': published_from_current_revision,
+                'live_hash_verified': live_hash_verified,
+                'live_sha256': live_sha256,
+                'registry_verified': registry_verified,
+                'publisher_ready': publication_posture == 'publisher_ready',
+                'revision_drift_status': revision_drift_status,
+                'pt_oss_mode': str(pt_oss_summary.get('mode', 'unknown') or 'unknown'),
+                'pt_oss_metric_total': len(pt_oss_metrics),
+                'pt_oss_high_risk_metric_total': pt_oss_high_risk_metric_total,
+                'pt_oss_blocking_issue_total': pt_oss_blocking_issue_total,
+                'pt_oss_critical_issue_total': pt_oss_critical_issue_total,
+                'pt_oss_public_sector_mode': bool(pt_oss_context.get('public_sector_mode', False)),
+                'pt_oss_wait_human_signal': bool(pt_oss_signals.get('wait_human', False)),
+                'pt_oss_safety_owner_signal': bool(pt_oss_signals.get('safety_owner', False)),
+                'structural_state': structural_state,
+                'structural_gate_reason': structural_gate_reason,
+                'coverage_policy_status': str(policy_coverage.get('status', 'unknown') or 'unknown'),
+                'coverage_hierarchy_status': str(hierarchy_coverage.get('status', 'unknown') or 'unknown'),
+                'coverage_escalation_status': str(escalation_coverage.get('status', 'unknown') or 'unknown'),
+            }
+        )
+        payload['summary'] = summary
+        return payload
+
     def studio_snapshot(self, limit: int = 50) -> dict[str, object]:
-        requests = [item.to_dict(compact=True) for item in self.store.list_requests()[:limit]]
+        requests = [self._request_payload(item, compact=True) for item in self.store.list_requests()[:limit]]
         statuses = [item['status'] for item in requests]
         structural_guarded_total = sum(
-            1 for item in requests if (item.get('publish_readiness') or {}).get('status') == 'guarded'
+            1 for item in requests if (item.get('summary') or {}).get('structural_state') == 'guarded'
         )
         structural_blocked_total = sum(
-            1 for item in requests if (item.get('publish_readiness') or {}).get('structural_state') == 'blocked'
+            1 for item in requests if (item.get('summary') or {}).get('structural_state') == 'blocked'
         )
         publication_blocked_total = sum(
             1 for item in requests if (item.get('publish_readiness') or {}).get('status') == 'blocked'
@@ -252,6 +380,11 @@ class RolePrivateStudioService:
         ready_to_publish_total = sum(
             1 for item in requests if (item.get('publish_readiness') or {}).get('status') == 'ready'
         )
+        pt_oss_watch_total = sum(1 for item in requests if (item.get('summary') or {}).get('pt_oss_posture') == 'watch')
+        pt_oss_elevated_total = sum(1 for item in requests if (item.get('summary') or {}).get('pt_oss_posture') in {'elevated', 'fragile'})
+        pt_oss_healthy_total = sum(1 for item in requests if (item.get('summary') or {}).get('pt_oss_posture') == 'healthy')
+        structural_ready_total = sum(1 for item in requests if (item.get('summary') or {}).get('structural_state') == 'ready')
+        structural_review_total = sum(1 for item in requests if (item.get('summary') or {}).get('structural_state') == 'guarded')
         return {
             'summary': {
                 'requests_total': len(requests),
@@ -259,8 +392,27 @@ class RolePrivateStudioService:
                 'blocked_total': sum(1 for item in requests if (item.get('validation_report') or {}).get('blocked_publish')),
                 'publication_blocked_total': publication_blocked_total,
                 'ready_to_publish_total': ready_to_publish_total,
+                'publisher_ready_total': sum(1 for item in requests if (item.get('summary') or {}).get('publication_posture') == 'publisher_ready'),
+                'manual_override_total': sum(1 for item in requests if (item.get('summary') or {}).get('ptag_override_present')),
+                'restored_request_total': sum(1 for item in requests if int((item.get('summary') or {}).get('restored_revision_total', 0) or 0) > 0),
+                'published_registry_verified_total': sum(1 for item in requests if (item.get('summary') or {}).get('registry_verified')),
+                'published_live_hash_verified_total': sum(1 for item in requests if (item.get('summary') or {}).get('live_hash_verified')),
+                'published_current_revision_total': sum(1 for item in requests if (item.get('summary') or {}).get('published_from_current_revision')),
+                'trusted_live_total': sum(1 for item in requests if (item.get('summary') or {}).get('publish_trust_posture') == 'trusted_live'),
+                'trust_attention_total': sum(1 for item in requests if (item.get('summary') or {}).get('publish_trust_posture') in {'signature_invalid', 'live_drift', 'stale_publication'}),
+                'revision_drift_total': sum(1 for item in requests if (item.get('summary') or {}).get('revision_drift_status') == 'changed'),
+                'review_pending_total': sum(1 for item in requests if (item.get('summary') or {}).get('publication_posture') in {'in_review', 'changes_requested', 'structural_review', 'blocked'}),
                 'structural_guarded_total': structural_guarded_total,
                 'structural_blocked_total': structural_blocked_total,
+                'structural_ready_total': structural_ready_total,
+                'structural_review_total': structural_review_total,
+                'pt_oss_watch_total': pt_oss_watch_total,
+                'pt_oss_elevated_total': pt_oss_elevated_total,
+                'pt_oss_healthy_total': pt_oss_healthy_total,
+                'pt_oss_critical_total': sum(1 for item in requests if int((item.get('summary') or {}).get('pt_oss_critical_issue_total', 0) or 0) > 0),
+                'pt_oss_public_sector_mode_total': sum(1 for item in requests if (item.get('summary') or {}).get('pt_oss_public_sector_mode')),
+                'pt_oss_blocking_issue_total': sum(int((item.get('summary') or {}).get('pt_oss_blocking_issue_total', 0) or 0) for item in requests),
+                'pt_oss_high_risk_metric_total': sum(int((item.get('summary') or {}).get('pt_oss_high_risk_metric_total', 0) or 0) for item in requests),
                 'review_lane_total': sum(
                     1
                     for item in requests
@@ -292,10 +444,10 @@ class RolePrivateStudioService:
         return self._apply_owner_defaults_to_examples(DEFAULT_EXAMPLES)
 
     def list_requests(self, status: str | None = None, limit: int = 100) -> list[dict[str, object]]:
-        return [item.to_dict(compact=True) for item in self.store.list_requests(status=status)[:limit]]
+        return [self._request_payload(item, compact=True) for item in self.store.list_requests(status=status)[:limit]]
 
     def get_request(self, request_id: str) -> dict[str, object]:
-        return self.store.get_request(request_id).to_dict()
+        return self._request_payload(self.store.get_request(request_id), compact=False)
 
     def create_request(self, payload: dict[str, object], requested_by: str) -> dict[str, object]:
         payload = self._apply_owner_defaults_to_payload(payload)
@@ -445,12 +597,12 @@ class RolePrivateStudioService:
         request.updated_at = utc_now()
         self.store.save_request(request)
         self._audit('role_private_studio_reviewed', request.status, f'Role Private Studio request reviewed with decision {decision}.', {'request_id': request_id, 'reviewer': reviewer, 'decision': decision, 'note': note, 'revision_number': current_revision_number})
-        return request.to_dict()
+        return self._request_payload(request, compact=False)
 
     def publish_request(self, request_id: str, published_by: str) -> dict[str, object]:
         request = self.store.get_request(request_id)
         if request.publish_artifact is not None:
-            return request.to_dict()
+            return self._request_payload(request, compact=False)
         readiness = request.to_dict(compact=True).get('publish_readiness', {})
         if readiness.get('status') != 'ready':
             blockers = '; '.join(readiness.get('blockers', []))
@@ -491,11 +643,11 @@ class RolePrivateStudioService:
         request.updated_at = utc_now()
         self.store.save_request(request)
         self._audit('role_private_studio_published', 'published', 'Role Private Studio draft published into the trusted registry.', {'request_id': request_id, 'role_id': request.normalized_spec.role_id, 'published_by': published_by, 'role_path': str(role_path), 'trusted_sha256': manifest_entry['sha256'], 'revision_number': current_revision_number})
-        return request.to_dict()
+        return self._request_payload(request, compact=False)
 
     def _refresh_request_object(self, request: RolePrivateStudioRequest, trigger: str, actor: str) -> dict[str, object]:
         if request.status == 'published':
-            return request.to_dict()
+            return self._request_payload(request, compact=False)
 
         previous_revision = request.revisions[-1] if request.revisions else None
         request.normalized_spec = self.generator.normalize(request.structured_jd)
@@ -567,7 +719,7 @@ class RolePrivateStudioService:
                 'pt_oss_readiness_score': request.pt_oss_assessment.readiness_score if request.pt_oss_assessment else None,
             },
         )
-        return request.to_dict()
+        return self._request_payload(request, compact=False)
 
     def _audit(self, action: str, outcome: str, reason: str, metadata: dict[str, object]) -> None:
         if self.audit_logger is None:

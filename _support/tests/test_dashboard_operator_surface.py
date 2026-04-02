@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from shutil import copy2
@@ -30,6 +31,12 @@ def _seed_invalid_governance_materials(config: AppConfig) -> None:
         signing_key=config.trusted_registry_signing_key or 'sanom-dev-registry-key',
         key_id=config.trusted_registry_key_id,
     )
+
+
+def _seed_notification_targets(config: AppConfig, payload: list[dict[str, object]]) -> None:
+    assert config.integration_targets_path is not None
+    config.integration_targets_path.parent.mkdir(parents=True, exist_ok=True)
+    config.integration_targets_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
 def test_dashboard_snapshot_includes_operational_readiness_summary() -> None:
@@ -232,7 +239,8 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         config.operator_alert_backlog_critical_total = 4
         config.operator_notification_realert_hours = 2
         config.operator_notification_digest_hours = 12
-        config.operator_notification_critical_channels = 'dashboard,email'
+        config.operator_notification_warning_channels = 'dashboard,email,slack,servicenow'
+        config.operator_notification_critical_channels = 'dashboard,email,slack,servicenow'
         builder = DashboardSnapshotBuilder(config=config)
 
         context = ExecutionContext(
@@ -278,14 +286,96 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         assert summary.get('operator_notification_external_ready') is False
         assert notification_center.get('dispatch_candidates_total', 0) >= 1
         assert notification_center.get('active_channel_total', 0) >= 1
+        assert notification_center.get('external_channel_total', 0) >= 2
         assert delivery_readiness.get('posture') == 'dashboard_only'
         assert delivery_readiness.get('external_routing_ready') is False
         assert delivery_readiness.get('dispatch_candidates_total', 0) >= 1
+        assert delivery_readiness.get('missing_external_channels') == []
+        assert set(delivery_readiness.get('inactive_external_channels', [])) == {'slack', 'servicenow'}
+        assert 'slack' in delivery_readiness.get('configured_external_channels', [])
+        assert 'servicenow' in delivery_readiness.get('configured_external_channels', [])
         assert isinstance(delivery_readiness.get('next_actions'), list)
         pending_notification = next(item for item in notification_center.get('items', []) if item.get('lane_id') == 'pending_overrides')
         assert pending_notification.get('dispatch_ready') is True
-        assert pending_notification.get('channels') == ['dashboard', 'email']
+        assert pending_notification.get('channels') == ['dashboard', 'email', 'slack', 'servicenow']
+        assert pending_notification.get('external_channels') == ['slack', 'servicenow']
         assert any(alert.get('alert_id') == 'operator_queue_pending_overrides' for alert in runtime_alerts)
+
+
+def test_dashboard_notification_delivery_readiness_turns_ready_for_active_external_channels() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        config.outbound_http_integrations_enabled = True
+        config.operator_notification_warning_channels = 'dashboard,slack,jira'
+        config.operator_notification_critical_channels = 'dashboard,slack,jira'
+        _seed_notification_targets(
+            config,
+            [
+                {
+                    'target_id': 'executive-ledger',
+                    'name': 'Executive Integration Ledger',
+                    'status': 'active',
+                    'delivery_mode': 'log_only',
+                    'platform': 'ledger',
+                    'notification_channels': ['dashboard'],
+                    'subscribed_events': ['runtime.*'],
+                },
+                {
+                    'target_id': 'slack-bridge',
+                    'name': 'Slack Alert Bridge',
+                    'category': 'chatops',
+                    'platform': 'slack',
+                    'status': 'active',
+                    'delivery_mode': 'http',
+                    'endpoint_url': 'https://hooks.slack.example.local/services/test',
+                    'notification_channels': ['slack', 'webhook'],
+                    'subscribed_events': ['runtime.*'],
+                },
+                {
+                    'target_id': 'jira-service-desk',
+                    'name': 'Jira Service Desk Bridge',
+                    'category': 'ticketing',
+                    'platform': 'jira',
+                    'status': 'active',
+                    'delivery_mode': 'http',
+                    'endpoint_url': 'https://jira.example.local/rest/api/2/issue',
+                    'notification_channels': ['jira', 'ticketing', 'webhook'],
+                    'subscribed_events': ['runtime.*'],
+                },
+            ],
+        )
+        builder = DashboardSnapshotBuilder(config=config)
+
+        context = ExecutionContext(
+            request_id='REQ-OPS-2',
+            requester='operator@example.com',
+            action='approve_group_policy',
+            role_id='OPS_REVIEW',
+            payload={'resource': 'contract', 'resource_id': 'C-101'},
+            metadata={},
+        )
+        override = builder.app.engine.human_override.create_state(
+            context,
+            required_by='reviewer@example.com',
+            reason='High-risk action requires human review.',
+        )
+        builder.app.engine.human_override._requests[override.request_id].created_at = (
+            datetime.now(timezone.utc) - timedelta(hours=72)
+        ).isoformat()
+        builder.app.engine.human_override._persist()
+
+        snapshot = builder.build()
+        delivery_readiness = snapshot.get('operator_notification_delivery_readiness', {})
+        notification_center = snapshot.get('operator_notification_center', {})
+
+        assert delivery_readiness.get('posture') == 'ready'
+        assert delivery_readiness.get('external_routing_ready') is True
+        assert set(delivery_readiness.get('requested_external_channels', [])) == {'jira', 'slack'}
+        assert set(delivery_readiness.get('active_external_channels', [])) >= {'jira', 'slack'}
+        assert delivery_readiness.get('missing_external_channels') == []
+        assert delivery_readiness.get('inactive_external_channels') == []
+        pending_notification = next(item for item in notification_center.get('items', []) if item.get('lane_id') == 'pending_overrides')
+        assert pending_notification.get('external_channels') == ['slack', 'jira']
 
 
 def test_engine_health_surfaces_invalid_governance_materials() -> None:
@@ -334,3 +424,248 @@ def test_dashboard_snapshot_exposes_invalid_governance_material_counts() -> None
         assert summary.get('invalid_hierarchy_entries_total') == 1
         assert invalid_role.get('status') == 'invalid'
         assert invalid_role.get('load_error', {}).get('stage') == 'load'
+
+
+
+def test_dashboard_snapshot_surfaces_human_ask_confidence_and_freshness_signals() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+        original_confidence_score = builder.app.human_ask._confidence_score
+        builder.app.human_ask._confidence_score = lambda prompt, entry, risk_score: min(0.99, builder.app.human_ask.confidence_threshold + 0.02)
+        try:
+            session = builder.app.create_human_ask_session(
+                {
+                    'role_id': 'GOV',
+                    'prompt': 'Summarize the current governance posture.',
+                },
+                requested_by='EXEC_OWNER',
+            )
+        finally:
+            builder.app.human_ask._confidence_score = original_confidence_score
+
+        stored = builder.app.human_ask.store.get_session(session['session_id'])
+        stored.updated_at = (
+            datetime.now(timezone.utc) - timedelta(hours=builder.app.human_ask.freshness_stale_hours + 4)
+        ).isoformat()
+        builder.app.human_ask.store.save_session(stored)
+
+        snapshot = builder.build()
+        human_ask_summary = snapshot.get('human_ask', {}).get('summary', {})
+        summary = snapshot.get('summary', {})
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+
+        assert human_ask_summary.get('guarded_confidence_total', 0) >= 1
+        assert human_ask_summary.get('stale_total', 0) >= 1
+        assert human_ask_summary.get('guarded_follow_up_posture_total', 0) >= 1
+        assert summary.get('human_ask_guarded_confidence_total', 0) >= 1
+        assert summary.get('human_ask_stale_total', 0) >= 1
+        assert any(alert.get('alert_id') == 'human_ask_guarded_confidence' for alert in runtime_alerts)
+        assert any(alert.get('alert_id') == 'human_ask_stale_follow_up' for alert in runtime_alerts)
+
+
+
+def test_dashboard_snapshot_surfaces_role_private_studio_revision_and_publish_signals() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        def studio_payload(role_name: str, seat_id: str, assigned_user_id: str) -> dict[str, object]:
+            return {
+                'role_name': role_name,
+                'purpose': 'Review governed publication posture before trusted release.',
+                'reporting_line': 'LEGAL',
+                'business_domain': 'legal_operations',
+                'operating_mode': 'indirect',
+                'assigned_user_id': assigned_user_id,
+                'executive_owner_id': 'EXEC_OWNER',
+                'seat_id': seat_id,
+                'responsibilities': ['review incoming contracts', 'flag risk'],
+                'allowed_actions': ['review_contract', 'flag_risk', 'advise_compliance'],
+                'forbidden_actions': ['sign_contract'],
+                'wait_human_actions': [],
+                'handled_resources': ['contract'],
+                'financial_sensitivity': 'medium',
+                'legal_sensitivity': 'high',
+                'compliance_sensitivity': 'high',
+            }
+
+        ready_request = builder.app.role_private_studio.create_request(studio_payload('Publisher Ready Dashboard Analyst', 'OPS-DASH-READY', 'LEGAL_MANAGER_11'), requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.review_request(ready_request['request_id'], reviewer='EXEC_OWNER', decision='approve', note='Ready for publish.')
+
+        manual_request = builder.app.role_private_studio.create_request(studio_payload('Manual Dashboard Analyst', 'OPS-DASH-MANUAL', 'LEGAL_MANAGER_12'), requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.update_request_ptag(
+            manual_request['request_id'],
+            manual_request['generated_ptag'].replace('context "SA-NOM Role Private Studio"', 'context "SA-NOM Role Private Studio Manual"'),
+            updated_by='EXEC_OWNER',
+        )
+
+        restored_request = builder.app.role_private_studio.create_request(studio_payload('Restored Dashboard Analyst', 'OPS-DASH-RESTORE', 'LEGAL_MANAGER_13'), requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.update_request(
+            restored_request['request_id'],
+            {'purpose': 'Review restored dashboard draft before trusted publication.'},
+            updated_by='EXEC_OWNER',
+        )
+        builder.app.role_private_studio.restore_request_revision(restored_request['request_id'], 1, restored_by='EXEC_OWNER')
+
+        published_request = builder.app.role_private_studio.create_request(studio_payload('Published Dashboard Analyst', 'OPS-DASH-PUBLISHED', 'LEGAL_MANAGER_14'), requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.review_request(published_request['request_id'], reviewer='EXEC_OWNER', decision='approve', note='Approved for publish.')
+        builder.app.role_private_studio.publish_request(published_request['request_id'], published_by='EXEC_OWNER')
+
+        snapshot = builder.build()
+        studio_summary = snapshot.get('role_private_studio', {}).get('summary', {})
+        summary = snapshot.get('summary', {})
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+
+        assert studio_summary.get('manual_override_total', 0) >= 1
+        assert studio_summary.get('restored_request_total', 0) >= 1
+        assert studio_summary.get('publisher_ready_total', 0) >= 1
+        assert studio_summary.get('published_registry_verified_total', 0) >= 1
+        assert studio_summary.get('published_live_hash_verified_total', 0) >= 1
+        assert studio_summary.get('published_current_revision_total', 0) >= 1
+        assert studio_summary.get('trusted_live_total', 0) >= 1
+        assert studio_summary.get('trust_attention_total', 0) == 0
+        assert summary.get('studio_manual_override_total', 0) >= 1
+        assert summary.get('studio_restored_request_total', 0) >= 1
+        assert summary.get('studio_publisher_ready_total', 0) >= 1
+        assert summary.get('studio_registry_verified_total', 0) >= 1
+        assert summary.get('studio_live_hash_verified_total', 0) >= 1
+        assert summary.get('studio_trusted_live_total', 0) >= 1
+        assert summary.get('studio_trust_attention_total', 0) == 0
+        assert any(alert.get('alert_id') == 'studio_revision_governance' for alert in runtime_alerts)
+
+
+
+def test_dashboard_snapshot_surfaces_structural_and_guardrail_operator_proof() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        builder.app.role_private_studio.create_request(
+            {
+                'role_name': 'Public Sector Fragility Analyst',
+                'purpose': 'Review public-sector structural pressure before trusted release.',
+                'reporting_line': '',
+                'business_domain': 'government_policy_operations',
+                'operating_mode': 'direct',
+                'assigned_user_id': '',
+                'executive_owner_id': 'EXEC_OWNER',
+                'seat_id': 'OPS-PUBLIC-FRAGILE',
+                'responsibilities': ['review incoming policy packets'],
+                'allowed_actions': ['review_contract', 'approve_contract_exception', 'advise_compliance', 'approve_policy', 'escalate_policy'],
+                'forbidden_actions': ['sign_contract'],
+                'wait_human_actions': [],
+                'handled_resources': [],
+                'financial_sensitivity': 'high',
+                'legal_sensitivity': 'high',
+                'compliance_sensitivity': 'critical',
+            },
+            requested_by='EXEC_OWNER',
+        )
+
+        pending = builder.app.request(
+            requester='AUDITOR',
+            role_id='GOV',
+            action='approve_policy',
+            payload={'resource': 'contract', 'resource_id': 'C-GUARD-1'},
+        )
+        conflict = builder.app.request(
+            requester='tester',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'C-GUARD-1', 'amount': 3000000},
+        )
+        blocked = builder.app.request(
+            requester='tester',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'C-GUARD-2', 'amount': 1000000},
+            metadata={'authority_contract': {'approval_gate': 'blocked'}},
+        )
+
+        snapshot = builder.build()
+        studio_summary = snapshot.get('role_private_studio', {}).get('summary', {})
+        guardrail_summary = snapshot.get('guardrail_surface', {}).get('summary', {})
+        summary = snapshot.get('summary', {})
+        requests = snapshot.get('requests', [])
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+
+        assert studio_summary.get('pt_oss_public_sector_mode_total', 0) >= 1
+        assert studio_summary.get('pt_oss_elevated_total', 0) >= 1
+        assert studio_summary.get('pt_oss_high_risk_metric_total', 0) >= 1
+        assert studio_summary.get('structural_guarded_total', 0) >= 1
+        assert summary.get('studio_pt_oss_public_sector_total', 0) >= 1
+        assert summary.get('studio_pt_oss_elevated_total', 0) >= 1
+        assert summary.get('studio_pt_oss_high_risk_metric_total', 0) >= 1
+        assert summary.get('studio_structural_guarded_total', 0) >= 1
+        assert summary.get('guardrail_posture') == 'attention_required'
+        assert summary.get('authority_guard_human_required_total', 0) >= 1
+        assert summary.get('authority_guard_blocked_total', 0) >= 1
+        assert summary.get('resource_lock_conflict_total', 0) >= 1
+        assert guardrail_summary.get('authority_guard_total', 0) >= 2
+
+        pending_request = next(item for item in requests if item.get('request_id') == pending.metadata['request_id'])
+        conflict_request = next(item for item in requests if item.get('request_id') == conflict.metadata['request_id'])
+        blocked_request = next(item for item in requests if item.get('request_id') == blocked.metadata['request_id'])
+
+        assert pending_request.get('authority_gate_triggered') is False
+        assert pending_request.get('human_override_request_id')
+        assert pending_request.get('resource_lock_status') == 'waiting_human'
+        assert conflict_request.get('conflict_lock_key') == 'contract:C-GUARD-1'
+        assert blocked_request.get('authority_gate_triggered') is True
+        assert blocked_request.get('authority_gate_outcome') == 'blocked'
+
+        assert any(alert.get('alert_id') == 'studio_structural_pressure' for alert in runtime_alerts)
+        assert any(alert.get('alert_id') == 'authority_guard_attention' for alert in runtime_alerts)
+        assert any(alert.get('alert_id') == 'resource_lock_pressure' for alert in runtime_alerts)
+
+
+def test_dashboard_snapshot_surfaces_evidence_attention_and_registry_drift() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        payload = {
+            'role_name': 'Trust Drift Dashboard Analyst',
+            'purpose': 'Review trusted publication drift visibility.',
+            'reporting_line': 'LEGAL',
+            'business_domain': 'legal_operations',
+            'operating_mode': 'indirect',
+            'assigned_user_id': 'LEGAL_MANAGER_20',
+            'executive_owner_id': 'EXEC_OWNER',
+            'seat_id': 'OPS-DASH-TRUST',
+            'responsibilities': ['review incoming contracts', 'flag risk'],
+            'allowed_actions': ['review_contract', 'flag_risk', 'advise_compliance'],
+            'forbidden_actions': ['sign_contract'],
+            'wait_human_actions': [],
+            'handled_resources': ['contract'],
+            'financial_sensitivity': 'medium',
+            'legal_sensitivity': 'high',
+            'compliance_sensitivity': 'high',
+        }
+
+        created = builder.app.role_private_studio.create_request(payload, requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.review_request(created['request_id'], reviewer='EXEC_OWNER', decision='approve', note='Approved for publish.')
+        published = builder.app.role_private_studio.publish_request(created['request_id'], published_by='EXEC_OWNER')
+        role_path = Path(published['publish_artifact']['role_path'])
+        role_path.write_text(role_path.read_text(encoding='utf-8') + '\n# trust drift\n', encoding='utf-8')
+        builder.app.create_evidence_pack(requested_by='EXEC_OWNER')
+
+        snapshot = builder.build()
+        studio_summary = snapshot.get('role_private_studio', {}).get('summary', {})
+        evidence_summary = snapshot.get('evidence_exports', {}).get('summary', {})
+        summary = snapshot.get('summary', {})
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+
+        assert studio_summary.get('trust_attention_total', 0) >= 1
+        assert studio_summary.get('published_live_hash_verified_total', 0) == 0
+        assert summary.get('studio_trust_attention_total', 0) >= 1
+        assert summary.get('studio_live_hash_verified_total', 0) == 0
+        assert evidence_summary.get('attention_total', 0) >= 1
+        assert evidence_summary.get('trusted_role_mismatch_total', 0) >= 1
+        assert evidence_summary.get('posture') == 'attention_required'
+        assert summary.get('evidence_posture') == 'attention_required'
+        assert summary.get('evidence_attention_total', 0) >= 1
+        assert summary.get('evidence_trusted_role_mismatch_total', 0) >= 1
+        assert any(alert.get('alert_id') == 'studio_trusted_registry_drift' for alert in runtime_alerts)
+        assert any(alert.get('alert_id') == 'evidence_export_attention' for alert in runtime_alerts)

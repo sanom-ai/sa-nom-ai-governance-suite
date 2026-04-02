@@ -835,6 +835,7 @@ class EngineApplication:
     def create_workflow_proof_bundle(self, workflow_id: str, requested_by: str, *, limit: int = 400) -> dict[str, object]:
         workflow_state = self.get_workflow_state(workflow_id)
         request_id = str(workflow_state.get('request_id', ''))
+        runtime_health = self.health()
 
         recovery_records = [
             item
@@ -862,16 +863,18 @@ class EngineApplication:
             for entry in self.list_audit(limit=limit)
             if self._workflow_matches_audit_entry(workflow_id, request_id, entry)
         ]
+        operational_readiness = self.operational_readiness(limit=50, health=runtime_health)
 
         result = self.evidence_builder.create_workflow_proof_bundle(
             requested_by=requested_by,
             workflow_id=workflow_id,
             workflow_state=workflow_state,
-            operational_readiness=self.operational_readiness(limit=50),
+            operational_readiness=operational_readiness,
             recovery_records=recovery_records,
             dead_letters=dead_letters,
             human_sessions=human_sessions,
             audit_entries=audit_entries,
+            runtime_health=runtime_health,
         )
         self.engine.audit_logger.record_event(
             active_role='SYSTEM',
