@@ -3,9 +3,11 @@ from pathlib import Path
 from sa_nom_governance.alignment.constitution_registry import RegionalConstitutionRegistry
 from sa_nom_governance.alignment.cultural_alignment_evaluator import CulturalAlignmentEvaluator
 
+ALIGNMENT_CATALOG_DIR = Path(__file__).resolve().parents[2] / 'resources' / 'alignment'
+
 
 def _registry() -> RegionalConstitutionRegistry:
-    return RegionalConstitutionRegistry(Path('resources/alignment'))
+    return RegionalConstitutionRegistry(ALIGNMENT_CATALOG_DIR)
 
 
 def test_thailand_sensitive_forceful_context_escalates_without_human_review() -> None:

@@ -11,15 +11,20 @@ from sa_nom_governance.utils.owner_identity import (
 from sa_nom_governance.utils.owner_registration import OwnerRegistration, load_owner_registration
 
 
+def _package_base_dir() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
 @dataclass(slots=True)
 class AppConfig:
     app_name: str = "SA-NOM AI Governance Suite"
     environment: str = field(default_factory=lambda: os.getenv("SANOM_ENV", "development"))
-    base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parents[2])
+    base_dir: Path = field(default_factory=_package_base_dir)
     resources_dir: Path = field(init=False)
     config_resources_dir: Path = field(init=False)
     pt_oss_resources_dir: Path = field(init=False)
     studio_resources_dir: Path = field(init=False)
+    alignment_resources_dir: Path = field(init=False)
     persist_runtime: bool = True
     api_token: str | None = field(default_factory=lambda: os.getenv("SANOM_API_TOKEN"))
     server_host: str = field(default_factory=lambda: os.getenv("SANOM_SERVER_HOST", "127.0.0.1"))
@@ -119,6 +124,12 @@ class AppConfig:
         self.config_resources_dir = self.resources_dir / "config"
         self.pt_oss_resources_dir = self.resources_dir / "pt_oss"
         self.studio_resources_dir = self.resources_dir / "studio"
+        alignment_dir = os.getenv("SANOM_ALIGNMENT_RESOURCES_DIR")
+        if alignment_dir:
+            alignment_path = Path(alignment_dir)
+            self.alignment_resources_dir = alignment_path if alignment_path.is_absolute() else self.base_dir / alignment_path
+        else:
+            self.alignment_resources_dir = _package_base_dir() / "resources" / "alignment"
         self.roles_dir = self.resources_dir / "roles"
         self.dictionaries_dir = self.roles_dir
         self.runtime_dir = self.base_dir / "_runtime"

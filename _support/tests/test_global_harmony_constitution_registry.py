@@ -4,9 +4,11 @@ import pytest
 
 from sa_nom_governance.alignment.constitution_registry import RegionalConstitutionRegistry
 
+ALIGNMENT_CATALOG_DIR = Path(__file__).resolve().parents[2] / 'resources' / 'alignment'
+
 
 def test_registry_loads_public_constitution_templates() -> None:
-    registry = RegionalConstitutionRegistry(Path('resources/alignment'))
+    registry = RegionalConstitutionRegistry(ALIGNMENT_CATALOG_DIR)
 
     snapshot = registry.build_snapshot()
 
@@ -16,7 +18,7 @@ def test_registry_loads_public_constitution_templates() -> None:
 
 
 def test_registry_load_returns_structured_constitution() -> None:
-    registry = RegionalConstitutionRegistry(Path('resources/alignment'))
+    registry = RegionalConstitutionRegistry(ALIGNMENT_CATALOG_DIR)
 
     constitution = registry.load('thailand')
 
@@ -27,7 +29,7 @@ def test_registry_load_returns_structured_constitution() -> None:
 
 
 def test_registry_raises_for_unknown_region() -> None:
-    registry = RegionalConstitutionRegistry(Path('resources/alignment'))
+    registry = RegionalConstitutionRegistry(ALIGNMENT_CATALOG_DIR)
 
     with pytest.raises(KeyError):
         registry.load('japan')
