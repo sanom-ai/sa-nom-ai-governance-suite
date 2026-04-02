@@ -1,4 +1,4 @@
-# SA-NOM AI Governance Suite
+﻿# SA-NOM AI Governance Suite
 
 [![CI](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL%203.0--only-blue.svg)](LICENSE)
@@ -34,6 +34,24 @@ With SA-NOM, teams can:
 - run the whole stack in private infrastructure controlled by the organization
 
 The result is not only safer AI. It is AI that can participate in operations, coordination, and managed execution without falling outside organizational control.
+
+## Flagship Capability Proof
+
+The current flagship proof line in SA-NOM is not a single feature.
+It is the way eight operator-facing capabilities work together inside one governed runtime:
+
+- `Role Private Studio`
+- `Human Ask`
+- `PT-OSS Structural Intelligence`
+- `Authority Guard + Resource Lock`
+- `Audit Chain + Evidence Pack`
+- `Trusted Registry`
+- `Integration Outbound`
+- `Human Alert + Escalation Notification`
+
+By the `v0.7.1` line, these surfaces are easier to defend from code, tests, and operator summaries because publication posture, reporting freshness, structural readiness, guardrail recovery, evidence integrity, registry trust, outbound routing, and alert readiness are all more explicit than before.
+
+See [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) for the current capability boundary and [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md) for the guided walkthrough.
 
 ## PTAG Governance Language
 
@@ -121,6 +139,9 @@ SA-NOM is designed for private, self-managed, and air-gapped deployment scenario
 That means the public repository should be read as a governance and operational baseline, not as a place where real credentials, emergency access material, or deployment secrets belong.
 
 See [docs/SECRETS_AND_CREDENTIALS_HANDLING.md](docs/SECRETS_AND_CREDENTIALS_HANDLING.md) for the first public handling guide and [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIENE.md) for the dependency-light security posture.
+
+
+
 
 
 
