@@ -1,6 +1,6 @@
 {
   "registry_name": "SA-NOM Trusted PTAG Registry",
-  "generated_at": "2026-04-02T08:38:33.193754+00:00",
+  "generated_at": "2026-04-02T08:55:00.933554+00:00",
   "roles": {
     "CHANGE_CONTROL": {
       "file_name": "CHANGE_CONTROL.ptn",
@@ -8,7 +8,7 @@
       "trust_status": "trusted",
       "signed_by": "TAWAN",
       "signature_mode": "sha256_manifest_hmac",
-      "registered_at": "2026-04-02T08:38:33.193127+00:00"
+      "registered_at": "2026-04-02T08:55:00.933112+00:00"
     },
     "GOV": {
       "file_name": "GOV.ptn",
@@ -16,7 +16,7 @@
       "trust_status": "trusted",
       "signed_by": "TAWAN",
       "signature_mode": "sha256_manifest_hmac",
-      "registered_at": "2026-04-02T08:38:33.193329+00:00"
+      "registered_at": "2026-04-02T08:55:00.933237+00:00"
     },
     "LEGAL": {
       "file_name": "LEGAL.ptn",
@@ -24,7 +24,7 @@
       "trust_status": "trusted",
       "signed_by": "TAWAN",
       "signature_mode": "sha256_manifest_hmac",
-      "registered_at": "2026-04-02T08:38:33.193490+00:00"
+      "registered_at": "2026-04-02T08:55:00.933344+00:00"
     },
     "OPS_REVIEW": {
       "file_name": "OPS_REVIEW.ptn",
@@ -32,7 +32,7 @@
       "trust_status": "trusted",
       "signed_by": "TAWAN",
       "signature_mode": "sha256_manifest_hmac",
-      "registered_at": "2026-04-02T08:38:33.193630+00:00"
+      "registered_at": "2026-04-02T08:55:00.933447+00:00"
     },
     "VENDOR_RISK": {
       "file_name": "VENDOR_RISK.ptn",
@@ -40,14 +40,14 @@
       "trust_status": "trusted",
       "signed_by": "TAWAN",
       "signature_mode": "sha256_manifest_hmac",
-      "registered_at": "2026-04-02T08:38:33.193748+00:00"
+      "registered_at": "2026-04-02T08:55:00.933547+00:00"
     }
   },
   "signature": {
     "algorithm": "hmac_sha256",
     "key_id": "SANOM_DEV_REGISTRY",
     "signed_by": "TAWAN",
-    "signed_at": "2026-04-02T08:38:33.193757+00:00",
-    "value": "6fe0d6e7fa773d54598e6d92ab34999e99cc7b0f47c1b8ceb6d2bf667c92dd16"
+    "signed_at": "2026-04-02T08:55:00.933556+00:00",
+    "value": "4441a39951165e2de6e0a209a0a4910646ff3224d1f7f8a9d1694b3aa67bdb63"
   }
 }
