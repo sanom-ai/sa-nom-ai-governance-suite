@@ -2,7 +2,6 @@ from importlib import import_module
 
 from _bootstrap import ensure_repo_root_on_path
 
-
 MODULE_PATH = "sa_nom_governance.deployment.public_release_preflight"
 
 
