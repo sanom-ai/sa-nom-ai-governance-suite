@@ -2691,3 +2691,33 @@ button:focus-visible {
     radial-gradient(circle at top right, rgba(197, 154, 85, 0.1), transparent 36%),
     linear-gradient(180deg, rgba(255, 251, 244, 0.92), rgba(255, 255, 255, 0.82));
 }
+
+
+.case-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.case-card {
+  min-height: 100%;
+}
+
+.case-card-empty {
+  grid-column: 1 / -1;
+}
+
+.case-reference-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.case-timeline {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.case-timeline-item {
+  border: 1px solid rgba(52, 64, 84, 0.08);
+}

@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui13';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.2-ui14';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui13';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.2-ui14';
 
 const state = {
   view: 'overview',
@@ -40,6 +40,7 @@ const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
 const VIEW_TITLES = {
   overview: 'Overview',
   requests: 'Requests',
+  cases: 'Cases',
   overrides: 'Overrides',
   conflicts: 'Conflicts & Locks',
   audit: 'Audit Trail',
@@ -53,6 +54,7 @@ const VIEW_TITLES = {
 const VIEW_DESCRIPTIONS = {
   overview: 'See governance, runtime, and readiness posture in one scan.',
   requests: 'Submit governed work and follow where it goes next.',
+  cases: 'Follow one governed issue across requests, overrides, Human Ask, and audit proof.',
   overrides: 'Work only the decisions that crossed a human boundary.',
   conflicts: 'Inspect locks, contention, and safe retry posture.',
   audit: 'Review chain integrity, evidence, and trusted history.',
@@ -99,6 +101,12 @@ const VIEW_INTELLIGENCE = {
     title: 'Governed flow through active demand',
     narrative: 'Use this page to submit work and follow the governed intake path.',
     emphasis: 'flow control',
+  },
+  cases: {
+    eyebrow: 'Case Backbone',
+    title: 'One governed issue, one readable operating story',
+    narrative: 'Use this page when you need the linked request, override, Human Ask, and audit trail in one place.',
+    emphasis: 'end-to-end trace',
   },
   overrides: {
     eyebrow: 'Boundary Changes',
@@ -153,6 +161,7 @@ const VIEW_INTELLIGENCE = {
 const VIEW_USE_HINTS = {
   overview: { value: 'Start here', note: 'Open this first for the quickest full-system scan.', tone: 'accent' },
   requests: { value: 'Submit or trace work', note: 'Use this when you are creating a governed request or following its next lane.', tone: 'accent' },
+  cases: { value: 'Trace the whole issue', note: 'Use this when one business issue spans requests, approvals, records, and evidence.', tone: 'accent' },
   overrides: { value: 'Resolve human decisions', note: 'Use this when the runtime paused and a human must approve or veto.', tone: 'warning' },
   conflicts: { value: 'Unblock stalled work', note: 'Use this when locks or contention stop safe execution.', tone: 'warning' },
   audit: { value: 'Prove what happened', note: 'Use this when you need evidence, reason, and chain integrity.', tone: 'accent' },
@@ -166,6 +175,7 @@ const VIEW_USE_HINTS = {
 const VIEW_PERMISSIONS = {
   overview: 'dashboard.read',
   requests: 'requests.read',
+  cases: 'dashboard.read',
   overrides: 'overrides.read',
   conflicts: 'locks.read',
   audit: 'audit.read',
@@ -1178,6 +1188,7 @@ function render() {
   let viewContent = '';
   if (state.view === 'overview') viewContent = renderOverview(snapshot);
   if (state.view === 'requests') viewContent = renderRequests(snapshot);
+  if (state.view === 'cases') viewContent = renderCases(snapshot);
   if (state.view === 'overrides') viewContent = renderOverridesView(snapshot);
   if (state.view === 'conflicts') viewContent = renderConflicts(snapshot);
   if (state.view === 'audit') viewContent = renderAudit(snapshot);
@@ -1553,11 +1564,50 @@ function buildWorkflowGuide(snapshot) {
   const requests = snapshot.requests || [];
   const overrides = snapshot.overrides || [];
   const roles = snapshot.roles || [];
+  const caseSummary = snapshot.cases?.summary || {};
+  const caseItems = Array.isArray(snapshot.cases?.items) ? snapshot.cases.items : [];
   const pendingOverrides = overrides.filter((item) => item.status === 'pending').length;
   const conflicts = requests.filter((item) => item.outcome === 'conflicted').length;
   const validationIssueTotal = roles.reduce((sum, role) => sum + ((role.validation_issues || []).length), 0);
   const related = [];
   let primary = null;
+
+  if (state.view === 'cases') {
+    const leadCase = caseItems[0] || null;
+    if (leadCase) {
+      const leadView = leadCase.primary_view || 'requests';
+      primary = {
+        view: leadView,
+        eyebrow: 'Next governed move',
+        title: 'Open the lead operating lane for the current case',
+        detail: 'Cases group requests, approvals, Human Ask records, and audit proof so the next move stays attached to the same governed issue.',
+        badge: leadCase.status || 'monitoring',
+        actionLabel: `Open ${VIEW_TITLES[leadView] || leadView}`,
+        details: [
+          ['Case', leadCase.case_id || '-'],
+          ['Timeline events', String(leadCase.timeline_total || 0)],
+          ['Linked requests', String((leadCase.linked_request_ids || []).length)],
+        ],
+      };
+      const relatedViews = [leadView, 'requests', 'overrides', 'human_ask', 'audit'].filter((value, index, array) => value && array.indexOf(value) === index && value !== leadView);
+      related.push(...relatedViews.slice(0, 3).map((view) => ({
+        view,
+        eyebrow: 'Related view',
+        note: 'Open the matching lane to keep the case, decision, and evidence story connected.',
+        actionLabel: `Open ${VIEW_TITLES[view] || view}`,
+      })));
+    } else {
+      primary = {
+        view: 'requests',
+        eyebrow: 'Next governed move',
+        title: 'Start from Requests to create the first linked case',
+        detail: 'Once a governed request, Human Ask record, or studio activity is recorded, this view will group the issue into one readable case.',
+        badge: 'start case',
+        actionLabel: 'Open Requests',
+      };
+      related.push({ view: 'overview', eyebrow: 'Related view', note: 'Overview is still the fastest place to read current runtime posture.', actionLabel: 'Open Overview' });
+    }
+  }
 
   if (state.view === 'overview') {
     if ((goLive.status || 'blocked') !== 'ready' || (summary.runtime_alert_total || 0)) {
@@ -2050,6 +2100,7 @@ function renderOverview(snapshot) {
     </section>
       <section class="metrics-grid metrics-grid-luxury">
         ${metricCard('Requests', snapshot.summary.requests_total, 'default', 'Governed runtime submissions in the current live view.')}
+      ${metricCard('Cases', snapshot.summary.cases_total || 0, 'accent', 'Linked governed issues tracked across request, approval, record, and evidence lanes.')}
         ${metricCard('Runtime alerts', snapshot.summary.runtime_alert_total || runtimeAlerts.length, (snapshot.summary.runtime_alert_critical_total || 0) ? 'danger' : (snapshot.summary.runtime_alert_total || runtimeAlerts.length) ? 'warning' : 'success', 'Conditions where the Director paused or governance pressure is still active.')}
         ${metricCard('Pending overrides', snapshot.summary.pending_overrides, 'warning', 'Human approvals waiting in the executive queue.')}
         ${metricCard('Active locks', snapshot.summary.active_locks, 'accent', 'Resources currently protected from conflicting execution.')}
@@ -2063,6 +2114,7 @@ function renderOverview(snapshot) {
         ${metricCard('Integrations', snapshot.summary.integration_targets_total || 0, 'accent', 'Configured outbound targets across webhook, SIEM, and ticketing lanes.')}
         ${metricCard('Outbound deliveries', snapshot.summary.integration_deliveries_total || 0, snapshot.summary.integration_failures_total ? 'warning' : 'success', 'Outbound integration delivery records currently visible in the runtime ledger.')}
         ${metricCard('Operator attention', snapshot.summary.operator_attention_total || 0, (snapshot.summary.operator_attention_total || 0) ? 'warning' : 'success', 'Queue lanes that crossed the unified operator alert policy and now need attention.')}
+      ${metricCard('Cases needing attention', snapshot.summary.cases_attention_total || 0, (snapshot.summary.cases_attention_total || 0) ? 'warning' : 'success', 'Cases that are blocked, waiting on a human, or need closer governed follow-through.')}
         ${metricCard('Operator critical', snapshot.summary.operator_critical_total || 0, (snapshot.summary.operator_critical_total || 0) ? 'danger' : 'success', 'Queue lanes that are critical or stale under the shared operator aging policy.')}
         ${metricCard('Notify candidates', snapshot.summary.operator_notification_candidates_total || 0, (snapshot.summary.operator_notification_candidates_total || 0) ? 'accent' : 'success', 'Queue lanes that would route through the unified operator notification plan.')}
       </section>
@@ -2465,6 +2517,148 @@ function renderNotificationCenter(alerts) {
         `).join('')}
       </div>
     </section>
+  `;
+}
+
+
+function renderCases(snapshot) {
+  const casesSurface = snapshot.cases || { summary: {}, items: [] };
+  const summary = casesSurface.summary || {};
+  const items = Array.isArray(casesSurface.items) ? casesSurface.items : [];
+  const leadCase = items[0] || null;
+  const latestCaseLabel = leadCase
+    ? `${leadCase.case_id} | ${shortTime(leadCase.updated_at)}`
+    : 'No linked governed issue has been grouped into a case yet.';
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Canonical Case Backbone</div>
+            <h2 class="hero-title">Track one governed issue across requests, approvals, records, and proof.</h2>
+            <p class="hero-subtitle">Cases keep the working lane, human boundary, Human Ask record, and audit history tied to the same operating story so the next move is easier to see.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(summary.human_required_total ? 'human required' : (summary.blocked_total ? 'blocked paths present' : 'linked cases stable'))}
+            ${statusBadge(summary.primary_view || 'overview')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Cases in view', String(summary.cases_total || 0)],
+            ['Human required', String(summary.human_required_total || 0)],
+            ['Blocked', String(summary.blocked_total || 0)],
+            ['Attention', String(summary.attention_total || 0)],
+            ['Primary lane', VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview')],
+          ])}
+          <div class="hero-note">
+            <strong>Operator standard</strong>
+            <p>Stay with the case until the issue is either resolved, handed to the correct human boundary, or fully documented with enough proof for later review.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Case reading guide</div>
+          <h3 class="card-title">What this lane answers quickly</h3>
+          <p class="card-subtitle">Use Cases when the same business issue now spans more than one runtime surface and you do not want to reconstruct the story by hand.</p>
+        </div>
+        ${keyValue([
+          ['Latest case', latestCaseLabel],
+          ['Trace model', 'Request to override to record to audit'],
+          ['Primary job', 'Follow the issue, not just the individual event'],
+          ['Proof stance', 'Keep the human and AI narrative attached'],
+        ])}
+        <div class="trace-box"><strong>Case note</strong><p class="muted">A case is not a new source of truth. It is the stitched operating view built from the governed records the runtime already captured.</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Cases', summary.cases_total || 0, 'accent', 'Linked governed issues currently visible in the dashboard work surface.')}
+      ${metricCard('Human required', summary.human_required_total || 0, (summary.human_required_total || 0) ? 'warning' : 'success', 'Cases currently waiting on a real human decision or boundary confirmation.')}
+      ${metricCard('Blocked', summary.blocked_total || 0, (summary.blocked_total || 0) ? 'danger' : 'success', 'Cases currently held behind a blocked outcome or vetoed path.')}
+      ${metricCard('Attention', summary.attention_total || 0, (summary.attention_total || 0) ? 'warning' : 'success', 'Cases that still need extra operator follow-through even if they are not hard blocked.')}
+    </section>
+    <section class="case-grid">
+      ${items.length ? items.map((item) => renderCaseCard(item)).join('') : renderCaseEmptyState()}
+    </section>
+  `;
+}
+
+function renderCaseCard(item) {
+  const timeline = Array.isArray(item.timeline) ? item.timeline : [];
+  const linkedRefs = [
+    ...(item.linked_request_ids || []).slice(0, 3),
+    ...(item.linked_override_ids || []).slice(0, 2),
+    ...(item.linked_session_ids || []).slice(0, 2),
+    ...(item.linked_workflow_ids || []).slice(0, 2),
+    ...(item.linked_studio_request_ids || []).slice(0, 2),
+  ].filter(Boolean);
+  const primaryView = item.primary_view || 'requests';
+  return `
+    <article class="card stack case-card">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(item.case_id || 'CASE')}</div>
+          <h3 class="card-title">${escapeHtml(item.title || item.case_id || 'Governed case')}</h3>
+          <p class="card-subtitle">${escapeHtml(`Updated ${shortTime(item.updated_at)} | Opened ${shortTime(item.opened_at)}`)}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(item.status || 'monitoring')}
+          ${statusBadge(VIEW_TITLES[primaryView] || titleCase(primaryView))}
+        </div>
+      </div>
+      ${keyValue([
+        ['Requests', String((item.linked_request_ids || []).length)],
+        ['Overrides', String((item.linked_override_ids || []).length)],
+        ['Human Ask', String((item.linked_session_ids || []).length)],
+        ['Workflow refs', String((item.linked_workflow_ids || []).length)],
+        ['Audit events', String(item.audit_event_total || 0)],
+        ['Timeline', String(item.timeline_total || 0)],
+      ])}
+      ${linkedRefs.length ? `<div class="case-reference-list">${linkedRefs.map((value) => `<span class="pill pill-muted">${escapeHtml(value)}</span>`).join('')}</div>` : ''}
+      <div class="case-timeline">
+        ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-view-jump="${escapeHtml(primaryView)}">${escapeHtml(`Open ${VIEW_TITLES[primaryView] || titleCase(primaryView)}`)}</button>
+        ${primaryView !== 'audit' ? '<button class="action-button action-button-muted" type="button" data-view-jump="audit">Open Audit</button>' : '<button class="action-button action-button-muted" type="button" data-view-jump="requests">Open Requests</button>'}
+      </div>
+    </article>
+  `;
+}
+
+function renderCaseTimelineEntry(entry) {
+  return `
+    <article class="mini-card stack case-timeline-item">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(shortTime(entry.timestamp))}</div>
+          <strong>${escapeHtml(entry.title || 'Case event')}</strong>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(entry.status || 'recorded')}
+          ${statusBadge(VIEW_TITLES[entry.view] || titleCase(entry.view || 'overview'))}
+        </div>
+      </div>
+      <p class="muted">${escapeHtml(entry.detail || 'Governed case event recorded.')}</p>
+      <span class="permission-note">Ref ${escapeHtml(entry.reference || '-')}</span>
+    </article>
+  `;
+}
+
+function renderCaseEmptyState() {
+  return `
+    <article class="card stack case-card case-card-empty">
+      <div>
+        <div class="eyebrow muted">Case lane empty</div>
+        <h3 class="card-title">No linked governed case is visible yet</h3>
+        <p class="card-subtitle">Start from Requests, Human Ask, or Role Private Studio. As soon as the runtime captures related work, this lane will stitch the issue into one readable case.</p>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-view-jump="requests">Open Requests</button>
+        <button class="action-button action-button-muted" type="button" data-view-jump="overview">Open Overview</button>
+      </div>
+    </article>
   `;
 }
 
