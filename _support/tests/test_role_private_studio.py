@@ -772,3 +772,92 @@ def test_role_private_studio_regulator_pack_preserves_human_regulator_boundary()
         assert "release_official_regulator_response" in created["normalized_spec"]["forbidden_actions"]
         assert "waive_regulatory_requirement" in created["normalized_spec"]["forbidden_actions"]
         assert "require human_override for approve_regulator_response_exception" in created["generated_ptag"]
+
+
+
+def test_role_private_studio_summary_tracks_restore_and_revision_visibility():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        created = service.create_request(BASE_PAYLOAD, requested_by="EXEC_OWNER")
+        service.update_request(
+            created["request_id"],
+            {
+                "purpose": "Review contract packets, summarize control exposure, and route risky documents for human attention.",
+            },
+            updated_by="EXEC_OWNER",
+        )
+        restored = service.restore_request_revision(created["request_id"], 1, restored_by="EXEC_OWNER")
+
+        summary = restored["summary"]
+        assert summary["restored_revision_total"] == 1
+        assert summary["latest_trigger"] == "restore_r1"
+        assert summary["restore_available"] is True
+        assert summary["publication_posture"] == "blocked"
+        assert summary["revision_drift_status"] == "changed"
+
+
+def test_role_private_studio_publish_response_surfaces_registry_signature_visibility():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        created = service.create_request(BASE_PAYLOAD, requested_by="EXEC_OWNER")
+        service.review_request(created["request_id"], reviewer="EXEC_OWNER", decision="approve", note="Approved for publish.")
+        published = service.publish_request(created["request_id"], published_by="EXEC_OWNER")
+
+        summary = published["summary"]
+        assert summary["publication_posture"] == "published"
+        assert summary["publish_signature_status"] == "verified"
+        assert summary["registry_verified"] is True
+
+
+def test_role_private_studio_snapshot_reports_restore_override_and_publish_signals():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        publisher_ready_payload = dict(BASE_PAYLOAD)
+        publisher_ready_payload["role_name"] = "Publisher Ready Analyst"
+        publisher_ready_payload["seat_id"] = "OPS-READY"
+        publisher_ready_payload["assigned_user_id"] = "LEGAL_MANAGER_02"
+        ready_request = service.create_request(publisher_ready_payload, requested_by="EXEC_OWNER")
+        service.review_request(ready_request["request_id"], reviewer="EXEC_OWNER", decision="approve", note="Ready for publish.")
+
+        manual_payload = dict(BASE_PAYLOAD)
+        manual_payload["role_name"] = "Manual Override Analyst"
+        manual_payload["seat_id"] = "OPS-MANUAL"
+        manual_payload["assigned_user_id"] = "LEGAL_MANAGER_03"
+        manual_request = service.create_request(manual_payload, requested_by="EXEC_OWNER")
+        service.update_request_ptag(
+            manual_request["request_id"],
+            manual_request["generated_ptag"].replace('context "SA-NOM Role Private Studio"', 'context "SA-NOM Role Private Studio Manual"'),
+            updated_by="EXEC_OWNER",
+        )
+
+        restored_payload = dict(BASE_PAYLOAD)
+        restored_payload["role_name"] = "Restored Revision Analyst"
+        restored_payload["seat_id"] = "OPS-RESTORE"
+        restored_payload["assigned_user_id"] = "LEGAL_MANAGER_04"
+        restored_request = service.create_request(restored_payload, requested_by="EXEC_OWNER")
+        service.update_request(
+            restored_request["request_id"],
+            {"purpose": "Review restored draft posture before returning it to the publish lane."},
+            updated_by="EXEC_OWNER",
+        )
+        service.restore_request_revision(restored_request["request_id"], 1, restored_by="EXEC_OWNER")
+
+        published_payload = dict(BASE_PAYLOAD)
+        published_payload["role_name"] = "Published Registry Analyst"
+        published_payload["seat_id"] = "OPS-PUBLISHED"
+        published_payload["assigned_user_id"] = "LEGAL_MANAGER_05"
+        published_request = service.create_request(published_payload, requested_by="EXEC_OWNER")
+        service.review_request(published_request["request_id"], reviewer="EXEC_OWNER", decision="approve", note="Approved for publish.")
+        service.publish_request(published_request["request_id"], published_by="EXEC_OWNER")
+
+        snapshot = service.studio_snapshot(limit=10)
+        summary = snapshot["summary"]
+
+        assert summary["manual_override_total"] >= 1
+        assert summary["restored_request_total"] >= 1
+        assert summary["publisher_ready_total"] >= 1
+        assert summary["published_registry_verified_total"] >= 1
+        assert summary["revision_drift_total"] >= 1

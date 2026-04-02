@@ -462,3 +462,67 @@ def test_dashboard_snapshot_surfaces_human_ask_confidence_and_freshness_signals(
         assert summary.get('human_ask_stale_total', 0) >= 1
         assert any(alert.get('alert_id') == 'human_ask_guarded_confidence' for alert in runtime_alerts)
         assert any(alert.get('alert_id') == 'human_ask_stale_follow_up' for alert in runtime_alerts)
+
+
+
+def test_dashboard_snapshot_surfaces_role_private_studio_revision_and_publish_signals() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        def studio_payload(role_name: str, seat_id: str, assigned_user_id: str) -> dict[str, object]:
+            return {
+                'role_name': role_name,
+                'purpose': 'Review governed publication posture before trusted release.',
+                'reporting_line': 'LEGAL',
+                'business_domain': 'legal_operations',
+                'operating_mode': 'indirect',
+                'assigned_user_id': assigned_user_id,
+                'executive_owner_id': 'EXEC_OWNER',
+                'seat_id': seat_id,
+                'responsibilities': ['review incoming contracts', 'flag risk'],
+                'allowed_actions': ['review_contract', 'flag_risk', 'advise_compliance'],
+                'forbidden_actions': ['sign_contract'],
+                'wait_human_actions': [],
+                'handled_resources': ['contract'],
+                'financial_sensitivity': 'medium',
+                'legal_sensitivity': 'high',
+                'compliance_sensitivity': 'high',
+            }
+
+        ready_request = builder.app.role_private_studio.create_request(studio_payload('Publisher Ready Dashboard Analyst', 'OPS-DASH-READY', 'LEGAL_MANAGER_11'), requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.review_request(ready_request['request_id'], reviewer='EXEC_OWNER', decision='approve', note='Ready for publish.')
+
+        manual_request = builder.app.role_private_studio.create_request(studio_payload('Manual Dashboard Analyst', 'OPS-DASH-MANUAL', 'LEGAL_MANAGER_12'), requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.update_request_ptag(
+            manual_request['request_id'],
+            manual_request['generated_ptag'].replace('context "SA-NOM Role Private Studio"', 'context "SA-NOM Role Private Studio Manual"'),
+            updated_by='EXEC_OWNER',
+        )
+
+        restored_request = builder.app.role_private_studio.create_request(studio_payload('Restored Dashboard Analyst', 'OPS-DASH-RESTORE', 'LEGAL_MANAGER_13'), requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.update_request(
+            restored_request['request_id'],
+            {'purpose': 'Review restored dashboard draft before trusted publication.'},
+            updated_by='EXEC_OWNER',
+        )
+        builder.app.role_private_studio.restore_request_revision(restored_request['request_id'], 1, restored_by='EXEC_OWNER')
+
+        published_request = builder.app.role_private_studio.create_request(studio_payload('Published Dashboard Analyst', 'OPS-DASH-PUBLISHED', 'LEGAL_MANAGER_14'), requested_by='EXEC_OWNER')
+        builder.app.role_private_studio.review_request(published_request['request_id'], reviewer='EXEC_OWNER', decision='approve', note='Approved for publish.')
+        builder.app.role_private_studio.publish_request(published_request['request_id'], published_by='EXEC_OWNER')
+
+        snapshot = builder.build()
+        studio_summary = snapshot.get('role_private_studio', {}).get('summary', {})
+        summary = snapshot.get('summary', {})
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+
+        assert studio_summary.get('manual_override_total', 0) >= 1
+        assert studio_summary.get('restored_request_total', 0) >= 1
+        assert studio_summary.get('publisher_ready_total', 0) >= 1
+        assert studio_summary.get('published_registry_verified_total', 0) >= 1
+        assert summary.get('studio_manual_override_total', 0) >= 1
+        assert summary.get('studio_restored_request_total', 0) >= 1
+        assert summary.get('studio_publisher_ready_total', 0) >= 1
+        assert summary.get('studio_registry_verified_total', 0) >= 1
+        assert any(alert.get('alert_id') == 'studio_revision_governance' for alert in runtime_alerts)

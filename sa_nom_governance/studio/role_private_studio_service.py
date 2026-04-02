@@ -237,8 +237,57 @@ class RolePrivateStudioService:
             legacy_examples_path = config.base_dir / 'role_private_studio_examples.json'
             self.examples_path = legacy_examples_path if legacy_examples_path.exists() else bundled_examples_path
 
+    def _request_payload(self, request: RolePrivateStudioRequest, *, compact: bool = False) -> dict[str, object]:
+        payload = request.to_dict(compact=compact)
+        summary = payload.get('summary', {}) if isinstance(payload.get('summary', {}), dict) else {}
+        revisions = payload.get('revisions', []) if isinstance(payload.get('revisions', []), list) else []
+        publish_artifact = payload.get('publish_artifact', {}) if isinstance(payload.get('publish_artifact', {}), dict) else {}
+        publish_readiness = payload.get('publish_readiness', {}) if isinstance(payload.get('publish_readiness', {}), dict) else {}
+        publication_workflow = payload.get('publication_workflow', {}) if isinstance(payload.get('publication_workflow', {}), dict) else {}
+        latest_revision = revisions[-1] if revisions else {}
+        restore_total = sum(1 for item in revisions if str(item.get('trigger', '')).startswith('restore_'))
+        manual_revision_total = sum(1 for item in revisions if str(item.get('ptag_source_mode', 'generated')) == 'manual')
+        current_revision = int(summary.get('current_revision', 0) or 0)
+        latest_diff = latest_revision.get('diff_summary', {}) if isinstance(latest_revision.get('diff_summary', {}), dict) else {}
+        if current_revision <= 1:
+            revision_drift_status = 'initial'
+        elif any(bool((latest_diff.get(section, {}) or {}).get('changed', False)) for section in {'structured_jd', 'ptag', 'validation', 'simulation'} if isinstance(latest_diff.get(section, {}), dict)):
+            revision_drift_status = 'changed'
+        else:
+            revision_drift_status = 'stable'
+        if publish_artifact:
+            publication_posture = 'published'
+        elif str(publication_workflow.get('status', 'in_progress')) == 'publisher_ready' or str(publish_readiness.get('status', 'blocked')) == 'ready':
+            publication_posture = 'publisher_ready'
+        elif payload.get('status') == 'changes_requested':
+            publication_posture = 'changes_requested'
+        elif str(publish_readiness.get('status', 'blocked')) == 'guarded':
+            publication_posture = 'structural_review'
+        elif str(publish_readiness.get('status', 'blocked')) == 'blocked':
+            publication_posture = 'blocked'
+        else:
+            publication_posture = 'in_review'
+        publish_signature_status = str(publish_artifact.get('manifest_signature_status', 'not_published')) if publish_artifact else 'not_published'
+        registry_verified = publish_signature_status == 'verified'
+        summary.update(
+            {
+                'latest_trigger': str(latest_revision.get('trigger', 'create')) if latest_revision else 'create',
+                'latest_revision_generated_at': str(latest_revision.get('generated_at', payload.get('updated_at', ''))) if latest_revision else str(payload.get('updated_at', '')),
+                'restored_revision_total': restore_total,
+                'manual_revision_total': manual_revision_total,
+                'restore_available': len(revisions) > 1,
+                'publication_posture': publication_posture,
+                'publish_signature_status': publish_signature_status,
+                'registry_verified': registry_verified,
+                'publisher_ready': publication_posture == 'publisher_ready',
+                'revision_drift_status': revision_drift_status,
+            }
+        )
+        payload['summary'] = summary
+        return payload
+
     def studio_snapshot(self, limit: int = 50) -> dict[str, object]:
-        requests = [item.to_dict(compact=True) for item in self.store.list_requests()[:limit]]
+        requests = [self._request_payload(item, compact=True) for item in self.store.list_requests()[:limit]]
         statuses = [item['status'] for item in requests]
         structural_guarded_total = sum(
             1 for item in requests if (item.get('publish_readiness') or {}).get('status') == 'guarded'
@@ -259,6 +308,12 @@ class RolePrivateStudioService:
                 'blocked_total': sum(1 for item in requests if (item.get('validation_report') or {}).get('blocked_publish')),
                 'publication_blocked_total': publication_blocked_total,
                 'ready_to_publish_total': ready_to_publish_total,
+                'publisher_ready_total': sum(1 for item in requests if (item.get('summary') or {}).get('publication_posture') == 'publisher_ready'),
+                'manual_override_total': sum(1 for item in requests if (item.get('summary') or {}).get('ptag_override_present')),
+                'restored_request_total': sum(1 for item in requests if int((item.get('summary') or {}).get('restored_revision_total', 0) or 0) > 0),
+                'published_registry_verified_total': sum(1 for item in requests if (item.get('summary') or {}).get('registry_verified')),
+                'revision_drift_total': sum(1 for item in requests if (item.get('summary') or {}).get('revision_drift_status') == 'changed'),
+                'review_pending_total': sum(1 for item in requests if (item.get('summary') or {}).get('publication_posture') in {'in_review', 'changes_requested', 'structural_review', 'blocked'}),
                 'structural_guarded_total': structural_guarded_total,
                 'structural_blocked_total': structural_blocked_total,
                 'review_lane_total': sum(
@@ -292,10 +347,10 @@ class RolePrivateStudioService:
         return self._apply_owner_defaults_to_examples(DEFAULT_EXAMPLES)
 
     def list_requests(self, status: str | None = None, limit: int = 100) -> list[dict[str, object]]:
-        return [item.to_dict(compact=True) for item in self.store.list_requests(status=status)[:limit]]
+        return [self._request_payload(item, compact=True) for item in self.store.list_requests(status=status)[:limit]]
 
     def get_request(self, request_id: str) -> dict[str, object]:
-        return self.store.get_request(request_id).to_dict()
+        return self._request_payload(self.store.get_request(request_id), compact=False)
 
     def create_request(self, payload: dict[str, object], requested_by: str) -> dict[str, object]:
         payload = self._apply_owner_defaults_to_payload(payload)
@@ -445,12 +500,12 @@ class RolePrivateStudioService:
         request.updated_at = utc_now()
         self.store.save_request(request)
         self._audit('role_private_studio_reviewed', request.status, f'Role Private Studio request reviewed with decision {decision}.', {'request_id': request_id, 'reviewer': reviewer, 'decision': decision, 'note': note, 'revision_number': current_revision_number})
-        return request.to_dict()
+        return self._request_payload(request, compact=False)
 
     def publish_request(self, request_id: str, published_by: str) -> dict[str, object]:
         request = self.store.get_request(request_id)
         if request.publish_artifact is not None:
-            return request.to_dict()
+            return self._request_payload(request, compact=False)
         readiness = request.to_dict(compact=True).get('publish_readiness', {})
         if readiness.get('status') != 'ready':
             blockers = '; '.join(readiness.get('blockers', []))
@@ -491,11 +546,11 @@ class RolePrivateStudioService:
         request.updated_at = utc_now()
         self.store.save_request(request)
         self._audit('role_private_studio_published', 'published', 'Role Private Studio draft published into the trusted registry.', {'request_id': request_id, 'role_id': request.normalized_spec.role_id, 'published_by': published_by, 'role_path': str(role_path), 'trusted_sha256': manifest_entry['sha256'], 'revision_number': current_revision_number})
-        return request.to_dict()
+        return self._request_payload(request, compact=False)
 
     def _refresh_request_object(self, request: RolePrivateStudioRequest, trigger: str, actor: str) -> dict[str, object]:
         if request.status == 'published':
-            return request.to_dict()
+            return self._request_payload(request, compact=False)
 
         previous_revision = request.revisions[-1] if request.revisions else None
         request.normalized_spec = self.generator.normalize(request.structured_jd)
@@ -567,7 +622,7 @@ class RolePrivateStudioService:
                 'pt_oss_readiness_score': request.pt_oss_assessment.readiness_score if request.pt_oss_assessment else None,
             },
         )
-        return request.to_dict()
+        return self._request_payload(request, compact=False)
 
     def _audit(self, action: str, outcome: str, reason: str, metadata: dict[str, object]) -> None:
         if self.audit_logger is None:

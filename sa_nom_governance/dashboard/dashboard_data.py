@@ -123,6 +123,11 @@ class DashboardSnapshotBuilder:
                 'audit_events': len(audit_entries),
                 'studio_requests_total': role_private_studio.get('summary', {}).get('requests_total', 0),
                 'studio_ready_to_publish_total': role_private_studio.get('summary', {}).get('ready_to_publish_total', 0),
+                'studio_publisher_ready_total': int(role_private_studio.get('summary', {}).get('publisher_ready_total', 0) or 0),
+                'studio_manual_override_total': int(role_private_studio.get('summary', {}).get('manual_override_total', 0) or 0),
+                'studio_restored_request_total': int(role_private_studio.get('summary', {}).get('restored_request_total', 0) or 0),
+                'studio_registry_verified_total': int(role_private_studio.get('summary', {}).get('published_registry_verified_total', 0) or 0),
+                'studio_revision_drift_total': int(role_private_studio.get('summary', {}).get('revision_drift_total', 0) or 0),
                 'studio_structural_guarded_total': role_private_studio.get('summary', {}).get('structural_guarded_total', 0),
                 'studio_structural_blocked_total': role_private_studio.get('summary', {}).get('structural_blocked_total', 0),
                 'human_ask_sessions_total': human_ask.get('summary', {}).get('sessions_total', 0),
@@ -1204,8 +1209,30 @@ class DashboardSnapshotBuilder:
                 }
             )
 
+        manual_override_total = int(studio_summary.get('manual_override_total', 0) or 0)
+        restored_request_total = int(studio_summary.get('restored_request_total', 0) or 0)
+        publisher_ready_total = int(studio_summary.get('publisher_ready_total', 0) or 0)
         structural_guarded_total = int(studio_summary.get('structural_guarded_total', 0) or 0)
         structural_blocked_total = int(studio_summary.get('structural_blocked_total', 0) or 0)
+        if manual_override_total or restored_request_total:
+            alerts.append(
+                {
+                    'alert_id': 'studio_revision_governance',
+                    'tone': 'warning',
+                    'eyebrow': 'Studio revision governance',
+                    'title': 'Role Private Studio has drafts with manual or restored revision state',
+                    'message': 'Some studio drafts carry manual PTAG edits or restored revisions. Keep review and publication checks explicit before treating them as ready for trusted release.',
+                    'view': 'studio',
+                    'action_label': 'Open Studio',
+                    'badge': f"{manual_override_total + restored_request_total} drafts",
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'manual_override_total': manual_override_total,
+                        'restored_request_total': restored_request_total,
+                        'publisher_ready_total': publisher_ready_total,
+                    },
+                }
+            )
         if structural_guarded_total or structural_blocked_total:
             tone = 'danger' if structural_blocked_total else 'warning'
             alerts.append(
