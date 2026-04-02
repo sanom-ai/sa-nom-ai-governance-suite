@@ -37,6 +37,7 @@ export async function handleHumanAskAction({
   setMessage,
   setHumanAskView,
   loadDashboard,
+  setActionContext,
   windowRef,
 }) {
   const action = button.dataset.humanAskAction;
@@ -54,7 +55,19 @@ export async function handleHumanAskAction({
         inheritance_mode: 'reset',
       }),
     });
-    setMessage(buildHumanAskOutcomeMessage(response.item || response, `Human Ask record created for ${displayName}.`));
+    const item = response.item || response;
+    const sessionId = item.session_id || item.metadata?.session_id || '';
+    setMessage(buildHumanAskOutcomeMessage(item, `Human Ask record created for ${displayName}.`));
+    if (typeof setActionContext === 'function') {
+      setActionContext({
+        entityType: 'human_ask_session',
+        entityId: sessionId,
+        view: 'human_ask',
+        title: sessionId ? `Human Ask record ${sessionId} opened for ${displayName}.` : `Human Ask record opened for ${displayName}.`,
+        detail: 'The new governed record stays highlighted in the transcript lane for immediate follow-through.',
+        actionLabel: 'Open Human Ask records',
+      });
+    }
     setHumanAskView();
     await loadDashboard();
     return true;
@@ -68,7 +81,19 @@ export async function handleHumanAskAction({
       method: 'POST',
       body: JSON.stringify({ mode: 'report', prompt }),
     });
-    setMessage(buildHumanAskOutcomeMessage(response.item || response, `Human Ask record created from Studio draft ${requestId}.`));
+    const item = response.item || response;
+    const sessionId = item.session_id || item.metadata?.session_id || '';
+    setMessage(buildHumanAskOutcomeMessage(item, `Human Ask record created from Studio draft ${requestId}.`));
+    if (typeof setActionContext === 'function') {
+      setActionContext({
+        entityType: 'human_ask_session',
+        entityId: sessionId,
+        view: 'human_ask',
+        title: sessionId ? `Human Ask record ${sessionId} opened from Studio draft ${requestId}.` : `Human Ask record opened from Studio draft ${requestId}.`,
+        detail: 'The generated record stays highlighted in the Human Ask transcript lane for the next governed review step.',
+        actionLabel: 'Open Human Ask records',
+      });
+    }
     setHumanAskView();
     await loadDashboard();
     return true;
@@ -100,6 +125,8 @@ export function renderHumanAsk(humanAsk, { can, helpers }) {
     shortTime,
     statusBadge,
     titleCase,
+    buildFocusKey,
+    isFocusedEntity,
   } = helpers;
   const summary = humanAsk.summary || {};
   const directory = humanAsk.callable_directory || { summary: {}, entries: [] };
@@ -156,7 +183,7 @@ export function renderHumanAsk(humanAsk, { can, helpers }) {
           <p class="card-subtitle">Each record keeps the prompt, transcript, and boundary trace together for later review.</p>
         </div>
       </div>
-      ${sessions.length ? `<div class="stack">${sessions.map((session) => renderHumanAskSessionCard(session, { escapeHtml, keyValue, shortTime, statusBadge, titleCase })).join('')}</div>` : `<div class="empty-state">No Human Ask records are available yet.</div>`}
+      ${sessions.length ? `<div class="stack">${sessions.map((session) => renderHumanAskSessionCard(session, { escapeHtml, keyValue, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity })).join('')}</div>` : `<div class="empty-state-shell"><div class="hero-heading"><div><div class="eyebrow muted">Transcript lane idle</div><strong>No Human Ask records exist yet.</strong><p class="muted">Start a governed report or meeting record from the console above, and the first transcript will appear here with scope, posture, and evidence context attached.</p></div><div class="hero-chip-row"><span class="pill">record lane empty</span><span class="pill">start from console</span></div></div></div>`}
     </section>
   `;
 }
@@ -329,7 +356,7 @@ function renderHumanAskSessionCard(session, helpers) {
   const sessionRecordCard = sessionRecord ? renderHumanAskSessionRecord(sessionRecord, decision, { escapeHtml, keyValue, titleCase }) : '';
   const boundaryAlertCard = renderHumanAskBoundaryAlert(session, decision, directorDisposition, { escapeHtml });
   return `
-    <article class="trace-box stack human-ask-session-card">
+    <article class="trace-box stack human-ask-session-card${isFocusedEntity && isFocusedEntity('human_ask_session', session.session_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey ? buildFocusKey('human_ask_session', session.session_id) : `human_ask_session:${session.session_id}`)}">
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(participant.display_name || session.session_id)}</strong>

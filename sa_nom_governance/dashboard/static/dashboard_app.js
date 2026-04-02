@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui11';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui13';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui11';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui13';
 
 const state = {
   view: 'overview',
@@ -17,6 +17,7 @@ const state = {
   studioRevisionSelections: {},
   studioPtagDrafts: {},
   studioPtagHistory: {},
+  actionContext: null,
 };
 
 const root = document.getElementById('dashboard-root');
@@ -222,6 +223,7 @@ logoutButton.addEventListener('click', async () => {
   state.studioRevisionSelections = {};
   state.studioPtagDrafts = {};
   state.studioPtagHistory = {};
+  state.actionContext = null;
   window.localStorage.removeItem('sanom_api_token');
   window.localStorage.removeItem('sanom_session_token');
   render();
@@ -243,7 +245,7 @@ root.addEventListener('submit', async (event) => {
   if (event.target.id === 'request-form') {
     event.preventDefault();
     try {
-      await apiFetch('/api/request', {
+      const response = await apiFetch('/api/request', {
         method: 'POST',
         body: JSON.stringify({
           requester: document.getElementById('request-requester').value.trim(),
@@ -253,8 +255,23 @@ root.addEventListener('submit', async (event) => {
           metadata: parseJsonField('request-metadata'),
         }),
       });
-      state.lastError = '';
-      state.view = 'requests';
+      const requestItem = response.item || response;
+      const requestId = extractEntityId(response, ['request_id']);
+      const targetView = inferRequestContinuationView(requestItem);
+      state.lastError = requestId ? `Governed request ${requestId} submitted.` : 'Governed request submitted.';
+      setActionContext({
+        entityType: targetView === 'overrides' ? 'override' : 'request',
+        entityId: requestId,
+        view: targetView,
+        title: requestId ? `Request ${requestId} entered the governed runtime.` : 'Governed request entered the runtime.',
+        detail: targetView === 'overrides'
+          ? 'The request crossed a human boundary, so the override lane is the next governed move.'
+          : targetView === 'conflicts'
+            ? 'The request is waiting in a blocked or conflicting lane, and the matching record is highlighted there.'
+            : 'The request is now in the live runtime queue and its matching row stays highlighted for follow-through.',
+        actionLabel: targetView === 'requests' ? 'Open runtime requests' : `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+      });
+      state.view = targetView;
       updateNav();
       await loadDashboard();
     } catch (error) {
@@ -269,19 +286,32 @@ root.addEventListener('submit', async (event) => {
     try {
       const payload = studioPayloadFromForm();
       const editingRequestId = state.studioEditingRequestId;
+      let studioResponse = null;
       if (state.studioEditingRequestId) {
-        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(state.studioEditingRequestId)}/update`, {
+        studioResponse = await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(state.studioEditingRequestId)}/update`, {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        state.lastError = `Role Private Studio request ${state.studioEditingRequestId} updated.`;
       } else {
-        await apiFetch('/api/role-private-studio/requests', {
+        studioResponse = await apiFetch('/api/role-private-studio/requests', {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        state.lastError = 'Role Private Studio request created.';
       }
+      const requestId = editingRequestId || extractEntityId(studioResponse, ['request_id']);
+      state.lastError = requestId
+        ? (editingRequestId ? `Role Private Studio request ${requestId} updated.` : `Role Private Studio request ${requestId} created.`)
+        : (editingRequestId ? 'Role Private Studio request updated.' : 'Role Private Studio request created.');
+      setActionContext({
+        entityType: 'studio_request',
+        entityId: requestId,
+        view: 'studio',
+        title: requestId ? `Studio draft ${requestId} is ready in Role Private Studio.` : 'Role Private Studio draft saved.',
+        detail: editingRequestId
+          ? 'The updated draft remains highlighted so you can continue review or publication without hunting for it.'
+          : 'The new draft now appears in the studio lanes and remains highlighted for the next governed step.',
+        actionLabel: 'Open Role Private Studio',
+      });
       if (editingRequestId) delete state.studioPtagDrafts[editingRequestId];
       clearStudioEditor();
       state.view = 'studio';
@@ -301,7 +331,17 @@ root.addEventListener('submit', async (event) => {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      state.lastError = buildHumanAskOutcomeMessage(response.item || response, 'Human Ask record created.');
+      const sessionItem = response.item || response;
+      const sessionId = extractEntityId(response, ['session_id']);
+      state.lastError = buildHumanAskOutcomeMessage(sessionItem, 'Human Ask record created.');
+      setActionContext({
+        entityType: 'human_ask_session',
+        entityId: sessionId,
+        view: 'human_ask',
+        title: sessionId ? `Human Ask record ${sessionId} is now active.` : 'Human Ask record created.',
+        detail: 'The new governed record stays highlighted in the transcript lane so you can continue from the exact session that was just opened.',
+        actionLabel: 'Open Human Ask records',
+      });
       state.view = 'human_ask';
       updateNav();
       await loadDashboard();
@@ -322,6 +362,14 @@ root.addEventListener('submit', async (event) => {
       });
       const item = response.item || {};
       state.lastError = `Registration code ${item.registration_code || 'saved'} is active for ${item.organization_name || 'the current organization'} in ${item.deployment_mode || 'private'} mode.`;
+      setActionContext({
+        entityType: '',
+        entityId: '',
+        view: 'health',
+        title: 'Owner registration saved.',
+        detail: 'Runtime Health is the next governed lane because deployment, trust, and operator posture may have changed.',
+        actionLabel: 'Open Runtime Health',
+      });
       state.view = 'health';
       updateNav();
       await loadDashboard();
@@ -434,6 +482,15 @@ root.addEventListener('click', async (event) => {
     if (note === null) return;
     try {
       await apiFetch(`/api/overrides/${encodeURIComponent(requestId)}/${action}`, { method: 'POST', body: JSON.stringify({ note }) });
+      state.lastError = `Override ${requestId} ${action === 'approve' ? 'approved' : 'vetoed'}.`;
+      setActionContext({
+        entityType: 'override',
+        entityId: requestId,
+        view: 'overrides',
+        title: `Override ${requestId} ${action === 'approve' ? 'approved' : 'vetoed'}.`,
+        detail: 'The override queue refreshed and the matching review row stays highlighted for follow-through.',
+        actionLabel: 'Open override queue',
+      });
       await loadDashboard();
     } catch (error) {
       state.lastError = String(error.message || error);
@@ -605,6 +662,7 @@ root.addEventListener('click', async (event) => {
           updateNav();
           scrollDashboardToTop();
         },
+        setActionContext,
         loadDashboard,
         windowRef: window,
       });
@@ -642,6 +700,14 @@ root.addEventListener('click', async (event) => {
     state.studioEditorDraft = template.payload;
     fillStudioForm(template.payload);
     state.lastError = `Applied template ${template.label || template.template_id} to the Studio form.`;
+    setActionContext({
+      entityType: '',
+      entityId: '',
+      view: 'studio',
+      title: `Template ${template.label || template.template_id} loaded into the editor.`,
+      detail: 'Continue by adjusting the draft fields and submitting the role request from the same studio lane.',
+      actionLabel: 'Return to Role Private Studio',
+    });
     render();
     scrollDashboardToTop();
     focusStudioEditor();
@@ -664,6 +730,22 @@ root.addEventListener('click', async (event) => {
       if (action === 'load') {
         await loadStudioRequestIntoEditor(requestId);
         state.lastError = `Loaded ${requestId} into the Studio editor.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} loaded into the editor.`,
+          detail: 'The selected draft stays highlighted while the editor is ready for the next governed edit.',
+          actionLabel: 'Open Role Private Studio',
+        });
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} loaded into the editor.`,
+          detail: 'The selected draft stays highlighted while the editor is positioned for the next governed edit.',
+          actionLabel: 'Open Role Private Studio',
+        });
         state.view = 'studio';
         updateNav();
         render();
@@ -675,16 +757,40 @@ root.addEventListener('click', async (event) => {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/refresh`, { method: 'POST', body: JSON.stringify({}) });
         delete state.studioPtagDrafts[requestId];
         state.lastError = `Studio draft ${requestId} refreshed from the governance panel.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} refreshed.`,
+          detail: 'The refreshed draft remains highlighted so review and publication can continue from the same governed lane.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'save_ptag') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/ptag`, { method: 'POST', body: JSON.stringify({ ptag_source: ptagSource }) });
         state.lastError = `PTAG draft for ${requestId} updated from the live editor.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `PTAG draft for ${requestId} updated.`,
+          detail: 'The same studio draft stays highlighted so you can keep reviewing, simulating, or publishing without losing context.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'reset_ptag') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/ptag-reset`, { method: 'POST', body: JSON.stringify({}) });
         delete state.studioPtagDrafts[requestId];
         resetStudioPtagHistory(requestId);
         state.lastError = `PTAG editor for ${requestId} reverted to generated mode.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `PTAG editor for ${requestId} reset to generated mode.`,
+          detail: 'The same studio draft remains highlighted for the next review move.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'undo_ptag') {
         const nextValue = undoStudioPtagDraft(requestId);
@@ -716,16 +822,40 @@ root.addEventListener('click', async (event) => {
         delete state.studioPtagDrafts[requestId];
         resetStudioPtagHistory(requestId);
         state.lastError = `Studio draft ${requestId} restored from revision ${revisionSelection.current_revision_number}.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} restored from revision ${revisionSelection.current_revision_number}.`,
+          detail: 'The restored draft remains highlighted so the next governance decision can continue immediately.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'approve') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/review`, { method: 'POST', body: JSON.stringify({ decision: 'approve', note: note || 'Approved for publish from the live governance panel.' }) });
         delete state.studioGovernanceNotes[requestId];
         state.lastError = `Studio draft ${requestId} approved.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} approved for publication.`,
+          detail: 'The approved draft remains highlighted in the studio publish lane for the next trusted action.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'request_changes') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/review`, { method: 'POST', body: JSON.stringify({ decision: 'request_changes', note: note || 'Please refine the role draft and resimulate it.' }) });
         delete state.studioGovernanceNotes[requestId];
         state.lastError = `Change request recorded for ${requestId}.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Change request recorded for ${requestId}.`,
+          detail: 'The same draft stays highlighted so the reviewer and author can continue from the exact governance item.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'publish') {
         const confirmed = window.confirm(`Publish Role Private Studio request ${requestId} into the trusted registry?`);
@@ -733,6 +863,14 @@ root.addEventListener('click', async (event) => {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/publish`, { method: 'POST', body: JSON.stringify({}) });
         delete state.studioGovernanceNotes[requestId];
         state.lastError = `Studio draft ${requestId} published into the trusted registry.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} published into the trusted registry.`,
+          detail: 'The published role remains highlighted so you can verify trust posture and rollout proof from the same lane.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       await loadDashboard();
     } catch (error) {
@@ -761,6 +899,14 @@ root.addEventListener('click', async (event) => {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/refresh`, { method: 'POST', body: JSON.stringify({}) });
         delete state.studioPtagDrafts[requestId];
         state.lastError = `Studio draft ${requestId} refreshed.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} refreshed.`,
+          detail: 'The refreshed draft stays highlighted in the studio lanes for continued review.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (['approve', 'request_changes', 'publish'].includes(action)) {
         const item = getStudioRequestById(requestId);
@@ -772,6 +918,16 @@ root.addEventListener('click', async (event) => {
         state.lastError = action === 'publish'
           ? `Publish confirmation is ready in the governance panel for ${requestId}.`
           : `Review action is ready in the governance panel for ${requestId}.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: action === 'publish'
+            ? `Studio draft ${requestId} is positioned for trusted publication.`
+            : `Studio draft ${requestId} is positioned for reviewer action.`,
+          detail: 'The governance panel is now the correct next lane, and the selected draft stays highlighted there.',
+          actionLabel: 'Open governance panel',
+        });
         render();
         focusStudioGovernancePanel();
         return;
@@ -789,6 +945,99 @@ loadDashboard();
 function scrollDashboardToTop() {
   window.requestAnimationFrame(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+function buildFocusKey(entityType, entityId) {
+  const type = String(entityType || '').trim();
+  const id = String(entityId || '').trim();
+  return type && id ? `${type}:${id}` : '';
+}
+
+function setActionContext({ entityType = '', entityId = '', view = '', title = '', detail = '', actionLabel = '' } = {}) {
+  const focusKey = buildFocusKey(entityType, entityId);
+  const targetView = view || state.view || 'overview';
+  state.actionContext = {
+    entityType: String(entityType || '').trim(),
+    entityId: String(entityId || '').trim(),
+    focusKey,
+    view: targetView,
+    title: title || 'Latest governed result',
+    detail: detail || 'The Director recorded the latest action and mapped the next governed move.',
+    actionLabel: actionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+    pendingFocus: Boolean(focusKey),
+  };
+}
+
+function isFocusedEntity(entityType, entityId) {
+  const current = state.actionContext?.focusKey || '';
+  return current ? current === buildFocusKey(entityType, entityId) : false;
+}
+
+function extractEntityId(payload, preferredKeys = ['request_id', 'session_id', 'event_id', 'registration_code', 'id']) {
+  const queue = [payload];
+  const seen = new Set();
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+    for (const key of preferredKeys) {
+      const value = current[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    const values = Array.isArray(current) ? current : Object.values(current);
+    values.forEach((value) => { if (value && typeof value === 'object') queue.push(value); });
+  }
+  return '';
+}
+
+function collectResponseText(payload) {
+  const queue = [payload];
+  const seen = new Set();
+  const parts = [];
+  while (queue.length && parts.length < 32) {
+    const current = queue.shift();
+    if (current == null) continue;
+    if (typeof current === 'string') {
+      if (current.trim()) parts.push(current.trim());
+      continue;
+    }
+    if (typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+    const values = Array.isArray(current) ? current : Object.values(current);
+    values.forEach((value) => {
+      if (typeof value === 'string') {
+        if (value.trim()) parts.push(value.trim());
+      } else if (value && typeof value === 'object') {
+        queue.push(value);
+      }
+    });
+  }
+  return parts.join(' ').toLowerCase();
+}
+
+function inferRequestContinuationView(payload) {
+  const text = collectResponseText(payload);
+  if (!text) return 'requests';
+  if (text.includes('waiting_human') || text.includes('human_required') || text.includes('human override') || text.includes('out_of_scope') || text.includes('human_only_boundary') || text.includes('approval')) return 'overrides';
+  if (text.includes('conflict') || text.includes('contention') || text.includes('lock') || text.includes('retry') || text.includes('fail_closed') || text.includes('blocked')) return 'conflicts';
+  return 'requests';
+}
+
+function focusActionContextTarget() {
+  if (!state.actionContext?.pendingFocus) return;
+  const focusKey = state.actionContext.focusKey;
+  if (!focusKey) {
+    state.actionContext.pendingFocus = false;
+    return;
+  }
+  window.requestAnimationFrame(() => {
+    const target = Array.from(root.querySelectorAll('[data-focus-key], [data-focus-alt-key]')).find((node) => node.dataset.focusKey === focusKey || node.dataset.focusAltKey === focusKey);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('focus-pulse');
+    window.setTimeout(() => { if (target.isConnected) target.classList.remove('focus-pulse'); }, 1400);
+    state.actionContext.pendingFocus = false;
   });
 }
 
@@ -940,7 +1189,7 @@ function render() {
     snapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
     {
       can,
-      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase },
+      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity },
     },
   );
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
@@ -948,8 +1197,9 @@ function render() {
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
   const focusedInbox = state.view === 'overview' ? '' : renderFocusedWorkInbox(snapshot, state.view);
   const workLanguageGuide = renderWorkLanguageGuide(snapshot);
-  root.innerHTML = `${renderActionFeedback()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${workLanguageGuide}${focusedInbox}${viewContent}`;
+  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
+  focusActionContextTarget();
 }
 
 function renderActionFeedback() {
@@ -961,6 +1211,33 @@ function renderActionFeedback() {
       ? 'Action needs attention'
       : 'Latest action';
   return `<article class="card notice-card notice-${escapeHtml(tone)} stack"><div class="eyebrow muted">Runtime feedback</div><strong>${escapeHtml(title)}</strong><p class="muted">${escapeHtml(state.lastError)}</p></article>`;
+}
+
+function renderActionContinuity() {
+  const context = state.actionContext;
+  if (!context || state.authRequired) return '';
+  const viewLabel = VIEW_TITLES[context.view] || titleCase(context.view || 'overview');
+  const reference = context.entityId ? `<span class="pill">Ref ${escapeHtml(context.entityId)}</span>` : '';
+  const focusNote = context.entityId
+    ? 'The matching row or card stays highlighted so you can continue from the exact governed work item.'
+    : 'The Director mapped the next lane for you so you do not need to guess where this action landed.';
+  return `
+    <article class="card action-continuity-card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Next governed move</div>
+          <strong>${escapeHtml(context.title || 'Latest governed result')}</strong>
+          <p class="muted">${escapeHtml(context.detail || focusNote)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge('latest result')}${statusBadge(viewLabel)}</div>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(context.view || 'overview')}">${escapeHtml(context.actionLabel || `Open ${viewLabel}`)}</button>
+        ${reference}
+      </div>
+      <p class="muted">${escapeHtml(focusNote)}</p>
+    </article>
+  `;
 }
 
 function classifyActionFeedbackTone(message) {
@@ -1537,15 +1814,67 @@ function buildWorkflowGuide(snapshot) {
     addWorkflowLink(related, 'sessions', 'Review access', 'Verify session posture when operator runtime behavior feels off.');
   }
 
+  const workflowGuide = applyActionContextToWorkflowGuide(primary, related.filter((item) => item.view !== state.view));
   return {
-    primary,
-    related: related.filter((item) => item.view !== state.view).slice(0, 3),
+    primary: workflowGuide.primary,
+    related: workflowGuide.related.slice(0, 3),
   };
 }
 
 function addWorkflowLink(target, view, actionLabel, note, eyebrow = 'Related view') {
   if (!view || target.some((item) => item.view === view)) return;
   target.push({ view, actionLabel, note, eyebrow });
+}
+
+function applyActionContextToWorkflowGuide(primary, related) {
+  const context = state.actionContext;
+  if (!context || !context.view) return { primary, related };
+
+  const contextView = context.view;
+  const contextViewLabel = VIEW_TITLES[contextView] || titleCase(contextView);
+  const continuityPrimary = contextView === state.view
+    ? {
+        view: contextView,
+        eyebrow: 'Latest governed result',
+        title: context.title || `Continue inside ${contextViewLabel}`,
+        detail: context.detail || 'The latest affected work item is highlighted in this lane so you can continue without searching for it again.',
+        badge: 'highlighted item',
+        actionLabel: 'Continue in this lane',
+        details: [
+          ['Surface', contextViewLabel],
+          ['Reference', context.entityId || '-'],
+        ],
+      }
+    : {
+        view: contextView,
+        eyebrow: 'Latest governed result',
+        title: context.title || `Continue in ${contextViewLabel}`,
+        detail: context.detail || 'The latest affected governed item remains highlighted in the next lane so you can continue without searching for it.',
+        badge: 'continue flow',
+        actionLabel: context.actionLabel || `Open ${contextViewLabel}`,
+        details: [
+          ['Next lane', contextViewLabel],
+          ['Reference', context.entityId || '-'],
+        ],
+      };
+
+  const nextRelated = Array.isArray(related) ? [...related] : [];
+  if (primary && primary.view && primary.view !== contextView) {
+    addWorkflowLink(nextRelated, primary.view, primary.actionLabel || `Open ${VIEW_TITLES[primary.view] || primary.view}`, primary.detail || 'Return to the normal governed workflow suggestion for this lane.', primary.eyebrow || 'Workflow suggestion');
+  }
+
+  if (contextView !== state.view) {
+    addWorkflowLink(nextRelated, state.view, `Back to ${VIEW_TITLES[state.view] || state.view}`, 'Return to the current lane after checking the latest affected governed result.', 'Current lane');
+  }
+
+  if (contextView !== 'audit') {
+    addWorkflowLink(nextRelated, 'audit', 'Open Audit Trail', 'Confirm the result, policy basis, and evidence after following the latest action path.', 'Proof lane');
+  }
+
+  return {
+    primary: continuityPrimary,
+    related: nextRelated.filter((item) => item.view !== continuityPrimary.view),
+  };
 }
 function studioReadinessTone(readiness) {
   const status = String(readiness?.status || 'blocked');
@@ -2761,7 +3090,7 @@ function renderStudioGovernanceItem(item, lane) {
         ? (readiness.structural_gate_reason || (readiness.advisories || []).join(' | ') || 'Awaiting PT-OSS structural mitigation.')
         : (readiness.blockers?.length ? readiness.blockers.join(' | ') : 'Awaiting review movement.');
   return `
-    <div class="trace-box stack governance-lane-item${isSelected ? ' is-selected' : ''}">
+    <div class="trace-box stack governance-lane-item${isSelected ? ' is-selected' : ''}${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(item.structured_jd?.role_name || item.request_id)}</strong>
@@ -2823,7 +3152,7 @@ function renderStudioGovernancePanel(item) {
   const canRestore = can('studio.create') && item.status !== 'published' && (selectedRevision.current_revision_number || 0) > 0;
   const diagnostics = buildStudioPtagDiagnostics(item, ptagDraft);
   return `
-    <section class="split-grid" id="studio-governance-panel-anchor">
+    <section class="split-grid${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" id="studio-governance-panel-anchor" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <article class="card hero-card hero-card-secondary studio-governance-panel">
         <div class="hero-heading">
           <div>
@@ -3338,7 +3667,7 @@ function renderWorkflowStageExplanation(stage) {
 }
 
 function renderPolicies(roles) {
-  if (!roles.length) return '<div class="card empty-state">No PTAG role packs available.</div>';
+  if (!roles.length) return renderNoWorkState('No PTAG role packs are available yet.', { eyebrow: 'Policy library idle', title: 'No trusted hats are published in this runtime yet.', detail: 'Publish the first governed hat through Role Private Studio, then come back here to inspect trust, hierarchy, and boundaries.', primaryActionView: 'studio', primaryActionLabel: 'Open Role Private Studio', secondaryActionView: 'overview', secondaryActionLabel: 'Open Overview', pills: ['library empty', 'publish first hat'] });
   const verifiedTotal = roles.filter((role) => role.trusted_manifest_signature_status === 'verified').length;
   const validationIssueTotal = roles.reduce((sum, role) => sum + ((role.validation_issues || []).length), 0);
   const allowTotal = roles.reduce((sum, role) => sum + ((role.allow || []).length), 0);
@@ -3776,7 +4105,7 @@ function renderStudioRequestCard(item) {
       ? 'Structural posture is clear enough for trusted publication.'
       : (readiness.blockers?.[0] || 'This draft still needs validation, simulation, or review movement before publication.');
   return `
-    <article class="card stack">
+    <article class="card stack${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(summary.role_id || item.request_id)}</div>
@@ -4078,12 +4407,12 @@ function renderPtagPreview(source, maxLines = 18) {
 
 function requestTable(rows) {
   if (!rows.length) return emptyState('No request records available.');
-  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => { const focused = isFocusedEntity('request', row.request_id) || isFocusedEntity('override', row.request_id); return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('request', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('override', row.request_id))}"><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`; }).join('')}</tbody></table>`;
 }
 
 function overrideTable(rows) {
   if (!rows.length) return emptyState('No overrides available.');
-  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => { const focused = isFocusedEntity('override', row.request_id) || isFocusedEntity('request', row.request_id); return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('override', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('request', row.request_id))}"><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`; }).join('')}</tbody></table>`;
 }
 
 function lockTable(rows) {
@@ -4131,8 +4460,159 @@ function integrationDeadLetterTable(rows) {
   return `<table class="data-table"><thead><tr><th>Event</th><th>Target</th><th>Final Status</th><th>Attempts</th><th>Signing</th><th>Dead-lettered</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.event_type || '-')}</strong><div class="muted">${escapeHtml(row.event_id || '-')}</div></td><td>${escapeHtml(row.target_name || row.target_id || '-')}</td><td>${statusBadge(row.final_status || 'failed')}</td><td><strong>${escapeHtml(String(row.attempts_used || 1))}</strong><div class="muted">of ${escapeHtml(String(row.max_attempts || 1))}</div></td><td>${escapeHtml(row.signing_policy || 'none')}</td><td>${escapeHtml(shortTime(row.dead_lettered_at))}</td><td class="muted">${escapeHtml(row.reason || '-')}</td></tr>`).join('')}</tbody></table>`;
 }
 
+function buildTableEmptyGuidance(title) {
+  const guidance = {
+    'Recent Requests': {
+      title: 'No governed requests are visible yet.',
+      detail: 'Start with Runtime Intake when the next governed task is ready, then come back here to follow its lane.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'studio',
+      secondaryActionLabel: 'Open Studio',
+      pills: ['intake first', 'live queue'],
+    },
+    'Runtime Requests': {
+      title: 'The runtime request ledger is empty.',
+      detail: 'Submit work from this lane to start governed execution, then follow the same request here after routing and policy checks.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Stay in Requests',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['submit work', 'follow queue'],
+    },
+    'Human Override Queue': {
+      title: 'No human approvals are waiting right now.',
+      detail: 'This is healthy when automation stayed in bounds. If you expected a pause, inspect Runtime Requests first.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'audit',
+      secondaryActionLabel: 'Open Audit',
+      pills: ['human boundary clear', 'automation running'],
+    },
+    'Overrides': {
+      title: 'No override packets are visible in this lane.',
+      detail: 'When the Director crosses a human boundary, the approval packet will appear here with the next decision owner attached.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['queue stable', 'no pending review'],
+    },
+    'Active Locks': {
+      title: 'No protected resources are locked right now.',
+      detail: 'The runtime is currently contention-free. If work still appears blocked, inspect the conflicted request lane next.',
+      primaryActionView: 'conflicts',
+      primaryActionLabel: 'Open Conflicts',
+      secondaryActionView: 'requests',
+      secondaryActionLabel: 'Open Requests',
+      pills: ['contention clear', 'safe to proceed'],
+    },
+    'Conflicted Requests': {
+      title: 'No conflicted requests are waiting for release.',
+      detail: 'No requests are currently being held by resource or ordering pressure in this runtime window.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['no blocked work', 'queue flowing'],
+    },
+    'Audit Trail': {
+      title: 'No audit events are visible yet.',
+      detail: 'Once the Director starts processing governed work, the evidence ledger will begin filling with requests, decisions, and maintenance events.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'health',
+      secondaryActionLabel: 'Open Runtime Health',
+      pills: ['evidence starts with work', 'chain ready'],
+    },
+    'Sessions': {
+      title: 'No runtime sessions are visible in this snapshot.',
+      detail: 'When profiles log in, their session posture, expiry, and revocation controls will appear here.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['access idle', 'session lane clear'],
+    },
+    'Integration Deliveries': {
+      title: 'No outbound deliveries have been recorded yet.',
+      detail: 'Targets may still be configured. Send a test event or let governed work emit the first delivery through the runtime.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['routing idle', 'targets may still be ready'],
+    },
+    'Integration Outbox': {
+      title: 'No integration jobs are queued right now.',
+      detail: 'The outbox is clear. Jobs will appear here when governed events are buffered for outbound delivery.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['queue clear', 'delivery idle'],
+    },
+    'Integration Dead Letters': {
+      title: 'No dead letters are waiting for recovery.',
+      detail: 'Outbound delivery is not currently leaving failed events behind in the dead-letter lane.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['recovery clear', 'delivery clean'],
+    },
+    'Retention Datasets': {
+      title: 'No retention datasets are visible yet.',
+      detail: 'Retention posture becomes meaningful once governed documents, audit data, or workflow artifacts are being preserved.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'audit',
+      secondaryActionLabel: 'Open Audit',
+      pills: ['retention not seeded', 'archive idle'],
+    },
+    'Runtime Backups': {
+      title: 'No runtime backups have been created yet.',
+      detail: 'Generate the first recovery bundle from Runtime Health so restore posture is visible before production pressure arrives.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['recovery not seeded', 'backup lane empty'],
+    },
+  };
+  return guidance[title] || null;
+}
+
+function renderNoWorkState(message, options = {}) {
+  const pills = Array.isArray(options.pills) ? options.pills.filter(Boolean) : [];
+  return `
+    <section class="empty-state-shell" data-empty-state="true">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'No governed work in this lane')}</div>
+          <strong>${escapeHtml(options.title || 'Nothing needs action here right now.')}</strong>
+          <p class="muted">${escapeHtml(options.detail || message || 'This lane will populate as the Director begins processing real work.')}</p>
+        </div>
+        ${pills.length ? `<div class="hero-chip-row">${pills.map((pill) => `<span class="pill">${escapeHtml(pill)}</span>`).join('')}</div>` : ''}
+      </div>
+      ${message ? `<p class="muted">${escapeHtml(message)}</p>` : ''}
+      ${(options.primaryActionView || options.secondaryActionView) ? `
+        <div class="inline-actions">
+          ${options.primaryActionView ? `<button class="action-button" type="button" data-view-jump="${escapeHtml(options.primaryActionView)}">${escapeHtml(options.primaryActionLabel || 'Open view')}</button>` : ''}
+          ${options.secondaryActionView ? `<button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(options.secondaryActionView)}">${escapeHtml(options.secondaryActionLabel || 'Open next view')}</button>` : ''}
+        </div>
+      ` : ''}
+    </section>
+  `;
+}
+
 function wrapTableCard(title, tableHtml, subtitle = '') {
-  return `<article class="table-card"><div class="table-card-head"><div><div class="eyebrow muted">Runtime Table</div><h3 class="table-title">${escapeHtml(title)}</h3>${subtitle ? `<p class="card-subtitle">${escapeHtml(subtitle)}</p>` : ''}</div></div><div class="table-wrapper">${tableHtml}</div></article>`;
+  const isEmpty = String(tableHtml || '').includes('data-empty-state="true"');
+  const guidance = isEmpty ? buildTableEmptyGuidance(title) : null;
+  const tableBody = isEmpty && guidance
+    ? renderNoWorkState(tableHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), { eyebrow: 'Work lane status', ...guidance })
+    : tableHtml;
+  return `<article class="table-card${isEmpty ? ' table-card-empty' : ''}"><div class="table-card-head"><div><div class="eyebrow muted">Runtime Table</div><h3 class="table-title">${escapeHtml(title)}</h3>${subtitle ? `<p class="card-subtitle">${escapeHtml(subtitle)}</p>` : ''}</div></div><div class="table-wrapper${isEmpty ? ' table-wrapper-empty' : ''}">${tableBody}</div></article>`;
 }
 
 function looksLikePathValue(key, value) {
@@ -4225,7 +4705,7 @@ function metricCard(label, value, tone = 'default', caption = '') {
 }
 
 function emptyState(message) {
-  return `<div class="empty-state">${escapeHtml(message)}</div>`;
+  return `<div class="empty-state" data-empty-state="true">${escapeHtml(message)}</div>`;
 }
 
 function statusBadge(value) {
