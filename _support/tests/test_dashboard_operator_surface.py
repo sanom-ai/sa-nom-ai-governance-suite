@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
 from sa_nom_governance.core.execution_context import ExecutionContext
 from sa_nom_governance.dashboard.dashboard_data import DashboardSnapshotBuilder
+from sa_nom_governance.deployment.runtime_performance_baseline import export_runtime_performance_baseline
 from sa_nom_governance.utils.config import AppConfig
 
 
@@ -162,6 +163,8 @@ def test_dashboard_snapshot_exposes_missing_usability_proof_status() -> None:
         assert summary.get('usability_proof_status') == 'missing'
         assert summary.get('usability_proof_available') is False
         assert summary.get('quick_start_doctor_status') == 'missing'
+        assert summary.get('runtime_performance_status') == 'missing'
+        assert isinstance(summary.get('runtime_performance_dashboard_elapsed_ms'), float)
         assert doctor.get('status') == 'missing'
         assert first_run_actions.get('status') in {'ready', 'monitoring', 'blocked'}
         assert isinstance(first_run_actions.get('items_total'), int)
@@ -198,6 +201,24 @@ def test_dashboard_snapshot_reads_latest_usability_proof_status() -> None:
         assert summary.get('usability_proof_criteria_total') == 2
         assert summary.get('usability_proof_criteria_passed_total') == 1
         assert summary.get('usability_proof_criteria_failed_total') == 1
+
+def test_dashboard_snapshot_exposes_runtime_performance_baseline_summary() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        export_runtime_performance_baseline(config=config)
+        snapshot = DashboardSnapshotBuilder(config=config).build()
+
+        operations = snapshot.get('operations', {})
+        baseline = operations.get('runtime_performance_baseline', {}) if isinstance(operations, dict) else {}
+        summary = snapshot.get('summary', {})
+
+        assert baseline.get('available') is True
+        assert baseline.get('status') in {'ready', 'monitoring', 'critical', 'failed'}
+        assert baseline.get('slowest_metric') in {'health', 'operational_readiness', 'dashboard_snapshot'}
+        assert isinstance(baseline.get('dashboard_snapshot_elapsed_ms'), float)
+        assert summary.get('runtime_performance_status') == baseline.get('status')
+        assert isinstance(summary.get('runtime_performance_dashboard_elapsed_ms'), float)
+
 
 def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_health() -> None:
     with TemporaryDirectory() as temp_dir:

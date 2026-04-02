@@ -156,6 +156,8 @@ class DashboardSnapshotBuilder:
                 'usability_proof_criteria_passed_total': int(operations.get('usability_proof', {}).get('criteria_passed_total', 0) or 0),
                 'usability_proof_criteria_failed_total': int(operations.get('usability_proof', {}).get('criteria_failed_total', 0) or 0),
                 'quick_start_doctor_status': str(operations.get('quick_start_doctor', {}).get('status', 'missing')),
+                'runtime_performance_status': str(operations.get('runtime_performance_baseline', {}).get('status', 'missing')),
+                'runtime_performance_dashboard_elapsed_ms': float((operations.get('runtime_performance_baseline', {}) or {}).get('dashboard_snapshot_elapsed_ms', 0.0) or 0.0),
                 'first_run_readiness_status': str(first_run_readiness.get('status', 'blocked')),
                 'first_run_blockers_total': int(first_run_readiness.get('blockers_total', 0) or 0),
                 'first_run_advisories_total': int(first_run_readiness.get('advisories_total', 0) or 0),
@@ -356,6 +358,7 @@ class DashboardSnapshotBuilder:
             'backups': self.app.list_runtime_backups(limit=limit),
             'usability_proof': self.usability_proof_summary(),
             'quick_start_doctor': self.quick_start_doctor_summary(),
+            'runtime_performance_baseline': self.runtime_performance_baseline_summary(),
         }
 
     def first_run_readiness(
@@ -459,6 +462,26 @@ class DashboardSnapshotBuilder:
             'required_failed_total': int(summary.get('required_failed_total', 0) or 0),
             'advisory_failed_total': int(summary.get('advisory_failed_total', 0) or 0),
             'next_actions': result.get('next_actions', []) if isinstance(result.get('next_actions'), list) else [],
+        }
+
+    def runtime_performance_baseline_summary(self) -> dict[str, object]:
+        from sa_nom_governance.deployment.runtime_performance_baseline import read_runtime_performance_baseline
+
+        result = read_runtime_performance_baseline(config=self.config)
+        summary = result.get('summary', {}) if isinstance(result.get('summary'), dict) else {}
+        return {
+            'status': str(result.get('status', 'missing')),
+            'available': bool(result.get('available', False)),
+            'artifact_path': str(result.get('output_path', self.config.review_dir / 'runtime_performance_baseline.json')),
+            'generated_at': result.get('generated_at'),
+            'slowest_metric': str(summary.get('slowest_metric', 'unknown')),
+            'slowest_elapsed_ms': float(summary.get('slowest_elapsed_ms', 0.0) or 0.0),
+            'health_elapsed_ms': float(summary.get('health_elapsed_ms', 0.0) or 0.0),
+            'operational_readiness_elapsed_ms': float(summary.get('operational_readiness_elapsed_ms', 0.0) or 0.0),
+            'dashboard_snapshot_elapsed_ms': float(summary.get('dashboard_snapshot_elapsed_ms', 0.0) or 0.0),
+            'warning_total': int(summary.get('warning_total', 0) or 0),
+            'critical_total': int(summary.get('critical_total', 0) or 0),
+            'failed_total': int(summary.get('failed_total', 0) or 0),
         }
 
     def first_run_action_center(
