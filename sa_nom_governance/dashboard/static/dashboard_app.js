@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui10';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui11';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui10';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui11';
 
 const state = {
   view: 'overview',
@@ -947,7 +947,8 @@ function render() {
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
   const focusedInbox = state.view === 'overview' ? '' : renderFocusedWorkInbox(snapshot, state.view);
-  root.innerHTML = `${renderActionFeedback()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${focusedInbox}${viewContent}`;
+  const workLanguageGuide = renderWorkLanguageGuide(snapshot);
+  root.innerHTML = `${renderActionFeedback()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
 }
 
@@ -1131,6 +1132,47 @@ function renderWorkflowGuide(snapshot) {
     </section>
   `;
 }
+
+function renderWorkLanguageGuide(snapshot) {
+  if (!['overview', 'requests', 'overrides', 'studio', 'human_ask', 'conflicts'].includes(state.view)) return '';
+  const summary = snapshot.unified_work_inbox?.summary || {};
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Work Language</div>
+          <h3 class="card-title">One set of words for every governed work item</h3>
+          <p class="card-subtitle">Requests, approvals, report records, recovery items, and studio drafts should read like one operating system, not separate tools with separate vocabularies.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(summary.primary_title || 'Governed Work')}</div>
+      </div>
+      <div class="view-prelude-grid">
+        <article class="view-prelude-card view-prelude-card-success">
+          <span class="view-prelude-label">Ready</span>
+          <strong>AI can keep moving</strong>
+          <p class="muted">The governed lane is clear enough for the runtime to continue without a new human interruption.</p>
+        </article>
+        <article class="view-prelude-card view-prelude-card-accent">
+          <span class="view-prelude-label">Monitoring</span>
+          <strong>Visible, not yet stopping flow</strong>
+          <p class="muted">A human should keep an eye on it, but the runtime is still allowed to operate inside policy.</p>
+        </article>
+        <article class="view-prelude-card view-prelude-card-warning">
+          <span class="view-prelude-label">Human required</span>
+          <strong>A real decision is now needed</strong>
+          <p class="muted">The runtime crossed a human boundary and must wait for explicit review, approval, or clearance.</p>
+        </article>
+        <article class="view-prelude-card view-prelude-card-danger">
+          <span class="view-prelude-label">Blocked</span>
+          <strong>The runtime cannot continue</strong>
+          <p class="muted">A governed path is fail-closed until someone resolves the issue or deliberately resumes it.</p>
+        </article>
+      </div>
+      <div class="trace-box"><strong>Work item definition</strong><p class="muted">A governed work item can be a request, override, Human Ask record, recovery item, or Studio draft. The dashboard should always tell you who owns it, what state it is in, and what happens next.</p></div>
+    </section>
+  `;
+}
+
 function buildViewUseHint() {
   const hint = VIEW_USE_HINTS[state.view];
   if (!hint) return null;
@@ -4187,8 +4229,68 @@ function emptyState(message) {
 }
 
 function statusBadge(value) {
-  const css = `status-badge status-${String(value).replace(/[^a-z0-9_]+/gi, '_').toLowerCase()}`;
-  return `<span class="${css}">${escapeHtml(String(value))}</span>`;
+  const raw = String(value);
+  const css = `status-badge status-${raw.replace(/[^a-z0-9_]+/gi, '_').toLowerCase()}`;
+  return `<span class="${css}">${escapeHtml(formatStatusLabel(raw))}</span>`;
+}
+
+function formatStatusLabel(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '-';
+  if (/^\d+\s+[a-z]/i.test(raw)) return raw;
+  const normalized = raw.toLowerCase();
+  const known = {
+    ready: 'Ready',
+    monitoring: 'Monitoring',
+    blocked: 'Blocked',
+    degraded: 'Degraded',
+    disabled: 'Disabled',
+    active: 'Active',
+    missing: 'Missing',
+    present: 'Present',
+    clear: 'Clear',
+    approved: 'Approved',
+    vetoed: 'Vetoed',
+    pending: 'Pending',
+    published: 'Published',
+    passed: 'Passed',
+    failed: 'Failed',
+    direct: 'Direct',
+    partial: 'Partial',
+    settled: 'Settled',
+    unknown: 'Unknown',
+    conflicted: 'Conflict',
+    escalated: 'Escalated',
+    switched: 'Switched',
+    steady: 'Steady',
+    autonomy_ready: 'Autonomy Ready',
+    human_required: 'Human Required',
+    waiting_human: 'Waiting Human Review',
+    human_gated: 'Human Gated',
+    attention_required: 'Attention Required',
+    clearance_required: 'Clearance Required',
+    guarded_follow_up: 'Guarded Follow-Up',
+    notifications_disabled: 'Notifications Disabled',
+    queue_stable: 'Queue Stable',
+    approval_action_required: 'Approval Action Required',
+  };
+  if (known[normalized]) return known[normalized];
+  if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(normalized)) {
+    return normalized
+      .replace(/[_-]+/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+  if (/^[a-z][a-z0-9\s-]*$/.test(raw)) {
+    return raw
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+  return raw;
 }
 
 function extractRoleTransition(row) {
