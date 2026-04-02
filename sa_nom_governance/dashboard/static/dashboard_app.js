@@ -2597,6 +2597,54 @@ function renderCases(snapshot) {
   `;
 }
 
+function resolveCaseWorkItemFocus(workItem = {}) {
+  const ids = Array.isArray(workItem.ids) ? workItem.ids : [];
+  const firstId = ids[0] || '';
+  switch (workItem.kind) {
+    case 'request':
+      return { entityType: 'request', entityId: firstId };
+    case 'override':
+      return { entityType: 'override', entityId: firstId };
+    case 'human_ask':
+      return { entityType: 'human_ask_session', entityId: firstId };
+    case 'studio':
+      return { entityType: 'studio_request', entityId: firstId };
+    case 'audit':
+      return { entityType: firstId ? 'request' : 'case', entityId: firstId || '' };
+    default:
+      return { entityType: 'case', entityId: '' };
+  }
+}
+
+function renderCaseWorkItems(item) {
+  const workItems = Array.isArray(item.work_items) ? item.work_items.filter((entry) => Number(entry.total || 0) > 0) : [];
+  if (!workItems.length) return '';
+  return `
+    <div class="case-work-items">
+      ${workItems.map((entry) => {
+        const focus = resolveCaseWorkItemFocus(entry);
+        const viewLabel = VIEW_TITLES[entry.view] || titleCase(entry.view || 'overview');
+        const idPreview = (Array.isArray(entry.ids) ? entry.ids : []).slice(0, 2).filter(Boolean).join(' | ');
+        return `
+          <article class="mini-card case-work-item">
+            <div class="eyebrow muted">${escapeHtml(entry.label || 'Work item')}</div>
+            <div class="case-work-item-value">${escapeHtml(String(entry.total || 0))}</div>
+            <p class="muted">${escapeHtml(idPreview || `Open ${viewLabel} to review linked work.`)}</p>
+            <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+              view: entry.view || 'overview',
+              focusType: focus.entityType,
+              focusId: focus.entityId,
+              title: item.case_id ? `Case ${item.case_id} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
+              detail: `Use ${viewLabel} to inspect the linked ${String(entry.label || 'work').toLowerCase()}.`,
+              actionLabel: `Open ${viewLabel}`,
+            })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+          </article>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function renderCaseCard(item) {
   const timeline = Array.isArray(item.timeline) ? item.timeline : [];
   const linkedRefs = [
@@ -2632,6 +2680,7 @@ function renderCaseCard(item) {
         ['Audit events', String(item.audit_event_total || 0)],
         ['Timeline', String(item.timeline_total || 0)],
       ])}
+      ${renderCaseWorkItems(item)}
       ${linkedRefs.length ? `<div class="case-reference-list">${linkedRefs.map((value) => `<span class="pill pill-muted">${escapeHtml(value)}</span>`).join('')}</div>` : ''}
       <div class="case-timeline">
         ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry)).join('') : `<div class="empty-state">No case events are available yet.</div>`}

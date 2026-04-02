@@ -446,6 +446,7 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
 
         linked_case = next(item for item in case_items if request_id in item.get('linked_request_ids', []))
         timeline_types = {entry.get('event_type') for entry in linked_case.get('timeline', [])}
+        work_item_kinds = {entry.get('kind') for entry in linked_case.get('work_items', []) if int(entry.get('total', 0) or 0) > 0}
         request_row = next(item for item in snapshot.get('requests', []) if item.get('request_id') == request_id)
         override_row = next(item for item in snapshot.get('overrides', []) if item.get('request_id') == override.request_id)
         session_row = next(item for item in snapshot.get('human_ask', {}).get('sessions', []) if item.get('session_id') == session['session_id'])
@@ -471,6 +472,7 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
         assert session_row.get('case_id') == linked_case.get('case_id')
         assert audit_row.get('case_id') == linked_case.get('case_id')
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(timeline_types)
+        assert {'request', 'override', 'human_ask', 'audit'}.issubset(work_item_kinds)
 
 def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
     with TemporaryDirectory() as temp_dir:
@@ -502,10 +504,12 @@ def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
         studio_row = next(item for item in studio_rows if item.get('request_id') == studio_request['request_id'])
         case_items = snapshot.get('cases', {}).get('items', [])
         linked_case = next(item for item in case_items if studio_request['request_id'] in item.get('linked_studio_request_ids', []))
+        work_item_kinds = {entry.get('kind') for entry in linked_case.get('work_items', []) if int(entry.get('total', 0) or 0) > 0}
 
         assert studio_row.get('case_id') == linked_case.get('case_id')
         assert studio_row.get('case_status') == linked_case.get('status')
         assert studio_row.get('case_primary_view') == linked_case.get('primary_view')
+        assert 'studio' in work_item_kinds
 
 
 

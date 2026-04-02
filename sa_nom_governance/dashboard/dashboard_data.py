@@ -894,6 +894,12 @@ class DashboardSnapshotBuilder:
                 or next(iter(sorted(case['linked_session_ids'])), '')
                 or display_id
             )
+            linked_request_ids = sorted(case['linked_request_ids'])
+            linked_override_ids = sorted(case['linked_override_ids'])
+            linked_session_ids = sorted(case['linked_session_ids'])
+            linked_workflow_ids = sorted(case['linked_workflow_ids'])
+            linked_studio_request_ids = sorted(case['linked_studio_request_ids'])
+            audit_event_total = int(case.get('audit_event_total', 0) or 0)
             items.append(
                 {
                     'case_id': display_id,
@@ -902,14 +908,51 @@ class DashboardSnapshotBuilder:
                     'title': title,
                     'opened_at': case.get('opened_at'),
                     'updated_at': case.get('updated_at'),
-                    'linked_request_ids': sorted(case['linked_request_ids']),
-                    'linked_override_ids': sorted(case['linked_override_ids']),
-                    'linked_session_ids': sorted(case['linked_session_ids']),
-                    'linked_workflow_ids': sorted(case['linked_workflow_ids']),
-                    'linked_studio_request_ids': sorted(case['linked_studio_request_ids']),
-                    'audit_event_total': int(case.get('audit_event_total', 0) or 0),
+                    'linked_request_ids': linked_request_ids,
+                    'linked_override_ids': linked_override_ids,
+                    'linked_session_ids': linked_session_ids,
+                    'linked_workflow_ids': linked_workflow_ids,
+                    'linked_studio_request_ids': linked_studio_request_ids,
+                    'audit_event_total': audit_event_total,
                     'timeline_total': len(timeline),
                     'timeline': timeline[:6],
+                    'work_items': [
+                        {
+                            'kind': 'request',
+                            'label': 'Requests',
+                            'total': len(linked_request_ids),
+                            'view': 'requests',
+                            'ids': linked_request_ids[:3],
+                        },
+                        {
+                            'kind': 'override',
+                            'label': 'Overrides',
+                            'total': len(linked_override_ids),
+                            'view': 'overrides',
+                            'ids': linked_override_ids[:3],
+                        },
+                        {
+                            'kind': 'human_ask',
+                            'label': 'Human Ask',
+                            'total': len(linked_session_ids),
+                            'view': 'human_ask',
+                            'ids': linked_session_ids[:3],
+                        },
+                        {
+                            'kind': 'studio',
+                            'label': 'Studio drafts',
+                            'total': len(linked_studio_request_ids),
+                            'view': 'studio',
+                            'ids': linked_studio_request_ids[:3],
+                        },
+                        {
+                            'kind': 'audit',
+                            'label': 'Audit events',
+                            'total': audit_event_total,
+                            'view': 'audit',
+                            'ids': linked_request_ids[:1] or linked_override_ids[:1] or linked_studio_request_ids[:1],
+                        },
+                    ],
                     'summary': {
                         'pending_override_total': int(case.get('pending_override_total', 0) or 0),
                         'waiting_human_total': int(case.get('waiting_human_total', 0) or 0),
