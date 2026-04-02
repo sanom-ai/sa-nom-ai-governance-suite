@@ -1,29 +1,53 @@
 {
   "registry_name": "SA-NOM Trusted PTAG Registry",
-  "generated_at": "2026-03-30T06:59:05.406147+00:00",
+  "generated_at": "2026-04-02T08:55:00.933554+00:00",
   "roles": {
+    "CHANGE_CONTROL": {
+      "file_name": "CHANGE_CONTROL.ptn",
+      "sha256": "5c245ff3adb28dfcfab300c5bee208cba77291171f77a9c53c776ada81eee341",
+      "trust_status": "trusted",
+      "signed_by": "TAWAN",
+      "signature_mode": "sha256_manifest_hmac",
+      "registered_at": "2026-04-02T08:55:00.933112+00:00"
+    },
     "GOV": {
       "file_name": "GOV.ptn",
       "sha256": "ea27f952353d2ca2ec6f8218510f8a6252d9fd91683424a1463cc2aee3e9575b",
       "trust_status": "trusted",
-      "signed_by": "EXEC_OWNER",
+      "signed_by": "TAWAN",
       "signature_mode": "sha256_manifest_hmac",
-      "registered_at": "2026-03-30T06:59:05.405765+00:00"
+      "registered_at": "2026-04-02T08:55:00.933237+00:00"
     },
     "LEGAL": {
       "file_name": "LEGAL.ptn",
       "sha256": "502ee752f927b6fbc719f9d6eeb342acfc553887e21ec66b296bfca2072e3a8b",
       "trust_status": "trusted",
-      "signed_by": "EXEC_OWNER",
+      "signed_by": "TAWAN",
       "signature_mode": "sha256_manifest_hmac",
-      "registered_at": "2026-03-30T06:59:05.406122+00:00"
+      "registered_at": "2026-04-02T08:55:00.933344+00:00"
+    },
+    "OPS_REVIEW": {
+      "file_name": "OPS_REVIEW.ptn",
+      "sha256": "54d6987d8892a271338c7ecb04211f05fbccb8a94ca5c445108f5040641203cd",
+      "trust_status": "trusted",
+      "signed_by": "TAWAN",
+      "signature_mode": "sha256_manifest_hmac",
+      "registered_at": "2026-04-02T08:55:00.933447+00:00"
+    },
+    "VENDOR_RISK": {
+      "file_name": "VENDOR_RISK.ptn",
+      "sha256": "9967a890c46050fc5113d8a78bb893cc0ab33bdd05bdeedbe914ed6039e854e3",
+      "trust_status": "trusted",
+      "signed_by": "TAWAN",
+      "signature_mode": "sha256_manifest_hmac",
+      "registered_at": "2026-04-02T08:55:00.933547+00:00"
     }
   },
   "signature": {
     "algorithm": "hmac_sha256",
     "key_id": "SANOM_DEV_REGISTRY",
-    "signed_by": "EXEC_OWNER",
-    "signed_at": "2026-03-30T06:59:05.406154+00:00",
-    "value": "2a57af107b0210e1e7894753003942a7682e685ffb605b694acb26500b685148"
+    "signed_by": "TAWAN",
+    "signed_at": "2026-04-02T08:55:00.933556+00:00",
+    "value": "4441a39951165e2de6e0a209a0a4910646ff3224d1f7f8a9d1694b3aa67bdb63"
   }
 }
