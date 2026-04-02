@@ -339,7 +339,39 @@ class DashboardService:
     def callable_directory(self, limit: int = 200):
         return self.app.list_callable_directory(limit=limit)
 
-    def documents(self, limit: int = 100):
+    def documents(
+        self,
+        limit: int = 100,
+        *,
+        query: str = '',
+        status: str | None = None,
+        document_class: str | None = None,
+        case_id: str | None = None,
+        active_only: bool = False,
+    ):
+        if any([
+            str(query or '').strip(),
+            str(status or '').strip(),
+            str(document_class or '').strip(),
+            str(case_id or '').strip(),
+            bool(active_only),
+        ]):
+            snapshot = self.document_center.filtered_document_snapshot(
+                query=query,
+                status=status,
+                document_class=document_class,
+                case_id=case_id,
+                active_only=active_only,
+                limit=limit,
+            )
+            snapshot['human_ask_report'] = self.document_center.document_human_ask_report(
+                query=query,
+                case_id=case_id,
+                document_class=document_class,
+                status=status,
+                limit=min(limit, 5),
+            )
+            return snapshot
         return self.snapshot_builder.documents(limit=limit)
 
     def _refresh_document_runtime(self) -> None:
@@ -563,6 +595,10 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
         params = parse_qs(parsed.query)
         limit = self._parse_limit(params.get('limit', ['200'])[0])
         status = params.get('status', [None])[0]
+        query = params.get('query', [''])[0]
+        document_class = params.get('document_class', [None])[0]
+        case_id = params.get('case_id', [None])[0]
+        active_only = str(params.get('active_only', ['false'])[0]).strip().lower() in {'1', 'true', 'yes', 'on'}
 
         if parsed.path == '/api/dashboard':
             return self._require_and_run('dashboard.read', lambda profile: self._respond_json(HTTPStatus.OK, self.service.dashboard(profile)))
@@ -571,7 +607,23 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == '/api/requests':
             return self._require_and_run('requests.read', lambda profile: self._respond_json(HTTPStatus.OK, {'items': self.service.list_requests(limit=limit), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/documents':
-            return self._require_and_run('documents.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.documents(limit=limit), 'session': profile.to_public_dict()}))
+            return self._require_and_run(
+                'documents.read',
+                lambda profile: self._respond_json(
+                    HTTPStatus.OK,
+                    {
+                        'item': self.service.documents(
+                            limit=limit,
+                            query=query,
+                            status=status,
+                            document_class=document_class,
+                            case_id=case_id,
+                            active_only=active_only,
+                        ),
+                        'session': profile.to_public_dict(),
+                    },
+                ),
+            )
         if parsed.path == '/api/overrides':
             return self._require_and_run('overrides.read', lambda profile: self._respond_json(HTTPStatus.OK, {'items': self.service.list_overrides(status=status, limit=limit), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/locks':

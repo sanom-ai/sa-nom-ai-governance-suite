@@ -19,6 +19,14 @@ const state = {
   studioPtagDrafts: {},
   studioPtagHistory: {},
   actionContext: null,
+  documentFilters: {
+    query: '',
+    status: '',
+    documentClass: '',
+    caseId: '',
+    activeOnly: false,
+  },
+  documentSearchResult: null,
 };
 
 const root = document.getElementById('dashboard-root');
@@ -247,6 +255,14 @@ logoutButton.addEventListener('click', async () => {
   state.studioPtagDrafts = {};
   state.studioPtagHistory = {};
   state.actionContext = null;
+  state.documentFilters = {
+    query: '',
+    status: '',
+    documentClass: '',
+    caseId: '',
+    activeOnly: false,
+  };
+  state.documentSearchResult = null;
   window.localStorage.removeItem('sanom_api_token');
   window.localStorage.removeItem('sanom_session_token');
   render();
@@ -414,6 +430,21 @@ root.addEventListener('submit', async (event) => {
     return;
   }
 
+  if (event.target.id === 'document-search-form') {
+    event.preventDefault();
+    syncDocumentFiltersFromForm(document);
+    try {
+      await withButtonBusy(event.submitter, () => refreshDocumentSearchResults({ silent: false }), 'Searching...');
+      state.view = 'documents';
+      updateNav();
+      scrollDashboardToTop();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
+  }
+
   if (event.target.id === 'owner-registration-form') {
     event.preventDefault();
     try {
@@ -512,6 +543,13 @@ root.addEventListener('click', async (event) => {
     });
     state.view = targetView;
     updateNav();
+    if (targetView === 'documents' && documentFiltersActive()) {
+      try {
+        await refreshDocumentSearchResults({ silent: true, skipRender: true });
+      } catch (error) {
+        state.lastError = String(error.message || error);
+      }
+    }
     render();
     scrollDashboardToTop();
     return;
@@ -521,6 +559,13 @@ root.addEventListener('click', async (event) => {
   if (clearCaseScopeButton) {
     if (state.actionContext) {
       state.actionContext.caseId = '';
+    }
+    if (state.view === 'documents' && documentFiltersActive()) {
+      try {
+        await refreshDocumentSearchResults({ silent: true, skipRender: true });
+      } catch (error) {
+        state.lastError = String(error.message || error);
+      }
     }
     state.lastError = `Showing the full ${VIEW_TITLES[state.view] || titleCase(state.view)} lane again.`;
     render();
@@ -551,6 +596,28 @@ root.addEventListener('click', async (event) => {
       render();
       return;
     }
+  }
+
+  const clearDocumentFilterButton = event.target.closest('[data-document-filter-clear]');
+  if (clearDocumentFilterButton) {
+    clearDocumentFilters();
+    state.lastError = 'Document runtime search cleared.';
+    render();
+    scrollDashboardToTop();
+    return;
+  }
+
+  const useCurrentCaseFilterButton = event.target.closest('[data-document-filter-current-case]');
+  if (useCurrentCaseFilterButton) {
+    state.documentFilters.caseId = getActionContextCaseId() || '';
+    try {
+      await refreshDocumentSearchResults({ silent: false });
+      scrollDashboardToTop();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+    }
+    return;
   }
 
   const clearDocumentButton = event.target.closest('[data-document-clear]');
@@ -1261,6 +1328,11 @@ async function loadDashboard() {
     state.snapshot = snapshot;
     state.session = snapshot.session || null;
     state.authRequired = false;
+    if (state.view === 'documents' && documentFiltersActive()) {
+      await refreshDocumentSearchResults({ silent: true, skipRender: true });
+    } else if (!documentFiltersActive()) {
+      state.documentSearchResult = null;
+    }
     render();
   } catch (error) {
     const message = String(error.message || error);
@@ -1299,6 +1371,92 @@ async function copyTextToClipboard(text) {
   field.select();
   document.execCommand('copy');
   document.body.removeChild(field);
+}
+
+
+function getDocumentFilterState() {
+  return {
+    query: String(state.documentFilters?.query || '').trim(),
+    status: String(state.documentFilters?.status || '').trim(),
+    documentClass: String(state.documentFilters?.documentClass || '').trim(),
+    caseId: String(state.documentFilters?.caseId || '').trim(),
+    activeOnly: Boolean(state.documentFilters?.activeOnly),
+  };
+}
+
+function getEffectiveDocumentFilterState() {
+  const filters = getDocumentFilterState();
+  if (!filters.caseId) {
+    filters.caseId = getActionContextCaseId() || '';
+  }
+  return filters;
+}
+
+function documentFiltersActive(filters = getDocumentFilterState()) {
+  return Boolean(filters.query || filters.status || filters.documentClass || filters.caseId || filters.activeOnly);
+}
+
+function syncDocumentFiltersFromForm(documentRef = document) {
+  state.documentFilters = {
+    query: documentRef.getElementById('document-search-query')?.value.trim() || '',
+    status: documentRef.getElementById('document-search-status')?.value.trim() || '',
+    documentClass: documentRef.getElementById('document-search-class')?.value.trim() || '',
+    caseId: documentRef.getElementById('document-search-case-id')?.value.trim() || '',
+    activeOnly: Boolean(documentRef.getElementById('document-search-active-only')?.checked),
+  };
+  return getDocumentFilterState();
+}
+
+function clearDocumentFilters() {
+  state.documentFilters = {
+    query: '',
+    status: '',
+    documentClass: '',
+    caseId: '',
+    activeOnly: false,
+  };
+  state.documentSearchResult = null;
+}
+
+function buildDocumentQueryString(filters = getEffectiveDocumentFilterState()) {
+  const params = new URLSearchParams();
+  if (filters.query) params.set('query', filters.query);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.documentClass) params.set('document_class', filters.documentClass);
+  if (filters.caseId) params.set('case_id', filters.caseId);
+  if (filters.activeOnly) params.set('active_only', 'true');
+  params.set('limit', '100');
+  return params.toString();
+}
+
+async function refreshDocumentSearchResults({ silent = false, skipRender = false } = {}) {
+  const filters = getDocumentFilterState();
+  if (!documentFiltersActive(filters)) {
+    state.documentSearchResult = null;
+    if (!skipRender) render();
+    return null;
+  }
+  const response = await apiFetch(`/api/documents?${buildDocumentQueryString(getEffectiveDocumentFilterState())}`);
+  state.documentSearchResult = response.item || null;
+  if (!silent) {
+    const total = Number(state.documentSearchResult?.summary?.documents_total || 0);
+    state.lastError = total
+      ? `Showing ${total} governed document${total === 1 ? '' : 's'} from the current runtime search.`
+      : 'No governed documents matched the current runtime search.';
+  }
+  if (!skipRender) render();
+  return state.documentSearchResult;
+}
+
+function buildDocumentFilterPills(filters = getDocumentFilterState(), effectiveFilters = getEffectiveDocumentFilterState()) {
+  const pills = [];
+  if (filters.query) pills.push(`Query: ${filters.query}`);
+  if (filters.status) pills.push(`Status: ${formatStatusLabel(filters.status)}`);
+  if (filters.documentClass) pills.push(`Class: ${titleCase(filters.documentClass.replaceAll('_', ' '))}`);
+  if (filters.caseId) pills.push(`Case: ${filters.caseId}`);
+  if (filters.activeOnly) pills.push('Active only');
+  if (effectiveFilters.caseId && !filters.caseId) pills.push(`Case scope: ${effectiveFilters.caseId}`);
+  return pills;
 }
 
 async function apiFetch(path, options = {}, auth = {}) {
@@ -3128,12 +3286,19 @@ function renderCaseEmptyState() {
 }
 
 function renderDocuments(snapshot) {
-  const documentsSurface = snapshot.documents || { summary: {}, items: [], document_classes: [], human_ask_report: { summary: {}, items: [], narrative: '' } };
+  const documentsSurfaceBase = snapshot.documents || { summary: {}, items: [], document_classes: [], human_ask_report: { summary: {}, items: [], narrative: '' } };
+  const explicitFilters = getDocumentFilterState();
+  const retrievalActive = documentFiltersActive(explicitFilters);
+  const documentsSurface = retrievalActive && state.documentSearchResult ? state.documentSearchResult : documentsSurfaceBase;
   const summary = documentsSurface.summary || {};
   const items = Array.isArray(documentsSurface.items) ? documentsSurface.items : [];
   const classes = Array.isArray(documentsSurface.document_classes) ? documentsSurface.document_classes : [];
-  const humanAskReport = documentsSurface.human_ask_report || { summary: {}, items: [], narrative: '' };
-  const latestLabel = items.length ? `${items[0].document_number} | ${shortTime(items[0].updated_at)}` : 'No governed document has been created yet.';
+  const humanAskReport = documentsSurface.human_ask_report || documentsSurfaceBase.human_ask_report || { summary: {}, items: [], narrative: '' };
+  const latestLabel = items.length
+    ? `${items[0].document_number} | ${shortTime(items[0].updated_at)}`
+    : retrievalActive
+      ? 'No governed document matched the current runtime search.'
+      : 'No governed document has been created yet.';
   const classChips = Object.entries(summary.document_class_counts || {})
     .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0))
     .slice(0, 5);
@@ -3151,7 +3316,7 @@ function renderDocuments(snapshot) {
             <p class="hero-subtitle">This lane turns documents into first-class runtime objects with numbering, active-version logic, case linkage, and reviewable proof instead of leaving them as static files outside the operating story.</p>
           </div>
           <div class="hero-chip-row">
-            ${statusBadge(summary.in_review_total ? 'review active' : (summary.published_total ? 'published documents live' : 'document runtime ready'))}
+            ${statusBadge(retrievalActive ? 'filtered runtime scope' : (summary.in_review_total ? 'review active' : (summary.published_total ? 'published documents live' : 'document runtime ready')))}
             ${statusBadge(summary.case_linked_total ? 'case linked' : 'standalone lane')}
           </div>
         </div>
@@ -3185,7 +3350,7 @@ function renderDocuments(snapshot) {
       </article>
     </section>
     <section class="metrics-grid metrics-grid-luxury">
-      ${metricCard('Documents', summary.documents_total || 0, 'accent', 'Governed documents currently tracked in the runtime ledger.')}
+      ${metricCard('Documents', summary.documents_total || 0, 'accent', retrievalActive ? 'Governed documents visible in the current runtime retrieval scope.' : 'Governed documents currently tracked in the runtime ledger.')}
       ${metricCard('Published', summary.published_total || 0, (summary.published_total || 0) ? 'success' : 'default', 'Documents whose active revision is already published.')}
       ${metricCard('In review', summary.in_review_total || 0, (summary.in_review_total || 0) ? 'warning' : 'success', 'Drafts currently sitting in the formal review lane.')}
       ${metricCard('Approved', summary.approved_total || 0, (summary.approved_total || 0) ? 'accent' : 'default', 'Documents approved but not yet pushed through publish.')}
@@ -3193,28 +3358,78 @@ function renderDocuments(snapshot) {
       ${metricCard('Case linked', summary.case_linked_total || 0, (summary.case_linked_total || 0) ? 'accent' : 'default', 'Documents already tied into a governed business issue or operating story.')}
     </section>
     <section class="split-grid">
-      ${renderDocumentEditorCard(classes, editingDocument)}
+      ${renderDocumentRetrievalCard(classes, summary, explicitFilters, retrievalActive)}
       ${renderDocumentWorkQueues(workQueues)}
     </section>
     <section class="split-grid">
-      <article class="card stack">
-        <div><div class="eyebrow muted">Document classes</div><h3 class="card-title">Runtime class catalog</h3><p class="card-subtitle">These are the governed document classes currently supported by the runtime foundation.</p></div>
-        <div class="hero-chip-row">${(classes.length ? classes : []).map((entry) => `<span class="pill">${escapeHtml(entry.label || entry.document_class || 'Document')} | ${escapeHtml(entry.prefix || '-')}</span>`).join('')}</div>
-        ${classChips.length ? keyValue(classChips.map(([label, total]) => [titleCase(label.replaceAll('_', ' ')), String(total || 0)])) : '<p class="muted">No class distribution is available yet.</p>'}
-      </article>
-      <article class="card stack">
-        <div><div class="eyebrow muted">Document runtime contract</div><h3 class="card-title">What this lane guarantees</h3><p class="card-subtitle">This surface is about lifecycle control, not just file storage.</p></div>
-        ${keyValue([
-          ['Numbering', 'Class prefix plus year plus sequence'],
-          ['Active version', 'Published revision stays active until a newer approved revision is published'],
-          ['Lifecycle', 'Draft to review to approval to publish to supersede or archive'],
-          ['Proof continuity', 'Documents can stay tied to cases, Human Ask, and audit history'],
-        ])}
-      </article>
+      ${renderDocumentEditorCard(classes, editingDocument)}
+      ${renderDocumentRuntimeContractCard(classes, classChips)}
     </section>
     <section class="case-grid">
-      ${items.length ? items.map((item) => renderDocumentCard(item)).join('') : renderDocumentEmptyState()}
+      ${items.length ? items.map((item) => renderDocumentCard(item)).join('') : renderDocumentEmptyState(retrievalActive)}
     </section>
+  `;
+}
+
+function renderDocumentRetrievalCard(classes, summary, filters, retrievalActive) {
+  const effectiveFilters = getEffectiveDocumentFilterState();
+  const pills = buildDocumentFilterPills(filters, effectiveFilters);
+  const classDistribution = Object.entries(summary.document_class_counts || {})
+    .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0))
+    .slice(0, 4);
+  const scopedCaseId = getActionContextCaseId() || '';
+  return `
+    <article class="card stack">
+      <div><div class="eyebrow muted">Document retrieval</div><h3 class="card-title">Find the governed document you need</h3><p class="card-subtitle">Search the live runtime by title, status, class, or case without losing lifecycle continuity.</p></div>
+      <form id="document-search-form" class="composer-grid">
+        <div class="span-2"><label class="permission-note" for="document-search-query">Search query</label><input id="document-search-query" value="${escapeHtml(filters.query || '')}" placeholder="Vendor policy, escalation, retention, finance" /></div>
+        <div><label class="permission-note" for="document-search-status">Status</label><select id="document-search-status">${renderSelectOptions([
+          ['', 'All statuses'],
+          ['draft', 'Draft'],
+          ['in_review', 'In review'],
+          ['approved', 'Approved'],
+          ['published', 'Published'],
+          ['archived', 'Archived'],
+        ], filters.status || '')}</select></div>
+        <div><label class="permission-note" for="document-search-class">Document class</label><select id="document-search-class">${renderSelectOptions([
+          ['', 'All classes'],
+          ...classes.map((entry) => [entry.document_class || '', entry.label || entry.document_class || 'Document']),
+        ], filters.documentClass || '')}</select></div>
+        <div><label class="permission-note" for="document-search-case-id">Case id</label><input id="document-search-case-id" value="${escapeHtml(filters.caseId || '')}" placeholder="request:req_001 or CASE-DOC-001" /></div>
+        <div class="span-2"><label class="permission-note" for="document-search-active-only"><input id="document-search-active-only" type="checkbox"${filters.activeOnly ? ' checked' : ''} /> Active documents only</label></div>
+        <div class="span-2 inline-actions">
+          <button class="action-button" type="submit">Apply runtime search</button>
+          <button class="action-button action-button-muted" type="button" data-document-filter-clear="true">Clear filters</button>
+          ${scopedCaseId && !filters.caseId ? '<button class="action-button action-button-muted" type="button" data-document-filter-current-case="true">Use current case</button>' : ''}
+        </div>
+      </form>
+      <div class="trace-box"><strong>Runtime retrieval</strong><p class="muted">${escapeHtml(retrievalActive ? `Showing ${summary.documents_total || 0} governed documents from the current runtime search.` : 'Showing the live document center surface. Apply a runtime search when you need to narrow the lane by query, status, class, or case.')}</p></div>
+      ${pills.length ? `<div class="hero-chip-row">${pills.map((pill) => `<span class="pill">${escapeHtml(pill)}</span>`).join('')}</div>` : '<span class="permission-note">No retrieval filters are active.</span>'}
+      ${keyValue([
+        ['Visible results', String(summary.documents_total || 0)],
+        ['Published', String(summary.published_total || 0)],
+        ['In review', String(summary.in_review_total || 0)],
+        ['Approved', String(summary.approved_total || 0)],
+        ['Case linked', String(summary.case_linked_total || 0)],
+      ])}
+      ${classDistribution.length ? `<div class="trace-box"><strong>Class distribution</strong>${keyValue(classDistribution.map(([label, total]) => [titleCase(String(label).replaceAll('_', ' ')), String(total || 0)]))}</div>` : ''}
+    </article>
+  `;
+}
+
+function renderDocumentRuntimeContractCard(classes, classChips) {
+  return `
+    <article class="card stack">
+      <div><div class="eyebrow muted">Document runtime contract</div><h3 class="card-title">What this lane guarantees</h3><p class="card-subtitle">This surface is about lifecycle control and readable retrieval, not just file storage.</p></div>
+      <div class="hero-chip-row">${(classes.length ? classes : []).map((entry) => `<span class="pill">${escapeHtml(entry.label || entry.document_class || 'Document')} | ${escapeHtml(entry.prefix || '-')}</span>`).join('')}</div>
+      ${classChips.length ? keyValue(classChips.map(([label, total]) => [titleCase(String(label).replaceAll('_', ' ')), String(total || 0)])) : '<p class="muted">No class distribution is available yet.</p>'}
+      ${keyValue([
+        ['Numbering', 'Class prefix plus year plus sequence'],
+        ['Active version', 'Published revision stays active until a newer approved revision is published'],
+        ['Lifecycle', 'Draft to review to approval to publish to supersede or archive'],
+        ['Proof continuity', 'Documents can stay tied to cases, Human Ask, and audit history'],
+      ])}
+    </article>
   `;
 }
 
@@ -3366,6 +3581,10 @@ function renderDocumentWorkQueues(items) {
         </div>`).join('') : '<p class="muted">No document review or publish queues are active right now. Draft, review, and publish work will appear here as soon as the runtime needs attention.</p>'}
     </article>
   `;
+}
+
+function renderSelectOptions(options, selectedValue = '') {
+  return options.map(([value, label]) => `<option value="${escapeHtml(value || '')}"${String(value || '') === String(selectedValue || '') ? ' selected' : ''}>${escapeHtml(label || value || '')}</option>`).join('');
 }
 
 function renderDocumentActionButtons(item) {

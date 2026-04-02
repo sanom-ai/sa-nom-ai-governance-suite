@@ -262,3 +262,82 @@ def test_dashboard_document_runtime_flow_records_auditable_lifecycle_events():
         assert 'governed_document_approved' in audit_actions
         assert 'governed_document_published' in audit_actions
         assert 'governed_document_archived' in audit_actions
+
+
+def test_filtered_document_snapshot_preserves_summary_and_filters():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        service.create_document(
+            {
+                "title": "Vendor Escalation Procedure",
+                "document_class": "procedure",
+                "content": "Escalate supplier issues within 24 hours.",
+                "case_id": "CASE-REQ-9101",
+                "business_domain": "vendor_risk",
+                "tags": ["vendor", "escalation"],
+            },
+            created_by="OPS_OWNER",
+        )
+        service.create_document(
+            {
+                "title": "Finance Approval Form",
+                "document_class": "form",
+                "content": "Finance approval routing sheet.",
+                "case_id": "CASE-REQ-9102",
+                "business_domain": "finance",
+                "tags": ["finance"],
+            },
+            created_by="FIN_OWNER",
+        )
+
+        snapshot = service.filtered_document_snapshot(query="vendor", document_class="procedure", case_id="CASE-REQ-9101")
+
+        assert snapshot["summary"]["documents_total"] == 1
+        assert snapshot["summary"]["document_class_counts"]["procedure"] == 1
+        assert snapshot["items"][0]["title"] == "Vendor Escalation Procedure"
+        assert snapshot["filters"]["query"] == "vendor"
+        assert snapshot["filters"]["document_class"] == "procedure"
+        assert snapshot["filters"]["case_id"] == "CASE-REQ-9101"
+
+
+def test_dashboard_service_documents_supports_filtered_runtime_retrieval():
+    with workspace_temp_dir() as temp_path:
+        service = build_dashboard_service(temp_path)
+        operator = build_profile('operator', extra_permissions={'documents.publish', 'documents.archive'})
+        reviewer = build_profile('reviewer')
+
+        first = service.create_document(
+            {
+                'title': 'Vendor Risk Standard',
+                'document_class': 'standard',
+                'content': 'Vendor risk controls.',
+                'case_id': 'request:req_doc_1',
+                'owner_id': 'OPS_OWNER',
+                'approver_id': 'LEGAL_OWNER',
+            },
+            operator,
+        )
+        second = service.create_document(
+            {
+                'title': 'Legal Review Playbook',
+                'document_class': 'procedure',
+                'content': 'Legal review guidance.',
+                'case_id': 'request:req_doc_2',
+                'owner_id': 'LEGAL_OWNER',
+                'approver_id': 'EXEC_OWNER',
+            },
+            operator,
+        )
+        service.submit_document_review(first['document_id'], {'note': 'Ready for legal review'}, operator)
+        service.approve_document(first['document_id'], {'note': 'Approved'}, reviewer)
+        service.publish_document(first['document_id'], {'note': 'Released'}, operator)
+
+        filtered = service.documents(query='vendor', document_class='standard', status='published', case_id='request:req_doc_1', active_only=True, limit=10)
+
+        assert filtered['summary']['documents_total'] == 1
+        assert filtered['summary']['published_total'] == 1
+        assert filtered['items'][0]['document_id'] == first['document_id']
+        assert filtered['items'][0]['title'] == 'Vendor Risk Standard'
+        assert filtered['human_ask_report']['summary']['documents_total'] == 1
+        assert second['document_id'] != filtered['items'][0]['document_id']

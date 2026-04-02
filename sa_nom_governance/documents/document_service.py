@@ -234,19 +234,8 @@ class GovernedDocumentService:
         return [self._document_payload(item, compact=True) for item in filtered]
 
     def search_documents(self, query: str = "", **filters: object) -> list[dict[str, object]]:
-        needle = str(query or "").strip().lower()
-        limit = filters.get("limit")
-        items = self.store.list_documents()
-        matches = []
-        for item in items:
-            if not self._matches_filters(item, **filters):
-                continue
-            if needle and needle not in self._search_blob(item):
-                continue
-            matches.append(self._document_payload(item, compact=True))
-        if limit is not None:
-            matches = matches[: int(limit)]
-        return matches
+        records = self._filtered_records(query=query, **filters)
+        return [self._document_payload(item, compact=True) for item in records]
 
     def document_center_snapshot(self, *, limit: int = 50) -> dict[str, object]:
         items = self.store.list_documents()
@@ -254,6 +243,37 @@ class GovernedDocumentService:
             "summary": self._summary(items),
             "items": [self._document_payload(item, compact=True) for item in items[:limit]],
             "document_classes": self.document_classes(),
+        }
+
+    def filtered_document_snapshot(
+        self,
+        query: str = "",
+        *,
+        status: str | None = None,
+        document_class: str | None = None,
+        case_id: str | None = None,
+        active_only: bool = False,
+        limit: int = 50,
+    ) -> dict[str, object]:
+        items = self._filtered_records(
+            query=query,
+            status=status,
+            document_class=document_class,
+            case_id=case_id,
+            active_only=active_only,
+            limit=limit,
+        )
+        return {
+            "summary": self._summary(items),
+            "items": [self._document_payload(item, compact=True) for item in items],
+            "document_classes": self.document_classes(),
+            "filters": {
+                "query": str(query or "").strip(),
+                "status": str(status or "").strip(),
+                "document_class": str(document_class or "").strip(),
+                "case_id": str(case_id or "").strip(),
+                "active_only": bool(active_only),
+            },
         }
 
     def document_human_ask_report(
@@ -307,6 +327,21 @@ class GovernedDocumentService:
             "case_linked_total": case_linked_total,
             "document_class_counts": class_counts,
         }
+
+    def _filtered_records(self, query: str = "", **filters: object) -> list[GovernedDocumentRecord]:
+        needle = str(query or "").strip().lower()
+        limit = filters.get("limit")
+        items = self.store.list_documents()
+        matches = []
+        for item in items:
+            if not self._matches_filters(item, **filters):
+                continue
+            if needle and needle not in self._search_blob(item):
+                continue
+            matches.append(item)
+        if limit is not None:
+            matches = matches[: int(limit)]
+        return matches
 
     def _document_payload(self, document: GovernedDocumentRecord, *, compact: bool = False) -> dict[str, object]:
         current_revision = document.current_revision()
