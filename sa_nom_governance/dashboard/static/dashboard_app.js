@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.2-ui14';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.3-ui15';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.2-ui14';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.3-ui15';
 
 const state = {
   view: 'overview',
@@ -445,7 +445,20 @@ root.addEventListener('click', async (event) => {
 
   const viewJumpButton = event.target.closest('[data-view-jump]');
   if (viewJumpButton) {
-    state.view = viewJumpButton.dataset.viewJump || state.view;
+    const targetView = viewJumpButton.dataset.viewJump || state.view;
+    const focusType = viewJumpButton.dataset.viewJumpFocusType || '';
+    const focusId = viewJumpButton.dataset.viewJumpFocusId || '';
+    if (focusType && focusId) {
+      setActionContext({
+        entityType: focusType,
+        entityId: focusId,
+        view: targetView,
+        title: viewJumpButton.dataset.viewJumpTitle || `Moved to ${VIEW_TITLES[targetView] || titleCase(targetView)}.`,
+        detail: viewJumpButton.dataset.viewJumpDetail || 'The linked governed item stays highlighted in the next lane so you can continue without hunting for it.',
+        actionLabel: viewJumpButton.dataset.viewJumpActionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+      });
+    }
+    state.view = targetView;
     updateNav();
     render();
     scrollDashboardToTop();
@@ -1200,7 +1213,7 @@ function render() {
     snapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
     {
       can,
-      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity },
+      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity, renderCaseReferenceButton },
     },
   );
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
@@ -2594,8 +2607,12 @@ function renderCaseCard(item) {
     ...(item.linked_studio_request_ids || []).slice(0, 2),
   ].filter(Boolean);
   const primaryView = item.primary_view || 'requests';
+  const primaryFocus = resolveCasePrimaryFocus(item, primaryView);
+  const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView);
+  const secondaryView = primaryView !== 'audit' ? 'audit' : 'requests';
+  const secondaryViewLabel = VIEW_TITLES[secondaryView] || titleCase(secondaryView);
   return `
-    <article class="card stack case-card">
+    <article class="card stack case-card${isFocusedEntity('case', item.case_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(item.case_id || 'CASE')}</div>
@@ -2604,7 +2621,7 @@ function renderCaseCard(item) {
         </div>
         <div class="hero-chip-row">
           ${statusBadge(item.status || 'monitoring')}
-          ${statusBadge(VIEW_TITLES[primaryView] || titleCase(primaryView))}
+          ${statusBadge(primaryViewLabel)}
         </div>
       </div>
       ${keyValue([
@@ -2620,8 +2637,20 @@ function renderCaseCard(item) {
         ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
       </div>
       <div class="inline-actions">
-        <button class="action-button" type="button" data-view-jump="${escapeHtml(primaryView)}">${escapeHtml(`Open ${VIEW_TITLES[primaryView] || titleCase(primaryView)}`)}</button>
-        ${primaryView !== 'audit' ? '<button class="action-button action-button-muted" type="button" data-view-jump="audit">Open Audit</button>' : '<button class="action-button action-button-muted" type="button" data-view-jump="requests">Open Requests</button>'}
+        <button class="action-button" type="button" ${buildViewJumpAttributes({
+          view: primaryView,
+          focusType: primaryFocus.entityType,
+          focusId: primaryFocus.entityId,
+          title: item.case_id ? `Case ${item.case_id} opened in ${primaryViewLabel}.` : `Opened ${primaryViewLabel}.`,
+          detail: 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
+          actionLabel: `Open ${primaryViewLabel}`,
+        })}>${escapeHtml(`Open ${primaryViewLabel}`)}</button>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: secondaryView,
+          title: item.case_id ? `Case ${item.case_id} opened in ${secondaryViewLabel}.` : `Opened ${secondaryViewLabel}.`,
+          detail: secondaryView === 'audit' ? 'Use Audit to verify the evidence trail attached to this case.' : 'Use Requests to reopen the linked runtime intake lane.',
+          actionLabel: `Open ${secondaryViewLabel}`,
+        })}>${escapeHtml(`Open ${secondaryViewLabel}`)}</button>
       </div>
     </article>
   `;
@@ -2660,6 +2689,64 @@ function renderCaseEmptyState() {
       </div>
     </article>
   `;
+}
+
+function buildViewJumpAttributes({ view = '', focusType = '', focusId = '', title = '', detail = '', actionLabel = '' } = {}) {
+  const attrs = [`data-view-jump="${escapeHtml(view || 'overview')}"`];
+  if (focusType) attrs.push(`data-view-jump-focus-type="${escapeHtml(focusType)}"`);
+  if (focusId) attrs.push(`data-view-jump-focus-id="${escapeHtml(focusId)}"`);
+  if (title) attrs.push(`data-view-jump-title="${escapeHtml(title)}"`);
+  if (detail) attrs.push(`data-view-jump-detail="${escapeHtml(detail)}"`);
+  if (actionLabel) attrs.push(`data-view-jump-action-label="${escapeHtml(actionLabel)}"`);
+  return attrs.join(' ');
+}
+
+function renderCaseReferenceButton(caseId, caseStatus = '', { sourceView = 'overview', referenceId = '', contextLabel = 'governed work item', label = '' } = {}) {
+  const normalizedCaseId = String(caseId || '').trim();
+  if (!normalizedCaseId) return '';
+  const sourceViewLabel = VIEW_TITLES[sourceView] || titleCase(sourceView || 'overview');
+  const title = referenceId
+    ? `Case ${normalizedCaseId} linked from ${contextLabel} ${referenceId}.`
+    : `Case ${normalizedCaseId} linked from ${sourceViewLabel}.`;
+  const detail = `This ${contextLabel} is already linked into the canonical Cases lane, so you can inspect the full operating story without leaving dashboard flow.`;
+  return `
+    <span class="case-reference-inline">
+      <button class="pill pill-muted case-link-button" type="button" ${buildViewJumpAttributes({
+        view: 'cases',
+        focusType: 'case',
+        focusId: normalizedCaseId,
+        title,
+        detail,
+        actionLabel: 'Open Cases',
+      })}>${escapeHtml(label || normalizedCaseId)}</button>
+      ${caseStatus ? statusBadge(caseStatus) : ''}
+    </span>
+  `;
+}
+
+function resolveCasePrimaryFocus(item, primaryView = '') {
+  const view = primaryView || item.primary_view || 'requests';
+  if (view === 'overrides') {
+    const overrideId = (item.linked_override_ids || [])[0] || (item.linked_request_ids || [])[0] || '';
+    return { entityType: overrideId ? 'override' : '', entityId: overrideId };
+  }
+  if (view === 'human_ask') {
+    const sessionId = (item.linked_session_ids || [])[0] || '';
+    return { entityType: sessionId ? 'human_ask_session' : '', entityId: sessionId };
+  }
+  if (view === 'studio') {
+    const studioRequestId = (item.linked_studio_request_ids || [])[0] || '';
+    return { entityType: studioRequestId ? 'studio_request' : '', entityId: studioRequestId };
+  }
+  if (view === 'conflicts') {
+    const requestId = (item.linked_request_ids || [])[0] || (item.linked_override_ids || [])[0] || '';
+    return { entityType: requestId ? 'request' : '', entityId: requestId };
+  }
+  if (view === 'audit') {
+    return { entityType: '', entityId: '' };
+  }
+  const requestId = (item.linked_request_ids || [])[0] || '';
+  return { entityType: requestId ? 'request' : '', entityId: requestId };
 }
 
 function renderRequests(snapshot) {
@@ -4298,6 +4385,12 @@ function renderStudioRequestCard(item) {
     : readiness.status === 'ready'
       ? 'Structural posture is clear enough for trusted publication.'
       : (readiness.blockers?.[0] || 'This draft still needs validation, simulation, or review movement before publication.');
+  const caseReference = renderCaseReferenceButton(item.case_id, item.case_status, {
+    sourceView: 'studio',
+    referenceId: item.request_id,
+    contextLabel: 'studio draft',
+    label: item.case_id,
+  });
   return `
     <article class="card stack${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <div class="hero-heading">
@@ -4305,6 +4398,7 @@ function renderStudioRequestCard(item) {
           <div class="eyebrow muted">${escapeHtml(summary.role_id || item.request_id)}</div>
           <h3 class="card-title">${escapeHtml(item.structured_jd.role_name || item.request_id)}</h3>
           <p class="card-subtitle">${escapeHtml(item.structured_jd.purpose || 'No purpose provided.')}</p>
+          ${caseReference ? `<div class="table-case-reference">${caseReference}</div>` : ''}
         </div>
         <div class="hero-chip-row">
           ${statusBadge(item.status)}
@@ -4601,12 +4695,30 @@ function renderPtagPreview(source, maxLines = 18) {
 
 function requestTable(rows) {
   if (!rows.length) return emptyState('No request records available.');
-  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => { const focused = isFocusedEntity('request', row.request_id) || isFocusedEntity('override', row.request_id); return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('request', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('override', row.request_id))}"><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`; }).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => {
+    const focused = isFocusedEntity('request', row.request_id) || isFocusedEntity('override', row.request_id);
+    const caseReference = renderCaseReferenceButton(row.case_id, row.case_status, {
+      sourceView: 'requests',
+      referenceId: row.request_id,
+      contextLabel: 'request',
+      label: row.case_id,
+    });
+    return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('request', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('override', row.request_id))}"><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong>${caseReference ? `<div class="table-case-reference">${caseReference}</div>` : ''}<div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 function overrideTable(rows) {
   if (!rows.length) return emptyState('No overrides available.');
-  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => { const focused = isFocusedEntity('override', row.request_id) || isFocusedEntity('request', row.request_id); return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('override', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('request', row.request_id))}"><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`; }).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => {
+    const focused = isFocusedEntity('override', row.request_id) || isFocusedEntity('request', row.request_id);
+    const caseReference = renderCaseReferenceButton(row.case_id, row.case_status, {
+      sourceView: 'overrides',
+      referenceId: row.request_id,
+      contextLabel: 'override packet',
+      label: row.case_id,
+    });
+    return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('override', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('request', row.request_id))}"><td><strong>${escapeHtml(row.request_id)}</strong>${caseReference ? `<div class="table-case-reference">${caseReference}</div>` : ''}<div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
 function lockTable(rows) {

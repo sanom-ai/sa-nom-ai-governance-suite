@@ -2721,3 +2721,34 @@ button:focus-visible {
 .case-timeline-item {
   border: 1px solid rgba(52, 64, 84, 0.08);
 }
+
+.case-reference-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.case-link-button {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.case-link-button:hover {
+  background: rgba(222, 192, 135, 0.18);
+  color: var(--accent-deep);
+  border-color: rgba(185, 146, 79, 0.26);
+}
+
+.case-link-button:focus-visible {
+  outline: 2px solid rgba(185, 146, 79, 0.4);
+  outline-offset: 2px;
+}
+
+.table-case-reference {
+  margin-top: 8px;
+}
+
+.human-ask-case-reference {
+  margin: 2px 0 4px;
+}

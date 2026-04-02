@@ -446,6 +446,9 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
 
         linked_case = next(item for item in case_items if request_id in item.get('linked_request_ids', []))
         timeline_types = {entry.get('event_type') for entry in linked_case.get('timeline', [])}
+        request_row = next(item for item in snapshot.get('requests', []) if item.get('request_id') == request_id)
+        override_row = next(item for item in snapshot.get('overrides', []) if item.get('request_id') == override.request_id)
+        session_row = next(item for item in snapshot.get('human_ask', {}).get('sessions', []) if item.get('session_id') == session['session_id'])
 
         assert case_summary.get('cases_total', 0) >= 1
         assert snapshot.get('summary', {}).get('cases_total', 0) >= 1
@@ -454,7 +457,47 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
         assert override.request_id in linked_case.get('linked_override_ids', [])
         assert session['session_id'] in linked_case.get('linked_session_ids', [])
         assert 'plan-case-001' in linked_case.get('linked_workflow_ids', [])
+        assert request_row.get('case_id') == linked_case.get('case_id')
+        assert override_row.get('case_id') == linked_case.get('case_id')
+        assert session_row.get('case_id') == linked_case.get('case_id')
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(timeline_types)
+
+def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        studio_request = builder.app.role_private_studio.create_request(
+            {
+                'role_name': 'Case Backbone Studio Analyst',
+                'purpose': 'Keep studio authoring linked into the canonical case lane.',
+                'reporting_line': 'LEGAL',
+                'business_domain': 'case_backbone',
+                'operating_mode': 'direct',
+                'assigned_user_id': 'LEGAL_MANAGER_CASE',
+                'executive_owner_id': 'EXEC_OWNER',
+                'seat_id': 'OPS-CASE-STUDIO',
+                'responsibilities': ['Prepare governed role updates'],
+                'allowed_actions': ['review_contract'],
+                'forbidden_actions': ['approve_contract'],
+                'wait_human_actions': ['approve_contract'],
+                'handled_resources': ['contract'],
+                'sample_scenarios': ['Role draft needs linked case visibility'],
+            },
+            requested_by='EXEC_OWNER',
+        )
+
+        snapshot = builder.build()
+        studio_rows = snapshot.get('role_private_studio', {}).get('requests', [])
+        studio_row = next(item for item in studio_rows if item.get('request_id') == studio_request['request_id'])
+        case_items = snapshot.get('cases', {}).get('items', [])
+        linked_case = next(item for item in case_items if studio_request['request_id'] in item.get('linked_studio_request_ids', []))
+
+        assert studio_row.get('case_id') == linked_case.get('case_id')
+        assert studio_row.get('case_status') == linked_case.get('status')
+        assert studio_row.get('case_primary_view') == linked_case.get('primary_view')
+
+
 
 def test_dashboard_notification_delivery_readiness_turns_ready_for_active_external_channels() -> None:
     with TemporaryDirectory() as temp_dir:

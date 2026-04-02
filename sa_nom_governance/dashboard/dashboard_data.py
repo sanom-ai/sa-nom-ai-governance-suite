@@ -93,6 +93,13 @@ class DashboardSnapshotBuilder:
             role_private_studio=role_private_studio,
             audit_entries=audit_entries,
         )
+        self._attach_case_refs(
+            requests=requests,
+            overrides=overrides,
+            human_ask=human_ask,
+            role_private_studio=role_private_studio,
+            cases=cases,
+        )
         operator_notification_center = self.operator_notification_center(
             queue_health=operator_queue_health,
             policy=operator_alert_policy,
@@ -933,6 +940,84 @@ class DashboardSnapshotBuilder:
             },
             'items': items[:limit],
         }
+
+    @staticmethod
+    def _attach_case_refs(
+        *,
+        requests: list[dict[str, object]],
+        overrides: list[dict[str, object]],
+        human_ask: dict[str, object],
+        role_private_studio: dict[str, object],
+        cases: dict[str, object],
+    ) -> None:
+        case_items = cases.get('items', []) if isinstance(cases.get('items', []), list) else []
+        request_refs: dict[str, dict[str, str]] = {}
+        override_refs: dict[str, dict[str, str]] = {}
+        session_refs: dict[str, dict[str, str]] = {}
+        workflow_refs: dict[str, dict[str, str]] = {}
+        studio_refs: dict[str, dict[str, str]] = {}
+
+        def payload(item: dict[str, object]) -> dict[str, str]:
+            return {
+                'case_id': str(item.get('case_id', '') or ''),
+                'case_status': str(item.get('status', 'monitoring') or 'monitoring'),
+                'case_primary_view': str(item.get('primary_view', 'overview') or 'overview'),
+            }
+
+        for item in case_items:
+            ref = payload(item)
+            if not ref['case_id']:
+                continue
+            for request_id in item.get('linked_request_ids', []) if isinstance(item.get('linked_request_ids', []), list) else []:
+                request_refs[str(request_id)] = ref
+            for override_id in item.get('linked_override_ids', []) if isinstance(item.get('linked_override_ids', []), list) else []:
+                override_refs[str(override_id)] = ref
+            for session_id in item.get('linked_session_ids', []) if isinstance(item.get('linked_session_ids', []), list) else []:
+                session_refs[str(session_id)] = ref
+            for workflow_id in item.get('linked_workflow_ids', []) if isinstance(item.get('linked_workflow_ids', []), list) else []:
+                workflow_refs[str(workflow_id)] = ref
+            for studio_request_id in item.get('linked_studio_request_ids', []) if isinstance(item.get('linked_studio_request_ids', []), list) else []:
+                studio_refs[str(studio_request_id)] = ref
+
+        for item in requests:
+            request_id = str(item.get('request_id', '') or '').strip()
+            workflow_id = str(item.get('workflow_id', '') or '').strip()
+            override_id = str(item.get('human_override_request_id', '') or '').strip()
+            ref = request_refs.get(request_id) or workflow_refs.get(workflow_id) or override_refs.get(override_id)
+            if ref:
+                item.update(ref)
+
+        for item in overrides:
+            override_id = str(item.get('request_id', '') or '').strip()
+            origin_request_id = str(item.get('origin_request_id', item.get('request_id', '')) or '').strip()
+            workflow_id = str(item.get('workflow_id', '') or '').strip()
+            ref = override_refs.get(override_id) or request_refs.get(origin_request_id) or workflow_refs.get(workflow_id)
+            if ref:
+                item.update(ref)
+
+        sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
+        for item in sessions:
+            metadata = item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}
+            summary = item.get('summary', {}) if isinstance(item.get('summary', {}), dict) else {}
+            inbox = metadata.get('human_decision_inbox', {}) if isinstance(metadata.get('human_decision_inbox', {}), dict) else {}
+            execution_plan = metadata.get('execution_plan', {}) if isinstance(metadata.get('execution_plan', {}), dict) else {}
+            if not execution_plan:
+                execution_plan = inbox.get('execution_plan', {}) if isinstance(inbox.get('execution_plan', {}), dict) else {}
+            session_id = str(item.get('session_id', '') or '').strip()
+            origin_request_id = str(metadata.get('origin_request_id', metadata.get('request_id', '')) or '').strip()
+            workflow_id = str(execution_plan.get('plan_id', summary.get('queue_execution_plan_id', '')) or '').strip()
+            studio_request_id = str(metadata.get('studio_request_id', '') or '').strip()
+            ref = session_refs.get(session_id) or request_refs.get(origin_request_id) or workflow_refs.get(workflow_id) or studio_refs.get(studio_request_id)
+            if ref:
+                item.update(ref)
+
+        studio_requests = role_private_studio.get('requests', []) if isinstance(role_private_studio.get('requests', []), list) else []
+        for item in studio_requests:
+            request_id = str(item.get('request_id', '') or '').strip()
+            ref = studio_refs.get(request_id)
+            if ref:
+                item.update(ref)
+
 
     @staticmethod
     def _case_display_id(case_key: str) -> str:
