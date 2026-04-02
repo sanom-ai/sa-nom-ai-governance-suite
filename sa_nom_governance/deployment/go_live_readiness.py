@@ -2,24 +2,33 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from sa_nom_governance.deployment.deployment_profile import build_deployment_report
+from sa_nom_governance.utils.config import AppConfig
+
 if TYPE_CHECKING:
     from sa_nom_governance.api.api_engine import EngineApplication
-from sa_nom_governance.utils.config import AppConfig
-from sa_nom_governance.deployment.deployment_profile import build_deployment_report
 
 
-def build_go_live_readiness(config: AppConfig, app: "EngineApplication" | None = None) -> dict[str, Any]:
+def build_go_live_readiness(
+    config: AppConfig,
+    app: "EngineApplication" | None = None,
+    *,
+    app_health: dict[str, Any] | None = None,
+    access_health: dict[str, Any] | None = None,
+    studio_snapshot: dict[str, Any] | None = None,
+    deployment_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if app is None:
         from sa_nom_governance.api.api_engine import build_engine_app
         runtime_app = build_engine_app(config)
     else:
         runtime_app = app
-    deployment_report = build_deployment_report(config).to_dict()
-    app_health = runtime_app.health()
-    access_health = runtime_app.access_control.health()
+    deployment_report = deployment_report if deployment_report is not None else build_deployment_report(config).to_dict()
+    app_health = app_health if app_health is not None else runtime_app.health()
+    access_health = access_health if access_health is not None else runtime_app.access_control.health()
     smoke_report = load_smoke_report(config.startup_smoke_report_path)
     review_pack = load_review_pack_state(config)
-    studio_snapshot = runtime_app.studio_snapshot(limit=100) if hasattr(runtime_app, 'studio_snapshot') else {'summary': {}}
+    studio_snapshot = studio_snapshot if studio_snapshot is not None else (runtime_app.studio_snapshot(limit=100) if hasattr(runtime_app, 'studio_snapshot') else {'summary': {}})
     studio_summary = studio_snapshot.get('summary', {}) if isinstance(studio_snapshot, dict) else {}
     deployment_checks = {
         str(item.get('code', '')): item

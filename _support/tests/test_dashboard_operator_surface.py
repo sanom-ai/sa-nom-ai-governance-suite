@@ -81,6 +81,71 @@ def test_build_operator_decision_lanes_falls_back_to_autonomy_ready() -> None:
 
 
 
+def test_dashboard_snapshot_build_reuses_precomputed_runtime_snapshots() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+        counters = {
+            'health': 0,
+            'list_roles': 0,
+            'compliance_snapshot': 0,
+            'evidence_pack_summary': 0,
+        }
+
+        original_health = builder.app.health
+        original_list_roles = builder.app.list_roles
+        original_compliance_snapshot = builder.app.compliance_snapshot
+        original_evidence_pack_summary = builder.app.evidence_pack_summary
+
+        def counted_health(*args, **kwargs):
+            counters['health'] += 1
+            return original_health(*args, **kwargs)
+
+        def counted_list_roles(*args, **kwargs):
+            counters['list_roles'] += 1
+            return original_list_roles(*args, **kwargs)
+
+        def counted_compliance_snapshot(*args, **kwargs):
+            counters['compliance_snapshot'] += 1
+            return original_compliance_snapshot(*args, **kwargs)
+
+        def counted_evidence_pack_summary(*args, **kwargs):
+            counters['evidence_pack_summary'] += 1
+            return original_evidence_pack_summary(*args, **kwargs)
+
+        builder.app.health = counted_health
+        builder.app.list_roles = counted_list_roles
+        builder.app.compliance_snapshot = counted_compliance_snapshot
+        builder.app.evidence_pack_summary = counted_evidence_pack_summary
+
+        snapshot = builder.build()
+
+        assert snapshot.get('summary', {}).get('operational_readiness_status') in {'ready', 'monitoring', 'attention_required'}
+        assert counters['health'] == 1
+        assert counters['list_roles'] == 1
+        assert counters['compliance_snapshot'] == 1
+        assert counters['evidence_pack_summary'] == 1
+
+
+def test_engine_health_reuses_dispatcher_health_snapshot() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+        counter = {'dispatcher_health': 0}
+        original_dispatcher_health = builder.app.integration_dispatcher.health
+
+        def counted_dispatcher_health(*args, **kwargs):
+            counter['dispatcher_health'] += 1
+            return original_dispatcher_health(*args, **kwargs)
+
+        builder.app.integration_dispatcher.health = counted_dispatcher_health
+
+        health = builder.app.health()
+
+        assert health.get('status') in {'ok', 'degraded'}
+        assert counter['dispatcher_health'] == 1
+
+
 def test_dashboard_snapshot_exposes_missing_usability_proof_status() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)

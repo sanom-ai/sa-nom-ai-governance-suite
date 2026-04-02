@@ -56,6 +56,7 @@ class EngineApplication:
         studio_summary = self.role_private_studio.studio_snapshot(limit=20).get('summary', {})
         human_ask_summary = self.human_ask.human_ask_snapshot(limit=20).get('summary', {})
         backup_summary = self.backup_manager.summary()
+        dispatcher_health = self.integration_dispatcher.health()
         known_roles = roles if roles is not None else self.list_roles()
         invalid_roles = [role for role in known_roles if role.get('status') == 'invalid']
         hierarchy_summary = self.engine.hierarchy_registry.health()
@@ -134,8 +135,8 @@ class EngineApplication:
             'persistence_layer': persistence_summary,
             'integration_registry': self.integration_registry.health(),
             'model_providers': self.model_provider_registry.health(),
-            'integration_deliveries': self.integration_dispatcher.health(),
-            'coordination_layer': self.integration_dispatcher.health().get('coordination', {}),
+            'integration_deliveries': dispatcher_health,
+            'coordination_layer': dispatcher_health.get('coordination', {}),
             'workflow_state': self.engine.workflow_state_store.summary(),
             'runtime_recovery': self.engine.runtime_recovery_store.summary(),
             'role_library': {
@@ -147,24 +148,31 @@ class EngineApplication:
             },
         }
 
-    def health(self) -> dict[str, object]:
-        roles = self.list_roles()
-        base = self._base_health(roles=roles)
-        access_health = self.access_control.health()
-        evidence_summary = self.evidence_builder.summary()
+    def health(
+        self,
+        *,
+        roles: list[dict[str, object]] | None = None,
+        access_control_health: dict[str, object] | None = None,
+        evidence_summary: dict[str, object] | None = None,
+        base_health: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        known_roles = roles if roles is not None else self.list_roles()
+        base = base_health if base_health is not None else self._base_health(roles=known_roles)
+        access_health = access_control_health if access_control_health is not None else self.access_control.health()
+        evidence = evidence_summary if evidence_summary is not None else self.evidence_builder.summary()
         compliance_snapshot = self.compliance_registry.build_snapshot(
             runtime_health=base,
             access_control_health=access_health,
-            roles=roles,
-            evidence_summary=evidence_summary,
+            roles=known_roles,
+            evidence_summary=evidence,
         )
         return {
             **base,
             'compliance_frameworks': compliance_snapshot['summary'],
-            'evidence_exports': evidence_summary,
+            'evidence_exports': evidence,
         }
 
-    def operational_readiness(self, *, limit: int = 50) -> dict[str, object]:
+    def operational_readiness(self, *, limit: int = 50, health: dict[str, object] | None = None) -> dict[str, object]:
         def inbox_state(item: dict[str, object]) -> str:
             inbox = item.get('human_decision_inbox')
             if isinstance(inbox, dict):
@@ -175,7 +183,7 @@ class EngineApplication:
             autonomy = item.get('governed_autonomy')
             return dict(autonomy) if isinstance(autonomy, dict) else {}
 
-        health = self.health()
+        health = health if health is not None else self.health()
         workflow_items = self.list_workflow_states(limit=limit)
         recovery_items = self.list_runtime_recovery_records(limit=limit)
         dead_letters = self.list_runtime_dead_letters(limit=limit)
@@ -796,14 +804,23 @@ class EngineApplication:
         )
         return result
 
-    def compliance_snapshot(self) -> dict[str, object]:
-        roles = self.list_roles()
-        base = self._base_health(roles=roles)
+    def compliance_snapshot(
+        self,
+        *,
+        roles: list[dict[str, object]] | None = None,
+        runtime_health: dict[str, object] | None = None,
+        access_control_health: dict[str, object] | None = None,
+        evidence_summary: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        known_roles = roles if roles is not None else self.list_roles()
+        base = runtime_health if runtime_health is not None else self._base_health(roles=known_roles)
+        access_health = access_control_health if access_control_health is not None else self.access_control.health()
+        evidence = evidence_summary if evidence_summary is not None else self.evidence_builder.summary()
         return self.compliance_registry.build_snapshot(
             runtime_health=base,
-            access_control_health=self.access_control.health(),
-            roles=roles,
-            evidence_summary=self.evidence_builder.summary(),
+            access_control_health=access_health,
+            roles=known_roles,
+            evidence_summary=evidence,
         )
 
     def list_evidence_packs(self, limit: int = 20) -> list[dict[str, object]]:
@@ -923,6 +940,7 @@ class EngineApplication:
         return result
 
     def integration_snapshot(self, limit: int = 50) -> dict[str, object]:
+        dispatcher_health = self.integration_dispatcher.health()
         return {
             'summary': {
                 **self.integration_registry.health(),
@@ -932,10 +950,12 @@ class EngineApplication:
             'outbox': self.integration_dispatcher.list_outbox_jobs(limit=limit),
             'deliveries': self.integration_dispatcher.list_deliveries(limit=limit),
             'dead_letters': self.integration_dispatcher.list_dead_letters(limit=limit),
-            'coordination': self.integration_dispatcher.health().get('coordination', {}),
+            'coordination': dispatcher_health.get('coordination', {}),
         }
 
-    def model_provider_snapshot(self) -> dict[str, object]:
+    def model_provider_snapshot(self, *, health: dict[str, object] | None = None) -> dict[str, object]:
+        if isinstance(health, dict) and health:
+            return dict(health)
         return self.model_provider_registry.health()
 
     def probe_model_providers(self, requested_by: str, provider_id: str | None = None) -> dict[str, object]:
