@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui9';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui10';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui9';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui10';
 
 const state = {
   view: 'overview',
@@ -946,7 +946,8 @@ function render() {
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
-  root.innerHTML = `${renderActionFeedback()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${viewContent}`;
+  const focusedInbox = state.view === 'overview' ? '' : renderFocusedWorkInbox(snapshot, state.view);
+  root.innerHTML = `${renderActionFeedback()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${focusedInbox}${viewContent}`;
   updateNav();
 }
 
@@ -1694,7 +1695,7 @@ function renderOverview(snapshot) {
         ${metricCard('Operator critical', snapshot.summary.operator_critical_total || 0, (snapshot.summary.operator_critical_total || 0) ? 'danger' : 'success', 'Queue lanes that are critical or stale under the shared operator aging policy.')}
         ${metricCard('Notify candidates', snapshot.summary.operator_notification_candidates_total || 0, (snapshot.summary.operator_notification_candidates_total || 0) ? 'accent' : 'success', 'Queue lanes that would route through the unified operator notification plan.')}
       </section>
-      ${renderOperatorQueueHealthCard(operatorQueueHealth)}
+      ${renderUnifiedWorkInbox(snapshot)}
       ${renderOperatorNotificationPolicyCard(operatorNotificationCenter)}
       ${renderOperatorNotificationDeliveryCard(operatorNotificationCenter, integrations, operatorNotificationDeliveryReadiness)}
       ${renderFirstRunReadinessCard(firstRunReadiness)}
@@ -1722,6 +1723,93 @@ function renderOverview(snapshot) {
       ${renderIntegrationSection(integrations)}
     `;
   }
+
+
+
+function renderUnifiedWorkInbox(snapshot) {
+  const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
+  const summary = inbox.summary || {};
+  const items = Array.isArray(inbox.items) ? inbox.items.slice(0, 6) : [];
+  if (!items.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Unified Work Inbox</div>
+          <h3 class="card-title">One work surface across approvals, blocked workflows, recovery, and studio promotion.</h3>
+          <p class="card-subtitle">Use this as the executive queue: what needs a human now, what is blocked, and which governed lane is the best next move.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${summary.open_total || 0} open`)}${statusBadge(summary.primary_title || 'Autonomy ready')}</div>
+      </div>
+      ${keyValue([
+        ['Open work', String(summary.open_total || 0)],
+        ['Human required', String(summary.human_required_total || 0)],
+        ['Blocked', String(summary.blocked_total || 0)],
+        ['Monitoring', String(summary.monitoring_total || 0)],
+        ['Ready lanes', String(summary.ready_total || 0)],
+        ['Primary move', titleCase(summary.primary_view || 'overview')],
+      ])}
+      <div class="trace-box"><strong>Primary next move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Continue governed execution.')}</p></div>
+      <div class="view-prelude-grid">
+        ${items.map((item) => renderUnifiedWorkInboxItem(item)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderFocusedWorkInbox(snapshot, currentView) {
+  const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
+  const summary = inbox.summary || {};
+  const items = selectFocusedInboxItems(Array.isArray(inbox.items) ? inbox.items : [], currentView);
+  if (!items.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Next Governed Work</div>
+          <h3 class="card-title">What matters most from this lane right now</h3>
+          <p class="card-subtitle">Stay inside the current workflow, but keep the next human boundary or blocked path visible without going back to Overview.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(titleCase(currentView || 'overview'))}${statusBadge(`${summary.open_total || 0} open`)}</div>
+      </div>
+      <div class="view-prelude-grid">
+        ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function selectFocusedInboxItems(items, currentView) {
+  if (!Array.isArray(items) || !items.length) return [];
+  const relevant = items.filter((item) => item.view === currentView);
+  if (relevant.length) return relevant.slice(0, 3);
+  const primary = items[0] ? [items[0]] : [];
+  const supporting = items.filter((item) => item.view !== currentView).slice(1, 3);
+  return [...primary, ...supporting];
+}
+
+function renderUnifiedWorkInboxItem(item, { compact = false } = {}) {
+  const refs = Array.isArray(item.sample_references) ? item.sample_references.slice(0, compact ? 2 : 3) : [];
+  const toneClass = item.tone === 'danger'
+    ? ' view-prelude-card-danger'
+    : item.tone === 'warning'
+      ? ' view-prelude-card-warning'
+      : '';
+  const queueSummary = `${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h | ref ${item.oldest_reference || '-'}`;
+  return `
+    <article class="view-prelude-card${toneClass}">
+      <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
+      <strong>${escapeHtml(item.title || 'Governed work lane')}</strong>
+      <p class="muted">${escapeHtml(queueSummary)}</p>
+      <div class="hero-chip-row">${statusBadge(item.disposition || 'monitoring')}${statusBadge(item.status || 'ready')}</div>
+      <p class="muted">${escapeHtml(item.next_step || 'Review the next governed move.')}</p>
+      ${refs.length ? `<div class="hero-chip-row">${refs.map((ref) => `<span class="pill">${escapeHtml(ref)}</span>`).join('')}</div>` : ''}
+      <div class="inline-actions">
+        <button class="action-button${compact ? ' action-button-muted' : ''}" type="button" data-view-jump="${escapeHtml(item.view || 'overview')}">${escapeHtml(item.action_label || `Open ${titleCase(item.view || 'overview')}`)}</button>
+      </div>
+    </article>
+  `;
+}
 
 
 function renderFirstRunReadinessCard(firstRunReadiness) {

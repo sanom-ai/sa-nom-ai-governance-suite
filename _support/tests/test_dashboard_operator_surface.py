@@ -61,6 +61,12 @@ def test_dashboard_snapshot_includes_operational_readiness_summary() -> None:
         assert isinstance(summary.get('autonomous_inflight_total'), int)
         assert isinstance(summary.get('human_gate_open_total'), int)
         assert isinstance(summary.get('fail_closed_workflow_total'), int)
+        assert isinstance(summary.get('work_inbox_open_total'), int)
+        assert isinstance(summary.get('work_inbox_attention_total'), int)
+        assert isinstance(summary.get('work_inbox_human_required_total'), int)
+        assert isinstance(summary.get('work_inbox_blocked_total'), int)
+        assert isinstance(summary.get('work_inbox_primary_view'), str)
+        assert isinstance(snapshot.get('unified_work_inbox', {}), dict)
         assert first_run.get('status') in {'ready', 'monitoring', 'blocked'}
         assert isinstance(summary.get('first_run_blockers_total'), int)
         assert isinstance(summary.get('first_run_advisories_total'), int)
@@ -300,6 +306,80 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         assert pending_notification.get('channels') == ['dashboard', 'email', 'slack', 'servicenow']
         assert pending_notification.get('external_channels') == ['slack', 'servicenow']
         assert any(alert.get('alert_id') == 'operator_queue_pending_overrides' for alert in runtime_alerts)
+
+
+
+def test_dashboard_snapshot_exposes_unified_work_inbox_surface() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        context = ExecutionContext(
+            request_id='REQ-INBOX-1',
+            requester='operator@example.com',
+            action='approve_group_policy',
+            role_id='OPS_REVIEW',
+            payload={'resource': 'contract', 'resource_id': 'C-INBOX-1'},
+            metadata={},
+        )
+        override = builder.app.engine.human_override.create_state(
+            context,
+            required_by='reviewer@example.com',
+            reason='High-risk action requires human review.',
+        )
+        builder.app.engine.human_override._requests[override.request_id].created_at = (
+            datetime.now(timezone.utc) - timedelta(hours=72)
+        ).isoformat()
+        builder.app.engine.human_override._persist()
+
+        studio_request = builder.app.role_private_studio.create_request(
+            {
+                'role_name': 'Inbox Publish Candidate',
+                'purpose': 'Prepare a publish-ready hat for unified work inbox coverage.',
+                'reporting_line': 'LEGAL',
+                'business_domain': 'legal_operations',
+                'operating_mode': 'indirect',
+                'assigned_user_id': 'LEGAL_MANAGER_30',
+                'executive_owner_id': 'EXEC_OWNER',
+                'seat_id': 'OPS-INBOX-STUDIO',
+                'responsibilities': ['review incoming contracts', 'flag risk'],
+                'allowed_actions': ['review_contract', 'flag_risk', 'advise_compliance'],
+                'forbidden_actions': ['sign_contract'],
+                'wait_human_actions': [],
+                'handled_resources': ['contract'],
+                'financial_sensitivity': 'medium',
+                'legal_sensitivity': 'high',
+                'compliance_sensitivity': 'high',
+            },
+            requested_by='EXEC_OWNER',
+        )
+        builder.app.role_private_studio.review_request(studio_request['request_id'], reviewer='EXEC_OWNER', decision='approve', note='Ready for publish.')
+
+        snapshot = builder.build()
+        inbox = snapshot.get('unified_work_inbox', {})
+        summary = inbox.get('summary', {}) if isinstance(inbox, dict) else {}
+        items = inbox.get('items', []) if isinstance(inbox, dict) else []
+
+        pending_lane = next(item for item in items if item.get('lane_id') == 'pending_overrides')
+        studio_lane = next(item for item in items if item.get('lane_id') == 'studio_publish_queue')
+
+        assert summary.get('open_total', 0) >= 2
+        assert summary.get('attention_total', 0) >= 1
+        assert summary.get('human_required_total', 0) >= 1
+        assert summary.get('ready_total', 0) >= 1
+        assert summary.get('primary_view') in {'overrides', 'studio', 'overview'}
+        assert pending_lane.get('view') == 'overrides'
+        assert pending_lane.get('disposition') == 'human_required'
+        assert pending_lane.get('total') == 1
+        assert pending_lane.get('oldest_age_hours', 0) >= 72
+        assert pending_lane.get('sample_references') == [override.request_id]
+        assert studio_lane.get('view') == 'studio'
+        assert studio_lane.get('disposition') == 'ready'
+        assert studio_lane.get('total') >= 1
+        assert studio_request['request_id'] in studio_lane.get('sample_references', [])
+        assert snapshot.get('summary', {}).get('work_inbox_open_total', 0) >= 2
+        assert snapshot.get('summary', {}).get('work_inbox_human_required_total', 0) >= 1
+        assert snapshot.get('summary', {}).get('work_inbox_primary_view') == summary.get('primary_view')
 
 
 def test_dashboard_notification_delivery_readiness_turns_ready_for_active_external_channels() -> None:
