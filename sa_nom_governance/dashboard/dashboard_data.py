@@ -78,6 +78,14 @@ class DashboardSnapshotBuilder:
             operational_readiness=operational_readiness,
             policy=operator_alert_policy,
         )
+        unified_work_inbox = self.unified_work_inbox(
+            overrides=overrides,
+            human_ask=human_ask,
+            role_private_studio=role_private_studio,
+            operational_readiness=operational_readiness,
+            operator_queue_health=operator_queue_health,
+            operator_decision_lanes=operator_decision_lanes,
+        )
         operator_notification_center = self.operator_notification_center(
             queue_health=operator_queue_health,
             policy=operator_alert_policy,
@@ -212,6 +220,11 @@ class DashboardSnapshotBuilder:
                 'model_providers_configured_total': model_providers.get('configured_providers', 0),
                 'operator_attention_total': sum(1 for item in operator_queue_health.get('items', []) if item.get('status') in {'warning', 'critical', 'stale'}),
                 'operator_critical_total': sum(1 for item in operator_queue_health.get('items', []) if item.get('status') in {'critical', 'stale'}),
+                'work_inbox_open_total': int((unified_work_inbox.get('summary', {}) or {}).get('open_total', 0) or 0),
+                'work_inbox_attention_total': int((unified_work_inbox.get('summary', {}) or {}).get('attention_total', 0) or 0),
+                'work_inbox_human_required_total': int((unified_work_inbox.get('summary', {}) or {}).get('human_required_total', 0) or 0),
+                'work_inbox_blocked_total': int((unified_work_inbox.get('summary', {}) or {}).get('blocked_total', 0) or 0),
+                'work_inbox_primary_view': str((unified_work_inbox.get('summary', {}) or {}).get('primary_view', 'overview')),
                 'operator_notification_candidates_total': int(operator_notification_center.get('dispatch_candidates_total', 0) or 0),
                 'operator_notification_channels_total': int(operator_notification_center.get('active_channel_total', 0) or 0),
                 'operator_notification_posture': str(operator_notification_delivery_readiness.get('posture', 'unknown')),
@@ -238,6 +251,7 @@ class DashboardSnapshotBuilder:
             'model_providers': model_providers,
             'operator_alert_policy': operator_alert_policy,
             'operator_queue_health': operator_queue_health,
+            'unified_work_inbox': unified_work_inbox,
             'operator_notification_center': operator_notification_center,
             'operator_notification_delivery_readiness': operator_notification_delivery_readiness,
             'go_live_readiness': go_live_readiness,
@@ -999,6 +1013,243 @@ class DashboardSnapshotBuilder:
             'items': items,
             'attention_total': sum(1 for item in items if item.get('status') in {'warning', 'critical', 'stale'}),
             'critical_total': sum(1 for item in items if item.get('status') in {'critical', 'stale'}),
+        }
+
+
+    def unified_work_inbox(
+        self,
+        *,
+        overrides: list[dict[str, object]],
+        human_ask: dict[str, object],
+        role_private_studio: dict[str, object],
+        operational_readiness: dict[str, object],
+        operator_queue_health: dict[str, object],
+        operator_decision_lanes: list[dict[str, object]],
+    ) -> dict[str, object]:
+        visibility = operational_readiness.get('operator_visibility', {}) if isinstance(operational_readiness.get('operator_visibility', {}), dict) else {}
+        queue_items = operator_queue_health.get('items', []) if isinstance(operator_queue_health.get('items', []), list) else []
+        queue_map = {str(item.get('lane_id', '')): item for item in queue_items if str(item.get('lane_id', ''))}
+        studio_requests = role_private_studio.get('requests', []) if isinstance(role_private_studio.get('requests', []), list) else []
+        sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
+
+        pending_overrides = [item for item in overrides if str(item.get('status', '')) == 'pending']
+        inbox_items = visibility.get('human_decision_inbox', []) if isinstance(visibility.get('human_decision_inbox', []), list) else []
+        blocked_workflows = [
+            item
+            for item in (visibility.get('workflow_backlog', []) if isinstance(visibility.get('workflow_backlog', []), list) else [])
+            if str(item.get('current_state', '')) in {'blocked', 'awaiting_human_confirmation', 'closed_with_exception'}
+        ]
+        recovery_backlog = visibility.get('runtime_recovery_backlog', []) if isinstance(visibility.get('runtime_recovery_backlog', []), list) else []
+        dead_letters = visibility.get('runtime_dead_letters', []) if isinstance(visibility.get('runtime_dead_letters', []), list) else []
+
+        structural_review = [item for item in studio_requests if str((item.get('publish_readiness') or {}).get('status', '')) == 'guarded']
+        publish_ready = [
+            item
+            for item in studio_requests
+            if str((item.get('publish_readiness') or {}).get('status', '')) == 'ready' or str(item.get('status', '')) == 'approved'
+        ]
+        review_queue = [
+            item
+            for item in studio_requests
+            if str(item.get('status', '')) != 'published' and item not in publish_ready and item not in structural_review
+        ]
+
+        lane_configs: dict[str, dict[str, object]] = {
+            'pending_overrides': {
+                'title': 'Pending override approvals',
+                'view': 'overrides',
+                'disposition': 'human_required',
+                'next_step': 'Approve or veto the next override packet before execution resumes.',
+                'operator_note': 'Human override decisions are the last explicit boundary before the runtime continues.',
+                'reference_fields': ['request_id', 'origin_request_id'],
+            },
+            'human_decision_inbox': {
+                'title': 'Human decision inbox',
+                'view': 'human_ask',
+                'disposition': 'human_required',
+                'next_step': 'Review the next governed report or clearance record waiting for a human decision.',
+                'operator_note': 'These records already crossed a real human boundary inside Human Ask.',
+                'reference_fields': ['session_id', 'request_id', 'workflow_id'],
+            },
+            'blocked_workflows': {
+                'title': 'Blocked workflows',
+                'view': 'requests',
+                'disposition': 'blocked',
+                'next_step': 'Inspect the blocked workflow and route it to the correct governed lane.',
+                'operator_note': 'Blocked workflows mean the Director cannot keep moving autonomously on that path.',
+                'reference_fields': ['workflow_id', 'request_id'],
+            },
+            'recovery_backlog': {
+                'title': 'Recovery backlog',
+                'view': 'conflicts',
+                'disposition': 'blocked',
+                'next_step': 'Resume retryable runtime recovery items or fail them closed with evidence.',
+                'operator_note': 'Recovery backlog is where retryable runtime failures wait for deliberate handling.',
+                'reference_fields': ['request_id', 'resumed_request_id'],
+            },
+            'dead_letters': {
+                'title': 'Dead letters',
+                'view': 'conflicts',
+                'disposition': 'blocked',
+                'next_step': 'Review dead-letter events and decide whether they should be retried or retired.',
+                'operator_note': 'Dead letters are the fail-closed end of the runtime recovery path.',
+                'reference_fields': ['request_id', 'event_id'],
+            },
+            'studio_review_queue': {
+                'title': 'Studio review queue',
+                'view': 'studio',
+                'disposition': 'monitoring',
+                'next_step': 'Review the next hat draft that still needs governance feedback or approval.',
+                'operator_note': 'Treat the Studio queue like a promotion pipeline, not a draft pile.',
+                'reference_fields': ['request_id'],
+            },
+            'studio_structural_review': {
+                'title': 'Studio structural review',
+                'view': 'studio',
+                'disposition': 'monitoring',
+                'next_step': 'Resolve PT-OSS structural pressure before trusting the next publish candidate.',
+                'operator_note': 'These hats are governed but not structurally calm enough for trusted release yet.',
+                'reference_fields': ['request_id'],
+            },
+            'studio_publish_queue': {
+                'title': 'Studio publish-ready lane',
+                'view': 'studio',
+                'disposition': 'ready',
+                'next_step': 'Run the final trust check, then publish only from the ready lane.',
+                'operator_note': 'Publish-ready hats are the cleanest place to expand AI workforce safely.',
+                'reference_fields': ['request_id'],
+            },
+        }
+
+        def tone_for(status: str, disposition: str) -> str:
+            if status in {'critical', 'stale'}:
+                return 'danger'
+            if status == 'warning':
+                return 'warning'
+            if disposition == 'ready':
+                return 'success'
+            return 'accent'
+
+        def sample_refs(rows: list[dict[str, object]], reference_fields: list[str], limit: int = 3) -> list[str]:
+            refs: list[str] = []
+            seen: set[str] = set()
+            for row in rows:
+                ref = self._first_present(row, reference_fields)
+                if ref in (None, ''):
+                    continue
+                value = str(ref)
+                if value in seen:
+                    continue
+                seen.add(value)
+                refs.append(value)
+                if len(refs) >= limit:
+                    break
+            return refs
+
+        lane_rows: dict[str, list[dict[str, object]]] = {
+            'pending_overrides': pending_overrides,
+            'human_decision_inbox': inbox_items,
+            'blocked_workflows': blocked_workflows,
+            'recovery_backlog': recovery_backlog,
+            'dead_letters': dead_letters,
+            'studio_review_queue': review_queue,
+            'studio_structural_review': structural_review,
+            'studio_publish_queue': publish_ready,
+        }
+
+        items: list[dict[str, object]] = []
+        for lane_id, rows in lane_rows.items():
+            if not rows:
+                continue
+            config = lane_configs[lane_id]
+            queue_item = queue_map.get(lane_id, {})
+            status = str(queue_item.get('status', 'monitoring'))
+            oldest_hours = int(queue_item.get('oldest_age_hours', 0) or 0)
+            if oldest_hours <= 0:
+                oldest_record = self._oldest_record(rows, ['updated_at', 'created_at', 'captured_at', 'timestamp'])
+                oldest_hours = self._age_hours(oldest_record, ['updated_at', 'created_at', 'captured_at', 'timestamp'])
+            refs = sample_refs(rows, config['reference_fields'])
+            items.append(
+                {
+                    'lane_id': lane_id,
+                    'title': str(config['title']),
+                    'view': str(config['view']),
+                    'disposition': str(config['disposition']),
+                    'status': status,
+                    'tone': tone_for(status, str(config['disposition'])),
+                    'total': len(rows),
+                    'oldest_age_hours': oldest_hours,
+                    'oldest_reference': queue_item.get('oldest_reference') or (refs[0] if refs else '-'),
+                    'next_step': str(config['next_step']),
+                    'operator_note': str(config['operator_note']),
+                    'sample_references': refs,
+                    'action_label': f"Open {str(config['view']).replace('_', ' ').title()}",
+                }
+            )
+
+        action_to_lane = {
+            'clearance_review': 'human_decision_inbox',
+            'human_decision': 'human_decision_inbox',
+            'recovery_resume': 'recovery_backlog',
+            'guarded_follow_up': 'human_decision_inbox',
+        }
+        action_rank = {
+            'clearance_review': 1,
+            'human_decision': 2,
+            'recovery_resume': 3,
+            'guarded_follow_up': 4,
+        }
+        lane_priority = {lane_id: 50 for lane_id in lane_rows.keys()}
+        for lane in operator_decision_lanes:
+            lane_id = action_to_lane.get(str(lane.get('lane_id', '')) )
+            if not lane_id:
+                continue
+            lane_priority[lane_id] = min(lane_priority.get(lane_id, 50), action_rank.get(str(lane.get('lane_id', '')), 50))
+
+        items.sort(
+            key=lambda item: (
+                0 if item.get('tone') == 'danger' else 1 if item.get('tone') == 'warning' else 2 if item.get('disposition') == 'human_required' else 3 if item.get('disposition') == 'blocked' else 4,
+                lane_priority.get(str(item.get('lane_id', '')), 50),
+                -int(item.get('total', 0) or 0),
+                -int(item.get('oldest_age_hours', 0) or 0),
+            )
+        )
+
+        if not items:
+            items.append(
+                {
+                    'lane_id': 'autonomy_ready',
+                    'title': 'Autonomy ready',
+                    'view': 'overview',
+                    'disposition': 'ready',
+                    'status': 'ready',
+                    'tone': 'success',
+                    'total': 0,
+                    'oldest_age_hours': 0,
+                    'oldest_reference': '-',
+                    'next_step': 'No immediate human work is open; continue governed execution.',
+                    'operator_note': 'The Director can keep moving because no explicit human work queue is open right now.',
+                    'sample_references': [],
+                    'action_label': 'Open Overview',
+                }
+            )
+
+        primary = items[0]
+        return {
+            'summary': {
+                'open_total': sum(int(item.get('total', 0) or 0) for item in items),
+                'attention_total': sum(1 for item in items if item.get('tone') in {'warning', 'danger'}),
+                'human_required_total': sum(int(item.get('total', 0) or 0) for item in items if item.get('disposition') == 'human_required'),
+                'blocked_total': sum(int(item.get('total', 0) or 0) for item in items if item.get('disposition') == 'blocked'),
+                'monitoring_total': sum(int(item.get('total', 0) or 0) for item in items if item.get('disposition') == 'monitoring'),
+                'ready_total': sum(int(item.get('total', 0) or 0) for item in items if item.get('disposition') == 'ready'),
+                'lane_total': len(items),
+                'primary_lane_id': primary.get('lane_id', 'overview'),
+                'primary_title': primary.get('title', 'Autonomy ready'),
+                'primary_view': primary.get('view', 'overview'),
+                'primary_next_step': primary.get('next_step', 'Continue governed execution.'),
+            },
+            'items': items[:8],
         }
 
     def operator_notification_center(

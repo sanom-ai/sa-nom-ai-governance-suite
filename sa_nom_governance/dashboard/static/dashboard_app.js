@@ -1,6 +1,6 @@
-﻿import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui7';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.1-ui13';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui7';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.1-ui13';
 
 const state = {
   view: 'overview',
@@ -17,6 +17,7 @@ const state = {
   studioRevisionSelections: {},
   studioPtagDrafts: {},
   studioPtagHistory: {},
+  actionContext: null,
 };
 
 const root = document.getElementById('dashboard-root');
@@ -175,15 +176,33 @@ const VIEW_PERMISSIONS = {
   health: 'health.read',
 };
 
+const ACTIONABLE_BUTTON_SELECTOR = [
+  '[data-dev-lane]',
+  '[data-view-jump]',
+  '[data-path-action]',
+  '[data-studio-clear]',
+  '[data-override-action]',
+  '[data-session-revoke]',
+  '[data-audit-action]',
+  '[data-ops-action]',
+  '[data-integration-action]',
+  '[data-human-ask-action]',
+  '[data-studio-governance-select]',
+  '[data-studio-template-apply]',
+  '[data-studio-panel-action]',
+  '[data-studio-action]',
+].join(', ');
+
 navList.addEventListener('click', (event) => {
   const target = event.target.closest('.nav-item');
   if (!target) return;
   state.view = target.dataset.view;
   updateNav();
   render();
+  scrollDashboardToTop();
 });
 
-refreshButton.addEventListener('click', () => loadDashboard());
+refreshButton.addEventListener('click', () => withButtonBusy(refreshButton, () => loadDashboard(), 'Refreshing...'));
 logoutButton.addEventListener('click', async () => {
   if (state.sessionToken) {
     try {
@@ -204,6 +223,7 @@ logoutButton.addEventListener('click', async () => {
   state.studioRevisionSelections = {};
   state.studioPtagDrafts = {};
   state.studioPtagHistory = {};
+  state.actionContext = null;
   window.localStorage.removeItem('sanom_api_token');
   window.localStorage.removeItem('sanom_session_token');
   render();
@@ -225,7 +245,7 @@ root.addEventListener('submit', async (event) => {
   if (event.target.id === 'request-form') {
     event.preventDefault();
     try {
-      await apiFetch('/api/request', {
+      const response = await apiFetch('/api/request', {
         method: 'POST',
         body: JSON.stringify({
           requester: document.getElementById('request-requester').value.trim(),
@@ -235,8 +255,23 @@ root.addEventListener('submit', async (event) => {
           metadata: parseJsonField('request-metadata'),
         }),
       });
-      state.lastError = '';
-      state.view = 'requests';
+      const requestItem = response.item || response;
+      const requestId = extractEntityId(response, ['request_id']);
+      const targetView = inferRequestContinuationView(requestItem);
+      state.lastError = requestId ? `Governed request ${requestId} submitted.` : 'Governed request submitted.';
+      setActionContext({
+        entityType: targetView === 'overrides' ? 'override' : 'request',
+        entityId: requestId,
+        view: targetView,
+        title: requestId ? `Request ${requestId} entered the governed runtime.` : 'Governed request entered the runtime.',
+        detail: targetView === 'overrides'
+          ? 'The request crossed a human boundary, so the override lane is the next governed move.'
+          : targetView === 'conflicts'
+            ? 'The request is waiting in a blocked or conflicting lane, and the matching record is highlighted there.'
+            : 'The request is now in the live runtime queue and its matching row stays highlighted for follow-through.',
+        actionLabel: targetView === 'requests' ? 'Open runtime requests' : `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+      });
+      state.view = targetView;
       updateNav();
       await loadDashboard();
     } catch (error) {
@@ -251,19 +286,32 @@ root.addEventListener('submit', async (event) => {
     try {
       const payload = studioPayloadFromForm();
       const editingRequestId = state.studioEditingRequestId;
+      let studioResponse = null;
       if (state.studioEditingRequestId) {
-        await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(state.studioEditingRequestId)}/update`, {
+        studioResponse = await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(state.studioEditingRequestId)}/update`, {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        state.lastError = `Role Private Studio request ${state.studioEditingRequestId} updated.`;
       } else {
-        await apiFetch('/api/role-private-studio/requests', {
+        studioResponse = await apiFetch('/api/role-private-studio/requests', {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        state.lastError = 'Role Private Studio request created.';
       }
+      const requestId = editingRequestId || extractEntityId(studioResponse, ['request_id']);
+      state.lastError = requestId
+        ? (editingRequestId ? `Role Private Studio request ${requestId} updated.` : `Role Private Studio request ${requestId} created.`)
+        : (editingRequestId ? 'Role Private Studio request updated.' : 'Role Private Studio request created.');
+      setActionContext({
+        entityType: 'studio_request',
+        entityId: requestId,
+        view: 'studio',
+        title: requestId ? `Studio draft ${requestId} is ready in Role Private Studio.` : 'Role Private Studio draft saved.',
+        detail: editingRequestId
+          ? 'The updated draft remains highlighted so you can continue review or publication without hunting for it.'
+          : 'The new draft now appears in the studio lanes and remains highlighted for the next governed step.',
+        actionLabel: 'Open Role Private Studio',
+      });
       if (editingRequestId) delete state.studioPtagDrafts[editingRequestId];
       clearStudioEditor();
       state.view = 'studio';
@@ -283,7 +331,17 @@ root.addEventListener('submit', async (event) => {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      state.lastError = buildHumanAskOutcomeMessage(response.item || response, 'Human Ask record created.');
+      const sessionItem = response.item || response;
+      const sessionId = extractEntityId(response, ['session_id']);
+      state.lastError = buildHumanAskOutcomeMessage(sessionItem, 'Human Ask record created.');
+      setActionContext({
+        entityType: 'human_ask_session',
+        entityId: sessionId,
+        view: 'human_ask',
+        title: sessionId ? `Human Ask record ${sessionId} is now active.` : 'Human Ask record created.',
+        detail: 'The new governed record stays highlighted in the transcript lane so you can continue from the exact session that was just opened.',
+        actionLabel: 'Open Human Ask records',
+      });
       state.view = 'human_ask';
       updateNav();
       await loadDashboard();
@@ -304,6 +362,14 @@ root.addEventListener('submit', async (event) => {
       });
       const item = response.item || {};
       state.lastError = `Registration code ${item.registration_code || 'saved'} is active for ${item.organization_name || 'the current organization'} in ${item.deployment_mode || 'private'} mode.`;
+      setActionContext({
+        entityType: '',
+        entityId: '',
+        view: 'health',
+        title: 'Owner registration saved.',
+        detail: 'Runtime Health is the next governed lane because deployment, trust, and operator posture may have changed.',
+        actionLabel: 'Open Runtime Health',
+      });
       state.view = 'health';
       updateNav();
       await loadDashboard();
@@ -350,6 +416,9 @@ root.addEventListener('change', (event) => {
 });
 
 root.addEventListener('click', async (event) => {
+  const actionableButton = event.target.closest(ACTIONABLE_BUTTON_SELECTOR);
+  if (actionableButton) event.preventDefault();
+
   const devLaneButton = event.target.closest('[data-dev-lane]');
   if (devLaneButton) {
     const lane = DEV_LANES[devLaneButton.dataset.devLane || ''];
@@ -359,7 +428,8 @@ root.addEventListener('click', async (event) => {
     state.authRequired = false;
     state.lastError = '';
     window.localStorage.setItem('sanom_api_token', lane.token);
-    await loadDashboard();
+    await withButtonBusy(devLaneButton, () => loadDashboard(), 'Connecting...');
+    scrollDashboardToTop();
     return;
   }
 
@@ -368,6 +438,7 @@ root.addEventListener('click', async (event) => {
     state.view = viewJumpButton.dataset.viewJump || state.view;
     updateNav();
     render();
+    scrollDashboardToTop();
     return;
   }
 
@@ -411,6 +482,15 @@ root.addEventListener('click', async (event) => {
     if (note === null) return;
     try {
       await apiFetch(`/api/overrides/${encodeURIComponent(requestId)}/${action}`, { method: 'POST', body: JSON.stringify({ note }) });
+      state.lastError = `Override ${requestId} ${action === 'approve' ? 'approved' : 'vetoed'}.`;
+      setActionContext({
+        entityType: 'override',
+        entityId: requestId,
+        view: 'overrides',
+        title: `Override ${requestId} ${action === 'approve' ? 'approved' : 'vetoed'}.`,
+        detail: 'The override queue refreshed and the matching review row stays highlighted for follow-through.',
+        actionLabel: 'Open override queue',
+      });
       await loadDashboard();
     } catch (error) {
       state.lastError = String(error.message || error);
@@ -580,7 +660,9 @@ root.addEventListener('click', async (event) => {
         setHumanAskView: () => {
           state.view = 'human_ask';
           updateNav();
+          scrollDashboardToTop();
         },
+        setActionContext,
         loadDashboard,
         windowRef: window,
       });
@@ -602,6 +684,7 @@ root.addEventListener('click', async (event) => {
       ensureStudioPtagDraft(item);
     }
     render();
+    scrollDashboardToTop();
     focusStudioGovernancePanel();
     return;
   }
@@ -617,7 +700,17 @@ root.addEventListener('click', async (event) => {
     state.studioEditorDraft = template.payload;
     fillStudioForm(template.payload);
     state.lastError = `Applied template ${template.label || template.template_id} to the Studio form.`;
+    setActionContext({
+      entityType: '',
+      entityId: '',
+      view: 'studio',
+      title: `Template ${template.label || template.template_id} loaded into the editor.`,
+      detail: 'Continue by adjusting the draft fields and submitting the role request from the same studio lane.',
+      actionLabel: 'Return to Role Private Studio',
+    });
     render();
+    scrollDashboardToTop();
+    focusStudioEditor();
     return;
   }
 
@@ -637,25 +730,67 @@ root.addEventListener('click', async (event) => {
       if (action === 'load') {
         await loadStudioRequestIntoEditor(requestId);
         state.lastError = `Loaded ${requestId} into the Studio editor.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} loaded into the editor.`,
+          detail: 'The selected draft stays highlighted while the editor is ready for the next governed edit.',
+          actionLabel: 'Open Role Private Studio',
+        });
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} loaded into the editor.`,
+          detail: 'The selected draft stays highlighted while the editor is positioned for the next governed edit.',
+          actionLabel: 'Open Role Private Studio',
+        });
         state.view = 'studio';
         updateNav();
         render();
+        scrollDashboardToTop();
+        focusStudioEditor();
         return;
       }
       if (action === 'refresh') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/refresh`, { method: 'POST', body: JSON.stringify({}) });
         delete state.studioPtagDrafts[requestId];
         state.lastError = `Studio draft ${requestId} refreshed from the governance panel.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} refreshed.`,
+          detail: 'The refreshed draft remains highlighted so review and publication can continue from the same governed lane.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'save_ptag') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/ptag`, { method: 'POST', body: JSON.stringify({ ptag_source: ptagSource }) });
         state.lastError = `PTAG draft for ${requestId} updated from the live editor.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `PTAG draft for ${requestId} updated.`,
+          detail: 'The same studio draft stays highlighted so you can keep reviewing, simulating, or publishing without losing context.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'reset_ptag') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/ptag-reset`, { method: 'POST', body: JSON.stringify({}) });
         delete state.studioPtagDrafts[requestId];
         resetStudioPtagHistory(requestId);
         state.lastError = `PTAG editor for ${requestId} reverted to generated mode.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `PTAG editor for ${requestId} reset to generated mode.`,
+          detail: 'The same studio draft remains highlighted for the next review move.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'undo_ptag') {
         const nextValue = undoStudioPtagDraft(requestId);
@@ -687,16 +822,40 @@ root.addEventListener('click', async (event) => {
         delete state.studioPtagDrafts[requestId];
         resetStudioPtagHistory(requestId);
         state.lastError = `Studio draft ${requestId} restored from revision ${revisionSelection.current_revision_number}.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} restored from revision ${revisionSelection.current_revision_number}.`,
+          detail: 'The restored draft remains highlighted so the next governance decision can continue immediately.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'approve') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/review`, { method: 'POST', body: JSON.stringify({ decision: 'approve', note: note || 'Approved for publish from the live governance panel.' }) });
         delete state.studioGovernanceNotes[requestId];
         state.lastError = `Studio draft ${requestId} approved.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} approved for publication.`,
+          detail: 'The approved draft remains highlighted in the studio publish lane for the next trusted action.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'request_changes') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/review`, { method: 'POST', body: JSON.stringify({ decision: 'request_changes', note: note || 'Please refine the role draft and resimulate it.' }) });
         delete state.studioGovernanceNotes[requestId];
         state.lastError = `Change request recorded for ${requestId}.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Change request recorded for ${requestId}.`,
+          detail: 'The same draft stays highlighted so the reviewer and author can continue from the exact governance item.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (action === 'publish') {
         const confirmed = window.confirm(`Publish Role Private Studio request ${requestId} into the trusted registry?`);
@@ -704,6 +863,14 @@ root.addEventListener('click', async (event) => {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/publish`, { method: 'POST', body: JSON.stringify({}) });
         delete state.studioGovernanceNotes[requestId];
         state.lastError = `Studio draft ${requestId} published into the trusted registry.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} published into the trusted registry.`,
+          detail: 'The published role remains highlighted so you can verify trust posture and rollout proof from the same lane.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       await loadDashboard();
     } catch (error) {
@@ -724,12 +891,22 @@ root.addEventListener('click', async (event) => {
         state.view = 'studio';
         updateNav();
         render();
+        scrollDashboardToTop();
+        focusStudioEditor();
         return;
       }
       if (action === 'refresh') {
         await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/refresh`, { method: 'POST', body: JSON.stringify({}) });
         delete state.studioPtagDrafts[requestId];
         state.lastError = `Studio draft ${requestId} refreshed.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: `Studio draft ${requestId} refreshed.`,
+          detail: 'The refreshed draft stays highlighted in the studio lanes for continued review.',
+          actionLabel: 'Open Role Private Studio',
+        });
       }
       if (['approve', 'request_changes', 'publish'].includes(action)) {
         const item = getStudioRequestById(requestId);
@@ -741,6 +918,16 @@ root.addEventListener('click', async (event) => {
         state.lastError = action === 'publish'
           ? `Publish confirmation is ready in the governance panel for ${requestId}.`
           : `Review action is ready in the governance panel for ${requestId}.`;
+        setActionContext({
+          entityType: 'studio_request',
+          entityId: requestId,
+          view: 'studio',
+          title: action === 'publish'
+            ? `Studio draft ${requestId} is positioned for trusted publication.`
+            : `Studio draft ${requestId} is positioned for reviewer action.`,
+          detail: 'The governance panel is now the correct next lane, and the selected draft stays highlighted there.',
+          actionLabel: 'Open governance panel',
+        });
         render();
         focusStudioGovernancePanel();
         return;
@@ -754,6 +941,129 @@ root.addEventListener('click', async (event) => {
 });
 
 loadDashboard();
+
+function scrollDashboardToTop() {
+  window.requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+function buildFocusKey(entityType, entityId) {
+  const type = String(entityType || '').trim();
+  const id = String(entityId || '').trim();
+  return type && id ? `${type}:${id}` : '';
+}
+
+function setActionContext({ entityType = '', entityId = '', view = '', title = '', detail = '', actionLabel = '' } = {}) {
+  const focusKey = buildFocusKey(entityType, entityId);
+  const targetView = view || state.view || 'overview';
+  state.actionContext = {
+    entityType: String(entityType || '').trim(),
+    entityId: String(entityId || '').trim(),
+    focusKey,
+    view: targetView,
+    title: title || 'Latest governed result',
+    detail: detail || 'The Director recorded the latest action and mapped the next governed move.',
+    actionLabel: actionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+    pendingFocus: Boolean(focusKey),
+  };
+}
+
+function isFocusedEntity(entityType, entityId) {
+  const current = state.actionContext?.focusKey || '';
+  return current ? current === buildFocusKey(entityType, entityId) : false;
+}
+
+function extractEntityId(payload, preferredKeys = ['request_id', 'session_id', 'event_id', 'registration_code', 'id']) {
+  const queue = [payload];
+  const seen = new Set();
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+    for (const key of preferredKeys) {
+      const value = current[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    const values = Array.isArray(current) ? current : Object.values(current);
+    values.forEach((value) => { if (value && typeof value === 'object') queue.push(value); });
+  }
+  return '';
+}
+
+function collectResponseText(payload) {
+  const queue = [payload];
+  const seen = new Set();
+  const parts = [];
+  while (queue.length && parts.length < 32) {
+    const current = queue.shift();
+    if (current == null) continue;
+    if (typeof current === 'string') {
+      if (current.trim()) parts.push(current.trim());
+      continue;
+    }
+    if (typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+    const values = Array.isArray(current) ? current : Object.values(current);
+    values.forEach((value) => {
+      if (typeof value === 'string') {
+        if (value.trim()) parts.push(value.trim());
+      } else if (value && typeof value === 'object') {
+        queue.push(value);
+      }
+    });
+  }
+  return parts.join(' ').toLowerCase();
+}
+
+function inferRequestContinuationView(payload) {
+  const text = collectResponseText(payload);
+  if (!text) return 'requests';
+  if (text.includes('waiting_human') || text.includes('human_required') || text.includes('human override') || text.includes('out_of_scope') || text.includes('human_only_boundary') || text.includes('approval')) return 'overrides';
+  if (text.includes('conflict') || text.includes('contention') || text.includes('lock') || text.includes('retry') || text.includes('fail_closed') || text.includes('blocked')) return 'conflicts';
+  return 'requests';
+}
+
+function focusActionContextTarget() {
+  if (!state.actionContext?.pendingFocus) return;
+  const focusKey = state.actionContext.focusKey;
+  if (!focusKey) {
+    state.actionContext.pendingFocus = false;
+    return;
+  }
+  window.requestAnimationFrame(() => {
+    const target = Array.from(root.querySelectorAll('[data-focus-key], [data-focus-alt-key]')).find((node) => node.dataset.focusKey === focusKey || node.dataset.focusAltKey === focusKey);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('focus-pulse');
+    window.setTimeout(() => { if (target.isConnected) target.classList.remove('focus-pulse'); }, 1400);
+    state.actionContext.pendingFocus = false;
+  });
+}
+
+function focusStudioEditor() {
+  window.requestAnimationFrame(() => {
+    const form = document.getElementById('studio-form');
+    if (form) form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+async function withButtonBusy(button, task, pendingLabel = 'Working...') {
+  if (!button) return task();
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.dataset.busy = 'true';
+  button.textContent = pendingLabel;
+  try {
+    return await task();
+  } finally {
+    if (button.isConnected) {
+      button.disabled = false;
+      button.dataset.busy = 'false';
+      button.textContent = originalLabel;
+    }
+  }
+}
 
 async function loadDashboard() {
   if (!state.sessionToken && !state.token) {
@@ -879,16 +1189,64 @@ function render() {
     snapshot.human_ask || { summary: {}, sessions: [], callable_directory: { summary: {}, entries: [] } },
     {
       can,
-      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase },
+      helpers: { escapeHtml, keyValue, metricCard, shortTime, statusBadge, titleCase, buildFocusKey, isFocusedEntity },
     },
   );
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
-  root.innerHTML = `${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${viewContent}`;
+  const focusedInbox = state.view === 'overview' ? '' : renderFocusedWorkInbox(snapshot, state.view);
+  const workLanguageGuide = renderWorkLanguageGuide(snapshot);
+  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
+  focusActionContextTarget();
 }
 
+function renderActionFeedback() {
+  if (!state.lastError || state.authRequired) return '';
+  const tone = classifyActionFeedbackTone(state.lastError);
+  const title = tone === 'danger'
+    ? 'Action blocked'
+    : tone === 'warning'
+      ? 'Action needs attention'
+      : 'Latest action';
+  return `<article class="card notice-card notice-${escapeHtml(tone)} stack"><div class="eyebrow muted">Runtime feedback</div><strong>${escapeHtml(title)}</strong><p class="muted">${escapeHtml(state.lastError)}</p></article>`;
+}
+
+function renderActionContinuity() {
+  const context = state.actionContext;
+  if (!context || state.authRequired) return '';
+  const viewLabel = VIEW_TITLES[context.view] || titleCase(context.view || 'overview');
+  const reference = context.entityId ? `<span class="pill">Ref ${escapeHtml(context.entityId)}</span>` : '';
+  const focusNote = context.entityId
+    ? 'The matching row or card stays highlighted so you can continue from the exact governed work item.'
+    : 'The Director mapped the next lane for you so you do not need to guess where this action landed.';
+  return `
+    <article class="card action-continuity-card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Next governed move</div>
+          <strong>${escapeHtml(context.title || 'Latest governed result')}</strong>
+          <p class="muted">${escapeHtml(context.detail || focusNote)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge('latest result')}${statusBadge(viewLabel)}</div>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(context.view || 'overview')}">${escapeHtml(context.actionLabel || `Open ${viewLabel}`)}</button>
+        ${reference}
+      </div>
+      <p class="muted">${escapeHtml(focusNote)}</p>
+    </article>
+  `;
+}
+
+function classifyActionFeedbackTone(message) {
+  const text = String(message || '').toLowerCase();
+  if (!text) return 'default';
+  if (text.includes('api ') || text.includes('unauthorized') || text.includes('forbidden') || text.includes('error')) return 'danger';
+  if (text.includes('blocked') || text.includes('waiting') || text.includes('paused') || text.includes('required') || text.includes('warning')) return 'warning';
+  return 'success';
+}
 function renderAlertRail(snapshot) {
   const alerts = buildRuntimeAlerts(snapshot);
   if (!alerts.length) return '';
@@ -1003,6 +1361,95 @@ function renderViewPrelude(snapshot) {
   `;
 }
 
+function renderWorkflowGuide(snapshot) {
+  const workflow = buildWorkflowGuide(snapshot);
+  if (!workflow.primary && !workflow.related.length) return '';
+  const primaryAction = workflow.primary
+    ? (workflow.primary.view === state.view
+      ? `<p class="permission-note workflow-current-note">${escapeHtml(workflow.primary.actionLabel || 'You are already in the right place.')}</p>`
+      : `<div class="inline-actions"><button class="action-button" data-view-jump="${escapeHtml(workflow.primary.view)}">${escapeHtml(workflow.primary.actionLabel || `Open ${VIEW_TITLES[workflow.primary.view] || workflow.primary.view}`)}</button></div>`)
+    : '';
+  return `
+    <section class="workflow-guide-grid">
+      ${workflow.primary ? `
+        <article class="card stack workflow-guide-card workflow-guide-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">${escapeHtml(workflow.primary.eyebrow || 'Next governed move')}</div>
+              <h3 class="card-title">${escapeHtml(workflow.primary.title)}</h3>
+              <p class="card-subtitle">${escapeHtml(workflow.primary.detail)}</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(workflow.primary.badge || 'next step')}</div>
+          </div>
+          ${workflow.primary.details?.length ? keyValue(workflow.primary.details) : ''}
+          ${primaryAction}
+        </article>
+      ` : ''}
+      ${workflow.related.length ? `
+        <article class="card stack workflow-guide-card">
+          <div>
+            <div class="eyebrow muted">Related views</div>
+            <h3 class="card-title">Keep the flow connected</h3>
+            <p class="card-subtitle">These views usually come next or provide the proof needed to finish the current task.</p>
+          </div>
+          <div class="onboarding-grid workflow-related-grid">
+            ${workflow.related.map((item) => `
+              <article class="mini-card workflow-related-card">
+                <div class="eyebrow muted">${escapeHtml(item.eyebrow || 'Related view')}</div>
+                <strong>${escapeHtml(VIEW_TITLES[item.view] || item.view)}</strong>
+                <p class="muted">${escapeHtml(item.note)}</p>
+                <div class="inline-actions">
+                  <button class="action-button action-button-muted" data-view-jump="${escapeHtml(item.view)}">${escapeHtml(item.actionLabel || `Open ${VIEW_TITLES[item.view] || item.view}`)}</button>
+                </div>
+              </article>
+            `).join('')}
+          </div>
+        </article>
+      ` : ''}
+    </section>
+  `;
+}
+
+function renderWorkLanguageGuide(snapshot) {
+  if (!['overview', 'requests', 'overrides', 'studio', 'human_ask', 'conflicts'].includes(state.view)) return '';
+  const summary = snapshot.unified_work_inbox?.summary || {};
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Work Language</div>
+          <h3 class="card-title">One set of words for every governed work item</h3>
+          <p class="card-subtitle">Requests, approvals, report records, recovery items, and studio drafts should read like one operating system, not separate tools with separate vocabularies.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(summary.primary_title || 'Governed Work')}</div>
+      </div>
+      <div class="view-prelude-grid">
+        <article class="view-prelude-card view-prelude-card-success">
+          <span class="view-prelude-label">Ready</span>
+          <strong>AI can keep moving</strong>
+          <p class="muted">The governed lane is clear enough for the runtime to continue without a new human interruption.</p>
+        </article>
+        <article class="view-prelude-card view-prelude-card-accent">
+          <span class="view-prelude-label">Monitoring</span>
+          <strong>Visible, not yet stopping flow</strong>
+          <p class="muted">A human should keep an eye on it, but the runtime is still allowed to operate inside policy.</p>
+        </article>
+        <article class="view-prelude-card view-prelude-card-warning">
+          <span class="view-prelude-label">Human required</span>
+          <strong>A real decision is now needed</strong>
+          <p class="muted">The runtime crossed a human boundary and must wait for explicit review, approval, or clearance.</p>
+        </article>
+        <article class="view-prelude-card view-prelude-card-danger">
+          <span class="view-prelude-label">Blocked</span>
+          <strong>The runtime cannot continue</strong>
+          <p class="muted">A governed path is fail-closed until someone resolves the issue or deliberately resumes it.</p>
+        </article>
+      </div>
+      <div class="trace-box"><strong>Work item definition</strong><p class="muted">A governed work item can be a request, override, Human Ask record, recovery item, or Studio draft. The dashboard should always tell you who owns it, what state it is in, and what happens next.</p></div>
+    </section>
+  `;
+}
+
 function buildViewUseHint() {
   const hint = VIEW_USE_HINTS[state.view];
   if (!hint) return null;
@@ -1095,6 +1542,340 @@ function buildViewCues(snapshot) {
   return [];
 }
 
+function buildWorkflowGuide(snapshot) {
+  const summary = snapshot.summary || {};
+  const studio = snapshot.role_private_studio?.summary || {};
+  const humanAsk = snapshot.human_ask?.summary || {};
+  const runtimeHealth = snapshot.runtime_health || {};
+  const goLive = snapshot.go_live_readiness || runtimeHealth.go_live_readiness || {};
+  const audit = runtimeHealth.audit_integrity || {};
+  const trustedRegistry = runtimeHealth.trusted_registry || {};
+  const requests = snapshot.requests || [];
+  const overrides = snapshot.overrides || [];
+  const roles = snapshot.roles || [];
+  const pendingOverrides = overrides.filter((item) => item.status === 'pending').length;
+  const conflicts = requests.filter((item) => item.outcome === 'conflicted').length;
+  const validationIssueTotal = roles.reduce((sum, role) => sum + ((role.validation_issues || []).length), 0);
+  const related = [];
+  let primary = null;
+
+  if (state.view === 'overview') {
+    if ((goLive.status || 'blocked') !== 'ready' || (summary.runtime_alert_total || 0)) {
+      primary = {
+        view: 'health',
+        eyebrow: 'Next governed move',
+        title: 'Inspect runtime readiness before trusting the posture',
+        detail: 'Overview has surfaced a guarded or blocked runtime condition. Confirm the exact domain in Runtime Health before treating the Director as stable.',
+        badge: 'runtime check',
+        actionLabel: 'Open Runtime Health',
+        details: [
+          ['Go-live', goLive.status || 'blocked'],
+          ['Runtime alerts', String(summary.runtime_alert_total || 0)],
+        ],
+      };
+    } else if (pendingOverrides) {
+      primary = {
+        view: 'overrides',
+        eyebrow: 'Next governed move',
+        title: 'Clear the human queue before work drifts',
+        detail: 'Runtime posture is readable, but there are still approvals waiting on a human decision. Resolve the queue so automation can continue safely.',
+        badge: 'human boundary',
+        actionLabel: 'Open Overrides',
+        details: [['Pending overrides', String(pendingOverrides)]],
+      };
+    } else {
+      primary = {
+        view: 'requests',
+        eyebrow: 'Next governed move',
+        title: 'Move from posture into active governed work',
+        detail: 'The system scan is stable enough to begin or trace governed demand through the request lane.',
+        badge: 'start work',
+        actionLabel: 'Open Requests',
+        details: [['Active requests', String(summary.requests_total || requests.length)]],
+      };
+    }
+    addWorkflowLink(related, 'requests', 'Open intake', 'Create or trace governed work after the posture scan.');
+    addWorkflowLink(related, 'overrides', 'Review queue', 'Check whether human approvals are holding the runtime.');
+    addWorkflowLink(related, 'audit', 'Inspect evidence', 'Confirm the reason and proof behind the current posture.');
+  } else if (state.view === 'requests') {
+    if (pendingOverrides) {
+      primary = {
+        view: 'overrides',
+        eyebrow: 'Next governed move',
+        title: 'A request crossed a human boundary',
+        detail: 'Some governed requests cannot continue autonomously. Resolve the pending approvals before expecting downstream progress.',
+        badge: 'approval lane',
+        actionLabel: 'Open Overrides',
+        details: [['Pending overrides', String(pendingOverrides)]],
+      };
+    } else if (conflicts) {
+      primary = {
+        view: 'conflicts',
+        eyebrow: 'Next governed move',
+        title: 'Resolve contention before retrying work',
+        detail: 'Requests are colliding with locks or consistency pressure. Review the conflict lane before resubmitting or escalating.',
+        badge: 'contention',
+        actionLabel: 'Open Conflicts & Locks',
+        details: [['Conflicted requests', String(conflicts)]],
+      };
+    } else {
+      primary = {
+        view: 'audit',
+        eyebrow: 'Next governed move',
+        title: 'Confirm the result in the audit trail',
+        detail: 'Intake looks healthy. Use Audit Trail to prove what happened, what policy applied, and what evidence was captured.',
+        badge: 'evidence',
+        actionLabel: 'Open Audit Trail',
+        details: [['Requests in view', String(summary.requests_total || requests.length)]],
+      };
+    }
+    addWorkflowLink(related, 'overview', 'Back to overview', 'Return to the posture scan when the queue changes.');
+    addWorkflowLink(related, 'audit', 'Review evidence', 'Trace reason, decision path, and chain integrity for request outcomes.');
+    addWorkflowLink(related, 'policies', 'Inspect boundaries', 'Check authority and role packs behind routed work.');
+  } else if (state.view === 'overrides') {
+    primary = pendingOverrides
+      ? {
+          view: 'overrides',
+          eyebrow: 'Next governed move',
+          title: 'Stay in the approval lane until the queue is clear',
+          detail: 'This is the right place while pending approvals remain. Work the queue, record rationale, then verify the result elsewhere.',
+          badge: 'approve or veto',
+          actionLabel: 'Continue reviewing here',
+          details: [['Pending overrides', String(pendingOverrides)]],
+        }
+      : {
+          view: 'audit',
+          eyebrow: 'Next governed move',
+          title: 'Queue is clear, now verify the governed outcome',
+          detail: 'Once the approval queue is empty, confirm the audit trail and downstream runtime posture.',
+          badge: 'evidence',
+          actionLabel: 'Open Audit Trail',
+        };
+    addWorkflowLink(related, 'requests', 'Back to requests', 'Return to intake to confirm which request triggered the boundary.');
+    addWorkflowLink(related, 'audit', 'Confirm evidence', 'Review the proof bundle and final queue outcome.');
+    addWorkflowLink(related, 'overview', 'Check posture', 'See whether the Director is still calm, guarded, or blocked after review.');
+  } else if (state.view === 'conflicts') {
+    primary = conflicts
+      ? {
+          view: 'requests',
+          eyebrow: 'Next governed move',
+          title: 'Trace the blocked request lane',
+          detail: 'Conflict handling starts by identifying which request stalled and whether it should retry, wait, or escalate.',
+          badge: 'request trace',
+          actionLabel: 'Open Requests',
+          details: [['Conflicted requests', String(conflicts)]],
+        }
+      : {
+          view: 'health',
+          eyebrow: 'Next governed move',
+          title: 'Contention is quiet, confirm runtime stability',
+          detail: 'If no requests are colliding right now, Runtime Health is the next best place to verify storage and lock posture.',
+          badge: 'runtime check',
+          actionLabel: 'Open Runtime Health',
+        };
+    addWorkflowLink(related, 'requests', 'Trace requests', 'Follow the blocked request back to its governed intake record.');
+    addWorkflowLink(related, 'health', 'Inspect runtime', 'Review lock store, consistency, and storage posture.');
+    addWorkflowLink(related, 'audit', 'Check history', 'Confirm when the contention surfaced and how it was handled.');
+  } else if (state.view === 'audit') {
+    if ((audit.hash_mismatches || 0) || audit.status === 'warning') {
+      primary = {
+        view: 'health',
+        eyebrow: 'Next governed move',
+        title: 'Audit needs runtime repair context',
+        detail: 'Evidence integrity is not fully clean. Move into Runtime Health to confirm which runtime domain needs repair or resealing.',
+        badge: 'integrity watch',
+        actionLabel: 'Open Runtime Health',
+        details: [
+          ['Integrity', audit.status || 'unknown'],
+          ['Hash mismatches', String(audit.hash_mismatches || 0)],
+        ],
+      };
+    } else {
+      primary = {
+        view: 'overview',
+        eyebrow: 'Next governed move',
+        title: 'Return to the executive posture scan',
+        detail: 'Audit is clean. Go back to Overview to see the current posture with evidence already confirmed.',
+        badge: 'posture scan',
+        actionLabel: 'Open Overview',
+      };
+    }
+    addWorkflowLink(related, 'requests', 'Back to intake', 'Reconnect evidence with the request or action that produced it.');
+    addWorkflowLink(related, 'overrides', 'Review boundary', 'Inspect the human decision path behind approved or vetoed work.');
+    addWorkflowLink(related, 'health', 'Inspect runtime', 'Use health when chain integrity or trust posture needs operator repair.');
+  } else if (state.view === 'studio') {
+    primary = (studio.ready_to_publish_total || 0)
+      ? {
+          view: 'studio',
+          eyebrow: 'Next governed move',
+          title: 'Finish the publication lane from this view',
+          detail: 'You already have drafts that are structurally ready. Complete the publish review here, then verify the live role library.',
+          badge: 'publish lane',
+          actionLabel: 'Continue publishing here',
+          details: [['Ready to publish', String(studio.ready_to_publish_total || 0)]],
+        }
+      : {
+          view: 'policies',
+          eyebrow: 'Next governed move',
+          title: 'Inspect the live role library after authoring',
+          detail: 'When no draft is publication-ready, switch to Roles & Policies to confirm what is already trusted and active.',
+          badge: 'role library',
+          actionLabel: 'Open Roles & Policies',
+        };
+    addWorkflowLink(related, 'policies', 'Open live library', 'Compare drafts against the published, trusted role packs.');
+    addWorkflowLink(related, 'human_ask', 'Open governed record', 'Call a draft or published hat into a governed report lane.');
+    addWorkflowLink(related, 'audit', 'Check evidence', 'Review trusted registry and publication evidence after changes.');
+  } else if (state.view === 'human_ask') {
+    primary = (humanAsk.waiting_human_total || 0)
+      ? {
+          view: 'overrides',
+          eyebrow: 'Next governed move',
+          title: 'Some records need a human decision',
+          detail: 'A Human Ask record crossed a human-only boundary. Move to Overrides to resolve the blocked lane before opening new follow-ups.',
+          badge: 'human boundary',
+          actionLabel: 'Open Overrides',
+          details: [['Waiting human', String(humanAsk.waiting_human_total || 0)]],
+        }
+      : {
+          view: 'audit',
+          eyebrow: 'Next governed move',
+          title: 'Review the record trail and captured evidence',
+          detail: 'The record lane is open and governed. Audit Trail is the next step when you need proof, history, or reasoning behind a response.',
+          badge: 'record evidence',
+          actionLabel: 'Open Audit Trail',
+          details: [['Recorded sessions', String(humanAsk.recorded_total || 0)]],
+        };
+    addWorkflowLink(related, 'policies', 'Inspect roles', 'Check which hat boundaries and authority rules shaped the record.');
+    addWorkflowLink(related, 'sessions', 'Check session posture', 'Review access continuity and revocation around human-facing runtime use.');
+    addWorkflowLink(related, 'studio', 'Open Studio', 'Move back to role authoring when the record points to a hat gap.');
+  } else if (state.view === 'sessions') {
+    primary = {
+      view: 'audit',
+      eyebrow: 'Next governed move',
+      title: 'Pair session posture with evidence',
+      detail: 'Session control tells you who still has access. Audit Trail tells you what happened while that access existed.',
+      badge: 'access evidence',
+      actionLabel: 'Open Audit Trail',
+      details: [['Active sessions', String(runtimeHealth.access_control?.sessions_active || 0)]],
+    };
+    addWorkflowLink(related, 'health', 'Check runtime health', 'Review token storage, session store, and access-control posture.');
+    addWorkflowLink(related, 'overview', 'Back to overview', 'Return to the executive posture scan after access review.');
+    addWorkflowLink(related, 'human_ask', 'Open records', 'Trace how governed record activity maps to session continuity.');
+  } else if (state.view === 'policies') {
+    primary = validationIssueTotal
+      ? {
+          view: 'studio',
+          eyebrow: 'Next governed move',
+          title: 'Policy issues usually route back to authoring',
+          detail: 'Live role packs show validation issues or trust friction. Return to Studio to repair the hat before expecting safe runtime use.',
+          badge: 'authoring repair',
+          actionLabel: 'Open Role Private Studio',
+          details: [['Validation issues', String(validationIssueTotal)]],
+        }
+      : {
+          view: 'requests',
+          eyebrow: 'Next governed move',
+          title: 'Policies look trusted, now exercise them through work',
+          detail: 'When the library looks clean, the next step is to use the hats through governed requests or records.',
+          badge: 'use the library',
+          actionLabel: 'Open Requests',
+          details: [['Role packs', String(roles.length)]],
+        };
+    addWorkflowLink(related, 'studio', 'Repair or publish', 'Change a hat when the live contract is incomplete or guarded.');
+    addWorkflowLink(related, 'audit', 'Check trust trail', 'Confirm manifest, hierarchy, and trusted-registry evidence.');
+    addWorkflowLink(related, 'human_ask', 'Use a hat', 'Open a governed record against the active role library.');
+  } else if (state.view === 'health') {
+    if ((trustedRegistry.signature_status || 'unknown') !== 'verified' || (audit.hash_mismatches || 0)) {
+      primary = {
+        view: 'audit',
+        eyebrow: 'Next governed move',
+        title: 'Runtime health points back to trusted evidence',
+        detail: 'Trust or integrity posture is not fully clean. Use Audit Trail to inspect the underlying proof chain before treating the runtime as repaired.',
+        badge: 'trust evidence',
+        actionLabel: 'Open Audit Trail',
+        details: [
+          ['Trusted registry', trustedRegistry.signature_status || 'unknown'],
+          ['Hash mismatches', String(audit.hash_mismatches || 0)],
+        ],
+      };
+    } else {
+      primary = {
+        view: 'overview',
+        eyebrow: 'Next governed move',
+        title: 'Health looks readable, return to the top-level posture',
+        detail: 'Once runtime domains are understood, Overview becomes the fastest place to judge whether operations can continue safely.',
+        badge: 'executive posture',
+        actionLabel: 'Open Overview',
+        details: [['Go-live', goLive.status || 'blocked']],
+      };
+    }
+    addWorkflowLink(related, 'audit', 'Inspect evidence', 'Pair domain health with the trusted audit trail.');
+    addWorkflowLink(related, 'policies', 'Inspect live library', 'Check the role and registry side of runtime readiness.');
+    addWorkflowLink(related, 'sessions', 'Review access', 'Verify session posture when operator runtime behavior feels off.');
+  }
+
+  const workflowGuide = applyActionContextToWorkflowGuide(primary, related.filter((item) => item.view !== state.view));
+  return {
+    primary: workflowGuide.primary,
+    related: workflowGuide.related.slice(0, 3),
+  };
+}
+
+function addWorkflowLink(target, view, actionLabel, note, eyebrow = 'Related view') {
+  if (!view || target.some((item) => item.view === view)) return;
+  target.push({ view, actionLabel, note, eyebrow });
+}
+
+function applyActionContextToWorkflowGuide(primary, related) {
+  const context = state.actionContext;
+  if (!context || !context.view) return { primary, related };
+
+  const contextView = context.view;
+  const contextViewLabel = VIEW_TITLES[contextView] || titleCase(contextView);
+  const continuityPrimary = contextView === state.view
+    ? {
+        view: contextView,
+        eyebrow: 'Latest governed result',
+        title: context.title || `Continue inside ${contextViewLabel}`,
+        detail: context.detail || 'The latest affected work item is highlighted in this lane so you can continue without searching for it again.',
+        badge: 'highlighted item',
+        actionLabel: 'Continue in this lane',
+        details: [
+          ['Surface', contextViewLabel],
+          ['Reference', context.entityId || '-'],
+        ],
+      }
+    : {
+        view: contextView,
+        eyebrow: 'Latest governed result',
+        title: context.title || `Continue in ${contextViewLabel}`,
+        detail: context.detail || 'The latest affected governed item remains highlighted in the next lane so you can continue without searching for it.',
+        badge: 'continue flow',
+        actionLabel: context.actionLabel || `Open ${contextViewLabel}`,
+        details: [
+          ['Next lane', contextViewLabel],
+          ['Reference', context.entityId || '-'],
+        ],
+      };
+
+  const nextRelated = Array.isArray(related) ? [...related] : [];
+  if (primary && primary.view && primary.view !== contextView) {
+    addWorkflowLink(nextRelated, primary.view, primary.actionLabel || `Open ${VIEW_TITLES[primary.view] || primary.view}`, primary.detail || 'Return to the normal governed workflow suggestion for this lane.', primary.eyebrow || 'Workflow suggestion');
+  }
+
+  if (contextView !== state.view) {
+    addWorkflowLink(nextRelated, state.view, `Back to ${VIEW_TITLES[state.view] || state.view}`, 'Return to the current lane after checking the latest affected governed result.', 'Current lane');
+  }
+
+  if (contextView !== 'audit') {
+    addWorkflowLink(nextRelated, 'audit', 'Open Audit Trail', 'Confirm the result, policy basis, and evidence after following the latest action path.', 'Proof lane');
+  }
+
+  return {
+    primary: continuityPrimary,
+    related: nextRelated.filter((item) => item.view !== continuityPrimary.view),
+  };
+}
 function studioReadinessTone(readiness) {
   const status = String(readiness?.status || 'blocked');
   if (status === 'published' || status === 'ready') return 'success';
@@ -1222,7 +2003,6 @@ function renderOverview(snapshot) {
   const backupLabel = latestBackup ? `${latestBackup.backup_id} | ${shortTime(latestBackup.created_at)}` : 'No runtime backup recorded yet.';
   const focusNote = state.lastError || 'All executive actions route through a governed runtime with policy oversight.';
   return `
-    ${state.lastError ? `<article class="card notice-card stack"><strong>Last action result</strong><p class="muted">${escapeHtml(state.lastError)}</p></article>` : ''}
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
         <div class="hero-heading">
@@ -1286,7 +2066,7 @@ function renderOverview(snapshot) {
         ${metricCard('Operator critical', snapshot.summary.operator_critical_total || 0, (snapshot.summary.operator_critical_total || 0) ? 'danger' : 'success', 'Queue lanes that are critical or stale under the shared operator aging policy.')}
         ${metricCard('Notify candidates', snapshot.summary.operator_notification_candidates_total || 0, (snapshot.summary.operator_notification_candidates_total || 0) ? 'accent' : 'success', 'Queue lanes that would route through the unified operator notification plan.')}
       </section>
-      ${renderOperatorQueueHealthCard(operatorQueueHealth)}
+      ${renderUnifiedWorkInbox(snapshot)}
       ${renderOperatorNotificationPolicyCard(operatorNotificationCenter)}
       ${renderOperatorNotificationDeliveryCard(operatorNotificationCenter, integrations, operatorNotificationDeliveryReadiness)}
       ${renderFirstRunReadinessCard(firstRunReadiness)}
@@ -1314,6 +2094,93 @@ function renderOverview(snapshot) {
       ${renderIntegrationSection(integrations)}
     `;
   }
+
+
+
+function renderUnifiedWorkInbox(snapshot) {
+  const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
+  const summary = inbox.summary || {};
+  const items = Array.isArray(inbox.items) ? inbox.items.slice(0, 6) : [];
+  if (!items.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Unified Work Inbox</div>
+          <h3 class="card-title">One work surface across approvals, blocked workflows, recovery, and studio promotion.</h3>
+          <p class="card-subtitle">Use this as the executive queue: what needs a human now, what is blocked, and which governed lane is the best next move.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${summary.open_total || 0} open`)}${statusBadge(summary.primary_title || 'Autonomy ready')}</div>
+      </div>
+      ${keyValue([
+        ['Open work', String(summary.open_total || 0)],
+        ['Human required', String(summary.human_required_total || 0)],
+        ['Blocked', String(summary.blocked_total || 0)],
+        ['Monitoring', String(summary.monitoring_total || 0)],
+        ['Ready lanes', String(summary.ready_total || 0)],
+        ['Primary move', titleCase(summary.primary_view || 'overview')],
+      ])}
+      <div class="trace-box"><strong>Primary next move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Continue governed execution.')}</p></div>
+      <div class="view-prelude-grid">
+        ${items.map((item) => renderUnifiedWorkInboxItem(item)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderFocusedWorkInbox(snapshot, currentView) {
+  const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
+  const summary = inbox.summary || {};
+  const items = selectFocusedInboxItems(Array.isArray(inbox.items) ? inbox.items : [], currentView);
+  if (!items.length) return '';
+  return `
+    <section class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Next Governed Work</div>
+          <h3 class="card-title">What matters most from this lane right now</h3>
+          <p class="card-subtitle">Stay inside the current workflow, but keep the next human boundary or blocked path visible without going back to Overview.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(titleCase(currentView || 'overview'))}${statusBadge(`${summary.open_total || 0} open`)}</div>
+      </div>
+      <div class="view-prelude-grid">
+        ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function selectFocusedInboxItems(items, currentView) {
+  if (!Array.isArray(items) || !items.length) return [];
+  const relevant = items.filter((item) => item.view === currentView);
+  if (relevant.length) return relevant.slice(0, 3);
+  const primary = items[0] ? [items[0]] : [];
+  const supporting = items.filter((item) => item.view !== currentView).slice(1, 3);
+  return [...primary, ...supporting];
+}
+
+function renderUnifiedWorkInboxItem(item, { compact = false } = {}) {
+  const refs = Array.isArray(item.sample_references) ? item.sample_references.slice(0, compact ? 2 : 3) : [];
+  const toneClass = item.tone === 'danger'
+    ? ' view-prelude-card-danger'
+    : item.tone === 'warning'
+      ? ' view-prelude-card-warning'
+      : '';
+  const queueSummary = `${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h | ref ${item.oldest_reference || '-'}`;
+  return `
+    <article class="view-prelude-card${toneClass}">
+      <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
+      <strong>${escapeHtml(item.title || 'Governed work lane')}</strong>
+      <p class="muted">${escapeHtml(queueSummary)}</p>
+      <div class="hero-chip-row">${statusBadge(item.disposition || 'monitoring')}${statusBadge(item.status || 'ready')}</div>
+      <p class="muted">${escapeHtml(item.next_step || 'Review the next governed move.')}</p>
+      ${refs.length ? `<div class="hero-chip-row">${refs.map((ref) => `<span class="pill">${escapeHtml(ref)}</span>`).join('')}</div>` : ''}
+      <div class="inline-actions">
+        <button class="action-button${compact ? ' action-button-muted' : ''}" type="button" data-view-jump="${escapeHtml(item.view || 'overview')}">${escapeHtml(item.action_label || `Open ${titleCase(item.view || 'overview')}`)}</button>
+      </div>
+    </article>
+  `;
+}
 
 
 function renderFirstRunReadinessCard(firstRunReadiness) {
@@ -2223,7 +3090,7 @@ function renderStudioGovernanceItem(item, lane) {
         ? (readiness.structural_gate_reason || (readiness.advisories || []).join(' | ') || 'Awaiting PT-OSS structural mitigation.')
         : (readiness.blockers?.length ? readiness.blockers.join(' | ') : 'Awaiting review movement.');
   return `
-    <div class="trace-box stack governance-lane-item${isSelected ? ' is-selected' : ''}">
+    <div class="trace-box stack governance-lane-item${isSelected ? ' is-selected' : ''}${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(item.structured_jd?.role_name || item.request_id)}</strong>
@@ -2285,7 +3152,7 @@ function renderStudioGovernancePanel(item) {
   const canRestore = can('studio.create') && item.status !== 'published' && (selectedRevision.current_revision_number || 0) > 0;
   const diagnostics = buildStudioPtagDiagnostics(item, ptagDraft);
   return `
-    <section class="split-grid" id="studio-governance-panel-anchor">
+    <section class="split-grid${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" id="studio-governance-panel-anchor" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <article class="card hero-card hero-card-secondary studio-governance-panel">
         <div class="hero-heading">
           <div>
@@ -2617,7 +3484,7 @@ function renderReviewTimeline(timeline) {
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(titleCase(item.decision || 'review'))}</strong>
-          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${item.reviewer || '-'}`)}</p>
+          <p class="muted">${escapeHtml(`Revision ${item.revision_number || 0} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${item.reviewer || '-'}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.decision || 'review')}</div>
       </div>
@@ -2634,7 +3501,7 @@ function renderSimulationHistory(history) {
       <div class="hero-heading">
         <div>
           <strong>${escapeHtml(`Revision ${item.revision_number || 0}`)}</strong>
-          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${shortTime(item.generated_at)}`)}</p>
+          <p class="muted">${escapeHtml(`${item.trigger || 'refresh'} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${shortTime(item.generated_at)}`)}</p>
         </div>
         <div class="hero-chip-row">${statusBadge(item.status || 'not_run')}</div>
       </div>
@@ -2800,7 +3667,7 @@ function renderWorkflowStageExplanation(stage) {
 }
 
 function renderPolicies(roles) {
-  if (!roles.length) return '<div class="card empty-state">No PTAG role packs available.</div>';
+  if (!roles.length) return renderNoWorkState('No PTAG role packs are available yet.', { eyebrow: 'Policy library idle', title: 'No trusted hats are published in this runtime yet.', detail: 'Publish the first governed hat through Role Private Studio, then come back here to inspect trust, hierarchy, and boundaries.', primaryActionView: 'studio', primaryActionLabel: 'Open Role Private Studio', secondaryActionView: 'overview', secondaryActionLabel: 'Open Overview', pills: ['library empty', 'publish first hat'] });
   const verifiedTotal = roles.filter((role) => role.trusted_manifest_signature_status === 'verified').length;
   const validationIssueTotal = roles.reduce((sum, role) => sum + ((role.validation_issues || []).length), 0);
   const allowTotal = roles.reduce((sum, role) => sum + ((role.allow || []).length), 0);
@@ -2928,6 +3795,7 @@ function renderHealth(runtimeHealth, availableProfiles, retentionReport, operati
               ['Backups total', String(backupSummary.backups_total || 0)],
               ['Privileged ops', privilegedOperations.delegated ? 'delegated' : (privilegedOperations.status || '-')],
               ['Integration targets', String(integrations?.summary?.targets_total || runtimeHealth.integration_registry?.targets_total || 0)],
+              ['Hidden empty stores', String(hiddenRuntimeDomainTotal)],
             ])}
           <div class="hero-note">
             <strong>Executive reading</strong>
@@ -2972,6 +3840,33 @@ function renderHealth(runtimeHealth, availableProfiles, retentionReport, operati
   `;
 }
 
+function renderRuntimeDomainSurface(key, value) {
+  if (typeof value === 'object' && value !== null) {
+    return `<article class="card stack runtime-domain-card"><div><div class="eyebrow muted">Runtime domain</div><h3 class="card-title">${titleCase(key)}</h3><p class="card-subtitle">Current posture for ${escapeHtml(titleCase(key).toLowerCase())}.</p></div>${keyValue(Object.entries(value).map(([entryKey, entryValue]) => [titleCase(entryKey), typeof entryValue === 'object' && entryValue !== null ? JSON.stringify(entryValue) : String(entryValue)]))}</article>`;
+  }
+  return metricCard(titleCase(key), String(value), 'default', 'Scalar runtime posture signal.');
+}
+
+function shouldHideRuntimeDomain(key, value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const status = String(value.status || '').toLowerCase();
+  const path = String(value.path || '');
+  const bytes = Number(value.bytes || 0);
+  const likelyFeatureStore = key.endsWith('_store') || /_store\.json$/i.test(path);
+  if (!likelyFeatureStore) return false;
+  if (!['missing', 'uninitialized', 'not_initialized'].includes(status)) return false;
+  if (bytes !== 0) return false;
+  const meaningfulKeys = Object.entries(value)
+    .filter(([entryKey]) => !['status', 'path', 'bytes', 'available', 'initialized'].includes(entryKey))
+    .filter(([_entryKey, entryValue]) => {
+      if (entryValue === null || entryValue === undefined) return false;
+      if (Array.isArray(entryValue)) return entryValue.length > 0;
+      if (typeof entryValue === 'object') return Object.keys(entryValue).length > 0;
+      const text = String(entryValue).trim().toLowerCase();
+      return text !== '' && text !== '0' && text !== 'false' && text !== 'missing';
+    });
+  return meaningfulKeys.length === 0;
+}
 function renderHealthNotificationPostureCard(center, integrations, deliveryReadiness = null) {
   const policy = center?.policy || {};
   const notification = policy.notification || {};
@@ -3210,7 +4105,7 @@ function renderStudioRequestCard(item) {
       ? 'Structural posture is clear enough for trusted publication.'
       : (readiness.blockers?.[0] || 'This draft still needs validation, simulation, or review movement before publication.');
   return `
-    <article class="card stack">
+    <article class="card stack${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(summary.role_id || item.request_id)}</div>
@@ -3361,7 +4256,7 @@ function renderStudioRevisionSelector(requestId, availableRevisions, currentRevi
   if (!availableRevisions.length) return '';
   const buildOptions = (selectedRevisionNumber) => availableRevisions.map((revision) => {
     const revisionNumber = revision.revision_number || 0;
-    const label = `Revision ${revisionNumber} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${revision.trigger || 'refresh'} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${shortTime(revision.generated_at)}`;
+    const label = `Revision ${revisionNumber} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${revision.trigger || 'refresh'} ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· ${shortTime(revision.generated_at)}`;
     const selected = revisionNumber === selectedRevisionNumber ? ' selected' : '';
     return `<option value="${escapeHtml(String(revisionNumber))}"${selected}>${escapeHtml(label)}</option>`;
   }).join('');
@@ -3512,12 +4407,12 @@ function renderPtagPreview(source, maxLines = 18) {
 
 function requestTable(rows) {
   if (!rows.length) return emptyState('No request records available.');
-  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Time</th><th>Request</th><th>Role Flow</th><th>Action</th><th>Outcome</th><th>Resource</th><th>Consistency</th><th>Activation & Escalation</th><th>Basis</th></tr></thead><tbody>${rows.map((row) => { const focused = isFocusedEntity('request', row.request_id) || isFocusedEntity('override', row.request_id); return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('request', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('override', row.request_id))}"><td>${escapeHtml(shortTime(row.timestamp))}</td><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(row.requester)}</div></td><td>${renderRoleFlowCell(row)}</td><td><strong>${escapeHtml(row.action)}</strong><div class="muted">${escapeHtml(row.requested_role || row.active_role || '-')}</div></td><td>${statusBadge(row.outcome)}</td><td><strong>${escapeHtml(row.resource || '-')}</strong><div class="muted">${escapeHtml(row.resource_id || row.business_domain || '-')}</div></td><td><div>${escapeHtml(row.idempotency_status || 'none')}</div><div class="muted">${escapeHtml(row.ordering_status || 'none')}</div></td><td>${renderActivationCell(row)}</td><td><div>${escapeHtml(row.policy_basis || '-')}</div><div class="muted">${escapeHtml(row.switch_reason || row.reason || '-')}</div></td></tr>`; }).join('')}</tbody></table>`;
 }
 
 function overrideTable(rows) {
   if (!rows.length) return emptyState('No overrides available.');
-  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`).join('')}</tbody></table>`;
+  return `<table class="data-table"><thead><tr><th>Override</th><th>Role</th><th>Action</th><th>Status</th><th>Required by</th><th>Requester</th><th>Execution</th><th>Review</th></tr></thead><tbody>${rows.map((row) => { const focused = isFocusedEntity('override', row.request_id) || isFocusedEntity('request', row.request_id); return `<tr class="${focused ? 'focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('override', row.request_id))}" data-focus-alt-key="${escapeHtml(buildFocusKey('request', row.request_id))}"><td><strong>${escapeHtml(row.request_id)}</strong><div class="muted">${escapeHtml(shortTime(row.created_at))}</div></td><td>${escapeHtml(row.active_role)}</td><td>${escapeHtml(row.action)}</td><td>${statusBadge(row.status)}</td><td>${escapeHtml(row.required_by)}</td><td>${escapeHtml(row.requester)}</td><td>${escapeHtml(row.execution_outcome || '-')}</td><td>${row.status === 'pending' && can('override.review') ? `<div class="inline-actions"><button class="action-button" data-override-action="approve" data-request-id="${escapeHtml(row.request_id)}">Approve</button><button class="action-button action-button-muted" data-override-action="veto" data-request-id="${escapeHtml(row.request_id)}">Veto</button></div>` : '<span class="muted">Read only</span>'}</td></tr>`; }).join('')}</tbody></table>`;
 }
 
 function lockTable(rows) {
@@ -3565,8 +4460,159 @@ function integrationDeadLetterTable(rows) {
   return `<table class="data-table"><thead><tr><th>Event</th><th>Target</th><th>Final Status</th><th>Attempts</th><th>Signing</th><th>Dead-lettered</th><th>Reason</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${escapeHtml(row.event_type || '-')}</strong><div class="muted">${escapeHtml(row.event_id || '-')}</div></td><td>${escapeHtml(row.target_name || row.target_id || '-')}</td><td>${statusBadge(row.final_status || 'failed')}</td><td><strong>${escapeHtml(String(row.attempts_used || 1))}</strong><div class="muted">of ${escapeHtml(String(row.max_attempts || 1))}</div></td><td>${escapeHtml(row.signing_policy || 'none')}</td><td>${escapeHtml(shortTime(row.dead_lettered_at))}</td><td class="muted">${escapeHtml(row.reason || '-')}</td></tr>`).join('')}</tbody></table>`;
 }
 
+function buildTableEmptyGuidance(title) {
+  const guidance = {
+    'Recent Requests': {
+      title: 'No governed requests are visible yet.',
+      detail: 'Start with Runtime Intake when the next governed task is ready, then come back here to follow its lane.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'studio',
+      secondaryActionLabel: 'Open Studio',
+      pills: ['intake first', 'live queue'],
+    },
+    'Runtime Requests': {
+      title: 'The runtime request ledger is empty.',
+      detail: 'Submit work from this lane to start governed execution, then follow the same request here after routing and policy checks.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Stay in Requests',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['submit work', 'follow queue'],
+    },
+    'Human Override Queue': {
+      title: 'No human approvals are waiting right now.',
+      detail: 'This is healthy when automation stayed in bounds. If you expected a pause, inspect Runtime Requests first.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'audit',
+      secondaryActionLabel: 'Open Audit',
+      pills: ['human boundary clear', 'automation running'],
+    },
+    'Overrides': {
+      title: 'No override packets are visible in this lane.',
+      detail: 'When the Director crosses a human boundary, the approval packet will appear here with the next decision owner attached.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['queue stable', 'no pending review'],
+    },
+    'Active Locks': {
+      title: 'No protected resources are locked right now.',
+      detail: 'The runtime is currently contention-free. If work still appears blocked, inspect the conflicted request lane next.',
+      primaryActionView: 'conflicts',
+      primaryActionLabel: 'Open Conflicts',
+      secondaryActionView: 'requests',
+      secondaryActionLabel: 'Open Requests',
+      pills: ['contention clear', 'safe to proceed'],
+    },
+    'Conflicted Requests': {
+      title: 'No conflicted requests are waiting for release.',
+      detail: 'No requests are currently being held by resource or ordering pressure in this runtime window.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['no blocked work', 'queue flowing'],
+    },
+    'Audit Trail': {
+      title: 'No audit events are visible yet.',
+      detail: 'Once the Director starts processing governed work, the evidence ledger will begin filling with requests, decisions, and maintenance events.',
+      primaryActionView: 'requests',
+      primaryActionLabel: 'Open Requests',
+      secondaryActionView: 'health',
+      secondaryActionLabel: 'Open Runtime Health',
+      pills: ['evidence starts with work', 'chain ready'],
+    },
+    'Sessions': {
+      title: 'No runtime sessions are visible in this snapshot.',
+      detail: 'When profiles log in, their session posture, expiry, and revocation controls will appear here.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['access idle', 'session lane clear'],
+    },
+    'Integration Deliveries': {
+      title: 'No outbound deliveries have been recorded yet.',
+      detail: 'Targets may still be configured. Send a test event or let governed work emit the first delivery through the runtime.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['routing idle', 'targets may still be ready'],
+    },
+    'Integration Outbox': {
+      title: 'No integration jobs are queued right now.',
+      detail: 'The outbox is clear. Jobs will appear here when governed events are buffered for outbound delivery.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['queue clear', 'delivery idle'],
+    },
+    'Integration Dead Letters': {
+      title: 'No dead letters are waiting for recovery.',
+      detail: 'Outbound delivery is not currently leaving failed events behind in the dead-letter lane.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['recovery clear', 'delivery clean'],
+    },
+    'Retention Datasets': {
+      title: 'No retention datasets are visible yet.',
+      detail: 'Retention posture becomes meaningful once governed documents, audit data, or workflow artifacts are being preserved.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'audit',
+      secondaryActionLabel: 'Open Audit',
+      pills: ['retention not seeded', 'archive idle'],
+    },
+    'Runtime Backups': {
+      title: 'No runtime backups have been created yet.',
+      detail: 'Generate the first recovery bundle from Runtime Health so restore posture is visible before production pressure arrives.',
+      primaryActionView: 'health',
+      primaryActionLabel: 'Open Runtime Health',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Open Overview',
+      pills: ['recovery not seeded', 'backup lane empty'],
+    },
+  };
+  return guidance[title] || null;
+}
+
+function renderNoWorkState(message, options = {}) {
+  const pills = Array.isArray(options.pills) ? options.pills.filter(Boolean) : [];
+  return `
+    <section class="empty-state-shell" data-empty-state="true">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'No governed work in this lane')}</div>
+          <strong>${escapeHtml(options.title || 'Nothing needs action here right now.')}</strong>
+          <p class="muted">${escapeHtml(options.detail || message || 'This lane will populate as the Director begins processing real work.')}</p>
+        </div>
+        ${pills.length ? `<div class="hero-chip-row">${pills.map((pill) => `<span class="pill">${escapeHtml(pill)}</span>`).join('')}</div>` : ''}
+      </div>
+      ${message ? `<p class="muted">${escapeHtml(message)}</p>` : ''}
+      ${(options.primaryActionView || options.secondaryActionView) ? `
+        <div class="inline-actions">
+          ${options.primaryActionView ? `<button class="action-button" type="button" data-view-jump="${escapeHtml(options.primaryActionView)}">${escapeHtml(options.primaryActionLabel || 'Open view')}</button>` : ''}
+          ${options.secondaryActionView ? `<button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(options.secondaryActionView)}">${escapeHtml(options.secondaryActionLabel || 'Open next view')}</button>` : ''}
+        </div>
+      ` : ''}
+    </section>
+  `;
+}
+
 function wrapTableCard(title, tableHtml, subtitle = '') {
-  return `<article class="table-card"><div class="table-card-head"><div><div class="eyebrow muted">Runtime Table</div><h3 class="table-title">${escapeHtml(title)}</h3>${subtitle ? `<p class="card-subtitle">${escapeHtml(subtitle)}</p>` : ''}</div></div><div class="table-wrapper">${tableHtml}</div></article>`;
+  const isEmpty = String(tableHtml || '').includes('data-empty-state="true"');
+  const guidance = isEmpty ? buildTableEmptyGuidance(title) : null;
+  const tableBody = isEmpty && guidance
+    ? renderNoWorkState(tableHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), { eyebrow: 'Work lane status', ...guidance })
+    : tableHtml;
+  return `<article class="table-card${isEmpty ? ' table-card-empty' : ''}"><div class="table-card-head"><div><div class="eyebrow muted">Runtime Table</div><h3 class="table-title">${escapeHtml(title)}</h3>${subtitle ? `<p class="card-subtitle">${escapeHtml(subtitle)}</p>` : ''}</div></div><div class="table-wrapper${isEmpty ? ' table-wrapper-empty' : ''}">${tableBody}</div></article>`;
 }
 
 function looksLikePathValue(key, value) {
@@ -3659,12 +4705,72 @@ function metricCard(label, value, tone = 'default', caption = '') {
 }
 
 function emptyState(message) {
-  return `<div class="empty-state">${escapeHtml(message)}</div>`;
+  return `<div class="empty-state" data-empty-state="true">${escapeHtml(message)}</div>`;
 }
 
 function statusBadge(value) {
-  const css = `status-badge status-${String(value).replace(/[^a-z0-9_]+/gi, '_').toLowerCase()}`;
-  return `<span class="${css}">${escapeHtml(String(value))}</span>`;
+  const raw = String(value);
+  const css = `status-badge status-${raw.replace(/[^a-z0-9_]+/gi, '_').toLowerCase()}`;
+  return `<span class="${css}">${escapeHtml(formatStatusLabel(raw))}</span>`;
+}
+
+function formatStatusLabel(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '-';
+  if (/^\d+\s+[a-z]/i.test(raw)) return raw;
+  const normalized = raw.toLowerCase();
+  const known = {
+    ready: 'Ready',
+    monitoring: 'Monitoring',
+    blocked: 'Blocked',
+    degraded: 'Degraded',
+    disabled: 'Disabled',
+    active: 'Active',
+    missing: 'Missing',
+    present: 'Present',
+    clear: 'Clear',
+    approved: 'Approved',
+    vetoed: 'Vetoed',
+    pending: 'Pending',
+    published: 'Published',
+    passed: 'Passed',
+    failed: 'Failed',
+    direct: 'Direct',
+    partial: 'Partial',
+    settled: 'Settled',
+    unknown: 'Unknown',
+    conflicted: 'Conflict',
+    escalated: 'Escalated',
+    switched: 'Switched',
+    steady: 'Steady',
+    autonomy_ready: 'Autonomy Ready',
+    human_required: 'Human Required',
+    waiting_human: 'Waiting Human Review',
+    human_gated: 'Human Gated',
+    attention_required: 'Attention Required',
+    clearance_required: 'Clearance Required',
+    guarded_follow_up: 'Guarded Follow-Up',
+    notifications_disabled: 'Notifications Disabled',
+    queue_stable: 'Queue Stable',
+    approval_action_required: 'Approval Action Required',
+  };
+  if (known[normalized]) return known[normalized];
+  if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(normalized)) {
+    return normalized
+      .replace(/[_-]+/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+  if (/^[a-z][a-z0-9\s-]*$/.test(raw)) {
+    return raw
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+  return raw;
 }
 
 function extractRoleTransition(row) {
@@ -3894,6 +5000,13 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
+
+
+
+
+
+
 
 
 
