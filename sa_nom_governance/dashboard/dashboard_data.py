@@ -6,6 +6,7 @@ from sa_nom_governance.api.api_engine import EngineApplication, build_engine_app
 from sa_nom_governance.compliance.retention_manager import RetentionManager
 from sa_nom_governance.deployment.deployment_profile import build_deployment_report
 from sa_nom_governance.deployment.go_live_readiness import build_go_live_readiness
+from sa_nom_governance.documents.document_service import GovernedDocumentService
 from sa_nom_governance.ptag.role_loader import RoleLoader
 from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.utils.registry import RoleRegistry
@@ -18,6 +19,7 @@ class DashboardSnapshotBuilder:
         self.registry = registry or RoleRegistry(self.config.roles_dir, manifest_path=self.config.trusted_registry_manifest_path, cache_path=self.config.trusted_registry_cache_path, signing_key=self.config.trusted_registry_signing_key, signature_required=self.config.trusted_registry_signature_required)
         self.loader = loader or RoleLoader(self.registry)
         self.retention_manager = RetentionManager(self.config)
+        self.document_center = GovernedDocumentService(self.config)
         self.access_control = self.app.access_control
 
     def build(self) -> dict[str, object]:
@@ -46,6 +48,7 @@ class DashboardSnapshotBuilder:
         retention_plan = self.retention_plan()
         role_private_studio = self.role_private_studio()
         human_ask = self.human_ask()
+        documents = self.documents()
         owner_registration = self.owner_registration()
         deployment_profile = build_deployment_report(self.config).to_dict()
         go_live_readiness = self.go_live_readiness(
@@ -82,6 +85,7 @@ class DashboardSnapshotBuilder:
             overrides=overrides,
             human_ask=human_ask,
             role_private_studio=role_private_studio,
+            documents=documents,
             operational_readiness=operational_readiness,
             operator_queue_health=operator_queue_health,
             operator_decision_lanes=operator_decision_lanes,
@@ -91,6 +95,7 @@ class DashboardSnapshotBuilder:
             overrides=overrides,
             human_ask=human_ask,
             role_private_studio=role_private_studio,
+            documents=documents,
             audit_entries=audit_entries,
         )
         self._attach_case_refs(
@@ -98,6 +103,7 @@ class DashboardSnapshotBuilder:
             overrides=overrides,
             human_ask=human_ask,
             role_private_studio=role_private_studio,
+            documents=documents,
             audit_entries=audit_entries,
             cases=cases,
         )
@@ -126,11 +132,13 @@ class DashboardSnapshotBuilder:
             app_health=app_health,
             access_control_health=access_control_health,
             deployment_profile=deployment_profile,
+            documents_snapshot=documents,
         )
         governance_materials = runtime_health.get('governance_materials', {}) if isinstance(runtime_health.get('governance_materials', {}), dict) else {}
         role_library = runtime_health.get('role_library', {}) if isinstance(runtime_health.get('role_library', {}), dict) else {}
         role_hierarchy = runtime_health.get('role_hierarchy', {}) if isinstance(runtime_health.get('role_hierarchy', {}), dict) else {}
         studio_summary = role_private_studio.get('summary', {}) if isinstance(role_private_studio.get('summary', {}), dict) else {}
+        documents_summary = documents.get('summary', {}) if isinstance(documents.get('summary', {}), dict) else {}
         guardrail_summary = guardrail_surface.get('summary', {}) if isinstance(guardrail_surface.get('summary', {}), dict) else {}
 
         conflicts = [request for request in requests if request['outcome'] == 'conflicted']
@@ -177,6 +185,11 @@ class DashboardSnapshotBuilder:
                 'human_ask_guarded_confidence_total': int(human_ask.get('summary', {}).get('guarded_confidence_total', 0) or 0),
                 'human_ask_stale_total': int(human_ask.get('summary', {}).get('stale_total', 0) or 0),
                 'human_ask_human_gated_total': int(human_ask.get('summary', {}).get('human_gated_posture_total', 0) or 0),
+                'documents_total': int(documents_summary.get('documents_total', 0) or 0),
+                'documents_active_total': int(documents_summary.get('active_total', 0) or 0),
+                'documents_published_total': int(documents_summary.get('published_total', 0) or 0),
+                'documents_in_review_total': int(documents_summary.get('in_review_total', 0) or 0),
+                'documents_case_linked_total': int(documents_summary.get('case_linked_total', 0) or 0),
                 'go_live_status': go_live_readiness.get('status', 'blocked'),
                 'privileged_operations_status': go_live_readiness.get('privileged_operations', {}).get('status', 'unknown'),
                 'runtime_alert_total': len(runtime_alerts),
@@ -263,6 +276,7 @@ class DashboardSnapshotBuilder:
             'retention_plan': retention_plan,
             'role_private_studio': role_private_studio,
             'human_ask': human_ask,
+            'documents': documents,
             'cases': cases,
             'operations': operations,
             'compliance': compliance,
@@ -562,6 +576,11 @@ class DashboardSnapshotBuilder:
     def human_ask(self, limit: int = 50) -> dict[str, object]:
         return self.app.human_ask_snapshot(limit=limit)
 
+    def documents(self, limit: int = 50) -> dict[str, object]:
+        snapshot = self.document_center.document_center_snapshot(limit=limit)
+        snapshot['human_ask_report'] = self.document_center.document_human_ask_report(limit=min(limit, 5))
+        return snapshot
+
 
     def case_backbone(
         self,
@@ -570,11 +589,13 @@ class DashboardSnapshotBuilder:
         overrides: list[dict[str, object]],
         human_ask: dict[str, object],
         role_private_studio: dict[str, object],
+        documents: dict[str, object],
         audit_entries: list[dict[str, object]],
         limit: int = 40,
     ) -> dict[str, object]:
         sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
         studio_requests = role_private_studio.get('requests', []) if isinstance(role_private_studio.get('requests', []), list) else []
+        document_items = documents.get('items', []) if isinstance(documents.get('items', []), list) else []
         alias_to_case: dict[str, str] = {}
         cases: dict[str, dict[str, object]] = {}
 
@@ -587,6 +608,7 @@ class DashboardSnapshotBuilder:
                 'linked_session_ids': set(),
                 'linked_workflow_ids': set(),
                 'linked_studio_request_ids': set(),
+                'linked_document_ids': set(),
                 'timeline': [],
                 'opened_at': None,
                 'updated_at': None,
@@ -609,6 +631,7 @@ class DashboardSnapshotBuilder:
                 'linked_session_ids',
                 'linked_workflow_ids',
                 'linked_studio_request_ids',
+                'linked_document_ids',
             ]:
                 target[field].update(source[field])
             target['timeline'].extend(source['timeline'])
@@ -650,7 +673,7 @@ class DashboardSnapshotBuilder:
                 case['aliases'].add(alias)
             return case_key, case
 
-        def touch_case(case: dict[str, object], *, timestamp: object, event: dict[str, object], request_id: str = '', override_id: str = '', session_id: str = '', workflow_id: str = '', studio_request_id: str = '', pending_override: bool = False, waiting_human: bool = False, blocked: bool = False, attention: bool = False, active: bool = False, audit_event: bool = False, evidence_export: bool = False, workflow_proof: bool = False, proof_event: dict[str, object] | None = None) -> None:
+        def touch_case(case: dict[str, object], *, timestamp: object, event: dict[str, object], request_id: str = '', override_id: str = '', session_id: str = '', workflow_id: str = '', studio_request_id: str = '', document_id: str = '', pending_override: bool = False, waiting_human: bool = False, blocked: bool = False, attention: bool = False, active: bool = False, audit_event: bool = False, evidence_export: bool = False, workflow_proof: bool = False, proof_event: dict[str, object] | None = None) -> None:
             stamp = str(timestamp or '').strip()
             if stamp:
                 case['opened_at'] = min([value for value in [case.get('opened_at'), stamp] if value]) if case.get('opened_at') else stamp
@@ -665,6 +688,8 @@ class DashboardSnapshotBuilder:
                 case['linked_workflow_ids'].add(workflow_id)
             if studio_request_id:
                 case['linked_studio_request_ids'].add(studio_request_id)
+            if document_id:
+                case['linked_document_ids'].add(document_id)
             if pending_override:
                 case['pending_override_total'] += 1
             if waiting_human:
@@ -827,6 +852,35 @@ class DashboardSnapshotBuilder:
                 },
             )
 
+        for item in document_items:
+            document_id = str(item.get('document_id', '') or '').strip()
+            case_reference = str(item.get('case_id', '') or '').strip()
+            aliases = [f'document:{document_id}'] if document_id else []
+            if case_reference:
+                aliases.append(case_reference)
+                if ':' not in case_reference:
+                    aliases.append(f'case:{case_reference}')
+            _, case = ensure_case(aliases)
+            status = str(item.get('status', 'unknown') or 'unknown')
+            current_revision = item.get('current_revision', {}) if isinstance(item.get('current_revision', {}), dict) else {}
+            active_revision = item.get('active_revision', {}) if isinstance(item.get('active_revision', {}), dict) else {}
+            touch_case(
+                case,
+                timestamp=item.get('updated_at') or item.get('created_at'),
+                document_id=document_id,
+                attention=status in {'draft', 'in_review', 'approved'} or str(current_revision.get('status', '')) in {'draft', 'in_review', 'approved'},
+                active=status != 'archived',
+                event={
+                    'timestamp': item.get('updated_at') or item.get('created_at'),
+                    'event_type': 'document',
+                    'status': status,
+                    'view': 'documents',
+                    'reference': document_id or item.get('document_number') or '-',
+                    'title': f"{str(item.get('document_number', 'Document') or 'Document')} document",
+                    'detail': str(item.get('title') or item.get('document_class_label') or active_revision.get('title') or 'Governed document activity recorded.'),
+                },
+            )
+
         for entry in audit_entries:
             metadata = entry.get('metadata', {}) if isinstance(entry.get('metadata', {}), dict) else {}
             context = metadata.get('context', {}) if isinstance(metadata.get('context', {}), dict) else {}
@@ -914,6 +968,8 @@ class DashboardSnapshotBuilder:
                 primary_view = 'studio'
             elif case['linked_session_ids']:
                 primary_view = 'human_ask'
+            elif case['linked_document_ids']:
+                primary_view = 'documents'
             else:
                 primary_view = 'audit'
             display_id = self._case_display_id(case['case_key'])
@@ -921,6 +977,7 @@ class DashboardSnapshotBuilder:
                 next(iter(sorted(case['linked_request_ids'])), '')
                 or next(iter(sorted(case['linked_studio_request_ids'])), '')
                 or next(iter(sorted(case['linked_session_ids'])), '')
+                or (timeline[0].get('title') if timeline else '')
                 or display_id
             )
             linked_request_ids = sorted(case['linked_request_ids'])
@@ -928,6 +985,7 @@ class DashboardSnapshotBuilder:
             linked_session_ids = sorted(case['linked_session_ids'])
             linked_workflow_ids = sorted(case['linked_workflow_ids'])
             linked_studio_request_ids = sorted(case['linked_studio_request_ids'])
+            linked_document_ids = sorted(case['linked_document_ids'])
             audit_event_total = int(case.get('audit_event_total', 0) or 0)
             timeline_total = len(timeline)
             if status == 'blocked':
@@ -999,6 +1057,13 @@ class DashboardSnapshotBuilder:
                     'view': 'studio',
                     'tone': 'follow_up',
                 })
+            if linked_document_ids and primary_view != 'documents':
+                follow_up_actions.append({
+                    'label': 'Review linked governed document',
+                    'detail': 'Open Documents to inspect the linked draft, published version, or active revision contract for this case.',
+                    'view': 'documents',
+                    'tone': 'follow_up',
+                })
             deduped_follow_ups = []
             seen_follow_up_views = set()
             for action_item in follow_up_actions:
@@ -1021,6 +1086,7 @@ class DashboardSnapshotBuilder:
                     'linked_session_ids': linked_session_ids,
                     'linked_workflow_ids': linked_workflow_ids,
                     'linked_studio_request_ids': linked_studio_request_ids,
+                    'linked_document_ids': linked_document_ids,
                     'audit_event_total': audit_event_total,
                     'evidence_export_total': evidence_export_total,
                     'workflow_proof_total': workflow_proof_total,
@@ -1063,6 +1129,13 @@ class DashboardSnapshotBuilder:
                             'total': len(linked_studio_request_ids),
                             'view': 'studio',
                             'ids': linked_studio_request_ids[:3],
+                        },
+                        {
+                            'kind': 'document',
+                            'label': 'Documents',
+                            'total': len(linked_document_ids),
+                            'view': 'documents',
+                            'ids': linked_document_ids[:3],
                         },
                         {
                             'kind': 'audit',
@@ -1111,6 +1184,7 @@ class DashboardSnapshotBuilder:
         overrides: list[dict[str, object]],
         human_ask: dict[str, object],
         role_private_studio: dict[str, object],
+        documents: dict[str, object],
         audit_entries: list[dict[str, object]],
         cases: dict[str, object],
     ) -> None:
@@ -1120,6 +1194,7 @@ class DashboardSnapshotBuilder:
         session_refs: dict[str, dict[str, str]] = {}
         workflow_refs: dict[str, dict[str, str]] = {}
         studio_refs: dict[str, dict[str, str]] = {}
+        document_refs: dict[str, dict[str, str]] = {}
 
         def payload(item: dict[str, object]) -> dict[str, str]:
             return {
@@ -1142,6 +1217,8 @@ class DashboardSnapshotBuilder:
                 workflow_refs[str(workflow_id)] = ref
             for studio_request_id in item.get('linked_studio_request_ids', []) if isinstance(item.get('linked_studio_request_ids', []), list) else []:
                 studio_refs[str(studio_request_id)] = ref
+            for document_id in item.get('linked_document_ids', []) if isinstance(item.get('linked_document_ids', []), list) else []:
+                document_refs[str(document_id)] = ref
 
         for item in requests:
             request_id = str(item.get('request_id', '') or '').strip()
@@ -1182,6 +1259,15 @@ class DashboardSnapshotBuilder:
             if ref:
                 item.update(ref)
 
+        document_rows = documents.get('items', []) if isinstance(documents.get('items', []), list) else []
+        for item in document_rows:
+            document_id = str(item.get('document_id', '') or '').strip()
+            ref = document_refs.get(document_id)
+            if ref:
+                if item.get('case_id') and not item.get('case_reference'):
+                    item['case_reference'] = item['case_id']
+                item.update(ref)
+
         for item in audit_entries:
             metadata = item.get('metadata', {}) if isinstance(item.get('metadata', {}), dict) else {}
             context = metadata.get('context', {}) if isinstance(metadata.get('context', {}), dict) else {}
@@ -1218,6 +1304,8 @@ class DashboardSnapshotBuilder:
             return f'CASE-ASK-{cleaned}'
         if prefix == 'studio':
             return f'CASE-STUDIO-{cleaned}'
+        if prefix == 'document':
+            return f'CASE-DOC-{cleaned}'
         return f'CASE-{cleaned}'
 
     def operations(self, limit: int = 10) -> dict[str, object]:
@@ -1573,6 +1661,7 @@ class DashboardSnapshotBuilder:
         app_health: dict[str, object] | None = None,
         access_control_health: dict[str, object] | None = None,
         deployment_profile: dict[str, object] | None = None,
+        documents_snapshot: dict[str, object] | None = None,
     ) -> dict[str, object]:
         known_roles = roles if roles is not None else self.list_roles()
         cached_health = app_health if app_health is not None else self.app.health(roles=known_roles)
@@ -1588,6 +1677,8 @@ class DashboardSnapshotBuilder:
         registration = owner_registration if owner_registration is not None else self.owner_registration()
         access_health = access_control_health if access_control_health is not None else self.access_control.health()
         deployment = deployment_profile if deployment_profile is not None else build_deployment_report(self.config).to_dict()
+        document_snapshot = documents_snapshot if documents_snapshot is not None else self.documents()
+        document_summary = document_snapshot.get('summary', {}) if isinstance(document_snapshot.get('summary', {}), dict) else {}
         return {
             'engine_status': cached_health.get('status', 'unknown'),
             'owner_registration': registration,
@@ -1598,6 +1689,7 @@ class DashboardSnapshotBuilder:
             'session_store': self._file_health(self.config.session_store_path),
             'role_private_studio_store': self._file_health(self.config.role_private_studio_store_path),
             'human_ask_store': self._file_health(self.config.human_ask_store_path),
+            'document_store': self._file_health(self.config.document_store_path),
             'startup_smoke_report': self._file_health(self.config.startup_smoke_report_path),
             'retention_archive_dir': self._file_health(self.config.retention_archive_dir),
             'runtime_backup_dir': self._file_health(self.config.runtime_backup_dir),
@@ -1621,6 +1713,7 @@ class DashboardSnapshotBuilder:
             'retention': cached_health.get('retention', self.retention_manager.summary()),
             'role_private_studio': cached_health.get('role_private_studio', {}),
             'human_ask': cached_health.get('human_ask', {}),
+            'document_center': document_summary,
             'runtime_backups': cached_health.get('runtime_backups', {}),
             'role_library': cached_health.get('role_library', {}),
             'role_hierarchy': cached_health.get('role_hierarchy', {}),
@@ -1708,6 +1801,7 @@ class DashboardSnapshotBuilder:
         overrides: list[dict[str, object]],
         human_ask: dict[str, object],
         role_private_studio: dict[str, object],
+        documents: dict[str, object],
         operational_readiness: dict[str, object],
         operator_queue_health: dict[str, object],
         operator_decision_lanes: list[dict[str, object]],
@@ -1717,6 +1811,7 @@ class DashboardSnapshotBuilder:
         queue_map = {str(item.get('lane_id', '')): item for item in queue_items if str(item.get('lane_id', ''))}
         studio_requests = role_private_studio.get('requests', []) if isinstance(role_private_studio.get('requests', []), list) else []
         sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
+        document_items = documents.get('items', []) if isinstance(documents.get('items', []), list) else []
 
         pending_overrides = [item for item in overrides if str(item.get('status', '')) == 'pending']
         inbox_items = visibility.get('human_decision_inbox', []) if isinstance(visibility.get('human_decision_inbox', []), list) else []
@@ -1738,6 +1833,17 @@ class DashboardSnapshotBuilder:
             item
             for item in studio_requests
             if str(item.get('status', '')) != 'published' and item not in publish_ready and item not in structural_review
+        ]
+
+        document_review_queue = [
+            item
+            for item in document_items
+            if str(item.get('status', '')) in {'draft', 'in_review'}
+        ]
+        document_publish_queue = [
+            item
+            for item in document_items
+            if str(item.get('status', '')) == 'approved'
         ]
 
         lane_configs: dict[str, dict[str, object]] = {
@@ -1805,6 +1911,22 @@ class DashboardSnapshotBuilder:
                 'operator_note': 'Publish-ready hats are the cleanest place to expand AI workforce safely.',
                 'reference_fields': ['request_id'],
             },
+            'document_review_queue': {
+                'title': 'Document review queue',
+                'view': 'documents',
+                'disposition': 'monitoring',
+                'next_step': 'Review the next governed draft or in-review document before it silently stalls outside the runtime story.',
+                'operator_note': 'Document drafts and review states belong inside the work surface, not outside it.',
+                'reference_fields': ['document_number', 'document_id'],
+            },
+            'document_publish_queue': {
+                'title': 'Document publish queue',
+                'view': 'documents',
+                'disposition': 'ready',
+                'next_step': 'Publish the next approved document only after the case link and active-version contract look clean.',
+                'operator_note': 'Approved documents are the closest point to controlled release inside the document runtime.',
+                'reference_fields': ['document_number', 'document_id'],
+            },
         }
 
         def tone_for(status: str, disposition: str) -> str:
@@ -1841,6 +1963,8 @@ class DashboardSnapshotBuilder:
             'studio_review_queue': review_queue,
             'studio_structural_review': structural_review,
             'studio_publish_queue': publish_ready,
+            'document_review_queue': document_review_queue,
+            'document_publish_queue': document_publish_queue,
         }
 
         items: list[dict[str, object]] = []

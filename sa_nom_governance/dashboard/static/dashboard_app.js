@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.3-ui15';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.4-ui1';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.3-ui15';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.4-ui1';
 
 const state = {
   view: 'overview',
@@ -41,6 +41,7 @@ const VIEW_TITLES = {
   overview: 'Overview',
   requests: 'Requests',
   cases: 'Cases',
+  documents: 'Documents',
   overrides: 'Overrides',
   conflicts: 'Conflicts & Locks',
   audit: 'Audit Trail',
@@ -54,7 +55,8 @@ const VIEW_TITLES = {
 const VIEW_DESCRIPTIONS = {
   overview: 'See governance, runtime, and readiness posture in one scan.',
   requests: 'Submit governed work and follow where it goes next.',
-  cases: 'Follow one governed issue across requests, overrides, Human Ask, and audit proof.',
+  cases: 'Follow one governed issue across requests, overrides, Human Ask, documents, and audit proof.',
+  documents: 'Work governed documents as live runtime objects, not static files.',
   overrides: 'Work only the decisions that crossed a human boundary.',
   conflicts: 'Inspect locks, contention, and safe retry posture.',
   audit: 'Review chain integrity, evidence, and trusted history.',
@@ -105,8 +107,14 @@ const VIEW_INTELLIGENCE = {
   cases: {
     eyebrow: 'Case Backbone',
     title: 'One governed issue, one readable operating story',
-    narrative: 'Use this page when you need the linked request, override, Human Ask, and audit trail in one place.',
+    narrative: 'Use this page when you need the linked request, override, Human Ask, document, and audit trail in one place.',
     emphasis: 'end-to-end trace',
+  },
+  documents: {
+    eyebrow: 'Document Runtime',
+    title: 'Governed documents as live operating objects',
+    narrative: 'Use this page when a draft, review, publish, or supersede flow must stay tied to runtime proof and case continuity.',
+    emphasis: 'document lifecycle',
   },
   overrides: {
     eyebrow: 'Boundary Changes',
@@ -161,7 +169,8 @@ const VIEW_INTELLIGENCE = {
 const VIEW_USE_HINTS = {
   overview: { value: 'Start here', note: 'Open this first for the quickest full-system scan.', tone: 'accent' },
   requests: { value: 'Submit or trace work', note: 'Use this when you are creating a governed request or following its next lane.', tone: 'accent' },
-  cases: { value: 'Trace the whole issue', note: 'Use this when one business issue spans requests, approvals, records, and evidence.', tone: 'accent' },
+  cases: { value: 'Trace the whole issue', note: 'Use this when one business issue spans requests, approvals, records, documents, and evidence.', tone: 'accent' },
+  documents: { value: 'Work the governed document lane', note: 'Use this when draft, review, publish, archive, or active-version logic matters.', tone: 'accent' },
   overrides: { value: 'Resolve human decisions', note: 'Use this when the runtime paused and a human must approve or veto.', tone: 'warning' },
   conflicts: { value: 'Unblock stalled work', note: 'Use this when locks or contention stop safe execution.', tone: 'warning' },
   audit: { value: 'Prove what happened', note: 'Use this when you need evidence, reason, and chain integrity.', tone: 'accent' },
@@ -176,6 +185,7 @@ const VIEW_PERMISSIONS = {
   overview: 'dashboard.read',
   requests: 'requests.read',
   cases: 'dashboard.read',
+  documents: 'dashboard.read',
   overrides: 'overrides.read',
   conflicts: 'locks.read',
   audit: 'audit.read',
@@ -1219,6 +1229,7 @@ function render() {
   if (state.view === 'overview') viewContent = renderOverview(snapshot);
   if (state.view === 'requests') viewContent = renderRequests(scopedSnapshot);
   if (state.view === 'cases') viewContent = renderCases(snapshot);
+  if (state.view === 'documents') viewContent = renderDocuments(scopedSnapshot);
   if (state.view === 'overrides') viewContent = renderOverridesView(scopedSnapshot);
   if (state.view === 'conflicts') viewContent = renderConflicts(scopedSnapshot);
   if (state.view === 'audit') viewContent = renderAudit(scopedSnapshot);
@@ -1966,7 +1977,7 @@ function getActionContextCaseId() {
 }
 
 function isCaseScopedView(view = state.view) {
-  return ['requests', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask'].includes(String(view || '').trim());
+  return ['requests', 'documents', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask'].includes(String(view || '').trim());
 }
 
 function getCaseById(snapshot, caseId = '') {
@@ -1990,6 +2001,7 @@ function getCurrentViewCaseLinkedTotal(item) {
   if (state.view === 'audit') return Number(item.audit_event_total || 0);
   if (state.view === 'studio') return Array.isArray(item.linked_studio_request_ids) ? item.linked_studio_request_ids.length : 0;
   if (state.view === 'human_ask') return Array.isArray(item.linked_session_ids) ? item.linked_session_ids.length : 0;
+  if (state.view === 'documents') return Array.isArray(item.linked_document_ids) ? item.linked_document_ids.length : 0;
   return 0;
 }
 
@@ -2024,6 +2036,12 @@ function getCaseScopedSnapshot(snapshot) {
           requests: filterRowsByCase(snapshot.role_private_studio.requests || [], caseId),
         }
       : snapshot.role_private_studio,
+    documents: snapshot.documents
+      ? {
+          ...snapshot.documents,
+          items: filterRowsByCase(snapshot.documents.items || [], caseId),
+        }
+      : snapshot.documents,
   };
 }
 
@@ -2236,6 +2254,7 @@ function renderOverview(snapshot) {
             ['Audit integrity', auditIntegrity.status || 'unknown'],
             ['PTAG role packs', String((snapshot.roles || []).length)],
             ['Active sessions', String((snapshot.sessions || []).length)],
+            ['Governed documents', String(snapshot.summary.documents_total || 0)],
           ])}
         </div>
       </article>
@@ -2261,6 +2280,7 @@ function renderOverview(snapshot) {
       <section class="metrics-grid metrics-grid-luxury">
         ${metricCard('Requests', snapshot.summary.requests_total, 'default', 'Governed runtime submissions in the current live view.')}
       ${metricCard('Cases', snapshot.summary.cases_total || 0, 'accent', 'Linked governed issues tracked across request, approval, record, and evidence lanes.')}
+        ${metricCard('Documents', snapshot.summary.documents_total || 0, 'accent', 'Governed documents tracked with lifecycle, numbering, and case continuity.')}
         ${metricCard('Runtime alerts', snapshot.summary.runtime_alert_total || runtimeAlerts.length, (snapshot.summary.runtime_alert_critical_total || 0) ? 'danger' : (snapshot.summary.runtime_alert_total || runtimeAlerts.length) ? 'warning' : 'success', 'Conditions where the Director paused or governance pressure is still active.')}
         ${metricCard('Pending overrides', snapshot.summary.pending_overrides, 'warning', 'Human approvals waiting in the executive queue.')}
         ${metricCard('Active locks', snapshot.summary.active_locks, 'accent', 'Resources currently protected from conflicting execution.')}
@@ -2756,6 +2776,8 @@ function resolveCaseWorkItemFocus(workItem = {}) {
       return { entityType: 'human_ask_session', entityId: firstId };
     case 'studio':
       return { entityType: 'studio_request', entityId: firstId };
+    case 'document':
+      return { entityType: 'document', entityId: firstId };
     case 'audit':
       return { entityType: firstId ? 'request' : 'case', entityId: firstId || '' };
     default:
@@ -2877,6 +2899,7 @@ function renderCaseCard(item) {
         ['Requests', String((item.linked_request_ids || []).length)],
         ['Overrides', String((item.linked_override_ids || []).length)],
         ['Human Ask', String((item.linked_session_ids || []).length)],
+        ['Documents', String((item.linked_document_ids || []).length)],
         ['Workflow refs', String((item.linked_workflow_ids || []).length)],
         ['Audit events', String(item.audit_event_total || 0)],
         ['Timeline', String(item.timeline_total || 0)],
@@ -2917,6 +2940,7 @@ function resolveCaseTimelineFocus(entry = {}) {
   if (eventType === 'override') return { entityType: 'override', entityId: reference };
   if (eventType === 'human_ask') return { entityType: 'human_ask_session', entityId: reference };
   if (eventType === 'studio') return { entityType: 'studio_request', entityId: reference };
+  if (eventType === 'document') return { entityType: 'document', entityId: reference };
   if (eventType === 'audit') return { entityType: 'request', entityId: reference };
   return { entityType: 'case', entityId: '' };
 }
@@ -2960,10 +2984,174 @@ function renderCaseEmptyState() {
       <div>
         <div class="eyebrow muted">Case lane empty</div>
         <h3 class="card-title">No linked governed case is visible yet</h3>
-        <p class="card-subtitle">Start from Requests, Human Ask, or Role Private Studio. As soon as the runtime captures related work, this lane will stitch the issue into one readable case.</p>
+        <p class="card-subtitle">Start from Requests, Human Ask, Role Private Studio, or Documents. As soon as the runtime captures related work, this lane will stitch the issue into one readable case.</p>
       </div>
       <div class="inline-actions">
         <button class="action-button" type="button" data-view-jump="requests">Open Requests</button>
+        <button class="action-button action-button-muted" type="button" data-view-jump="documents">Open Documents</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderDocuments(snapshot) {
+  const documentsSurface = snapshot.documents || { summary: {}, items: [], document_classes: [], human_ask_report: { summary: {}, items: [], narrative: '' } };
+  const summary = documentsSurface.summary || {};
+  const items = Array.isArray(documentsSurface.items) ? documentsSurface.items : [];
+  const classes = Array.isArray(documentsSurface.document_classes) ? documentsSurface.document_classes : [];
+  const humanAskReport = documentsSurface.human_ask_report || { summary: {}, items: [], narrative: '' };
+  const latestLabel = items.length ? `${items[0].document_number} | ${shortTime(items[0].updated_at)}` : 'No governed document has been created yet.';
+  const classChips = Object.entries(summary.document_class_counts || {})
+    .sort((left, right) => Number(right[1] || 0) - Number(left[1] || 0))
+    .slice(0, 5);
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Governed Document Center Runtime</div>
+            <h2 class="hero-title">Draft, review, publish, supersede, and archive documents inside the governed runtime.</h2>
+            <p class="hero-subtitle">This lane turns documents into first-class runtime objects with numbering, active-version logic, case linkage, and reviewable proof instead of leaving them as static files outside the operating story.</p>
+          </div>
+          <div class="hero-chip-row">
+            ${statusBadge(summary.in_review_total ? 'review active' : (summary.published_total ? 'published documents live' : 'document runtime ready'))}
+            ${statusBadge(summary.case_linked_total ? 'case linked' : 'standalone lane')}
+          </div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Latest document', latestLabel],
+            ['Documents in scope', String(summary.documents_total || 0)],
+            ['Published', String(summary.published_total || 0)],
+            ['In review', String(summary.in_review_total || 0)],
+            ['Case linked', String(summary.case_linked_total || 0)],
+          ])}
+          <div class="hero-note">
+            <strong>Operator standard</strong>
+            <p>Use this lane when the document itself is the governed object that must remain readable across revision work, publication posture, and linked case evidence.</p>
+          </div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Document reporting</div>
+          <h3 class="card-title">Human Ask over document state</h3>
+          <p class="card-subtitle">A governed summary of the current document surface so operators can ask for document posture without reconstructing state by hand.</p>
+        </div>
+        ${keyValue([
+          ['Narrative scope', String(humanAskReport.summary?.documents_total || 0)],
+          ['Published', String(humanAskReport.summary?.published_total || 0)],
+          ['In review', String(humanAskReport.summary?.in_review_total || 0)],
+          ['Archived', String(humanAskReport.summary?.archived_total || 0)],
+        ])}
+        <div class="trace-box"><strong>Human Ask narrative</strong><p class="muted">${escapeHtml(humanAskReport.narrative || 'No governed document report is available yet.')}</p></div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Documents', summary.documents_total || 0, 'accent', 'Governed documents currently tracked in the runtime ledger.')}
+      ${metricCard('Published', summary.published_total || 0, (summary.published_total || 0) ? 'success' : 'default', 'Documents whose active revision is already published.')}
+      ${metricCard('In review', summary.in_review_total || 0, (summary.in_review_total || 0) ? 'warning' : 'success', 'Drafts currently sitting in the formal review lane.')}
+      ${metricCard('Approved', summary.approved_total || 0, (summary.approved_total || 0) ? 'accent' : 'default', 'Documents approved but not yet pushed through publish.')}
+      ${metricCard('Drafts', summary.draft_total || 0, (summary.draft_total || 0) ? 'accent' : 'success', 'Working revisions that still need review or publication decisions.')}
+      ${metricCard('Case linked', summary.case_linked_total || 0, (summary.case_linked_total || 0) ? 'accent' : 'default', 'Documents already tied into a governed business issue or operating story.')}
+    </section>
+    <section class="split-grid">
+      <article class="card stack">
+        <div><div class="eyebrow muted">Document classes</div><h3 class="card-title">Runtime class catalog</h3><p class="card-subtitle">These are the governed document classes currently supported by the runtime foundation.</p></div>
+        <div class="hero-chip-row">${(classes.length ? classes : []).map((entry) => `<span class="pill">${escapeHtml(entry.label || entry.document_class || 'Document')} | ${escapeHtml(entry.prefix || '-')}</span>`).join('')}</div>
+        ${classChips.length ? keyValue(classChips.map(([label, total]) => [titleCase(label.replaceAll('_', ' ')), String(total || 0)])) : '<p class="muted">No class distribution is available yet.</p>'}
+      </article>
+      <article class="card stack">
+        <div><div class="eyebrow muted">Document runtime contract</div><h3 class="card-title">What this lane guarantees</h3><p class="card-subtitle">This surface is about lifecycle control, not just file storage.</p></div>
+        ${keyValue([
+          ['Numbering', 'Class prefix plus year plus sequence'],
+          ['Active version', 'Published revision stays active until a newer approved revision is published'],
+          ['Lifecycle', 'Draft to review to approval to publish to supersede or archive'],
+          ['Proof continuity', 'Documents can stay tied to cases, Human Ask, and audit history'],
+        ])}
+      </article>
+    </section>
+    <section class="case-grid">
+      ${items.length ? items.map((item) => renderDocumentCard(item)).join('') : renderDocumentEmptyState()}
+    </section>
+  `;
+}
+
+function renderDocumentCard(item) {
+  const currentRevision = item.current_revision || {};
+  const activeRevision = item.active_revision || {};
+  const summary = item.summary || {};
+  const caseReference = renderCaseReferenceButton(item.case_id, item.case_status, {
+    sourceView: 'documents',
+    referenceId: item.document_id,
+    contextLabel: 'governed document',
+    label: item.case_id,
+  });
+  return `
+    <article class="card stack case-card${isFocusedEntity('document', item.document_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('document', item.document_id))}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(item.document_number || item.document_id || 'Document')}</div>
+          <h3 class="card-title">${escapeHtml(item.title || 'Governed document')}</h3>
+          <p class="card-subtitle">${escapeHtml(item.document_class_label || titleCase(item.document_class || 'document'))} | Updated ${shortTime(item.updated_at)}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(item.status || 'draft')}
+          ${statusBadge(summary.active_revision_status || 'active revision')}
+        </div>
+      </div>
+      ${keyValue([
+        ['Owner', item.owner_id || '-'],
+        ['Approver', item.approver_id || '-'],
+        ['Retention', item.retention_code || '-'],
+        ['Business domain', item.business_domain || '-'],
+        ['Current revision', String(item.current_revision_number || 0)],
+        ['Active revision', String(item.active_revision_number || 0)],
+        ['Published revision', item.published_revision_number == null ? '-' : String(item.published_revision_number)],
+      ])}
+      <div class="trace-box"><strong>Active-version logic</strong><p class="muted">${escapeHtml(summary.active_version_logic || 'The current revision remains active until lifecycle rules move it forward.')}</p></div>
+      <div class="split-grid">
+        <article class="mini-card">
+          <div class="eyebrow muted">Working revision</div>
+          <strong>${escapeHtml(currentRevision.title || item.title || 'Current revision')}</strong>
+          <p class="muted">${escapeHtml(formatStatusLabel(currentRevision.status || 'draft'))} | Updated ${escapeHtml(shortTime(currentRevision.updated_at))}</p>
+          <span class="permission-note">Revision ${escapeHtml(String(currentRevision.revision_number || item.current_revision_number || 0))} | ${escapeHtml(currentRevision.updated_by || item.owner_id || '-')}</span>
+        </article>
+        <article class="mini-card">
+          <div class="eyebrow muted">Active revision</div>
+          <strong>${escapeHtml(activeRevision.title || item.title || 'Active revision')}</strong>
+          <p class="muted">${escapeHtml(formatStatusLabel(activeRevision.status || item.status || 'active'))} | Updated ${escapeHtml(shortTime(activeRevision.updated_at || item.updated_at))}</p>
+          <span class="permission-note">Revision ${escapeHtml(String(activeRevision.revision_number || item.active_revision_number || 0))} | Published ${escapeHtml(shortTime(activeRevision.published_at || ''))}</span>
+        </article>
+      </div>
+      <div class="hero-chip-row">${(Array.isArray(item.tags) ? item.tags : []).slice(0, 4).map((tag) => `<span class="pill pill-muted">${escapeHtml(tag)}</span>`).join('') || '<span class="pill pill-muted">No tags</span>'}</div>
+      <div class="trace-box"><strong>Case continuity</strong><p class="muted">${escapeHtml(item.case_reference ? `Document case reference: ${item.case_reference}.` : 'No originating case reference was written into this document yet.')}</p>${caseReference || '<span class="permission-note">This document is not yet stitched into a canonical dashboard case.</span>'}</div>
+      <div class="inline-actions">
+        ${item.case_id ? `<button class="action-button" type="button" ${buildViewJumpAttributes({
+          view: 'cases',
+          focusType: 'case',
+          focusId: item.case_id,
+          caseId: item.case_id,
+          title: `Case ${item.case_id} opened from document ${item.document_number || item.document_id}.`,
+          detail: 'Use Cases to see the linked request, approval, Human Ask, and evidence story around this governed document.',
+          actionLabel: 'Open Cases',
+        })}>Open Cases</button>` : ''}
+        <button class="action-button action-button-muted" type="button" data-view-jump="audit">Open Audit</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderDocumentEmptyState() {
+  return `
+    <article class="card stack case-card case-card-empty">
+      <div>
+        <div class="eyebrow muted">Document lane empty</div>
+        <h3 class="card-title">No governed documents are active yet</h3>
+        <p class="card-subtitle">As soon as a governed document is drafted, reviewed, published, or archived inside the runtime, it will appear here as a first-class operating object.</p>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-view-jump="cases">Open Cases</button>
         <button class="action-button action-button-muted" type="button" data-view-jump="overview">Open Overview</button>
       </div>
     </article>
@@ -3017,6 +3205,10 @@ function resolveCasePrimaryFocus(item, primaryView = '') {
   if (view === 'studio') {
     const studioRequestId = (item.linked_studio_request_ids || [])[0] || '';
     return { entityType: studioRequestId ? 'studio_request' : '', entityId: studioRequestId };
+  }
+  if (view === 'documents') {
+    const documentId = (item.linked_document_ids || [])[0] || '';
+    return { entityType: documentId ? 'document' : '', entityId: documentId };
   }
   if (view === 'conflicts') {
     const requestId = (item.linked_request_ids || [])[0] || (item.linked_override_ids || [])[0] || '';

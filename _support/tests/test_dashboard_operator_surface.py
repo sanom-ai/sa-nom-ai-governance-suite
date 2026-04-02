@@ -579,6 +579,112 @@ def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
         assert (linked_case.get('continuity', {}) or {}).get('next_view') in {'studio', 'audit', 'requests'}
 
 
+def test_dashboard_snapshot_surfaces_governed_documents_in_cases_and_runtime_health() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        pending = builder.app.request(
+            requester='operator@example.com',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'DOC-CASE-001', 'amount': 250000},
+        )
+        request_id = pending.metadata['request_id']
+
+        document = builder.document_center.create_document(
+            {
+                'document_class': 'policy',
+                'title': 'Case-linked Policy Memo',
+                'content': 'This governed document is linked to a live runtime case.',
+                'case_id': f'request:{request_id}',
+                'owner_id': 'LEGAL_OWNER',
+                'approver_id': 'EXEC_OWNER',
+                'retention_code': 'POL-RET-001',
+                'business_domain': 'contract_governance',
+                'tags': ['policy', 'case'],
+                'metadata': {'source': 'dashboard_operator_surface'},
+            },
+            created_by='EXEC_OWNER',
+        )
+        builder.document_center.submit_review(document['document_id'], submitted_by='EXEC_OWNER', note='Submit document for review.')
+        builder.document_center.approve_document(document['document_id'], approved_by='EXEC_OWNER', note='Approve document for publication.')
+        builder.document_center.publish_document(document['document_id'], published_by='EXEC_OWNER', note='Publish linked document.')
+
+        snapshot = builder.build()
+        documents_surface = snapshot.get('documents', {})
+        document_summary = documents_surface.get('summary', {}) if isinstance(documents_surface, dict) else {}
+        document_items = documents_surface.get('items', []) if isinstance(documents_surface, dict) else []
+        document_row = next(item for item in document_items if item.get('document_id') == document['document_id'])
+        linked_case = next(item for item in snapshot.get('cases', {}).get('items', []) if document['document_id'] in item.get('linked_document_ids', []))
+        timeline_types = {entry.get('event_type') for entry in linked_case.get('timeline', [])}
+        work_item_kinds = {entry.get('kind') for entry in linked_case.get('work_items', []) if int(entry.get('total', 0) or 0) > 0}
+        runtime_health = snapshot.get('runtime_health', {})
+
+        assert document_summary.get('documents_total', 0) >= 1
+        assert document_summary.get('published_total', 0) >= 1
+        assert document_summary.get('case_linked_total', 0) >= 1
+        assert snapshot.get('summary', {}).get('documents_total', 0) >= 1
+        assert snapshot.get('summary', {}).get('documents_published_total', 0) >= 1
+        assert document_row.get('case_reference') == f'request:{request_id}'
+        assert document_row.get('case_id') == linked_case.get('case_id')
+        assert runtime_health.get('document_store', {}).get('status') == 'present'
+        assert runtime_health.get('document_center', {}).get('published_total', 0) >= 1
+        assert 'document' in timeline_types
+        assert 'document' in work_item_kinds
+        assert linked_case.get('primary_view') in {'requests', 'documents', 'audit', 'overrides'}
+        assert (linked_case.get('continuity', {}) or {}).get('next_view') in {'requests', 'documents', 'audit', 'overrides', 'conflicts'}
+
+
+def test_dashboard_snapshot_surfaces_document_review_and_publish_work_lanes() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        builder.document_center.create_document(
+            {
+                'document_class': 'procedure',
+                'title': 'Draft Document Work Lane',
+                'content': 'This draft should stay in the document review queue.',
+                'owner_id': 'OPS_OWNER',
+                'approver_id': 'EXEC_OWNER',
+                'retention_code': 'PROC-RET-001',
+                'business_domain': 'operations',
+            },
+            created_by='EXEC_OWNER',
+        )
+
+        approved = builder.document_center.create_document(
+            {
+                'document_class': 'policy',
+                'title': 'Approved Document Work Lane',
+                'content': 'This approved document should surface in the publish queue.',
+                'owner_id': 'LEGAL_OWNER',
+                'approver_id': 'EXEC_OWNER',
+                'retention_code': 'POL-RET-002',
+                'business_domain': 'policy_operations',
+            },
+            created_by='EXEC_OWNER',
+        )
+        builder.document_center.submit_review(approved['document_id'], submitted_by='EXEC_OWNER', note='Submit approved lane document.')
+        builder.document_center.approve_document(approved['document_id'], approved_by='EXEC_OWNER', note='Ready for publish queue.')
+
+        snapshot = builder.build()
+        inbox = snapshot.get('unified_work_inbox', {})
+        items = inbox.get('items', []) if isinstance(inbox, dict) else []
+
+        review_lane = next(item for item in items if item.get('lane_id') == 'document_review_queue')
+        publish_lane = next(item for item in items if item.get('lane_id') == 'document_publish_queue')
+
+        assert review_lane.get('view') == 'documents'
+        assert review_lane.get('disposition') == 'monitoring'
+        assert review_lane.get('total', 0) >= 1
+        assert publish_lane.get('view') == 'documents'
+        assert publish_lane.get('disposition') == 'ready'
+        assert publish_lane.get('total', 0) >= 1
+        assert any(str(ref).startswith('POL-') for ref in publish_lane.get('sample_references', []))
+        assert snapshot.get('summary', {}).get('work_inbox_open_total', 0) >= 2
+
 
 def test_dashboard_notification_delivery_readiness_turns_ready_for_active_external_channels() -> None:
     with TemporaryDirectory() as temp_dir:
