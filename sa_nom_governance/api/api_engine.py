@@ -171,6 +171,10 @@ class EngineApplication:
                 return str(inbox.get('inbox_state', 'autonomy_ready'))
             return 'autonomy_ready'
 
+        def workflow_autonomy(item: dict[str, object]) -> dict[str, object]:
+            autonomy = item.get('governed_autonomy')
+            return dict(autonomy) if isinstance(autonomy, dict) else {}
+
         health = self.health()
         workflow_items = self.list_workflow_states(limit=limit)
         recovery_items = self.list_runtime_recovery_records(limit=limit)
@@ -180,33 +184,75 @@ class EngineApplication:
         blocked_workflows = [
             item
             for item in workflow_items
-            if str(item.get('current_state', '')) in {'blocked', 'awaiting_human_confirmation'}
+            if str(item.get('current_state', '')) in {'blocked', 'awaiting_human_confirmation', 'closed_with_exception'}
         ]
         active_workflows = [
             item
             for item in workflow_items
             if str(item.get('current_state', '')) not in {'completed', 'rejected'}
         ]
+        autonomous_inflight_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'autonomous_inflight'
+        ]
+        human_gate_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'human_gate_open'
+        ]
+        fail_closed_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'fail_closed'
+        ]
+        recovery_required_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'recovery_required'
+        ]
+        completed_workflows = [
+            item for item in workflow_items if str(workflow_autonomy(item).get('posture', '')) == 'completed'
+        ]
         dead_letter_records = [item for item in recovery_items if str(item.get('status', '')) == 'dead_letter']
         human_action_items = [item for item in inbox_items if inbox_state(item) == 'human_action_required']
         clearance_items = [item for item in inbox_items if inbox_state(item) == 'clearance_required']
         guarded_items = [item for item in inbox_items if inbox_state(item) == 'guarded_follow_up']
 
+        governed_autonomy_status = 'idle'
+        governed_autonomy_action = 'none'
+        if recovery_required_workflows:
+            governed_autonomy_status = 'blocked'
+            governed_autonomy_action = 'recover_then_retry'
+        elif fail_closed_workflows:
+            governed_autonomy_status = 'blocked'
+            governed_autonomy_action = 'review_blocked_workflow'
+        elif human_gate_workflows:
+            governed_autonomy_status = 'human_gated'
+            next_actions = {str(workflow_autonomy(item).get('next_action', 'await_human_gate')) for item in human_gate_workflows}
+            if 'await_clearance_review' in next_actions:
+                governed_autonomy_action = 'await_clearance_review'
+            elif 'await_human_review' in next_actions:
+                governed_autonomy_action = 'await_human_review'
+            elif 'await_guarded_follow_up' in next_actions:
+                governed_autonomy_action = 'await_guarded_follow_up'
+            else:
+                governed_autonomy_action = 'await_human_gate'
+        elif autonomous_inflight_workflows:
+            governed_autonomy_status = 'autonomous_inflight'
+            governed_autonomy_action = 'continue_autonomously'
+        elif workflow_items:
+            governed_autonomy_status = 'settled'
+
         status = 'ready'
-        if dead_letter_records or clearance_items:
+        if dead_letter_records or clearance_items or recovery_required_workflows or fail_closed_workflows:
             status = 'attention_required'
-        elif human_action_items or guarded_items or blocked_workflows:
+        elif human_action_items or guarded_items or human_gate_workflows or blocked_workflows:
             status = 'monitoring'
 
         action_required: list[str] = []
         if clearance_items:
             action_required.append('clearance_review')
-        if human_action_items:
+        if human_action_items or human_gate_workflows:
             action_required.append('human_decision')
-        if dead_letter_records:
+        if dead_letter_records or recovery_required_workflows:
             action_required.append('recovery_resume')
         if guarded_items:
             action_required.append('guarded_follow_up')
+        if fail_closed_workflows:
+            action_required.append('blocked_workflow_review')
 
         return {
             'status': status,
@@ -222,8 +268,41 @@ class EngineApplication:
                 'dead_letter_total': len(dead_letter_records),
                 'dead_letter_event_total': len(dead_letters),
                 'action_required_total': len(action_required),
+                'autonomous_inflight_total': len(autonomous_inflight_workflows),
+                'human_gate_open_total': len(human_gate_workflows),
+                'fail_closed_total': len(fail_closed_workflows),
+                'recovery_required_total': len(recovery_required_workflows),
+                'completed_workflow_total': len(completed_workflows),
+                'governed_autonomy_status': governed_autonomy_status,
+                'recommended_runtime_action': governed_autonomy_action,
             },
             'action_required': action_required,
+            'workflow': {
+                'backlog_total': len(active_workflows),
+                'blocked_total': len(blocked_workflows),
+                'autonomous_inflight_total': len(autonomous_inflight_workflows),
+                'completed_total': len(completed_workflows),
+            },
+            'human_inbox': {
+                'open_total': len(inbox_items),
+                'human_action_total': len(human_action_items),
+                'clearance_total': len(clearance_items),
+                'guarded_follow_up_total': len(guarded_items),
+            },
+            'runtime_recovery': {
+                'pending_total': len(recovery_items),
+                'dead_letter_total': len(dead_letter_records),
+                'dead_letter_event_total': len(dead_letters),
+            },
+            'governed_autonomy': {
+                'status': governed_autonomy_status,
+                'recommended_runtime_action': governed_autonomy_action,
+                'autonomous_inflight_total': len(autonomous_inflight_workflows),
+                'human_gate_open_total': len(human_gate_workflows),
+                'fail_closed_total': len(fail_closed_workflows),
+                'recovery_required_total': len(recovery_required_workflows),
+                'completed_total': len(completed_workflows),
+            },
             'health': {
                 'status': health.get('status', 'unknown'),
                 'persistence_layer': health.get('persistence_layer', {}),

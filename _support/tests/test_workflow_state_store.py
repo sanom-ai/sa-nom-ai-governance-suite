@@ -44,6 +44,8 @@ def test_workflow_state_store_persists_execution_plan_snapshot_across_restart(tm
     assert state["plan_id"] == "plan-state-001"
     assert state["source"] == "runtime_result"
     assert state["revision"] >= 2
+    assert state["governed_autonomy"]["posture"] == "completed"
+    assert state["governed_autonomy"]["next_action"] == "none"
 
     restarted = build_persistent_test_app(tmp_path)
     reloaded = restarted.get_workflow_state("plan-state-001")
@@ -54,6 +56,9 @@ def test_workflow_state_store_persists_execution_plan_snapshot_across_restart(tm
     summary = restarted.health()["workflow_state"]
     assert summary["total"] == 1
     assert summary["states"]["completed"] == 1
+    assert summary["governed_autonomy"]["status"] == "settled"
+    assert summary["governed_autonomy"]["completed_total"] == 1
+    assert summary["governed_autonomy"]["recommended_runtime_action"] == "none"
 
 
 def test_workflow_state_store_updates_same_plan_after_override_resume(tmp_path: Path) -> None:
@@ -84,6 +89,8 @@ def test_workflow_state_store_updates_same_plan_after_override_resume(tmp_path: 
     before = app.get_workflow_state("plan-state-002")
     assert before["current_state"] == "awaiting_human_confirmation"
     assert before["role_state"] == "paused_for_human"
+    assert before["governed_autonomy"]["posture"] == "human_gate_open"
+    assert before["governed_autonomy"]["next_action"] == "await_human_decision"
 
     review = app.approve_override(pending.human_override["request_id"], resolved_by="EXEC_OWNER", note="Resume workflow test.")
     assert review.status == "approved"
@@ -95,6 +102,8 @@ def test_workflow_state_store_updates_same_plan_after_override_resume(tmp_path: 
     assert after["role_state"] == "completed"
     assert after["source"] == "override_review"
     assert after["revision"] > before["revision"]
+    assert after["governed_autonomy"]["posture"] == "completed"
+    assert after["governed_autonomy"]["next_action"] == "none"
 
     restarted = build_persistent_test_app(tmp_path)
     reloaded = restarted.get_workflow_state("plan-state-002")

@@ -112,6 +112,11 @@ class DashboardSnapshotBuilder:
                 'human_inbox_open_total': operational_readiness.get('human_inbox', {}).get('open_total', 0),
                 'recovery_pending_total': operational_readiness.get('runtime_recovery', {}).get('pending_total', 0),
                 'dead_letter_total': operational_readiness.get('runtime_recovery', {}).get('dead_letter_total', 0),
+                'governed_autonomy_status': str(operational_readiness.get('governed_autonomy', {}).get('status', 'unknown')),
+                'governed_autonomy_action': str(operational_readiness.get('governed_autonomy', {}).get('recommended_runtime_action', 'none')),
+                'autonomous_inflight_total': int(operational_readiness.get('governed_autonomy', {}).get('autonomous_inflight_total', 0) or 0),
+                'human_gate_open_total': int(operational_readiness.get('governed_autonomy', {}).get('human_gate_open_total', 0) or 0),
+                'fail_closed_workflow_total': int(operational_readiness.get('governed_autonomy', {}).get('fail_closed_total', 0) or 0),
                 'operator_human_required_total': sum(
                     1 for lane in operator_decision_lanes if lane.get('disposition') == 'human_required'
                 ),

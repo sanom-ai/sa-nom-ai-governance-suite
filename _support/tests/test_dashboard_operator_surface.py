@@ -46,6 +46,11 @@ def test_dashboard_snapshot_includes_operational_readiness_summary() -> None:
         assert isinstance(summary.get('human_inbox_open_total'), int)
         assert isinstance(summary.get('recovery_pending_total'), int)
         assert isinstance(summary.get('dead_letter_total'), int)
+        assert summary.get('governed_autonomy_status') in {'idle', 'autonomous_inflight', 'human_gated', 'blocked', 'settled', 'unknown'}
+        assert isinstance(summary.get('governed_autonomy_action'), str)
+        assert isinstance(summary.get('autonomous_inflight_total'), int)
+        assert isinstance(summary.get('human_gate_open_total'), int)
+        assert isinstance(summary.get('fail_closed_workflow_total'), int)
         assert first_run.get('status') in {'ready', 'monitoring', 'blocked'}
         assert isinstance(summary.get('first_run_blockers_total'), int)
         assert isinstance(summary.get('first_run_advisories_total'), int)
