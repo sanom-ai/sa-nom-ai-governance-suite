@@ -137,6 +137,49 @@ def test_role_private_studio_update_creates_new_revision_and_resets_publish_read
         assert rereviewed["review_history"][-1]["revision_number"] == 2
 
 
+
+def test_role_private_studio_summary_surfaces_pt_oss_operator_proof():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        created = service.create_request(BASE_PAYLOAD, requested_by="EXEC_OWNER")
+        summary = created["summary"]
+
+        assert summary["pt_oss_mode"] in {"PT_OSS_FULL", "PT_OSS_LITE", "PT_OSS_FULL_CAL_TH"}
+        assert summary["pt_oss_metric_total"] >= 6
+        assert summary["pt_oss_high_risk_metric_total"] >= 0
+        assert summary["pt_oss_blocking_issue_total"] >= 0
+        assert summary["pt_oss_critical_issue_total"] >= 0
+        assert summary["structural_state"] in {"ready", "guarded", "blocked"}
+        assert summary["structural_gate_reason"]
+        assert summary["coverage_policy_status"] in {"ready", "warning", "blocked", "unknown"}
+        assert summary["coverage_hierarchy_status"] in {"ready", "warning", "blocked", "unknown"}
+        assert summary["coverage_escalation_status"] in {"ready", "warning", "blocked", "unknown"}
+
+
+def test_role_private_studio_public_sector_mode_surfaces_in_summary():
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        payload = dict(BASE_PAYLOAD)
+        payload.update(
+            {
+                "role_name": "Public Sector Structural Analyst",
+                "business_domain": "government_legal_operations",
+                "seat_id": "OPS-PUBLIC-LEGAL",
+                "wait_human_actions": ["approve_contract_exception"],
+                "handled_resources": ["contract", "policy"],
+            }
+        )
+
+        created = service.create_request(payload, requested_by="EXEC_OWNER")
+        summary = created["summary"]
+
+        assert summary["pt_oss_public_sector_mode"] is True
+        assert summary["pt_oss_mode"] == "PT_OSS_FULL_CAL_TH"
+        assert summary["pt_oss_metric_total"] >= 7
+
+
 def test_role_private_studio_ptag_live_editor_switches_to_manual_mode():
     with workspace_temp_dir() as temp_path:
         service = build_service(temp_path)

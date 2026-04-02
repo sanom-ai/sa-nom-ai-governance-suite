@@ -245,6 +245,7 @@ class RolePrivateStudioService:
         publish_artifact = payload.get('publish_artifact', {}) if isinstance(payload.get('publish_artifact', {}), dict) else {}
         publish_readiness = payload.get('publish_readiness', {}) if isinstance(payload.get('publish_readiness', {}), dict) else {}
         publication_workflow = payload.get('publication_workflow', {}) if isinstance(payload.get('publication_workflow', {}), dict) else {}
+        coverage_summary = payload.get('coverage_summary', {}) if isinstance(payload.get('coverage_summary', {}), dict) else {}
         latest_revision = revisions[-1] if revisions else {}
         restore_total = sum(1 for item in revisions if str(item.get('trigger', '')).startswith('restore_'))
         manual_revision_total = sum(1 for item in revisions if str(item.get('ptag_source_mode', 'generated')) == 'manual')
@@ -300,6 +301,19 @@ class RolePrivateStudioService:
             publish_trust_posture = 'stale_publication'
         else:
             publish_trust_posture = 'trusted_live'
+        pt_oss_summary = publish_readiness.get('pt_oss_summary', {}) if isinstance(publish_readiness.get('pt_oss_summary', {}), dict) else {}
+        pt_oss_context = pt_oss_summary.get('context', {}) if isinstance(pt_oss_summary.get('context', {}), dict) else {}
+        pt_oss_signals = pt_oss_context.get('signals', {}) if isinstance(pt_oss_context.get('signals', {}), dict) else {}
+        pt_oss_metrics = pt_oss_summary.get('metrics', []) if isinstance(pt_oss_summary.get('metrics', []), list) else []
+        pt_oss_blockers = pt_oss_summary.get('blockers', []) if isinstance(pt_oss_summary.get('blockers', []), list) else []
+        pt_oss_blocking_issue_total = sum(1 for item in pt_oss_blockers if bool(item.get('blocks_publish', False)))
+        pt_oss_critical_issue_total = sum(1 for item in pt_oss_blockers if str(item.get('severity', '')) == 'critical')
+        pt_oss_high_risk_metric_total = sum(1 for item in pt_oss_metrics if str(item.get('risk_level', '')) in {'high', 'critical'})
+        policy_coverage = coverage_summary.get('policy', {}) if isinstance(coverage_summary.get('policy', {}), dict) else {}
+        hierarchy_coverage = coverage_summary.get('hierarchy', {}) if isinstance(coverage_summary.get('hierarchy', {}), dict) else {}
+        escalation_coverage = coverage_summary.get('escalation', {}) if isinstance(coverage_summary.get('escalation', {}), dict) else {}
+        structural_state = str(publish_readiness.get('structural_state', 'blocked') or 'blocked')
+        structural_gate_reason = str(publish_readiness.get('structural_gate_reason', '') or '')
         if publish_artifact:
             publish_artifact.update(
                 {
@@ -333,6 +347,19 @@ class RolePrivateStudioService:
                 'registry_verified': registry_verified,
                 'publisher_ready': publication_posture == 'publisher_ready',
                 'revision_drift_status': revision_drift_status,
+                'pt_oss_mode': str(pt_oss_summary.get('mode', 'unknown') or 'unknown'),
+                'pt_oss_metric_total': len(pt_oss_metrics),
+                'pt_oss_high_risk_metric_total': pt_oss_high_risk_metric_total,
+                'pt_oss_blocking_issue_total': pt_oss_blocking_issue_total,
+                'pt_oss_critical_issue_total': pt_oss_critical_issue_total,
+                'pt_oss_public_sector_mode': bool(pt_oss_context.get('public_sector_mode', False)),
+                'pt_oss_wait_human_signal': bool(pt_oss_signals.get('wait_human', False)),
+                'pt_oss_safety_owner_signal': bool(pt_oss_signals.get('safety_owner', False)),
+                'structural_state': structural_state,
+                'structural_gate_reason': structural_gate_reason,
+                'coverage_policy_status': str(policy_coverage.get('status', 'unknown') or 'unknown'),
+                'coverage_hierarchy_status': str(hierarchy_coverage.get('status', 'unknown') or 'unknown'),
+                'coverage_escalation_status': str(escalation_coverage.get('status', 'unknown') or 'unknown'),
             }
         )
         payload['summary'] = summary
@@ -342,10 +369,10 @@ class RolePrivateStudioService:
         requests = [self._request_payload(item, compact=True) for item in self.store.list_requests()[:limit]]
         statuses = [item['status'] for item in requests]
         structural_guarded_total = sum(
-            1 for item in requests if (item.get('publish_readiness') or {}).get('status') == 'guarded'
+            1 for item in requests if (item.get('summary') or {}).get('structural_state') == 'guarded'
         )
         structural_blocked_total = sum(
-            1 for item in requests if (item.get('publish_readiness') or {}).get('structural_state') == 'blocked'
+            1 for item in requests if (item.get('summary') or {}).get('structural_state') == 'blocked'
         )
         publication_blocked_total = sum(
             1 for item in requests if (item.get('publish_readiness') or {}).get('status') == 'blocked'
@@ -353,6 +380,11 @@ class RolePrivateStudioService:
         ready_to_publish_total = sum(
             1 for item in requests if (item.get('publish_readiness') or {}).get('status') == 'ready'
         )
+        pt_oss_watch_total = sum(1 for item in requests if (item.get('summary') or {}).get('pt_oss_posture') == 'watch')
+        pt_oss_elevated_total = sum(1 for item in requests if (item.get('summary') or {}).get('pt_oss_posture') in {'elevated', 'fragile'})
+        pt_oss_healthy_total = sum(1 for item in requests if (item.get('summary') or {}).get('pt_oss_posture') == 'healthy')
+        structural_ready_total = sum(1 for item in requests if (item.get('summary') or {}).get('structural_state') == 'ready')
+        structural_review_total = sum(1 for item in requests if (item.get('summary') or {}).get('structural_state') == 'guarded')
         return {
             'summary': {
                 'requests_total': len(requests),
@@ -372,6 +404,15 @@ class RolePrivateStudioService:
                 'review_pending_total': sum(1 for item in requests if (item.get('summary') or {}).get('publication_posture') in {'in_review', 'changes_requested', 'structural_review', 'blocked'}),
                 'structural_guarded_total': structural_guarded_total,
                 'structural_blocked_total': structural_blocked_total,
+                'structural_ready_total': structural_ready_total,
+                'structural_review_total': structural_review_total,
+                'pt_oss_watch_total': pt_oss_watch_total,
+                'pt_oss_elevated_total': pt_oss_elevated_total,
+                'pt_oss_healthy_total': pt_oss_healthy_total,
+                'pt_oss_critical_total': sum(1 for item in requests if int((item.get('summary') or {}).get('pt_oss_critical_issue_total', 0) or 0) > 0),
+                'pt_oss_public_sector_mode_total': sum(1 for item in requests if (item.get('summary') or {}).get('pt_oss_public_sector_mode')),
+                'pt_oss_blocking_issue_total': sum(int((item.get('summary') or {}).get('pt_oss_blocking_issue_total', 0) or 0) for item in requests),
+                'pt_oss_high_risk_metric_total': sum(int((item.get('summary') or {}).get('pt_oss_high_risk_metric_total', 0) or 0) for item in requests),
                 'review_lane_total': sum(
                     1
                     for item in requests

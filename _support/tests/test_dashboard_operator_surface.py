@@ -535,6 +535,91 @@ def test_dashboard_snapshot_surfaces_role_private_studio_revision_and_publish_si
         assert any(alert.get('alert_id') == 'studio_revision_governance' for alert in runtime_alerts)
 
 
+
+def test_dashboard_snapshot_surfaces_structural_and_guardrail_operator_proof() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        builder.app.role_private_studio.create_request(
+            {
+                'role_name': 'Public Sector Fragility Analyst',
+                'purpose': 'Review public-sector structural pressure before trusted release.',
+                'reporting_line': '',
+                'business_domain': 'government_policy_operations',
+                'operating_mode': 'direct',
+                'assigned_user_id': '',
+                'executive_owner_id': 'EXEC_OWNER',
+                'seat_id': 'OPS-PUBLIC-FRAGILE',
+                'responsibilities': ['review incoming policy packets'],
+                'allowed_actions': ['review_contract', 'approve_contract_exception', 'advise_compliance', 'approve_policy', 'escalate_policy'],
+                'forbidden_actions': ['sign_contract'],
+                'wait_human_actions': [],
+                'handled_resources': [],
+                'financial_sensitivity': 'high',
+                'legal_sensitivity': 'high',
+                'compliance_sensitivity': 'critical',
+            },
+            requested_by='EXEC_OWNER',
+        )
+
+        pending = builder.app.request(
+            requester='AUDITOR',
+            role_id='GOV',
+            action='approve_policy',
+            payload={'resource': 'contract', 'resource_id': 'C-GUARD-1'},
+        )
+        conflict = builder.app.request(
+            requester='tester',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'C-GUARD-1', 'amount': 3000000},
+        )
+        blocked = builder.app.request(
+            requester='tester',
+            role_id='LEGAL',
+            action='review_contract',
+            payload={'resource': 'contract', 'resource_id': 'C-GUARD-2', 'amount': 1000000},
+            metadata={'authority_contract': {'approval_gate': 'blocked'}},
+        )
+
+        snapshot = builder.build()
+        studio_summary = snapshot.get('role_private_studio', {}).get('summary', {})
+        guardrail_summary = snapshot.get('guardrail_surface', {}).get('summary', {})
+        summary = snapshot.get('summary', {})
+        requests = snapshot.get('requests', [])
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+
+        assert studio_summary.get('pt_oss_public_sector_mode_total', 0) >= 1
+        assert studio_summary.get('pt_oss_elevated_total', 0) >= 1
+        assert studio_summary.get('pt_oss_high_risk_metric_total', 0) >= 1
+        assert studio_summary.get('structural_guarded_total', 0) >= 1
+        assert summary.get('studio_pt_oss_public_sector_total', 0) >= 1
+        assert summary.get('studio_pt_oss_elevated_total', 0) >= 1
+        assert summary.get('studio_pt_oss_high_risk_metric_total', 0) >= 1
+        assert summary.get('studio_structural_guarded_total', 0) >= 1
+        assert summary.get('guardrail_posture') == 'attention_required'
+        assert summary.get('authority_guard_human_required_total', 0) >= 1
+        assert summary.get('authority_guard_blocked_total', 0) >= 1
+        assert summary.get('resource_lock_conflict_total', 0) >= 1
+        assert guardrail_summary.get('authority_guard_total', 0) >= 2
+
+        pending_request = next(item for item in requests if item.get('request_id') == pending.metadata['request_id'])
+        conflict_request = next(item for item in requests if item.get('request_id') == conflict.metadata['request_id'])
+        blocked_request = next(item for item in requests if item.get('request_id') == blocked.metadata['request_id'])
+
+        assert pending_request.get('authority_gate_triggered') is False
+        assert pending_request.get('human_override_request_id')
+        assert pending_request.get('resource_lock_status') == 'waiting_human'
+        assert conflict_request.get('conflict_lock_key') == 'contract:C-GUARD-1'
+        assert blocked_request.get('authority_gate_triggered') is True
+        assert blocked_request.get('authority_gate_outcome') == 'blocked'
+
+        assert any(alert.get('alert_id') == 'studio_structural_pressure' for alert in runtime_alerts)
+        assert any(alert.get('alert_id') == 'authority_guard_attention' for alert in runtime_alerts)
+        assert any(alert.get('alert_id') == 'resource_lock_pressure' for alert in runtime_alerts)
+
+
 def test_dashboard_snapshot_surfaces_evidence_attention_and_registry_drift() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)

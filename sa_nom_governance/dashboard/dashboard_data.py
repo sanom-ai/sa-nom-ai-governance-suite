@@ -25,6 +25,7 @@ class DashboardSnapshotBuilder:
         overrides = self.list_overrides()
         locks = self.list_locks()
         requests = self.list_requests(audit_entries=audit_entries, limit=200)
+        guardrail_surface = self.guardrail_surface(requests=requests, overrides=overrides, locks=locks)
         raw_roles = self.app.list_roles()
         access_control_health = self.access_control.health()
         evidence_summary = self.app.evidence_pack_summary()
@@ -93,6 +94,7 @@ class DashboardSnapshotBuilder:
             operational_readiness=operational_readiness,
             operator_queue_health=operator_queue_health,
             operator_notification_center=operator_notification_center,
+            guardrail_surface=guardrail_surface,
         )
         runtime_health = self.runtime_health(
             roles=roles,
@@ -105,6 +107,8 @@ class DashboardSnapshotBuilder:
         governance_materials = runtime_health.get('governance_materials', {}) if isinstance(runtime_health.get('governance_materials', {}), dict) else {}
         role_library = runtime_health.get('role_library', {}) if isinstance(runtime_health.get('role_library', {}), dict) else {}
         role_hierarchy = runtime_health.get('role_hierarchy', {}) if isinstance(runtime_health.get('role_hierarchy', {}), dict) else {}
+        studio_summary = role_private_studio.get('summary', {}) if isinstance(role_private_studio.get('summary', {}), dict) else {}
+        guardrail_summary = guardrail_surface.get('summary', {}) if isinstance(guardrail_surface.get('summary', {}), dict) else {}
 
         conflicts = [request for request in requests if request['outcome'] == 'conflicted']
         escalated = [request for request in requests if request['outcome'] in {'escalated', 'waiting_human'}]
@@ -122,19 +126,28 @@ class DashboardSnapshotBuilder:
                 'conflicts_total': len(conflicts),
                 'escalated_total': len(escalated),
                 'audit_events': len(audit_entries),
-                'studio_requests_total': role_private_studio.get('summary', {}).get('requests_total', 0),
-                'studio_ready_to_publish_total': role_private_studio.get('summary', {}).get('ready_to_publish_total', 0),
-                'studio_publisher_ready_total': int(role_private_studio.get('summary', {}).get('publisher_ready_total', 0) or 0),
-                'studio_manual_override_total': int(role_private_studio.get('summary', {}).get('manual_override_total', 0) or 0),
-                'studio_restored_request_total': int(role_private_studio.get('summary', {}).get('restored_request_total', 0) or 0),
-                'studio_registry_verified_total': int(role_private_studio.get('summary', {}).get('published_registry_verified_total', 0) or 0),
-                'studio_live_hash_verified_total': int(role_private_studio.get('summary', {}).get('published_live_hash_verified_total', 0) or 0),
-                'studio_trusted_live_total': int(role_private_studio.get('summary', {}).get('trusted_live_total', 0) or 0),
-                'studio_trust_attention_total': int(role_private_studio.get('summary', {}).get('trust_attention_total', 0) or 0),
-                'studio_published_current_revision_total': int(role_private_studio.get('summary', {}).get('published_current_revision_total', 0) or 0),
-                'studio_revision_drift_total': int(role_private_studio.get('summary', {}).get('revision_drift_total', 0) or 0),
-                'studio_structural_guarded_total': role_private_studio.get('summary', {}).get('structural_guarded_total', 0),
-                'studio_structural_blocked_total': role_private_studio.get('summary', {}).get('structural_blocked_total', 0),
+                'studio_requests_total': studio_summary.get('requests_total', 0),
+                'studio_ready_to_publish_total': studio_summary.get('ready_to_publish_total', 0),
+                'studio_publisher_ready_total': int(studio_summary.get('publisher_ready_total', 0) or 0),
+                'studio_manual_override_total': int(studio_summary.get('manual_override_total', 0) or 0),
+                'studio_restored_request_total': int(studio_summary.get('restored_request_total', 0) or 0),
+                'studio_registry_verified_total': int(studio_summary.get('published_registry_verified_total', 0) or 0),
+                'studio_live_hash_verified_total': int(studio_summary.get('published_live_hash_verified_total', 0) or 0),
+                'studio_trusted_live_total': int(studio_summary.get('trusted_live_total', 0) or 0),
+                'studio_trust_attention_total': int(studio_summary.get('trust_attention_total', 0) or 0),
+                'studio_published_current_revision_total': int(studio_summary.get('published_current_revision_total', 0) or 0),
+                'studio_revision_drift_total': int(studio_summary.get('revision_drift_total', 0) or 0),
+                'studio_structural_guarded_total': int(studio_summary.get('structural_guarded_total', 0) or 0),
+                'studio_structural_blocked_total': int(studio_summary.get('structural_blocked_total', 0) or 0),
+                'studio_structural_ready_total': int(studio_summary.get('structural_ready_total', 0) or 0),
+                'studio_structural_review_total': int(studio_summary.get('structural_review_total', 0) or 0),
+                'studio_pt_oss_watch_total': int(studio_summary.get('pt_oss_watch_total', 0) or 0),
+                'studio_pt_oss_elevated_total': int(studio_summary.get('pt_oss_elevated_total', 0) or 0),
+                'studio_pt_oss_healthy_total': int(studio_summary.get('pt_oss_healthy_total', 0) or 0),
+                'studio_pt_oss_critical_total': int(studio_summary.get('pt_oss_critical_total', 0) or 0),
+                'studio_pt_oss_public_sector_total': int(studio_summary.get('pt_oss_public_sector_mode_total', 0) or 0),
+                'studio_pt_oss_blocking_issue_total': int(studio_summary.get('pt_oss_blocking_issue_total', 0) or 0),
+                'studio_pt_oss_high_risk_metric_total': int(studio_summary.get('pt_oss_high_risk_metric_total', 0) or 0),
                 'human_ask_sessions_total': human_ask.get('summary', {}).get('sessions_total', 0),
                 'human_ask_callable_total': human_ask.get('summary', {}).get('callable_total', 0),
                 'human_ask_low_confidence_total': int(human_ask.get('summary', {}).get('low_confidence_total', 0) or 0),
@@ -157,6 +170,14 @@ class DashboardSnapshotBuilder:
                 'autonomous_inflight_total': int(operational_readiness.get('governed_autonomy', {}).get('autonomous_inflight_total', 0) or 0),
                 'human_gate_open_total': int(operational_readiness.get('governed_autonomy', {}).get('human_gate_open_total', 0) or 0),
                 'fail_closed_workflow_total': int(operational_readiness.get('governed_autonomy', {}).get('fail_closed_total', 0) or 0),
+                'guardrail_posture': str(guardrail_surface.get('posture', 'unknown')),
+                'authority_guard_total': int(guardrail_summary.get('authority_guard_total', 0) or 0),
+                'authority_guard_human_required_total': int(guardrail_summary.get('authority_guard_human_required_total', 0) or 0),
+                'authority_guard_blocked_total': int(guardrail_summary.get('authority_guard_blocked_total', 0) or 0),
+                'authority_guard_resumed_total': int(guardrail_summary.get('authority_guard_resumed_total', 0) or 0),
+                'resource_lock_active_total': int(guardrail_summary.get('resource_lock_active_total', 0) or 0),
+                'resource_lock_waiting_total': int(guardrail_summary.get('resource_lock_waiting_total', 0) or 0),
+                'resource_lock_conflict_total': int(guardrail_summary.get('resource_lock_conflict_total', 0) or 0),
                 'operator_human_required_total': sum(
                     1 for lane in operator_decision_lanes if lane.get('disposition') == 'human_required'
                 ),
@@ -212,6 +233,7 @@ class DashboardSnapshotBuilder:
             'operations': operations,
             'compliance': compliance,
             'evidence_exports': evidence_exports,
+            'guardrail_surface': guardrail_surface,
             'integrations': integrations,
             'model_providers': model_providers,
             'operator_alert_policy': operator_alert_policy,
@@ -306,12 +328,24 @@ class DashboardSnapshotBuilder:
         entries = audit_entries if audit_entries is not None else self.list_audit(limit=max(limit * 3, 100))
         requests: list[dict[str, object]] = []
         for entry in entries:
-            metadata = entry.get('metadata', {})
-            context = metadata.get('context', {})
+            metadata = entry.get('metadata', {}) if isinstance(entry.get('metadata', {}), dict) else {}
+            context = metadata.get('context', {}) if isinstance(metadata.get('context', {}), dict) else {}
             if not context or str(entry.get('action', '')).startswith('override_'):
                 continue
-            consistency = context.get('metadata', {}).get('request_consistency', {})
+            context_metadata = context.get('metadata', {}) if isinstance(context.get('metadata', {}), dict) else {}
+            consistency = context_metadata.get('request_consistency', {}) if isinstance(context_metadata.get('request_consistency', {}), dict) else {}
             role_transition = context.get('role_transition', {}) if isinstance(context.get('role_transition', {}), dict) else {}
+            authority_gate = context_metadata.get('authority_gate', {}) if isinstance(context_metadata.get('authority_gate', {}), dict) else {}
+            resource_lock = metadata.get('resource_lock', {}) if isinstance(metadata.get('resource_lock', {}), dict) else {}
+            if not resource_lock:
+                resource_lock = context_metadata.get('resource_lock', {}) if isinstance(context_metadata.get('resource_lock', {}), dict) else {}
+            conflict_lock = metadata.get('conflict_lock', {}) if isinstance(metadata.get('conflict_lock', {}), dict) else {}
+            if not conflict_lock:
+                conflict_lock = context_metadata.get('conflict_lock', {}) if isinstance(context_metadata.get('conflict_lock', {}), dict) else {}
+            human_override = metadata.get('human_override', {}) if isinstance(metadata.get('human_override', {}), dict) else {}
+            if not human_override:
+                human_override = context_metadata.get('human_override', {}) if isinstance(context_metadata.get('human_override', {}), dict) else {}
+            authority_gate_triggered = bool(authority_gate.get('gate_triggered', False))
             requests.append(
                 {
                     'request_id': context.get('request_id', 'unknown'),
@@ -325,6 +359,22 @@ class DashboardSnapshotBuilder:
                     'risk_score': context.get('risk_score', 0.0),
                     'resource': self._resource_label(context.get('payload', {})),
                     'decision_trace': metadata.get('decision_trace', {}),
+                    'authority_gate_triggered': authority_gate_triggered,
+                    'authority_gate_outcome': str(authority_gate.get('outcome', 'passthrough' if not authority_gate_triggered else 'unknown')),
+                    'authority_gate_source_id': authority_gate.get('source_id'),
+                    'authority_gate_reason': authority_gate.get('reason'),
+                    'authority_gate_requires_human_confirmation': bool(authority_gate.get('requires_human_confirmation', False)),
+                    'authority_gate_decision_mode': str(authority_gate.get('decision_mode', 'policy_fallback') or 'policy_fallback'),
+                    'authority_gate_resume_request_id': authority_gate.get('resumed_from_override_request_id'),
+                    'resource_lock_status': resource_lock.get('status'),
+                    'resource_lock_key': resource_lock.get('resource_key'),
+                    'resource_lock_owner_request_id': resource_lock.get('owner_request_id'),
+                    'conflict_lock_status': conflict_lock.get('status'),
+                    'conflict_lock_key': conflict_lock.get('resource_key'),
+                    'conflict_lock_owner_request_id': conflict_lock.get('owner_request_id'),
+                    'human_override_request_id': human_override.get('request_id'),
+                    'human_override_status': human_override.get('status'),
+                    'human_override_approver_role': human_override.get('approver_role'),
                     'idempotency_status': consistency.get('idempotency_status', 'none'),
                     'ordering_status': consistency.get('ordering_status', 'none'),
                     'event_stream': consistency.get('event_stream', '-'),
@@ -346,6 +396,105 @@ class DashboardSnapshotBuilder:
 
     def list_locks(self, status: str | None = None, limit: int = 100) -> list[dict[str, object]]:
         return self.app.list_locks(status=status)[:limit]
+
+    def guardrail_surface(
+        self,
+        *,
+        requests: list[dict[str, object]],
+        overrides: list[dict[str, object]],
+        locks: list[dict[str, object]],
+        limit: int = 25,
+    ) -> dict[str, object]:
+        authority_guarded = [
+            item
+            for item in requests
+            if bool(item.get('authority_gate_triggered', False)) or bool(item.get('human_override_request_id'))
+        ]
+        authority_human_required = [
+            item
+            for item in requests
+            if bool(item.get('authority_gate_requires_human_confirmation', False))
+            or bool(item.get('human_override_request_id'))
+            or str(item.get('outcome', '')) in {'waiting_human', 'human_required'}
+        ]
+        authority_blocked = [
+            item
+            for item in authority_guarded
+            if str(item.get('authority_gate_outcome', '')) == 'blocked'
+            or str(item.get('outcome', '')) == 'blocked'
+        ]
+        authority_resumed = [item for item in authority_guarded if str(item.get('authority_gate_source_id', '')) == 'human_override_resume']
+        waiting_locks = [item for item in locks if str(item.get('status', '')) == 'waiting_human']
+        active_locks = [item for item in locks if str(item.get('status', '')) == 'active']
+        conflict_requests = [item for item in requests if item.get('conflict_lock_key') not in {None, ''}]
+        if authority_blocked or conflict_requests:
+            posture = 'attention_required'
+        elif authority_human_required or waiting_locks or active_locks or overrides:
+            posture = 'governed'
+        else:
+            posture = 'ready'
+        items: list[dict[str, object]] = []
+        if authority_human_required:
+            latest = authority_human_required[0]
+            items.append(
+                {
+                    'lane_id': 'authority_human_confirmation',
+                    'status': 'warning',
+                    'title': 'Authority guard is holding requests for human confirmation',
+                    'detail': latest.get('reason') or latest.get('authority_gate_reason') or 'Authority gate requires review.',
+                    'request_total': len(authority_human_required),
+                    'view': 'requests',
+                }
+            )
+        if authority_blocked:
+            latest = authority_blocked[0]
+            items.append(
+                {
+                    'lane_id': 'authority_blocked',
+                    'status': 'critical',
+                    'title': 'Authority guard blocked governed requests',
+                    'detail': latest.get('reason') or latest.get('authority_gate_reason') or 'Authority contract blocked execution.',
+                    'request_total': len(authority_blocked),
+                    'view': 'requests',
+                }
+            )
+        if conflict_requests or waiting_locks:
+            latest_conflict = conflict_requests[0] if conflict_requests else None
+            latest_lock = waiting_locks[0] if waiting_locks else (active_locks[0] if active_locks else {})
+            items.append(
+                {
+                    'lane_id': 'resource_lock_contention',
+                    'status': 'critical' if conflict_requests else 'warning',
+                    'title': 'Resource lock is actively governing concurrent access',
+                    'detail': (
+                        latest_conflict.get('conflict_lock_key')
+                        if latest_conflict is not None
+                        else latest_lock.get('resource_key')
+                        or 'Governed resource lock is active.'
+                    ),
+                    'request_total': len(conflict_requests),
+                    'waiting_lock_total': len(waiting_locks),
+                    'view': 'requests',
+                }
+            )
+        return {
+            'posture': posture,
+            'summary': {
+                'posture': posture,
+                'authority_guard_total': len(authority_guarded),
+                'authority_guard_human_required_total': len(authority_human_required),
+                'authority_guard_blocked_total': len(authority_blocked),
+                'authority_guard_resumed_total': len(authority_resumed),
+                'resource_lock_active_total': len(active_locks),
+                'resource_lock_waiting_total': len(waiting_locks),
+                'resource_lock_conflict_total': len(conflict_requests),
+                'pending_override_total': sum(1 for item in overrides if str(item.get('status', '')) == 'pending'),
+            },
+            'items': items[:limit],
+            'authority_requests': authority_guarded[:limit],
+            'conflicted_requests': conflict_requests[:limit],
+            'locks': locks[:limit],
+        }
 
     def list_audit(self, limit: int = 200) -> list[dict[str, object]]:
         return self.app.list_audit(limit=limit)
@@ -1044,6 +1193,7 @@ class DashboardSnapshotBuilder:
         operational_readiness: dict[str, object],
         operator_queue_health: dict[str, object],
         operator_notification_center: dict[str, object],
+        guardrail_surface: dict[str, object],
         limit: int = 12,
     ) -> list[dict[str, object]]:
         alerts: list[dict[str, object]] = []
@@ -1051,6 +1201,7 @@ class DashboardSnapshotBuilder:
         sessions = human_ask.get('sessions', []) if isinstance(human_ask.get('sessions', []), list) else []
         studio_summary = role_private_studio.get('summary', {}) if isinstance(role_private_studio.get('summary', {}), dict) else {}
         evidence_summary = evidence_exports.get('summary', {}) if isinstance(evidence_exports.get('summary', {}), dict) else {}
+        guardrail_summary = guardrail_surface.get('summary', {}) if isinstance(guardrail_surface.get('summary', {}), dict) else {}
 
         if not owner_registration.get('registered'):
             alerts.append(
@@ -1227,6 +1378,13 @@ class DashboardSnapshotBuilder:
         publisher_ready_total = int(studio_summary.get('publisher_ready_total', 0) or 0)
         structural_guarded_total = int(studio_summary.get('structural_guarded_total', 0) or 0)
         structural_blocked_total = int(studio_summary.get('structural_blocked_total', 0) or 0)
+        structural_ready_total = int(studio_summary.get('structural_ready_total', 0) or 0)
+        pt_oss_critical_total = int(studio_summary.get('pt_oss_critical_total', 0) or 0)
+        pt_oss_public_sector_total = int(studio_summary.get('pt_oss_public_sector_mode_total', 0) or 0)
+        authority_human_required_total = int(guardrail_summary.get('authority_guard_human_required_total', 0) or 0)
+        authority_blocked_total = int(guardrail_summary.get('authority_guard_blocked_total', 0) or 0)
+        resource_lock_waiting_total = int(guardrail_summary.get('resource_lock_waiting_total', 0) or 0)
+        resource_lock_conflict_total = int(guardrail_summary.get('resource_lock_conflict_total', 0) or 0)
         if manual_override_total or restored_request_total:
             alerts.append(
                 {
@@ -1263,6 +1421,49 @@ class DashboardSnapshotBuilder:
                         'guarded_total': structural_guarded_total,
                         'blocked_total': structural_blocked_total,
                         'ready_total': int(studio_summary.get('ready_to_publish_total', 0) or 0),
+                        'structural_ready_total': structural_ready_total,
+                        'pt_oss_critical_total': pt_oss_critical_total,
+                        'pt_oss_public_sector_total': pt_oss_public_sector_total,
+                    },
+                }
+            )
+
+        if authority_human_required_total or authority_blocked_total:
+            alerts.append(
+                {
+                    'alert_id': 'authority_guard_attention',
+                    'tone': 'danger' if authority_blocked_total else 'warning',
+                    'eyebrow': 'Authority guard',
+                    'title': 'Authority Guard is actively holding governed requests',
+                    'message': 'Some requests were blocked or paused for human confirmation because authority boundaries were triggered as designed.',
+                    'view': 'requests',
+                    'action_label': 'Review governed requests',
+                    'badge': f"{authority_human_required_total + authority_blocked_total} requests",
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'authority_human_required_total': authority_human_required_total,
+                        'authority_blocked_total': authority_blocked_total,
+                        'resource_lock_waiting_total': resource_lock_waiting_total,
+                    },
+                }
+            )
+
+        if resource_lock_waiting_total or resource_lock_conflict_total:
+            alerts.append(
+                {
+                    'alert_id': 'resource_lock_pressure',
+                    'tone': 'danger' if resource_lock_conflict_total else 'warning',
+                    'eyebrow': 'Resource lock',
+                    'title': 'Resource Lock is governing live contention or held approvals',
+                    'message': 'Concurrent access to governed resources is currently serialized by lock state, conflict detection, or pending human review.',
+                    'view': 'requests',
+                    'action_label': 'Review lock state',
+                    'badge': f"{resource_lock_waiting_total + resource_lock_conflict_total} signals",
+                    'timestamp': self._utc_now(),
+                    'details': {
+                        'resource_lock_waiting_total': resource_lock_waiting_total,
+                        'resource_lock_conflict_total': resource_lock_conflict_total,
+                        'authority_guard_human_required_total': authority_human_required_total,
                     },
                 }
             )
