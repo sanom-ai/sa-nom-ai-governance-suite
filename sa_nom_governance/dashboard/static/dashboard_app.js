@@ -2781,6 +2781,7 @@ function renderCaseWorkItems(item) {
               view: entry.view || 'overview',
               focusType: focus.entityType,
               focusId: focus.entityId,
+              caseId: item.case_id,
               title: item.case_id ? `Case ${item.case_id} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
               detail: `Use ${viewLabel} to inspect the linked ${String(entry.label || 'work').toLowerCase()}.`,
               actionLabel: `Open ${viewLabel}`,
@@ -2809,6 +2810,7 @@ function renderCaseContinuity(item) {
           view: nextView,
           focusType: nextFocus.entityType,
           focusId: nextFocus.entityId,
+          caseId: item.case_id,
           title: item.case_id ? `Case ${item.case_id} opened in ${nextViewLabel}.` : `Opened ${nextViewLabel}.`,
           detail: continuity.next_detail || 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
           actionLabel: `Open ${nextViewLabel}`,
@@ -2883,7 +2885,7 @@ function renderCaseCard(item) {
       ${renderCaseWorkItems(item)}
       ${linkedRefs.length ? `<div class="case-reference-list">${linkedRefs.map((value) => `<span class="pill pill-muted">${escapeHtml(value)}</span>`).join('')}</div>` : ''}
       <div class="case-timeline">
-        ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
+        ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry, item.case_id)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
       </div>
       <div class="inline-actions">
         <button class="action-button" type="button" ${buildViewJumpAttributes({
@@ -2907,7 +2909,22 @@ function renderCaseCard(item) {
   `;
 }
 
-function renderCaseTimelineEntry(entry) {
+function resolveCaseTimelineFocus(entry = {}) {
+  const eventType = String(entry?.event_type || '').trim();
+  const reference = String(entry?.reference || '').trim();
+  if (!reference) return { entityType: 'case', entityId: '' };
+  if (eventType === 'request') return { entityType: 'request', entityId: reference };
+  if (eventType === 'override') return { entityType: 'override', entityId: reference };
+  if (eventType === 'human_ask') return { entityType: 'human_ask_session', entityId: reference };
+  if (eventType === 'studio') return { entityType: 'studio_request', entityId: reference };
+  if (eventType === 'audit') return { entityType: 'request', entityId: reference };
+  return { entityType: 'case', entityId: '' };
+}
+
+function renderCaseTimelineEntry(entry, caseId = '') {
+  const view = entry.view || 'overview';
+  const viewLabel = VIEW_TITLES[view] || titleCase(view || 'overview');
+  const focus = resolveCaseTimelineFocus(entry);
   return `
     <article class="mini-card stack case-timeline-item">
       <div class="hero-heading">
@@ -2917,11 +2934,22 @@ function renderCaseTimelineEntry(entry) {
         </div>
         <div class="hero-chip-row">
           ${statusBadge(entry.status || 'recorded')}
-          ${statusBadge(VIEW_TITLES[entry.view] || titleCase(entry.view || 'overview'))}
+          ${statusBadge(viewLabel)}
         </div>
       </div>
       <p class="muted">${escapeHtml(entry.detail || 'Governed case event recorded.')}</p>
       <span class="permission-note">Ref ${escapeHtml(entry.reference || '-')}</span>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view,
+          focusType: focus.entityType,
+          focusId: focus.entityId,
+          caseId,
+          title: caseId ? `Case ${caseId} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
+          detail: `Continue this case from the ${viewLabel} lane using the linked event reference.`,
+          actionLabel: `Open ${viewLabel}`,
+        })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+      </div>
     </article>
   `;
 }
