@@ -2025,6 +2025,46 @@ button:focus-visible {
   margin-top: 4px;
 }
 
+.workflow-guide-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  margin-bottom: 22px;
+}
+
+.workflow-guide-card {
+  align-self: start;
+}
+
+.workflow-guide-card-primary {
+  background:
+    radial-gradient(circle at top right, rgba(222, 192, 135, 0.22), transparent 26%),
+    linear-gradient(180deg, rgba(255, 252, 247, 0.98), rgba(246, 238, 224, 0.88));
+}
+
+.workflow-guide-card-primary .card-subtitle,
+.workflow-related-card .muted {
+  max-width: 56ch;
+}
+
+.workflow-current-note {
+  margin: 0;
+}
+
+.workflow-related-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.workflow-related-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-height: 0;
+}
+
+.workflow-related-card .inline-actions {
+  margin-top: auto;
+}
 /* v0.7.2 local operator layout stability */
 .app-shell {
   grid-template-columns: clamp(276px, 19vw, 316px) minmax(0, 1fr);
