@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
 from shutil import copy2
 from tempfile import TemporaryDirectory
@@ -30,6 +31,12 @@ def _seed_invalid_governance_materials(config: AppConfig) -> None:
         signing_key=config.trusted_registry_signing_key or 'sanom-dev-registry-key',
         key_id=config.trusted_registry_key_id,
     )
+
+
+def _seed_notification_targets(config: AppConfig, payload: list[dict[str, object]]) -> None:
+    assert config.integration_targets_path is not None
+    config.integration_targets_path.parent.mkdir(parents=True, exist_ok=True)
+    config.integration_targets_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
 def test_dashboard_snapshot_includes_operational_readiness_summary() -> None:
@@ -232,7 +239,8 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         config.operator_alert_backlog_critical_total = 4
         config.operator_notification_realert_hours = 2
         config.operator_notification_digest_hours = 12
-        config.operator_notification_critical_channels = 'dashboard,email'
+        config.operator_notification_warning_channels = 'dashboard,email,slack,servicenow'
+        config.operator_notification_critical_channels = 'dashboard,email,slack,servicenow'
         builder = DashboardSnapshotBuilder(config=config)
 
         context = ExecutionContext(
@@ -278,14 +286,96 @@ def test_dashboard_snapshot_exposes_unified_operator_alert_policy_and_queue_heal
         assert summary.get('operator_notification_external_ready') is False
         assert notification_center.get('dispatch_candidates_total', 0) >= 1
         assert notification_center.get('active_channel_total', 0) >= 1
+        assert notification_center.get('external_channel_total', 0) >= 2
         assert delivery_readiness.get('posture') == 'dashboard_only'
         assert delivery_readiness.get('external_routing_ready') is False
         assert delivery_readiness.get('dispatch_candidates_total', 0) >= 1
+        assert delivery_readiness.get('missing_external_channels') == []
+        assert set(delivery_readiness.get('inactive_external_channels', [])) == {'slack', 'servicenow'}
+        assert 'slack' in delivery_readiness.get('configured_external_channels', [])
+        assert 'servicenow' in delivery_readiness.get('configured_external_channels', [])
         assert isinstance(delivery_readiness.get('next_actions'), list)
         pending_notification = next(item for item in notification_center.get('items', []) if item.get('lane_id') == 'pending_overrides')
         assert pending_notification.get('dispatch_ready') is True
-        assert pending_notification.get('channels') == ['dashboard', 'email']
+        assert pending_notification.get('channels') == ['dashboard', 'email', 'slack', 'servicenow']
+        assert pending_notification.get('external_channels') == ['slack', 'servicenow']
         assert any(alert.get('alert_id') == 'operator_queue_pending_overrides' for alert in runtime_alerts)
+
+
+def test_dashboard_notification_delivery_readiness_turns_ready_for_active_external_channels() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        config.outbound_http_integrations_enabled = True
+        config.operator_notification_warning_channels = 'dashboard,slack,jira'
+        config.operator_notification_critical_channels = 'dashboard,slack,jira'
+        _seed_notification_targets(
+            config,
+            [
+                {
+                    'target_id': 'executive-ledger',
+                    'name': 'Executive Integration Ledger',
+                    'status': 'active',
+                    'delivery_mode': 'log_only',
+                    'platform': 'ledger',
+                    'notification_channels': ['dashboard'],
+                    'subscribed_events': ['runtime.*'],
+                },
+                {
+                    'target_id': 'slack-bridge',
+                    'name': 'Slack Alert Bridge',
+                    'category': 'chatops',
+                    'platform': 'slack',
+                    'status': 'active',
+                    'delivery_mode': 'http',
+                    'endpoint_url': 'https://hooks.slack.example.local/services/test',
+                    'notification_channels': ['slack', 'webhook'],
+                    'subscribed_events': ['runtime.*'],
+                },
+                {
+                    'target_id': 'jira-service-desk',
+                    'name': 'Jira Service Desk Bridge',
+                    'category': 'ticketing',
+                    'platform': 'jira',
+                    'status': 'active',
+                    'delivery_mode': 'http',
+                    'endpoint_url': 'https://jira.example.local/rest/api/2/issue',
+                    'notification_channels': ['jira', 'ticketing', 'webhook'],
+                    'subscribed_events': ['runtime.*'],
+                },
+            ],
+        )
+        builder = DashboardSnapshotBuilder(config=config)
+
+        context = ExecutionContext(
+            request_id='REQ-OPS-2',
+            requester='operator@example.com',
+            action='approve_group_policy',
+            role_id='OPS_REVIEW',
+            payload={'resource': 'contract', 'resource_id': 'C-101'},
+            metadata={},
+        )
+        override = builder.app.engine.human_override.create_state(
+            context,
+            required_by='reviewer@example.com',
+            reason='High-risk action requires human review.',
+        )
+        builder.app.engine.human_override._requests[override.request_id].created_at = (
+            datetime.now(timezone.utc) - timedelta(hours=72)
+        ).isoformat()
+        builder.app.engine.human_override._persist()
+
+        snapshot = builder.build()
+        delivery_readiness = snapshot.get('operator_notification_delivery_readiness', {})
+        notification_center = snapshot.get('operator_notification_center', {})
+
+        assert delivery_readiness.get('posture') == 'ready'
+        assert delivery_readiness.get('external_routing_ready') is True
+        assert set(delivery_readiness.get('requested_external_channels', [])) == {'jira', 'slack'}
+        assert set(delivery_readiness.get('active_external_channels', [])) >= {'jira', 'slack'}
+        assert delivery_readiness.get('missing_external_channels') == []
+        assert delivery_readiness.get('inactive_external_channels') == []
+        pending_notification = next(item for item in notification_center.get('items', []) if item.get('lane_id') == 'pending_overrides')
+        assert pending_notification.get('external_channels') == ['slack', 'jira']
 
 
 def test_engine_health_surfaces_invalid_governance_materials() -> None:

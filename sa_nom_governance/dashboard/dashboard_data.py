@@ -854,7 +854,8 @@ class DashboardSnapshotBuilder:
                 continue
             channels = severity_channels.get(status, default_channels)
             channels = [str(channel) for channel in channels if str(channel)] if isinstance(channels, list) else default_channels
-            for channel in channels:
+            normalized_channels = self._normalize_notification_channels(channels)
+            for channel in normalized_channels:
                 channel_totals[channel] = channel_totals.get(channel, 0) + 1
             items.append(
                 {
@@ -866,8 +867,10 @@ class DashboardSnapshotBuilder:
                     'severity': status,
                     'oldest_age_hours': int(item.get('oldest_age_hours', 0) or 0),
                     'oldest_reference': item.get('oldest_reference'),
-                    'channels': channels,
-                    'dispatch_ready': enabled and bool(channels),
+                    'channels': normalized_channels,
+                    'internal_channels': [channel for channel in normalized_channels if self._notification_channel_scope(channel) == 'internal'],
+                    'external_channels': [channel for channel in normalized_channels if self._notification_channel_scope(channel) == 'external'],
+                    'dispatch_ready': enabled and bool(normalized_channels),
                 }
             )
 
@@ -880,6 +883,8 @@ class DashboardSnapshotBuilder:
             {
                 'channel': channel,
                 'active_total': total,
+                'scope': self._notification_channel_scope(channel),
+                'family': self._notification_channel_family(channel),
             }
             for channel, total in sorted(channel_totals.items(), key=lambda entry: (-entry[1], entry[0]))
         ]
@@ -891,6 +896,8 @@ class DashboardSnapshotBuilder:
             'items': items,
             'channels': channels,
             'active_channel_total': len(channels),
+            'internal_channel_total': sum(1 for item in channels if item.get('scope') == 'internal'),
+            'external_channel_total': sum(1 for item in channels if item.get('scope') == 'external'),
             'dispatch_candidates_total': len(items),
             'dispatch_ready_total': sum(1 for item in items if item.get('dispatch_ready')),
             'highest_severity': highest_severity,
@@ -910,7 +917,25 @@ class DashboardSnapshotBuilder:
         deliveries_total = int(summary.get('deliveries_total', 0) or 0)
         dispatch_candidates_total = int(notification_center.get('dispatch_candidates_total', 0) or 0)
         enabled = bool(notification_center.get('enabled', True))
-        external_routing_ready = http_enabled and active_targets > 0
+
+        configured_external_channels = sorted(
+            channel
+            for channel in summary.get('notification_channels_configured', [])
+            if self._notification_channel_scope(str(channel)) == 'external'
+        )
+        active_external_channels = sorted(
+            channel
+            for channel in summary.get('notification_channels_active', [])
+            if self._notification_channel_scope(str(channel)) == 'external'
+        )
+        requested_external_channels = sorted(
+            item.get('channel')
+            for item in notification_center.get('channels', []) if isinstance(item, dict)
+            if self._notification_channel_scope(str(item.get('channel', ''))) == 'external'
+        )
+        missing_external_channels = [channel for channel in requested_external_channels if channel not in configured_external_channels]
+        inactive_external_channels = [channel for channel in requested_external_channels if channel in configured_external_channels and channel not in active_external_channels]
+        external_routing_ready = bool(requested_external_channels) and http_enabled and not missing_external_channels and not inactive_external_channels
 
         if not enabled:
             posture = 'disabled'
@@ -918,7 +943,9 @@ class DashboardSnapshotBuilder:
             posture = 'degraded'
         elif outbox_total > 0:
             posture = 'pressured'
-        elif external_routing_ready or dispatch_candidates_total <= 0:
+        elif requested_external_channels and external_routing_ready:
+            posture = 'ready'
+        elif dispatch_candidates_total <= 0:
             posture = 'ready'
         else:
             posture = 'dashboard_only'
@@ -926,10 +953,14 @@ class DashboardSnapshotBuilder:
         next_actions: list[dict[str, str]] = []
         if not enabled:
             next_actions.append({'label': 'Immediate action', 'detail': 'Re-enable operator notifications or maintain strict manual dashboard review until routing is restored.'})
-        if not http_enabled:
-            next_actions.append({'label': 'Enable HTTP', 'detail': 'Turn on outbound HTTP integrations before expecting external alert delivery.'})
-        if http_enabled and active_targets <= 0:
-            next_actions.append({'label': 'Add active target', 'detail': 'Configure at least one active integration target so alerts can leave the dashboard.'})
+        if requested_external_channels and not http_enabled:
+            next_actions.append({'label': 'Enable HTTP', 'detail': 'Turn on outbound HTTP integrations before expecting external operator delivery.'})
+        if missing_external_channels:
+            next_actions.append({'label': 'Add channel targets', 'detail': f"Configure explicit integration targets for: {', '.join(missing_external_channels)}."})
+        if inactive_external_channels:
+            next_actions.append({'label': 'Activate configured routes', 'detail': f"The following external channels are configured but not active: {', '.join(inactive_external_channels)}."})
+        if http_enabled and requested_external_channels and active_targets <= 0:
+            next_actions.append({'label': 'Add active target', 'detail': 'Configure at least one active HTTP integration target so alerts can leave the dashboard.'})
         if failed_total > 0:
             next_actions.append({'label': 'Review failed deliveries', 'detail': 'Inspect failed deliveries and dead letters before trusting external routing.'})
         if outbox_total > 0:
@@ -948,8 +979,40 @@ class DashboardSnapshotBuilder:
             'failed_total': failed_total,
             'outbox_total': outbox_total,
             'highest_severity': str(notification_center.get('highest_severity', 'ready')),
+            'configured_external_channels': configured_external_channels,
+            'active_external_channels': active_external_channels,
+            'requested_external_channels': requested_external_channels,
+            'missing_external_channels': missing_external_channels,
+            'inactive_external_channels': inactive_external_channels,
+            'platforms_configured': [str(item) for item in summary.get('platforms_configured', []) if str(item)],
+            'platforms_active': [str(item) for item in summary.get('platforms_active', []) if str(item)],
             'next_actions': next_actions,
         }
+
+    @staticmethod
+    def _normalize_notification_channels(channels: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for channel in channels:
+            value = str(channel).strip().lower()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            normalized.append(value)
+        return normalized or ['dashboard']
+
+    @staticmethod
+    def _notification_channel_scope(channel: str) -> str:
+        return 'internal' if str(channel).strip().lower() in {'dashboard', 'email'} else 'external'
+
+    @staticmethod
+    def _notification_channel_family(channel: str) -> str:
+        value = str(channel).strip().lower()
+        if value in {'jira', 'servicenow'}:
+            return 'ticketing'
+        if value in {'slack', 'teams'}:
+            return 'chatops'
+        return value or 'unknown'
 
     def runtime_alerts(
         self,
