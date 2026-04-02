@@ -127,6 +127,10 @@ class DashboardSnapshotBuilder:
                 'studio_structural_blocked_total': role_private_studio.get('summary', {}).get('structural_blocked_total', 0),
                 'human_ask_sessions_total': human_ask.get('summary', {}).get('sessions_total', 0),
                 'human_ask_callable_total': human_ask.get('summary', {}).get('callable_total', 0),
+                'human_ask_low_confidence_total': int(human_ask.get('summary', {}).get('low_confidence_total', 0) or 0),
+                'human_ask_guarded_confidence_total': int(human_ask.get('summary', {}).get('guarded_confidence_total', 0) or 0),
+                'human_ask_stale_total': int(human_ask.get('summary', {}).get('stale_total', 0) or 0),
+                'human_ask_human_gated_total': int(human_ask.get('summary', {}).get('human_gated_posture_total', 0) or 0),
                 'go_live_status': go_live_readiness.get('status', 'blocked'),
                 'privileged_operations_status': go_live_readiness.get('privileged_operations', {}).get('status', 'unknown'),
                 'runtime_alert_total': len(runtime_alerts),
@@ -1077,6 +1081,18 @@ class DashboardSnapshotBuilder:
             if session.get('status') == 'waiting_human'
             or (((session.get('decision_summary') or {}).get('metadata', {}) or {}).get('scope_status') == 'human_only_boundary')
         ]
+        guarded_confidence_sessions = [
+            session
+            for session in sessions
+            if ((session.get('summary') or {}).get('confidence_band') == 'guarded')
+            and ((session.get('summary') or {}).get('governed_reporting_posture') in {'autonomy_ready', 'guarded_follow_up'})
+        ]
+        stale_follow_up_sessions = [
+            session
+            for session in sessions
+            if ((session.get('summary') or {}).get('freshness_status') == 'stale')
+            and ((session.get('summary') or {}).get('governed_reporting_posture') != 'autonomy_ready')
+        ]
         blocked_sessions = [session for session in sessions if session.get('status') == 'blocked']
 
         if out_of_scope_sessions:
@@ -1117,6 +1133,52 @@ class DashboardSnapshotBuilder:
                         'records_total': len(human_boundary_sessions),
                         'latest_participant': ((latest.get('participant') or {}).get('display_name') or (latest.get('summary') or {}).get('participant') or '-'),
                         'latest_session_id': latest.get('session_id', '-'),
+                    },
+                }
+            )
+
+        if guarded_confidence_sessions:
+            latest = guarded_confidence_sessions[0]
+            alerts.append(
+                {
+                    'alert_id': 'human_ask_guarded_confidence',
+                    'tone': 'warning',
+                    'eyebrow': 'Confidence guard',
+                    'title': 'Human Ask confidence is near the escalation threshold',
+                    'message': 'The Director kept the reporting lane governed, but confidence is close enough to the configured threshold that operators should review the follow-up posture before treating it as fully settled.',
+                    'view': 'human_ask',
+                    'action_label': 'Review governed reports',
+                    'badge': f"{len(guarded_confidence_sessions)} guarded",
+                    'timestamp': latest.get('updated_at') or latest.get('created_at') or self._utc_now(),
+                    'details': {
+                        'records_total': len(guarded_confidence_sessions),
+                        'latest_participant': ((latest.get('participant') or {}).get('display_name') or (latest.get('summary') or {}).get('participant') or '-'),
+                        'latest_session_id': latest.get('session_id', '-'),
+                        'confidence_threshold': float((latest.get('summary') or {}).get('confidence_threshold', 0.0) or 0.0),
+                    },
+                }
+            )
+
+        if stale_follow_up_sessions:
+            latest = stale_follow_up_sessions[0]
+            oldest_age_hours = max(int((session.get('summary') or {}).get('freshness_age_hours', 0) or 0) for session in stale_follow_up_sessions)
+            posture_set = {str((session.get('summary') or {}).get('governed_reporting_posture', 'autonomy_ready')) for session in stale_follow_up_sessions}
+            alerts.append(
+                {
+                    'alert_id': 'human_ask_stale_follow_up',
+                    'tone': 'danger' if posture_set & {'human_gated', 'blocked'} else 'warning',
+                    'eyebrow': 'Freshness posture',
+                    'title': 'Human Ask follow-up records have gone stale',
+                    'message': 'Some governed reporting records are now outside the freshness window and should be refreshed or resolved before operators rely on them as current status.',
+                    'view': 'human_ask',
+                    'action_label': 'Refresh governed reports',
+                    'badge': f"{len(stale_follow_up_sessions)} stale",
+                    'timestamp': latest.get('updated_at') or latest.get('created_at') or self._utc_now(),
+                    'details': {
+                        'records_total': len(stale_follow_up_sessions),
+                        'latest_participant': ((latest.get('participant') or {}).get('display_name') or (latest.get('summary') or {}).get('participant') or '-'),
+                        'latest_session_id': latest.get('session_id', '-'),
+                        'oldest_age_hours': oldest_age_hours,
                     },
                 }
             )

@@ -67,6 +67,8 @@ class AppConfig:
     retention_role_private_studio_days: int = field(default_factory=lambda: int(os.getenv("SANOM_RETENTION_ROLE_PRIVATE_STUDIO_DAYS", "2555")))
     retention_human_ask_days: int = field(default_factory=lambda: int(os.getenv("SANOM_RETENTION_HUMAN_ASK_DAYS", "365")))
     human_ask_confidence_threshold: float = field(default_factory=lambda: max(0.05, min(float(os.getenv("SANOM_HUMAN_ASK_CONFIDENCE_THRESHOLD", "0.72")), 0.99)))
+    human_ask_freshness_warning_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_HUMAN_ASK_FRESHNESS_WARNING_HOURS", "24"))))
+    human_ask_freshness_stale_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_HUMAN_ASK_FRESHNESS_STALE_HOURS", "168"))))
     operator_alert_warning_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_ALERT_WARNING_HOURS", "24"))))
     operator_alert_critical_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_ALERT_CRITICAL_HOURS", "168"))))
     operator_alert_stale_hours: int = field(default_factory=lambda: max(1, int(os.getenv("SANOM_OPERATOR_ALERT_STALE_HOURS", "720"))))

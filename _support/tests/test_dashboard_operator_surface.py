@@ -424,3 +424,41 @@ def test_dashboard_snapshot_exposes_invalid_governance_material_counts() -> None
         assert summary.get('invalid_hierarchy_entries_total') == 1
         assert invalid_role.get('status') == 'invalid'
         assert invalid_role.get('load_error', {}).get('stage') == 'load'
+
+
+
+def test_dashboard_snapshot_surfaces_human_ask_confidence_and_freshness_signals() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+        original_confidence_score = builder.app.human_ask._confidence_score
+        builder.app.human_ask._confidence_score = lambda prompt, entry, risk_score: min(0.99, builder.app.human_ask.confidence_threshold + 0.02)
+        try:
+            session = builder.app.create_human_ask_session(
+                {
+                    'role_id': 'GOV',
+                    'prompt': 'Summarize the current governance posture.',
+                },
+                requested_by='EXEC_OWNER',
+            )
+        finally:
+            builder.app.human_ask._confidence_score = original_confidence_score
+
+        stored = builder.app.human_ask.store.get_session(session['session_id'])
+        stored.updated_at = (
+            datetime.now(timezone.utc) - timedelta(hours=builder.app.human_ask.freshness_stale_hours + 4)
+        ).isoformat()
+        builder.app.human_ask.store.save_session(stored)
+
+        snapshot = builder.build()
+        human_ask_summary = snapshot.get('human_ask', {}).get('summary', {})
+        summary = snapshot.get('summary', {})
+        runtime_alerts = snapshot.get('runtime_alerts', [])
+
+        assert human_ask_summary.get('guarded_confidence_total', 0) >= 1
+        assert human_ask_summary.get('stale_total', 0) >= 1
+        assert human_ask_summary.get('guarded_follow_up_posture_total', 0) >= 1
+        assert summary.get('human_ask_guarded_confidence_total', 0) >= 1
+        assert summary.get('human_ask_stale_total', 0) >= 1
+        assert any(alert.get('alert_id') == 'human_ask_guarded_confidence' for alert in runtime_alerts)
+        assert any(alert.get('alert_id') == 'human_ask_stale_follow_up' for alert in runtime_alerts)

@@ -1,4 +1,5 @@
 import shutil
+from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
@@ -691,3 +692,85 @@ def test_human_decision_inbox_list_filters_human_required_items() -> None:
         assert snapshot["summary"]["inbox_total"] == 2
         assert snapshot["summary"]["inbox_human_action_total"] == 1
         assert snapshot["summary"]["inbox_clearance_total"] == 1
+
+
+
+def test_human_ask_session_summary_exposes_reporting_posture_and_freshness() -> None:
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+
+        session = service.create_session(
+            {
+                "role_id": "GOV",
+                "prompt": "Summarize the current governance posture.",
+            },
+            requested_by="EXEC_OWNER",
+        )
+
+        summary = session["summary"]
+        assert summary["confidence_threshold"] == service.confidence_threshold
+        assert summary["confidence_band"] == "ready"
+        assert summary["freshness_status"] == "fresh"
+        assert summary["freshness_warning_hours"] == service.freshness_warning_hours
+        assert summary["freshness_stale_hours"] == service.freshness_stale_hours
+        assert summary["governed_reporting_posture"] == "autonomy_ready"
+        assert summary["scope_status"] == "in_scope"
+        assert summary["scope_assessment_recorded"] is True
+        assert summary["evidence_refs_total"] >= 1
+        assert session["decision_summary"]["metadata"]["confidence_band"] == "ready"
+
+
+def test_human_ask_low_confidence_request_waits_for_human() -> None:
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+        original_confidence_score = service._confidence_score
+        service._confidence_score = lambda prompt, entry, risk_score: max(0.05, service.confidence_threshold - 0.05)
+        try:
+            session = service.create_session(
+                {
+                    "role_id": "GOV",
+                    "prompt": "Summarize the current governance posture.",
+                },
+                requested_by="EXEC_OWNER",
+            )
+        finally:
+            service._confidence_score = original_confidence_score
+
+        assert session["status"] == "waiting_human"
+        assert session["decision_summary"]["policy_basis"] == "human_ask.phase_a.confidence_guard"
+        assert session["decision_summary"]["metadata"]["confidence_band"] == "below_threshold"
+        assert session["decision_summary"]["metadata"]["confidence_guard_triggered"] is True
+        assert session["metadata"]["human_decision_inbox"]["required_action"] == "confidence_review"
+        assert session["summary"]["governed_reporting_posture"] == "human_gated"
+
+
+def test_human_ask_snapshot_tracks_confidence_and_freshness_signals() -> None:
+    with workspace_temp_dir() as temp_path:
+        service = build_service(temp_path)
+        original_confidence_score = service._confidence_score
+        service._confidence_score = lambda prompt, entry, risk_score: min(0.99, service.confidence_threshold + 0.02)
+        try:
+            guarded_session = service.create_session(
+                {
+                    "role_id": "GOV",
+                    "prompt": "Summarize the current governance posture.",
+                },
+                requested_by="EXEC_OWNER",
+            )
+        finally:
+            service._confidence_score = original_confidence_score
+
+        stored = service.store.get_session(guarded_session["session_id"])
+        stored.updated_at = (datetime.now(timezone.utc) - timedelta(hours=service.freshness_stale_hours + 4)).isoformat()
+        service.store.save_session(stored)
+
+        snapshot = service.human_ask_snapshot(limit=10)
+        summary = snapshot["summary"]
+        guarded_payload = next(item for item in snapshot["sessions"] if item["session_id"] == guarded_session["session_id"])
+
+        assert summary["guarded_confidence_total"] >= 1
+        assert summary["stale_total"] >= 1
+        assert summary["guarded_follow_up_posture_total"] >= 1
+        assert guarded_payload["summary"]["confidence_band"] == "guarded"
+        assert guarded_payload["summary"]["freshness_status"] == "stale"
+        assert guarded_payload["summary"]["governed_reporting_posture"] == "guarded_follow_up"

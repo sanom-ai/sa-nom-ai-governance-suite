@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -84,9 +85,11 @@ class HumanAskService:
         effective_foundation_path = foundation_path if foundation_path.exists() else legacy_foundation_path
         self.pt_oss_engine = PTOSSEngine(effective_foundation_path if effective_foundation_path.exists() else bundled_dir / "resources" / "pt_oss" / "pt_oss_foundation.json")
         self.confidence_threshold = config.human_ask_confidence_threshold
+        self.freshness_warning_hours = max(1, int(config.human_ask_freshness_warning_hours))
+        self.freshness_stale_hours = max(self.freshness_warning_hours, int(config.human_ask_freshness_stale_hours))
 
     def human_ask_snapshot(self, limit: int = 50) -> dict[str, object]:
-        sessions = [item.to_dict(compact=True) for item in self.store.list_sessions()[:limit]]
+        sessions = [self._session_payload(item, compact=True) for item in self.store.list_sessions()[:limit]]
         directory = self.callable_directory(limit=limit)
         statuses = [item["status"] for item in sessions]
         modes = [item.get("mode", "report") for item in sessions]
@@ -96,6 +99,9 @@ class HumanAskService:
         queue_lanes = [item.get("queue_lane", "autonomy") for item in summaries]
         queue_priorities = [item.get("queue_priority", "normal") for item in summaries]
         inbox_states = [item.get("inbox_state", "autonomy_ready") for item in summaries]
+        confidence_bands = [item.get("confidence_band", "ready") for item in summaries]
+        freshness_states = [item.get("freshness_status", "fresh") for item in summaries]
+        reporting_postures = [item.get("governed_reporting_posture", "autonomy_ready") for item in summaries]
         return {
             "summary": {
                 "sessions_total": len(sessions),
@@ -123,6 +129,20 @@ class HumanAskService:
                 "inbox_human_action_total": inbox_states.count("human_action_required"),
                 "inbox_clearance_total": inbox_states.count("clearance_required"),
                 "inbox_guarded_total": inbox_states.count("guarded_follow_up"),
+                "confidence_threshold": self.confidence_threshold,
+                "freshness_warning_hours": self.freshness_warning_hours,
+                "freshness_stale_hours": self.freshness_stale_hours,
+                "low_confidence_total": confidence_bands.count("below_threshold"),
+                "guarded_confidence_total": confidence_bands.count("guarded"),
+                "ready_confidence_total": confidence_bands.count("ready"),
+                "fresh_total": freshness_states.count("fresh"),
+                "aging_total": freshness_states.count("aging"),
+                "stale_total": freshness_states.count("stale"),
+                "oldest_session_age_hours": max((int(item.get("freshness_age_hours", 0) or 0) for item in summaries), default=0),
+                "autonomy_ready_posture_total": reporting_postures.count("autonomy_ready"),
+                "guarded_follow_up_posture_total": reporting_postures.count("guarded_follow_up"),
+                "human_gated_posture_total": reporting_postures.count("human_gated"),
+                "blocked_posture_total": reporting_postures.count("blocked"),
                 "callable_total": directory["summary"]["callable_total"],
                 "studio_callable_total": directory["summary"]["studio_callable_total"],
                 "published_callable_total": directory["summary"]["published_callable_total"],
@@ -132,7 +152,7 @@ class HumanAskService:
         }
 
     def list_sessions(self, status: str | None = None, limit: int = 100) -> list[dict[str, object]]:
-        return [item.to_dict(compact=True) for item in self.store.list_sessions(status=status)[:limit]]
+        return [self._session_payload(item, compact=True) for item in self.store.list_sessions(status=status)[:limit]]
 
     def list_human_decision_inbox(
         self,
@@ -144,7 +164,9 @@ class HumanAskService:
         sessions = self.store.list_sessions()
         items: list[dict[str, object]] = []
         for session in sessions:
-            inbox = session.metadata.get("human_decision_inbox", {}) if isinstance(session.metadata.get("human_decision_inbox", {}), dict) else {}
+            session_payload = self._session_payload(session, compact=True)
+            session_metadata = session_payload.get("metadata", {}) if isinstance(session_payload.get("metadata", {}), dict) else {}
+            inbox = session_metadata.get("human_decision_inbox", {}) if isinstance(session_metadata.get("human_decision_inbox", {}), dict) else {}
             if not inbox:
                 continue
             if inbox_state is not None and inbox.get("inbox_state") != inbox_state:
@@ -152,20 +174,121 @@ class HumanAskService:
             if queue_lane is not None and inbox.get("queue_lane") != queue_lane:
                 continue
             item = {
-                "session_id": session.session_id,
-                "status": session.status,
-                "requested_by": session.requested_by,
-                "participant": session.participant.display_name,
-                "role_id": session.participant.role_id,
-                "mode": session.mode,
-                "director_disposition": str(session.metadata.get("director_disposition", "ready_to_proceed")),
+                "session_id": session_payload["session_id"],
+                "status": session_payload["status"],
+                "requested_by": session_payload["requested_by"],
+                "participant": session_payload["participant"]["display_name"],
+                "role_id": session_payload["participant"]["role_id"],
+                "mode": session_payload["mode"],
+                "director_disposition": str(session_payload.get("summary", {}).get("director_disposition", "ready_to_proceed")),
                 "human_decision_inbox": inbox,
+                "session_summary": session_payload.get("summary", {}),
             }
             items.append(item)
         return items[:limit]
 
     def get_session(self, session_id: str) -> dict[str, object]:
-        return self.store.get_session(session_id).to_dict()
+        return self._session_payload(self.store.get_session(session_id), compact=False)
+
+    def _session_payload(self, session: HumanAskSession, *, compact: bool = False) -> dict[str, object]:
+        payload = session.to_dict(compact=compact)
+        decision_summary = payload.get("decision_summary", {}) if isinstance(payload.get("decision_summary", {}), dict) else {}
+        decision_metadata = decision_summary.get("metadata", {}) if isinstance(decision_summary.get("metadata", {}), dict) else {}
+        session_metadata = payload.get("metadata", {}) if isinstance(payload.get("metadata", {}), dict) else {}
+        inbox_contract = session_metadata.get("human_decision_inbox", {}) if isinstance(session_metadata.get("human_decision_inbox", {}), dict) else {}
+        summary = payload.get("summary", {}) if isinstance(payload.get("summary", {}), dict) else {}
+        confidence_score = float(summary.get("confidence_score", 0.0) or 0.0)
+        confidence_gap = round(confidence_score - self.confidence_threshold, 4)
+        confidence_band = self._confidence_band(confidence_score)
+        freshness_age_hours = self._age_hours(str(payload.get("updated_at") or payload.get("created_at") or ""))
+        freshness_status = self._freshness_status(freshness_age_hours)
+        governed_reporting_posture = self._reporting_posture(
+            status=str(payload.get("status", "completed")),
+            director_disposition=str(summary.get("director_disposition", "ready_to_proceed")),
+            inbox_state=str(summary.get("inbox_state", "autonomy_ready")),
+            confidence_band=confidence_band,
+        )
+        evidence_refs = [str(item) for item in inbox_contract.get("evidence_refs", []) if str(item)] if isinstance(inbox_contract.get("evidence_refs", []), list) else []
+        scope_status = str(decision_metadata.get("scope_status", "unknown"))
+
+        summary.update(
+            {
+                "confidence_threshold": self.confidence_threshold,
+                "confidence_gap": confidence_gap,
+                "confidence_band": confidence_band,
+                "freshness_age_hours": freshness_age_hours,
+                "freshness_status": freshness_status,
+                "freshness_warning_hours": self.freshness_warning_hours,
+                "freshness_stale_hours": self.freshness_stale_hours,
+                "governed_reporting_posture": governed_reporting_posture,
+                "scope_status": scope_status,
+                "scope_assessment_recorded": bool(decision_metadata),
+                "evidence_refs_total": len(evidence_refs),
+                "human_review_required": str(summary.get("inbox_state", "autonomy_ready")) in {"human_action_required", "clearance_required"},
+            }
+        )
+        payload["summary"] = summary
+
+        if decision_summary:
+            decision_summary["metadata"] = {
+                **decision_metadata,
+                "confidence_gap": confidence_gap,
+                "confidence_band": confidence_band,
+            }
+            payload["decision_summary"] = decision_summary
+
+        session_metadata["governed_reporting_posture"] = governed_reporting_posture
+        session_metadata["human_ask_policy"] = {
+            "confidence_threshold": self.confidence_threshold,
+            "freshness_warning_hours": self.freshness_warning_hours,
+            "freshness_stale_hours": self.freshness_stale_hours,
+        }
+        payload["metadata"] = session_metadata
+        return payload
+
+    def _confidence_band(self, confidence_score: float) -> str:
+        if confidence_score < self.confidence_threshold:
+            return "below_threshold"
+        if confidence_score < min(self.confidence_threshold + 0.08, 0.99):
+            return "guarded"
+        return "ready"
+
+    def _freshness_status(self, age_hours: int) -> str:
+        if age_hours >= self.freshness_stale_hours:
+            return "stale"
+        if age_hours >= self.freshness_warning_hours:
+            return "aging"
+        return "fresh"
+
+    def _reporting_posture(
+        self,
+        *,
+        status: str,
+        director_disposition: str,
+        inbox_state: str,
+        confidence_band: str,
+    ) -> str:
+        if status == "blocked" or director_disposition == "hold_for_clearance" or inbox_state == "clearance_required":
+            return "blocked"
+        if status in {"waiting_human", "escalated"} or inbox_state == "human_action_required":
+            return "human_gated"
+        if inbox_state == "guarded_follow_up" or director_disposition == "guarded_follow_up" or confidence_band == "guarded":
+            return "guarded_follow_up"
+        return "autonomy_ready"
+
+    def _age_hours(self, timestamp: str) -> int:
+        parsed = self._parse_timestamp(timestamp)
+        if parsed is None:
+            return 0
+        return max(0, int((datetime.now(timezone.utc) - parsed).total_seconds() // 3600))
+
+    def _parse_timestamp(self, value: str | None) -> datetime | None:
+        if value in {None, ""}:
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
 
     def callable_directory(self, limit: int = 200) -> dict[str, object]:
         entries = self._build_callable_directory()
@@ -314,7 +437,7 @@ class HumanAskService:
                 "parent_session_id": parent_session_id,
             },
         )
-        return session.to_dict()
+        return self._session_payload(session, compact=False)
 
     def create_studio_record_request(self, studio_request_id: str, payload: dict[str, object], requested_by: str) -> dict[str, object]:
         forwarded = dict(payload)
@@ -513,6 +636,8 @@ class HumanAskService:
         scope_assessment = self._scope_assessment(prompt, entry)
         risk_score = self._risk_score(prompt, entry)
         confidence_score = self._confidence_score(prompt, entry, risk_score)
+        confidence_gap = round(confidence_score - self.confidence_threshold, 4)
+        confidence_band = self._confidence_band(confidence_score)
         structural_gate = self._pt_oss_structural_gate(entry)
         automation_state = self._automation_state(
             entry=entry,
@@ -545,7 +670,12 @@ class HumanAskService:
             escalated_to = entry.safety_owner or entry.escalation_owner or entry.executive_owner_id or self.config.executive_owner_id()
             escalation_reason = self._escalation_reason(entry, risk_score, confidence_score, scope_assessment, structural_gate)
             outcome = "waiting_human"
-            policy_basis = "human_ask.phase_a.scope_boundary" if scope_assessment["status"] in {"out_of_scope", "human_only_boundary"} else "human_ask.phase_a.structural_review"
+            if scope_assessment["status"] in {"out_of_scope", "human_only_boundary"}:
+                policy_basis = "human_ask.phase_a.scope_boundary"
+            elif confidence_score < self.confidence_threshold:
+                policy_basis = "human_ask.phase_a.confidence_guard"
+            else:
+                policy_basis = "human_ask.phase_a.structural_review"
             notes.append(escalation_reason)
         elif structural_gate["gate"] == "guarded":
             notes.append(structural_gate["reason"])
@@ -587,6 +717,9 @@ class HumanAskService:
                 "matched_resources": scope_assessment["matched_resources"],
                 "matched_sensitive_terms": scope_assessment["matched_sensitive_terms"],
                 "automation_ready": scope_assessment["automation_ready"],
+                "confidence_gap": confidence_gap,
+                "confidence_band": confidence_band,
+                "confidence_guard_triggered": confidence_score < self.confidence_threshold,
                 "pt_oss_gate": structural_gate["gate"],
                 "pt_oss_gate_reason": structural_gate["reason"],
                 "pt_oss_readiness_score": entry.pt_oss_readiness_score,
@@ -705,7 +838,12 @@ class HumanAskService:
                 "queue_reason": str(decision_queue.get("queue_reason", "")),
                 "director_disposition": director_disposition,
                 "confidence_score": decision_summary.confidence_score,
+                "confidence_threshold": decision_summary.confidence_threshold,
+                "confidence_gap": float(decision_summary.metadata.get("confidence_gap", 0.0) or 0.0),
+                "confidence_band": str(decision_summary.metadata.get("confidence_band", "ready")),
                 "risk_score": decision_summary.risk_score,
+                "scope_status": str(decision_summary.metadata.get("scope_status", "unknown")),
+                "scope_reason": str(decision_summary.metadata.get("scope_reason", "")),
             },
             authority={
                 "escalated": decision_summary.escalated,
@@ -737,6 +875,8 @@ class HumanAskService:
                 return "manual_review"
             if decision_summary.metadata.get("scope_status") == "human_only_boundary":
                 return "human_decision"
+            if decision_summary.metadata.get("confidence_band") == "below_threshold":
+                return "confidence_review"
             return "approve_or_escalate"
         if queue_lane == "guarded_follow_up":
             return "guarded_follow_up"
@@ -1223,7 +1363,7 @@ class HumanAskService:
             return "blocked"
         if scope_assessment["status"] in {"out_of_scope", "human_only_boundary"}:
             return "review"
-        if confidence_score < max(self.confidence_threshold - 0.25, 0.35) and scope_assessment["status"] != "in_scope":
+        if confidence_score < self.confidence_threshold:
             return "review"
         if structural_gate["gate"] == "guarded" and risk_score >= 0.78 and confidence_score < self.confidence_threshold:
             return "review"
