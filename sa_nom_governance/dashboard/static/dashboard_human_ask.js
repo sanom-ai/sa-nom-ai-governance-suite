@@ -43,7 +43,7 @@ export async function handleHumanAskAction({
   if (action === 'request-entry-record') {
     const entryId = button.dataset.entryId || '';
     const displayName = button.dataset.entryLabel || 'the selected role';
-    const prompt = windowRef.prompt(`Request a report from ${displayName}`, 'Please report your current governed posture, key findings, and the next safe action.');
+    const prompt = windowRef.prompt(`Start a report from ${displayName}`, 'Report current posture, key findings, and the next safe action.');
     if (prompt === null) return true;
     const response = await apiFetch('/api/human-ask/sessions', {
       method: 'POST',
@@ -62,7 +62,7 @@ export async function handleHumanAskAction({
   if (action === 'studio-record') {
     const requestId = button.dataset.requestId || '';
     const roleLabel = button.dataset.entryLabel || requestId;
-    const prompt = windowRef.prompt(`Request a report from ${roleLabel}`, 'Please report your governed readiness, structural posture, and the next safe review action.');
+    const prompt = windowRef.prompt(`Start a report from ${roleLabel}`, 'Report readiness, structural posture, and the next safe review action.');
     if (prompt === null) return true;
     const response = await apiFetch(`/api/role-private-studio/requests/${encodeURIComponent(requestId)}/human-ask-record`, {
       method: 'POST',
@@ -111,7 +111,7 @@ export function renderHumanAsk(humanAsk, { can, helpers }) {
         <div>
           <div class="eyebrow muted">Governed Record Surface</div>
           <h3 class="card-title">Human Ask</h3>
-          <p class="card-subtitle">One human can request a report or open a meeting record, while the AI Director core keeps the transcript, scope trace, and structural posture inside the same governed surface.</p>
+          <p class="card-subtitle">Start a governed report or meeting record while the Director keeps transcript, scope, and structural posture together.</p>
         </div>
         <div class="hero-metrics">
           ${metricCard('Records', summary.recorded_total || 0, 'accent', 'Governed Human Ask records currently preserved in runtime.')}
@@ -124,7 +124,7 @@ export function renderHumanAsk(humanAsk, { can, helpers }) {
         <div>
           <div class="eyebrow muted">Current Surface</div>
           <h3 class="card-title">Report and meeting records</h3>
-          <p class="card-subtitle">Human Ask is now focused on one human calling AI to produce report records or bring multiple hats into a governed meeting record from the same Director surface.</p>
+          <p class="card-subtitle">Use this page to open one-hat report records or multi-hat meeting records from the same surface.</p>
         </div>
         ${keyValue([
           ['Report sessions', String(summary.report_total || 0)],
@@ -153,7 +153,7 @@ export function renderHumanAsk(humanAsk, { can, helpers }) {
         <div>
           <div class="eyebrow muted">Transcript Baseline</div>
           <h3 class="card-title">Recent Human Ask records</h3>
-          <p class="card-subtitle">Every record preserves the request, transcript, boundary trace, and structural posture. Human attention should appear only when AI leaves JD scope or reaches a reserved decision boundary.</p>
+          <p class="card-subtitle">Each record keeps the prompt, transcript, and boundary trace together for later review.</p>
         </div>
       </div>
       ${sessions.length ? `<div class="stack">${sessions.map((session) => renderHumanAskSessionCard(session, { escapeHtml, keyValue, shortTime, statusBadge, titleCase })).join('')}</div>` : `<div class="empty-state">No Human Ask records are available yet.</div>`}
@@ -174,12 +174,12 @@ function renderHumanAskComposer(directory, sessions, canCreate, helpers) {
     ? entries.slice(0, 6).map((entry) => entry.role_id).join(', ')
     : 'GOV, LEGAL';
   const modeGuidance = keyValue([
-    ['Report', 'Request a governed information report from one hat'],
-    ['Meeting', 'Bring multiple hats together around one record'],
+    ['Report', 'One hat answers inside one governed record'],
+    ['Meeting', 'Several hats respond inside one governed record'],
   ]);
   const footer = canCreate
-    ? '<p class="permission-note">Follow-up chains inherit context from a parent session when requested. Meeting mode accepts comma-separated role ids.</p>'
-    : '<p class="permission-note">The current profile can read Human Ask records but cannot create new report or meeting requests.</p>';
+    ? '<p class="permission-note">Follow-up chains can inherit context from a parent session. Meeting mode also accepts comma-separated role ids.</p>'
+    : '<p class="permission-note">This profile can read records but cannot create new ones.</p>';
   const callableCount = entries.filter((entry) => entry.callable).length;
   const consoleChips = [
     `${callableCount} callable hats`,
@@ -191,20 +191,20 @@ function renderHumanAskComposer(directory, sessions, canCreate, helpers) {
       <div class="human-ask-console-hero">
         <div class="human-ask-console-copy">
           <div class="eyebrow muted">Record Console</div>
-          <h3 class="card-title">Open a governed report or meeting record</h3>
-          <p class="card-subtitle">Start one report lane or gather several hats around the same governed record without leaving the Director surface.</p>
+          <h3 class="card-title">Create a governed report or meeting record</h3>
+          <p class="card-subtitle">Create one report lane or one multi-hat record without leaving the Director surface.</p>
         </div>
         <div class="human-ask-console-chip-row">${consoleChips.map((label, index) => `<span class="status-chip human-ask-console-chip${index === 0 ? '' : ' human-ask-console-chip-soft'}">${escapeHtml(label)}</span>`).join('')}</div>
       </div>
       <div class="human-ask-console-grid">
         <div class="trace-box compact-trace human-ask-console-panel">
           <strong>Mode guidance</strong>
-          <p class="muted">Use Report for one governed hat, or Meeting when several hats should respond inside the same record lane.</p>
+          <p class="muted">Use Report for one hat. Use Meeting when several hats should answer inside the same record.</p>
           ${modeGuidance}
         </div>
         <div class="trace-box compact-trace human-ask-console-panel human-ask-console-panel-accent">
           <strong>Meeting quick hint</strong>
-          <p class="muted">${escapeHtml(`Use comma-separated role ids such as ${meetingHint}. The first resolved hat becomes the primary record lane while all hats remain visible in the same governed meeting record.`)}</p>
+          <p class="muted">${escapeHtml(`Use role ids such as ${meetingHint}. The first resolved hat becomes the primary lane for the shared record.`)}</p>
         </div>
       </div>
       <form id="human-ask-form" class="composer-grid human-ask-console-form">
@@ -251,10 +251,10 @@ function renderHumanAskComposer(directory, sessions, canCreate, helpers) {
         </div>
         <div class="composer-span">
           <label class="permission-note" for="human-ask-prompt">Prompt</label>
-          <textarea id="human-ask-prompt" rows="5" placeholder="Please report your governed posture, findings, and the next safe action."${disabledState}></textarea>
+          <textarea id="human-ask-prompt" rows="5" placeholder="Ask for posture, findings, and the next safe action."${disabledState}></textarea>
         </div>
         <div class="composer-span human-ask-console-action-row inline-actions">
-          <button class="action-button" type="submit"${disabledState}>Open Governed Record</button>
+          <button class="action-button" type="submit"${disabledState}>Create Governed Record</button>
         </div>
       </form>
       <div class="human-ask-console-footer">${footer}</div>
@@ -264,11 +264,11 @@ function renderHumanAskComposer(directory, sessions, canCreate, helpers) {
 function renderHumanAskDirectory(entries, canCreate, helpers) {
   const { escapeHtml, keyValue, statusBadge } = helpers;
   if (!entries.length) {
-    return `<article class="card stack"><div><div class="eyebrow muted">Callable Directory</div><h3 class="card-title">No callable entries</h3><p class="card-subtitle">Published roles and Role Private Studio drafts will appear here once they are available.</p></div></article>`;
+    return `<article class="card stack"><div><div class="eyebrow muted">Callable Directory</div><h3 class="card-title">No callable entries</h3><p class="card-subtitle">Published roles and studio drafts appear here when callable.</p></div></article>`;
   }
   const cards = entries.slice(0, 10).map((entry) => {
     const actions = canCreate && entry.callable
-      ? `<button class="action-button action-button-muted" data-human-ask-action="request-entry-record" data-entry-id="${escapeHtml(entry.entry_id)}" data-entry-label="${escapeHtml(entry.display_name)}">Request Report</button>`
+      ? `<button class="action-button action-button-muted" data-human-ask-action="request-entry-record" data-entry-id="${escapeHtml(entry.entry_id)}" data-entry-label="${escapeHtml(entry.display_name)}">Start Report</button>`
       : '';
     return `
       <article class="trace-box stack compact-trace human-ask-directory-card">
@@ -302,7 +302,7 @@ function renderHumanAskDirectory(entries, canCreate, helpers) {
       <div>
         <div class="eyebrow muted">Callable Directory</div>
         <h3 class="card-title">Current callable roles and drafts</h3>
-        <p class="card-subtitle">Availability is derived from runtime locks, pending overrides, PT-OSS posture, and Role Private Studio readiness.</p>
+        <p class="card-subtitle">Use this list to start a report from any callable role or draft.</p>
       </div>
       <div class="human-ask-directory-grid">${cards}</div>
     </article>

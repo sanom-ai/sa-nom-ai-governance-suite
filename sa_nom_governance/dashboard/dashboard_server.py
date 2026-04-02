@@ -1,4 +1,5 @@
 import json
+import os
 from argparse import ArgumentParser
 from dataclasses import asdict, is_dataclass
 from http import HTTPStatus
@@ -275,6 +276,52 @@ class DashboardService:
     def studio_snapshot(self, limit: int = 50):
         return self.app.studio_snapshot(limit=limit)
 
+    def _path_within_root(self, path: Path, root: Path) -> bool:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            return False
+
+    def _resolve_dashboard_operator_path(self, raw_path: str) -> Path:
+        path_text = raw_path.strip()
+        if not path_text:
+            raise ValueError('A path is required.')
+        candidate = Path(path_text).expanduser()
+        if not candidate.is_absolute():
+            candidate = self.base_dir / candidate
+        resolved = candidate.resolve(strict=False)
+        allowed_roots = [self.base_dir.resolve()]
+        if self.config.owner_registration_path is not None:
+            allowed_roots.append(Path(self.config.owner_registration_path).resolve(strict=False).parent)
+        if not any(self._path_within_root(resolved, root) or self._path_within_root(resolved.parent, root) for root in allowed_roots):
+            raise ValueError('Path is outside the dashboard workspace.')
+        return resolved
+
+    def open_operator_path(self, payload: dict[str, object], profile: AccessProfile) -> dict[str, object]:
+        requested_path = str(payload.get('path') or '').strip()
+        resolved = self._resolve_dashboard_operator_path(requested_path)
+        open_target = resolved if resolved.is_dir() else resolved.parent
+        if not open_target.exists():
+            raise ValueError('The target folder does not exist.')
+        os.startfile(str(open_target))
+        self.record_security_event(
+            action='dashboard_open_folder',
+            outcome='opened',
+            reason='Operator opened a local dashboard path.',
+            metadata={
+                'requested_path': requested_path,
+                'opened_path': str(open_target),
+                'profile_id': profile.profile_id,
+                'role_name': profile.role_name,
+            },
+        )
+        return {
+            'status': 'opened',
+            'requested_path': requested_path,
+            'opened_path': str(open_target),
+        }
+
     def human_ask_snapshot(self, limit: int = 50):
         return self.app.human_ask_snapshot(limit=limit)
 
@@ -487,6 +534,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('studio.create', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.create_studio_request(payload, profile), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/owner-registration':
             return self._require_owner_run(lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.update_owner_registration(payload, profile), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/operator/open-path':
+            return self._require_and_run('dashboard.read', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.open_operator_path(payload, profile), 'session': profile.to_public_dict()}))
 
         parts = [part for part in parsed.path.split('/') if part]
         if len(parts) == 4 and parts[0] == 'api' and parts[1] == 'sessions' and parts[3] == 'revoke':
