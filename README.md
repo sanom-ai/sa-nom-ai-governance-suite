@@ -22,6 +22,21 @@ Choose the path that matches what you want to see first:
 - stay on the quick-start lane above when you want the fastest local bootstrap into a working private runtime
 - use [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) when you want the longer deployment path and infrastructure posture details
 
+## Command Surface
+
+By the `v0.7.7` line, SA-NOM exposes a simple command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
+
+![SA-NOM Command Surface](docs/assets/command-surface-home-v0.7.7.png)
+
+The command surface is designed around one founder doctrine: one human should be able to govern the organization while AI performs most operational work inside explicit authority, evidence, and escalation boundaries.
+
+That means the Home dashboard should answer three questions immediately:
+- what posture the system is in
+- what the next human action is
+- what AI is already doing without needing more human effort
+
+Normal users stay on `Home`, `Work Inbox`, `Cases`, `Documents`, and `AI Actions`, while advanced runtime, trust, audit, recovery, and administrative tooling stay behind the `Control Room` boundary for founder, admin, and IT sessions.
+
 ## What SA-NOM Actually Does
 
 SA-NOM helps organizations move from "AI that answers" to "AI that works inside the business."
