@@ -42,7 +42,9 @@ const viewDescription = document.getElementById('view-description');
 const environmentLabel = document.getElementById('environment-label');
 const organizationSelector = document.getElementById('organization-selector');
 const askAiButton = document.getElementById('ask-ai-button');
-const governanceDropdown = document.getElementById('governance-dropdown');
+const governanceLauncher = document.getElementById('governance-launcher');
+const governanceSheet = document.getElementById('governance-sheet');
+const governanceSheetClose = document.getElementById('governance-sheet-close');
 const generatedAt = document.getElementById('generated-at');
 const refreshButton = document.getElementById('refresh-button');
 const logoutButton = document.getElementById('logout-button');
@@ -55,11 +57,38 @@ const sidebarGeneratedLabel = document.getElementById('sidebar-generated-label')
 const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
 
+function closeGovernanceSheet() {
+  if (!governanceSheet) return;
+  governanceSheet.hidden = true;
+  governanceSheet.setAttribute('aria-hidden', 'true');
+  governanceLauncher?.setAttribute('aria-expanded', 'false');
+}
+
+function openGovernanceSheet() {
+  if (!governanceSheet) return;
+  governanceSheet.hidden = false;
+  governanceSheet.setAttribute('aria-hidden', 'false');
+  governanceLauncher?.setAttribute('aria-expanded', 'true');
+}
+
+function navigateFromGovernanceTarget(target) {
+  if (!target) return;
+  const nextView = target.dataset.view || 'overview';
+  const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
+  state.view = nextView;
+  if (nextView === 'control_room') {
+    state.controlRoomTool = controlRoomTool || getInitialControlRoomTool();
+  }
+  closeGovernanceSheet();
+  updateNav();
+  render();
+  scrollDashboardToTop();
+}
+
 function setLiveTimestampLabel(text) {
   generatedAt.textContent = text;
   sidebarGeneratedLabel.textContent = text;
 }
-
 function stopLiveTimestampTicker() {
   if (state.liveClock.timerId) {
     window.clearInterval(state.liveClock.timerId);
@@ -452,9 +481,39 @@ navList.addEventListener('click', (event) => {
   if (nextView === 'control_room') {
     state.controlRoomTool = controlRoomTool || getInitialControlRoomTool();
   }
+  closeGovernanceSheet();
   updateNav();
   render();
   scrollDashboardToTop();
+});
+
+governanceLauncher?.addEventListener('click', () => {
+  if (governanceSheet?.hidden) {
+    openGovernanceSheet();
+  } else {
+    closeGovernanceSheet();
+  }
+});
+
+governanceSheetClose?.addEventListener('click', () => {
+  closeGovernanceSheet();
+});
+
+governanceSheet?.addEventListener('click', (event) => {
+  if (event.target.closest('[data-governance-sheet-close]')) {
+    closeGovernanceSheet();
+    return;
+  }
+  const target = event.target.closest('.governance-sheet-item');
+  if (target) {
+    navigateFromGovernanceTarget(target);
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && governanceSheet && !governanceSheet.hidden) {
+    closeGovernanceSheet();
+  }
 });
 
 refreshButton.addEventListener('click', () => withButtonBusy(refreshButton, () => loadDashboard(), 'Refreshing...'));
@@ -3135,10 +3194,13 @@ function studioReadinessTone(readiness) {
 function updateNav() {
   const controlRoomAllowed = canAccessControlRoom();
   const activeView = (isControlRoomTool(state.view) || GOVERNANCE_EMBEDDED_VIEWS.has(state.view)) ? 'control_room' : state.view;
-  if (governanceDropdown) {
-    governanceDropdown.hidden = !controlRoomAllowed;
-    if (!controlRoomAllowed) governanceDropdown.open = false;
-    governanceDropdown.classList.toggle('is-active', activeView === 'control_room');
+  if (governanceLauncher) {
+    governanceLauncher.hidden = !controlRoomAllowed;
+    governanceLauncher.classList.toggle('is-active', activeView === 'control_room');
+    governanceLauncher.setAttribute('aria-expanded', governanceSheet && !governanceSheet.hidden ? 'true' : 'false');
+  }
+  if (!controlRoomAllowed) {
+    closeGovernanceSheet();
   }
   const activeControlRoomTool = String(state.controlRoomTool || getInitialControlRoomTool()).trim() || getInitialControlRoomTool();
   for (const item of navList.querySelectorAll('.nav-item')) {
@@ -3152,6 +3214,20 @@ function updateNav() {
     }
     item.classList.toggle('is-active', isActive);
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
+  }
+  if (governanceSheet) {
+    for (const item of governanceSheet.querySelectorAll('.governance-sheet-item')) {
+      const itemView = item.dataset.view || '';
+      const itemTool = String(item.dataset.controlRoomTool || '').trim();
+      let isActive = itemView === activeView;
+      if (itemView === 'control_room' && itemTool) {
+        isActive = activeView === 'control_room' && itemTool === activeControlRoomTool;
+      } else if (itemView === 'control_room' && !itemTool) {
+        isActive = activeView === 'control_room' && activeControlRoomTool === getInitialControlRoomTool();
+      }
+      item.classList.toggle('is-active', isActive);
+      item.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
   }
 }
 
@@ -5098,9 +5174,9 @@ function buildControlRoomCategoryGroups(snapshot) {
       items: [
         {
           tool: 'structural_risk',
-          label: 'PT-OSS Structural Intelligence',
+          label: 'Structural Risk & Alignment',
           value: structuralAttention > 0 ? `${String(structuralAttention)} risk signals` : 'monitoring',
-          note: 'Structural readiness, pressure posture, and governance risk across AI workforce roles and publication lanes.',
+          note: 'PT-OSS posture today, with Global Harmony and deeper alignment signals anchored in this same governance lane as data becomes active.',
           tone: structuralAttention > 0 ? 'tone-warning' : 'tone-success',
           badges: [summary.studio_pt_oss_critical_total ? 'critical posture' : summary.studio_pt_oss_elevated_total ? 'elevated posture' : 'healthy watch'],
         },
@@ -5239,6 +5315,90 @@ function buildControlRoomCategoryGroups(snapshot) {
   ];
 }
 
+function controlRoomPrimaryActionLabel(tool) {
+  const labels = {
+    setup: 'Continue setup',
+    owner_registration: 'Review setup',
+    studio: 'Open Studio',
+    policies: 'Open library',
+    structural_risk: 'Review posture',
+    audit: 'Open audit',
+    evidence_exports: 'Review trust',
+    retention: 'Review records',
+    health: 'Check runtime',
+    backup_restore: 'Open recovery',
+    integrations: 'Open integrations',
+    model_providers: 'Open providers',
+    sessions: 'Open sessions',
+    conflicts: 'Review pressure',
+    master_data: 'Open routing',
+    admin_settings: 'Open settings',
+  };
+  return labels[tool] || 'Open';
+}
+
+function findControlRoomToolItem(groups, tool) {
+  return groups.flatMap((group) => group.items || []).find((item) => item.tool === tool) || null;
+}
+
+function buildControlRoomMissionItems(snapshot, groups) {
+  const preferredTools = canAccessSetupAssistant()
+    ? ['setup', 'studio', 'structural_risk', 'evidence_exports', 'health']
+    : ['studio', 'structural_risk', 'evidence_exports', 'health', 'master_data'];
+  const noteOverrides = {
+    setup: 'Finish owner bootstrap, first-run guidance, and doctor before broader pilot delegation.',
+    studio: 'Create or revise governed AI workforce roles from a normal JD-style input form.',
+    structural_risk: 'Use PT-OSS and alignment posture before trusted publication or wider delegation.',
+    evidence_exports: 'Review proof, trusted registry posture, and export attention before calling anything auditor-ready.',
+    health: 'Check diagnostics, backup posture, and recovery readiness before risky changes.',
+    master_data: 'Keep people, teams, search, and routing calm before work drifts across the org.',
+  };
+  return preferredTools
+    .map((tool) => findControlRoomToolItem(groups, tool))
+    .filter(Boolean)
+    .map((item) => ({
+      ...item,
+      note: noteOverrides[item.tool] || item.note,
+      actionLabel: controlRoomPrimaryActionLabel(item.tool),
+    }));
+}
+
+function renderControlRoomMissionCard(item, currentTool) {
+  const isCurrent = currentTool === item.tool;
+  const badges = Array.isArray(item.badges) ? item.badges.filter(Boolean) : [];
+  return `
+    <article class="command-summary-card control-room-mission-card ${escapeHtml(item.tone || 'tone-accent')}${isCurrent ? ' is-active' : ''}">
+      <span class="command-summary-label">${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <p class="muted">${escapeHtml(item.note)}</p>
+      ${badges.length ? `<div class="hero-chip-row">${badges.map((badge) => statusBadge(badge)).join('')}</div>` : ''}
+      <div class="inline-actions">
+        <button class="action-button${isCurrent ? ' action-button-muted' : ''}" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(isCurrent ? 'Current lane' : item.actionLabel || controlRoomPrimaryActionLabel(item.tool))}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderControlRoomMissionSection(snapshot, groups, currentTool) {
+  const missionItems = buildControlRoomMissionItems(snapshot, groups);
+  if (!missionItems.length) return '';
+  return `
+    <section class="card stack control-room-mission-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Mission control priorities</div>
+          <h3 class="card-title">Open the right advanced lane in one tap</h3>
+          <p class="card-subtitle">Control Room should point straight to setup, roles, structural risk, trust, and recovery instead of making tablet operators hunt through long panels.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${missionItems.length} primary lanes`)}</div>
+      </div>
+      <div class="control-room-mission-grid">
+        ${missionItems.map((item) => renderControlRoomMissionCard(item, currentTool)).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function renderControlRoomCategorySection(group, currentTool) {
   return `
     <section class="card stack control-room-category">
@@ -5248,7 +5408,7 @@ function renderControlRoomCategorySection(group, currentTool) {
           <h3 class="card-title">${escapeHtml(group.title)}</h3>
           <p class="card-subtitle">${escapeHtml(group.note)}</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(`${group.items.length} tools`)}</div>
+        <div class="hero-chip-row">${statusBadge(`${group.items.length} lanes`)}</div>
       </div>
       <div class="control-room-tool-grid">
         ${group.items.map((item) => renderControlRoomToolCard(item, currentTool)).join('')}
@@ -5267,7 +5427,7 @@ function renderControlRoomToolCard(item, currentTool) {
       <p class="muted">${escapeHtml(item.note)}</p>
       ${badges.length ? `<div class="hero-chip-row">${badges.map((badge) => statusBadge(badge)).join('')}</div>` : ''}
       <div class="inline-actions">
-        <button class="action-button${isCurrent ? ' action-button-muted' : ''}" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(isCurrent ? 'Current tool' : 'Open')}</button>
+        <button class="action-button${isCurrent ? ' action-button-muted' : ''}" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(isCurrent ? 'Current lane' : controlRoomPrimaryActionLabel(item.tool))}</button>
       </div>
     </article>
   `;
@@ -5278,7 +5438,7 @@ function renderControlRoom(snapshot) {
   const groups = buildControlRoomCategoryGroups(snapshot);
   const currentToolLabel = controlRoomToolLabel(currentTool);
   const currentGroup = groups.find((group) => group.items.some((item) => item.tool === currentTool));
-  const toolsTotal = groups.reduce((total, group) => total + group.items.length, 0);
+  const currentItem = findControlRoomToolItem(groups, currentTool);
   const embedded = renderControlRoomTool(snapshot, currentTool);
   return `
     <section class="stack gap-lg">
@@ -5287,8 +5447,8 @@ function renderControlRoom(snapshot) {
           <div class="hero-heading">
             <div>
               <div class="eyebrow">Control Room</div>
-              <h3 class="hero-title">Advanced governance setup, trust, and recovery in one protected surface</h3>
-              <p class="hero-subtitle">Home stays simple for normal users. Control Room is where the runtime is configured, verified, published, restored, and governed by advanced operators.</p>
+              <h3 class="hero-title">Advanced governance setup, trust, and recovery in one protected mission console</h3>
+              <p class="hero-subtitle">Home stays simple for normal users. Control Room is where advanced operators configure, verify, publish, recover, and govern the private-first runtime.</p>
             </div>
             <div class="hero-chip-row">${statusBadge('advanced governance')}${statusBadge(state.session?.role_name || 'admin')}</div>
           </div>
@@ -5302,18 +5462,20 @@ function renderControlRoom(snapshot) {
           <div>
             <div class="eyebrow muted">Current focus</div>
             <h3 class="card-title">${escapeHtml(currentToolLabel)}</h3>
-            <p class="card-subtitle">${escapeHtml(currentGroup ? `${currentGroup.title} is the active Control Room section.` : 'Use the sections below to choose the advanced tool you need next.')}</p>
+            <p class="card-subtitle">${escapeHtml(currentItem?.note || (currentGroup ? `${currentGroup.title} is the active Control Room section.` : 'Use the sections below to choose the advanced tool you need next.'))}</p>
           </div>
-          ${keyValue([
-            ['Current role', state.session?.role_name || 'unknown'],
-            ['Current section', currentGroup?.title || 'Advanced governance'],
-            ['Current tool', currentToolLabel],
-            ['Control Room groups', String(groups.length)],
-            ['Advanced tools', String(toolsTotal)],
-            ['Home boundary', 'simple by default'],
-          ])}
+          <div class="control-room-focus-grid">
+            ${renderCommandEmptyState('Current group', currentGroup?.title || 'Advanced governance')}
+            ${renderCommandEmptyState('Next operator move', controlRoomPrimaryActionLabel(currentTool))}
+            ${renderCommandEmptyState('Home boundary', 'Keep routine work on Home')}
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="health">Open Runtime & Recovery</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="evidence_exports">Open Trust & Evidence</button>
+          </div>
         </article>
       </section>
+      ${renderControlRoomMissionSection(snapshot, groups, currentTool)}
       <section class="control-room-groups">
         ${groups.map((group) => renderControlRoomCategorySection(group, currentTool)).join('')}
       </section>
@@ -5362,8 +5524,8 @@ function renderStructuralRiskTool(snapshot) {
           <div class="hero-heading">
             <div>
               <div class="eyebrow muted">Structural Risk &amp; Alignment</div>
-              <h2 class="hero-title">PT-OSS stays visible here as structural governance intelligence, not as a setup wizard.</h2>
-              <p class="hero-subtitle">Use this lane to understand whether the AI workforce is structurally calm enough for trusted publication and delegated execution before advanced operators approve the next governance move.</p>
+              <h2 class="hero-title">PT-OSS and Global Harmony alignment belong in one structural governance lane.</h2>
+              <p class="hero-subtitle">Use this lane to understand whether the AI workforce is calm enough for trusted publication, delegated execution, and alignment-sensitive change before advanced operators approve the next move.</p>
             </div>
             <div class="hero-chip-row">${statusBadge(posture)}${statusBadge(publicSectorTotal > 0 ? 'public sector mode' : 'private sector mix')}</div>
           </div>
@@ -5411,8 +5573,8 @@ function renderStructuralRiskTool(snapshot) {
         <article class="card stack">
           <div>
             <div class="eyebrow muted">Alignment note</div>
-            <h3 class="card-title">Alignment stays in this same governance lane</h3>
-            <p class="card-subtitle">Global Harmony belongs with structural governance. PT-OSS is the active signal today, while deeper alignment controls stay behind the same Control Room boundary.</p>
+            <h3 class="card-title">Alignment lives in this same governance lane</h3>
+            <p class="card-subtitle">Global Harmony should surface here when alignment data is active. PT-OSS is the structural signal visible today, and alignment stays under the same advanced governance boundary.</p>
           </div>
           <div class="hero-chip-row">${statusBadge('pt-oss visible')}${statusBadge('advanced governance')}</div>
         </article>
