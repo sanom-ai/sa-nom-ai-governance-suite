@@ -1,6 +1,6 @@
 # Sales Intake Template
 
-Use this template for first commercial conversations or inbound pricing requests. Pair it with [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md) and [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md) so the call outcome is qualified before you fill the intake. If the recommended next step becomes a paid pilot, continue with [PILOT_PROPOSAL_TEMPLATE.md](PILOT_PROPOSAL_TEMPLATE.md). For the practical commercial shapes, use [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md).
+Use this template for first commercial conversations or inbound pricing requests. Pair it with [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md), [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md), and [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md) so the call outcome is qualified before you fill the intake. If the recommended next step becomes a paid pilot, continue with [PILOT_PROPOSAL_TEMPLATE.md](PILOT_PROPOSAL_TEMPLATE.md).
 
 ## Contact Details
 
@@ -30,7 +30,7 @@ Use this template for first commercial conversations or inbound pricing requests
 - Need custom integrations: yes / no / unsure
 - Need air-gapped deployment: yes / no / unsure
 - Need API integration beyond webhook: yes / no / unsure
-- Need on-site or guided rollout: yes / no / unsure
+- Need partner-supported execution: yes / no / unsure
 
 ## Governance and Compliance
 
@@ -42,13 +42,13 @@ Use this template for first commercial conversations or inbound pricing requests
 
 - Budget range if known:
 - Procurement path: direct / partner / government / unsure
-- Preferred engagement: annual license / phased evaluation / perpetual / unsure
+- Preferred next step: community / guided evaluation / paid pilot / strategic rollout advisory / enterprise or sovereign quote / unsure
+- Preferred commercial posture: annual commercial / phased evaluation / perpetual / unsure
 
 ## Notes For Follow-Up
 
-- Recommended tier:
+- Recommended commercial band:
+- Recommended offer pack:
 - Risks or blockers:
 - Next meeting date:
 - Owner:
-
-

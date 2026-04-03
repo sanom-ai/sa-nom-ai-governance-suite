@@ -1,103 +1,89 @@
-# Commercial Boundary
+# Open-Source And Commercial Boundary
 
-This document defines the commercial boundary for SA-NOM.
+This document explains the commercial boundary in SA-NOM without changing the fact that the repository is already a real open-source product baseline.
 
-The goal is to keep the product model clean:
+The goal is simple:
+- keep the community baseline honest and usable
+- keep the commercial layer professional and clear
+- avoid confusion about whether SA-NOM sells feature unlocks or rollout support
 
-- the open-source core must remain real and usable
-- commercial work should accelerate deployment, rollout, hardening, and support
-- commercial scope should not depend on artificially shrinking the public product
+## Core Rule
 
-## Core Principle
+SA-NOM should be read as a real open-source governed AI operating system baseline with a commercial layer around rollout, support, hardening, packaging, and organization-specific delivery.
 
-SA-NOM should be read as a **private-first governed AI operating system** with a real open-source baseline.
-
-That means the community path is not a teaser.
-It is the real foundation for evaluation, learning, private self-managed deployment, and small internal adoption.
-
-Commercial scope exists for organizations that need a faster, safer, more supported path into real operating use.
+That means:
+- the open-source baseline must remain usable and meaningful on its own
+- commercial scope should not depend on hiding core platform capability
+- commercial value should come from deployment readiness, fit, acceleration, operating confidence, and founder-level judgment
 
 ## What Stays In The Open-Source Baseline
 
-The open-source baseline through `v0.7.9` includes the core governed runtime story:
-
-- PTAG and governed role logic
-- Role Private Studio baseline
-- Human Ask baseline
-- Home command surface and Control Room baseline
+Through the `v0.7.9` line, the community baseline already includes the real governed runtime story:
+- PTAG governance language
+- Role Private Studio
+- Human Ask
+- command surface and Control Room
 - cases, documents, and AI actions
-- master data, search, and assignment baseline
-- audit, evidence, trusted registry, and runtime confidence tooling
-- private-first runtime, quick-start, doctor, smoke, and recovery guidance
+- master data, search, and assignment
+- audit and evidence posture
+- private-first runtime confidence tooling
 
-These are part of the product baseline and should remain visible as real platform capability.
+This is not a teaser edition.
+It is the real public baseline.
 
-## What Commercial Covers
+## What Commercial Adds
 
-Commercial scope should focus on delivery, not artificial product withholding.
+Commercial engagement is for organizations that need more than the baseline alone can provide in a self-managed way.
 
-Commercial work may include:
+Commercial scope may add:
+- guided evaluation and structured first deployment planning
+- founder-led governance and rollout direction
+- PT-OSS-informed assessment, calibration, and risk framing
+- environment hardening and deployment assurance
+- quote-specific packaging for identity, procurement, or regulated delivery
+- organization-specific JD, workflow, and role tailoring
+- recurring review cadence after a successful pilot
+- partner-supported execution where broader delivery bandwidth is required
 
-- guided evaluation and operator onboarding
-- rollout planning and implementation support
-- quote-specific packaging and deployment shaping
-- identity integration such as SSO and SCIM packaging
-- custom integration work beyond the public baseline
-- hardening for regulated, sovereign, or air-gapped environments
-- on-site enablement, workshops, and governance calibration
-- dedicated support, response targets, and review cadence
-- organization-specific starter libraries, role tailoring, and compliance delivery work
+## What Commercial Does Not Mean
 
-## What Commercial Should Not Be
+Commercial scope should not be read as:
+- paying to unlock `Role Private Studio`
+- paying to unlock PTAG
+- paying to unlock the command surface, Control Room, or case/document/action runtime
+- paying to make the open-source baseline finally become real
+- paying for an unlimited support desk or a fake enterprise services team
 
-Commercial should not be framed as:
+If a customer needs a stronger rollout, more confidence, or more tailored delivery, that is commercial.
+If the question is whether the product core exists and works, that answer should already be yes in the public baseline.
 
-- paying to unlock the existence of Role Private Studio
-- paying to unlock the basic command surface
-- paying to unlock PTAG itself
-- paying to unlock the public runtime story
-- paying to remove arbitrary limits from the core governed workflow model
+## How To Read The Pricing Structure
 
-That would make the open-source baseline feel fake, and it would weaken trust in the whole product line.
+The pricing structure in [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) should be read as a set of high-trust commercial relationship bands, not as a feature-lock matrix.
 
-## The Practical Decision Rule
+In practice:
+- `Community` is the self-managed path
+- `Guided Evaluation` is the paid qualification and first-direction path
+- `Paid Pilot` is the main proof-in-environment path
+- `Strategic Rollout Advisory` is the recurring founder-led advisory path
+- `Enterprise / Sovereign / Gov` is the selective quote-only path when packaging and delivery assurance become materially larger
 
-Use this simple rule:
+See [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md) for the concrete engagement shapes behind those bands.
 
-- if a team can self-serve with the public docs and baseline runtime, they are on the community path
-- if they need guidance, packaging, rollout participation, or regulated hardening, they are in commercial territory
+## Decision Rule
 
-Another way to say it:
+Use the community baseline when:
+- the organization can self-manage
+- the first goal is evaluation or a small internal deployment
+- special support and regulated packaging are not yet required
 
-- **Open source** gives the product baseline
-- **Commercial** gives delivery confidence, organizational fit, and rollout speed
+Use the commercial path when:
+- the organization needs rollout help, hardening, or structured onboarding
+- the first workflow is already business-critical
+- private, regulated, sovereign, or procurement constraints are real
+- leadership expects founder-level direction and quote-defined support posture
 
-## Community Path
-
-The community path is a good fit when:
-
-- a small team wants to evaluate privately
-- the organization can self-manage setup and support
-- no special integration or regulated deployment work is required yet
-- the goal is learning, proof-of-fit, or small internal use
-
-## Guided And Commercial Path
-
-Commercial engagement is the right path when:
-
-- the organization needs direct rollout help
-- legal, compliance, audit, or procurement teams are involved
-- identity or integration work goes beyond the self-managed baseline
-- the first deployment is already politically or operationally important
-- the environment is sovereign, public-sector, air-gapped, or otherwise high-trust
-
-## How To Talk About It Publicly
-
-The clean public story is:
-
-**SA-NOM is open source under AGPL-3.0-only. The public repository provides a real private-first governed AI baseline. Commercial engagement is for organizations that need rollout help, quote-specific packaging, regulated-environment hardening, direct support, or tailored delivery work.**
-
-## Recommended Next Documents
+## Related Documents
 
 - [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
 - [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md)

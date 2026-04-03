@@ -51,6 +51,7 @@ Define the pilot tightly.
 - multi-team adoption beyond the pilot group
 - unsupported integrations unless explicitly listed
 - full production SLA unless explicitly included
+- unlimited support or open-ended custom build work
 
 ## 4. Recommended Starting Pattern
 
@@ -95,6 +96,11 @@ Typical pilot deliverables may include:
 - help validate governed behavior, readiness, and evidence outputs
 - deliver a closeout recommendation for next steps
 
+### Partner Responsibilities If Needed
+
+- support implementation-heavy work that falls outside the agreed founder-led advisory scope
+- help with environment execution, integration delivery, or enablement when explicitly included
+
 ## 7. Success Criteria
 
 Choose measurable criteria before the pilot starts.
@@ -132,7 +138,13 @@ Clarify:
 - whether the pilot fee is separate from later rollout scope
 - whether pilot work can convert into broader rollout planning
 - which items would remain quote-specific after the pilot
-- which full-rollout or dedicated-support needs are intentionally deferred until rollout
+- which broader rollout items are intentionally deferred until a later phase
+- whether later recurring advisory is likely to be the right next step
+
+Reference these when scoping the next step:
+- [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md)
+- [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md)
+- [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
 
 ## 10. Risks And Assumptions
 
@@ -153,11 +165,13 @@ At the end of the pilot, produce:
 - deployment and provider findings
 - evidence and governance findings
 - ROI signals or decision inputs
-- recommendation: community path / extend pilot / commercial rollout
+- recommendation: community path / extend pilot / strategic rollout advisory / broader commercial rollout
 
 ## 12. Related Documents
 
 Use this template together with:
+- [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md)
+- [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md)
 - [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md)
 - [ROI_ONE_PAGER.md](ROI_ONE_PAGER.md)
 - [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md)

@@ -61,7 +61,7 @@ Pick the path that matches what you need first:
 ## Commercial And Rollout
 
 - [Commercial Boundary](COMMERCIAL_BOUNDARY.md)
-- [Commercial License & Pricing](COMMERCIAL_LICENSE.md)
+- [Commercial License And Pricing](COMMERCIAL_LICENSE.md)
 - [Commercial Offer Packs](COMMERCIAL_OFFER_PACKS.md)
 - [Commercial Discovery Checklist](COMMERCIAL_DISCOVERY_CHECKLIST.md)
 - [Sales Intake Template](SALES_INTAKE_TEMPLATE.md)
