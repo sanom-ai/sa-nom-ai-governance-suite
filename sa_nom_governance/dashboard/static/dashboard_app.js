@@ -72,9 +72,54 @@ function stopLiveTimestampTicker() {
 
 function renderLiveTimestampTick() {
   if (!state.liveClock.sourceMs) return;
-  const elapsedMs = Math.max(0, Date.now() - state.liveClock.clientStartedMs);
+  const nowMs = Date.now();
+  const elapsedMs = Math.max(0, nowMs - state.liveClock.clientStartedMs);
   const liveTimestamp = new Date(state.liveClock.sourceMs + elapsedMs);
   setLiveTimestampLabel(`Live data: ${formatDateTime(liveTimestamp)}`);
+  refreshSessionContinuityTick(nowMs);
+}
+
+function formatRemainingDuration(remainingMs) {
+  if (!Number.isFinite(remainingMs)) return '-';
+  if (remainingMs <= 0) return 'Expired';
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m left`;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s left`;
+  return `${seconds}s left`;
+}
+
+function refreshSessionContinuityTick(nowMs = Date.now()) {
+  const session = state.session || {};
+  const idleTarget = session.session_idle_expires_at ? new Date(session.session_idle_expires_at).getTime() : Number.NaN;
+  const signedTarget = session.session_expires_at ? new Date(session.session_expires_at).getTime() : Number.NaN;
+  const idleLabel = Number.isNaN(idleTarget)
+    ? `${session.session_idle_timeout_minutes || '-'} minute idle window`
+    : formatRemainingDuration(idleTarget - nowMs);
+  const signedLabel = Number.isNaN(signedTarget)
+    ? `${session.session_ttl_minutes || '-'} minute signed session`
+    : formatRemainingDuration(signedTarget - nowMs);
+  const status = String(session.session_status || 'inactive');
+  let note = 'This private session is warm and ready for touch-first work.';
+  if (status !== 'active') {
+    note = 'No live tablet session is active yet. The next refresh or sign-in will warm the private runtime again.';
+  } else if (!Number.isNaN(idleTarget) && idleTarget - nowMs <= 5 * 60 * 1000) {
+    note = 'Idle lock is close. Keep moving or refresh before the private tablet session cools down.';
+  } else if (!Number.isNaN(signedTarget) && signedTarget - nowMs <= 15 * 60 * 1000) {
+    note = 'The signed session window is closing. Plan a refresh or sign-in soon.';
+  }
+
+  document.querySelectorAll('[data-session-clock="idle"]').forEach((node) => {
+    node.textContent = idleLabel;
+  });
+  document.querySelectorAll('[data-session-clock="signed"]').forEach((node) => {
+    node.textContent = signedLabel;
+  });
+  document.querySelectorAll('[data-session-clock="note"]').forEach((node) => {
+    node.textContent = note;
+  });
 }
 
 function startLiveTimestampTicker(value) {
@@ -1937,8 +1982,9 @@ function render() {
   const workLanguageGuide = compactCommandView ? '' : renderWorkLanguageGuide(snapshot);
   const alertRail = compactCommandView ? '' : renderAlertRail(snapshot);
   const viewPrelude = compactCommandView ? '' : renderViewPrelude(snapshot);
+  const tabletLaneRail = compactCommandView ? '' : renderTabletLaneRail(snapshot);
   const workflowGuide = compactCommandView ? '' : renderWorkflowGuide(snapshot);
-  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${alertRail}${viewPrelude}${workflowGuide}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
+  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${alertRail}${viewPrelude}${tabletLaneRail}${workflowGuide}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
   focusActionContextTarget();
 }
@@ -4202,6 +4248,7 @@ function renderCommandHome(snapshot) {
   const quickLinks = orderCommandQuickLinksByPersona(Array.isArray(surface.quick_links) ? [...surface.quick_links] : [], primaryViews);
   if (canAccessSetupAssistant()) quickLinks.push({ view: 'setup', label: 'Setup Assistant' });
   const setupContinuation = renderHomeSetupContinuation(snapshot);
+  const touchLaneSection = renderHomeTouchLaneSection(snapshot, primaryViews);
   const attentionTotal = Number(posture.attention_items_total || 0);
   const aiRunning = Number(posture.ai_actions_running || 0);
   const aiTotal = Number(posture.ai_actions_total || aiFeed.length || 0);
@@ -4269,6 +4316,7 @@ function renderCommandHome(snapshot) {
         </div>
         <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
       </section>
+      ${touchLaneSection}
       <section class="card stack command-home-section">
         <div class="hero-heading">
           <div>
@@ -4352,9 +4400,12 @@ function renderCommandTabletFocusCard(session, primaryViews) {
 function renderCommandSessionContinuityCard(session) {
   const sessionStatus = formatStatusLabel(session.session_status || 'inactive');
   const lastSeen = session.session_last_seen_at ? shortTime(session.session_last_seen_at) : 'Waiting for the first active tablet session';
-  const idleUntil = session.session_idle_expires_at ? shortTime(session.session_idle_expires_at) : `${session.session_idle_timeout_minutes || '-'} minute idle window`;
-  const signedUntil = session.session_expires_at ? shortTime(session.session_expires_at) : `${session.session_ttl_minutes || '-'} minute signed session`;
   const authMethod = session.session_auth_method ? titleCase(String(session.session_auth_method).replaceAll('_', ' ')) : 'Private access token';
+  const idleUntil = session.session_idle_expires_at ? formatRemainingDuration(new Date(session.session_idle_expires_at).getTime() - Date.now()) : `${session.session_idle_timeout_minutes || '-'} minute idle window`;
+  const signedUntil = session.session_expires_at ? formatRemainingDuration(new Date(session.session_expires_at).getTime() - Date.now()) : `${session.session_ttl_minutes || '-'} minute signed session`;
+  const note = session.session_status === 'active'
+    ? 'This private session is warm and ready for touch-first work.'
+    : 'No live tablet session is active yet. The next refresh or sign-in will warm the private runtime again.';
   return `
     <article class="card command-home-section command-guidance-card">
       <div class="hero-heading">
@@ -4365,15 +4416,136 @@ function renderCommandSessionContinuityCard(session) {
         </div>
         <div class="hero-chip-row">${statusBadge(sessionStatus)}</div>
       </div>
-      ${keyValue([
-        ['Last seen', lastSeen],
-        ['Idle until', idleUntil],
-        ['Signed until', signedUntil],
-        ['Auth method', authMethod],
-        ['Active sessions', String(session.active_session_count || 0)],
-      ])}
-      <p class="muted small">Refresh updates live data, while the private session timers explain how long this command surface can stay warm before another sign-in is needed.</p>
+      <div class="key-value">
+        <div class="key-value-row"><span class="muted">Last seen</span><span class="key-value-value">${escapeHtml(lastSeen)}</span></div>
+        <div class="key-value-row"><span class="muted">Idle lock</span><span class="key-value-value" data-session-clock="idle">${escapeHtml(idleUntil)}</span></div>
+        <div class="key-value-row"><span class="muted">Signed session</span><span class="key-value-value" data-session-clock="signed">${escapeHtml(signedUntil)}</span></div>
+        <div class="key-value-row"><span class="muted">Auth method</span><span class="key-value-value">${escapeHtml(authMethod)}</span></div>
+        <div class="key-value-row"><span class="muted">Active sessions</span><span class="key-value-value">${escapeHtml(String(session.active_session_count || 0))}</span></div>
+      </div>
+      <p class="muted small" data-session-clock="note">${escapeHtml(note)}</p>
     </article>
+  `;
+}
+
+function buildCommandTouchLanes(snapshot, primaryViews = getTabletPrimaryViews(state.session || {})) {
+  const inboxSummary = snapshot.unified_work_inbox?.summary || {};
+  const caseSummary = snapshot.cases?.summary || {};
+  const documentSummary = snapshot.documents?.summary || {};
+  const actionSummary = snapshot.actions?.summary || {};
+  const masterSummary = snapshot.master_data?.summary || {};
+  const assignmentSummary = snapshot.assignment_queue?.summary || {};
+  const laneMap = {
+    requests: {
+      view: 'requests',
+      title: 'Work Inbox',
+      countLabel: `${Number(inboxSummary.open_total || 0)} open`,
+      note: Number(inboxSummary.human_required_total || 0)
+        ? `${Number(inboxSummary.human_required_total || 0)} human-required items are waiting in the live queue.`
+        : 'Stay in the owned work queue first when you need the next human move immediately.',
+      badge: Number(inboxSummary.human_required_total || 0) ? 'human required' : 'active queue',
+      actionLabel: 'Open Work Inbox',
+    },
+    cases: {
+      view: 'cases',
+      title: 'Cases',
+      countLabel: `${Number(caseSummary.cases_total || 0)} cases`,
+      note: Number(caseSummary.human_required_total || 0)
+        ? `${Number(caseSummary.human_required_total || 0)} cases still need a real human boundary.`
+        : 'Use the canonical case lane when one governed issue needs linked context, proof, and follow-through.',
+      badge: Number(caseSummary.human_required_total || 0) ? 'human required' : 'linked cases',
+      actionLabel: 'Open Cases',
+    },
+    documents: {
+      view: 'documents',
+      title: 'Documents',
+      countLabel: `${Number(documentSummary.documents_total || 0)} documents`,
+      note: Number(documentSummary.in_review_total || 0)
+        ? `${Number(documentSummary.in_review_total || 0)} documents are in review right now.`
+        : 'Open the document lane when governed artifacts themselves are the work object that needs action.',
+      badge: Number(documentSummary.in_review_total || 0) ? 'review active' : 'document runtime',
+      actionLabel: 'Open Documents',
+    },
+    actions: {
+      view: 'actions',
+      title: 'AI Actions',
+      countLabel: `${Number(actionSummary.actions_total || 0)} governed actions`,
+      note: Number(actionSummary.waiting_human_total || 0)
+        ? `${Number(actionSummary.waiting_human_total || 0)} AI actions are waiting on human follow-through.`
+        : 'Check AI execution when you want to see what the workforce is doing right now.',
+      badge: Number(actionSummary.waiting_human_total || 0) ? 'waiting human' : 'ai active',
+      actionLabel: 'Open AI Actions',
+    },
+    directory: {
+      view: 'directory',
+      title: 'Directory & Search',
+      countLabel: `${Number(masterSummary.people_total || 0)} people`,
+      note: Number(assignmentSummary.items_total || 0)
+        ? `${Number(assignmentSummary.items_total || 0)} assignments are linked to real owners, teams, and seats.`
+        : 'Use directory search when you need to route work through real people, teams, and seats.',
+      badge: Number(masterSummary.search_ready || 0) ? 'search ready' : 'directory live',
+      actionLabel: 'Open Directory',
+    },
+  };
+  const orderedViews = (primaryViews.length ? primaryViews : ['requests', 'cases', 'documents', 'actions', 'directory'])
+    .filter((view, index, views) => view && view !== 'overview' && laneMap[view] && views.indexOf(view) === index);
+  return orderedViews.map((view) => laneMap[view]);
+}
+
+function renderCommandTouchLaneCard(item, compact = false) {
+  if (!item) return '';
+  const active = state.view === item.view;
+  const buttonLabel = active ? `Stay in ${item.title}` : item.actionLabel || `Open ${item.title}`;
+  const button = renderViewJumpButton({
+    view: item.view,
+    label: buttonLabel,
+    className: active ? 'action-button action-button-muted' : 'action-button',
+    title: `${item.title} reopened from the tablet command surface.`,
+    detail: item.note || `Continue in ${item.title}.`,
+    actionLabel: buttonLabel,
+  });
+  return `
+    <article class="command-touch-card${active ? ' command-touch-card-active' : ''}${compact ? ' command-touch-card-compact' : ''}">
+      <div class="hero-chip-row">${statusBadge(item.badge || 'lane')}</div>
+      <strong>${escapeHtml(item.title)}</strong>
+      <p class="command-touch-count">${escapeHtml(item.countLabel || '0')}</p>
+      <p class="muted">${escapeHtml(item.note || 'Continue in the governed lane that currently owns the work.')}</p>
+      <div class="inline-actions">${button}</div>
+    </article>
+  `;
+}
+
+function renderHomeTouchLaneSection(snapshot, primaryViews) {
+  const lanes = buildCommandTouchLanes(snapshot, primaryViews).slice(0, 4);
+  if (!lanes.length) return '';
+  return `
+    <section class="card stack command-home-section">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Touch-first work lanes</div>
+          <h3 class="card-title">Move with one tap into the right operating lane</h3>
+          <p class="card-subtitle">These bigger lane cards are ordered for this persona so tablet work starts with the most relevant governed surface first.</p>
+        </div>
+      </div>
+      <div class="command-touch-grid">${lanes.map((item) => renderCommandTouchLaneCard(item)).join('')}</div>
+    </section>
+  `;
+}
+
+function renderTabletLaneRail(snapshot) {
+  const lanes = buildCommandTouchLanes(snapshot).slice(0, 4);
+  if (!lanes.length) return '';
+  return `
+    <section class="card stack command-home-section tablet-lane-rail">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Tablet lane rail</div>
+          <h3 class="card-title">Keep adjacent work lanes one tap away</h3>
+          <p class="card-subtitle">Switch between the core operating lanes without falling back into low-level runtime navigation.</p>
+        </div>
+      </div>
+      <div class="command-touch-grid command-touch-grid-compact">${lanes.map((item) => renderCommandTouchLaneCard(item, true)).join('')}</div>
+    </section>
   `;
 }
 
