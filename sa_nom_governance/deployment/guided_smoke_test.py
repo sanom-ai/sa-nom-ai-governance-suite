@@ -1,6 +1,7 @@
 import argparse
 import json
 import shutil
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -333,8 +334,7 @@ def build_guided_smoke_test(
     return report
 
 
-def main() -> None:
-    config = AppConfig()
+def build_parser(config: AppConfig) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Prepare a first-run guided smoke-test report for the SA-NOM community baseline.')
     parser.add_argument('--registration-code', default='DEMO-ORG')
     parser.add_argument('--provider', default=None, help='Optional provider lane to target explicitly: ollama, openai, or anthropic.')
@@ -347,7 +347,12 @@ def main() -> None:
     parser.add_argument('--force-access-profiles', action='store_true')
     parser.add_argument('--force-refresh-registry', action='store_true')
     parser.add_argument('--output', default=str(config.review_dir / 'guided_smoke_test.json'))
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    config = AppConfig()
+    args = build_parser(config).parse_args(list(argv) if argv is not None else None)
 
     report = build_guided_smoke_test(
         config=config,

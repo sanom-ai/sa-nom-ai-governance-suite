@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -348,8 +349,7 @@ def build_quick_start_path(
     return report
 
 
-def main() -> None:
-    config = AppConfig()
+def build_parser(config: AppConfig) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Run the 5-10 minute quick-start path for a first SA-NOM local evaluation.')
     parser.add_argument('--doctor', action='store_true', help='Run quick-start preflight doctor checks and print pass/warn/fail status.')
     parser.add_argument('--doctor-output', default=str(config.review_dir / 'quick_start_doctor.json'))
@@ -364,7 +364,12 @@ def main() -> None:
     parser.add_argument('--force-access-profiles', action='store_true')
     parser.add_argument('--force-refresh-registry', action='store_true')
     parser.add_argument('--output', default=str(config.review_dir / 'quick_start_path.json'))
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    config = AppConfig()
+    args = build_parser(config).parse_args(list(argv) if argv is not None else None)
 
     if args.doctor:
         report = export_quick_start_doctor(config=config, output_path=Path(args.doctor_output))
