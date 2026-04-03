@@ -1,5 +1,6 @@
 import io
 import json
+import os
 from http import HTTPStatus
 from types import SimpleNamespace
 from urllib.parse import urlparse
@@ -476,7 +477,7 @@ def test_dashboard_service_passthrough_runtime_methods_return_operator_shapes(tm
     service = _build_real_service(tmp_path)
     owner = _build_profile('owner')
     service.record_security_event = lambda **kwargs: None
-    monkeypatch.setattr('os.startfile', lambda path: None)
+    monkeypatch.setattr(os, 'startfile', lambda path: None, raising=False)
 
     service.create_request(
         {
@@ -749,3 +750,4 @@ def test_dashboard_server_main_without_check_only_runs_server(monkeypatch) -> No
     assert called['config'] is config
     assert called['host'] == '0.0.0.0'
     assert called['port'] == 9090
+
