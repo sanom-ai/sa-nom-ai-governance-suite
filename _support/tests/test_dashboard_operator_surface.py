@@ -7,12 +7,23 @@ from tempfile import TemporaryDirectory
 from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
 from sa_nom_governance.core.execution_context import ExecutionContext
 from sa_nom_governance.dashboard.dashboard_data import DashboardSnapshotBuilder
+from sa_nom_governance.dashboard.dashboard_server import DashboardService
 from sa_nom_governance.deployment.runtime_performance_baseline import export_runtime_performance_baseline
+from sa_nom_governance.guards.access_control import AccessControl, AccessProfile
 from sa_nom_governance.utils.config import AppConfig
 
 
 def _base_config(temp_dir: str) -> AppConfig:
     return AppConfig(base_dir=Path(temp_dir), persist_runtime=True, environment='development')
+
+
+def _build_profile(role_name: str) -> AccessProfile:
+    return AccessProfile(
+        profile_id=f'{role_name}-test',
+        display_name=role_name.title(),
+        role_name=role_name,
+        permissions=set(AccessControl.DEFAULT_PERMISSIONS[role_name]),
+    )
 
 
 def _seed_invalid_governance_materials(config: AppConfig) -> None:
@@ -1128,3 +1139,76 @@ def test_dashboard_snapshot_surfaces_evidence_attention_and_registry_drift() -> 
         assert summary.get('evidence_trusted_role_mismatch_total', 0) >= 1
         assert any(alert.get('alert_id') == 'studio_trusted_registry_drift' for alert in runtime_alerts)
         assert any(alert.get('alert_id') == 'evidence_export_attention' for alert in runtime_alerts)
+
+
+def test_dashboard_snapshot_exposes_command_surface_summary() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        snapshot = DashboardSnapshotBuilder(config=config).build()
+
+        surface = snapshot.get('command_surface', {})
+        posture = surface.get('posture_summary', {}) if isinstance(surface.get('posture_summary', {}), dict) else {}
+        quick_links = surface.get('quick_links', []) if isinstance(surface.get('quick_links', []), list) else []
+
+        assert surface.get('organization_name')
+        assert posture.get('operating_mode') == 'Governance-first'
+        assert posture.get('operating_status') in {'stable', 'guarded'}
+        assert isinstance(posture.get('ai_actions_running'), int)
+        assert isinstance(posture.get('attention_items_total'), int)
+        assert isinstance(surface.get('next_actions', []), list)
+        assert isinstance(surface.get('ai_activity_feed', []), list)
+        assert isinstance(surface.get('department_quick_access', []), list)
+        assert [item.get('view') for item in quick_links] == ['requests', 'cases', 'documents', 'actions']
+
+
+def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_roles() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        service = DashboardService(config=config)
+
+        owner_payload = service.dashboard(_build_profile('owner'))
+        admin_payload = service.dashboard(AccessProfile(
+            profile_id='admin-test',
+            display_name='Admin',
+            role_name='admin',
+            permissions={'*'},
+        ))
+        it_payload = service.dashboard(AccessProfile(
+            profile_id='it-test',
+            display_name='IT',
+            role_name='it',
+            permissions={'ops.manage', 'health.read', 'audit.read'},
+        ))
+        operator_payload = service.dashboard(_build_profile('operator'))
+        auditor_payload = service.dashboard(_build_profile('auditor'))
+
+        assert owner_payload['session']['control_room_access'] is True
+        assert owner_payload['session']['setup_assistant_access'] is True
+        assert owner_payload['session']['persona'] == 'founder'
+        assert admin_payload['session']['control_room_access'] is True
+        assert admin_payload['session']['setup_assistant_access'] is True
+        assert admin_payload['session']['persona'] == 'admin'
+        assert it_payload['session']['control_room_access'] is True
+        assert it_payload['session']['setup_assistant_access'] is True
+        assert it_payload['session']['persona'] == 'admin'
+        assert operator_payload['session']['control_room_access'] is False
+        assert operator_payload['session']['setup_assistant_access'] is False
+        assert operator_payload['session']['persona'] == 'operator'
+        assert auditor_payload['session']['control_room_access'] is False
+        assert auditor_payload['session']['setup_assistant_access'] is False
+        assert auditor_payload['session']['persona'] == 'executive'
+
+
+def test_dashboard_service_operations_include_runtime_performance_baseline() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        service = DashboardService(config=config)
+
+        operations = service.operations(limit=5)
+
+        assert isinstance(operations, dict)
+        assert 'runtime_performance_baseline' in operations
+        baseline = operations.get('runtime_performance_baseline', {})
+        assert isinstance(baseline, dict)
+        assert baseline.get('status') in {'missing', 'ready', 'warning', 'critical'}
+        assert isinstance(baseline.get('available'), bool)

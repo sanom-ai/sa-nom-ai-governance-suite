@@ -1,10 +1,10 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SA-NOM AI Governance Suite</title>
-    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.6-ui1" />
+    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.7-ui3" />
   </head>
   <body>
     <div class="page-atmosphere" aria-hidden="true">
@@ -13,81 +13,23 @@
       <div class="page-orb orb-three"></div>
       <div class="page-mesh"></div>
     </div>
-    <div class="app-shell">
-      <aside class="sidebar">
+    <div class="app-shell command-shell">
+      <aside class="sidebar command-sidebar">
         <div class="brand-block">
           <div class="brand-mark"><span>SA</span></div>
           <div class="brand-copy">
             <div class="eyebrow">AI Director Core</div>
             <h1>SA-NOM AI Governance Suite</h1>
-            <p>Executive-grade control surface for governance-first AI orchestration, structural intelligence, and private runtime stewardship built on the AI Director core.</p>
+            <p>One human governs the organization while AI performs most operational work inside authority, evidence, and escalation boundaries.</p>
           </div>
         </div>
-        <nav class="nav-list" id="nav-list">
-          <button class="nav-item is-active" data-view="overview">
-            <span class="nav-item-title">Overview</span>
-            <span class="nav-item-caption">Executive runtime posture</span>
-          </button>
-          <button class="nav-item" data-view="requests">
-            <span class="nav-item-title">Requests</span>
-            <span class="nav-item-caption">Governed execution intake</span>
-          </button>
-          <button class="nav-item" data-view="cases">
-            <span class="nav-item-title">Cases</span>
-            <span class="nav-item-caption">Linked end-to-end issues</span>
-          </button>
-          <button class="nav-item" data-view="directory">
-            <span class="nav-item-title">Directory & Search</span>
-            <span class="nav-item-caption">People, teams, assignments</span>
-          </button>
-          <button class="nav-item" data-view="documents">
-            <span class="nav-item-title">Documents</span>
-            <span class="nav-item-caption">Governed document runtime</span>
-          </button>
-          <button class="nav-item" data-view="actions">
-            <span class="nav-item-title">AI Actions</span>
-            <span class="nav-item-caption">Governed AI execution</span>
-          </button>
-          <button class="nav-item" data-view="overrides">
-            <span class="nav-item-title">Overrides</span>
-            <span class="nav-item-caption">Human boundary outcomes</span>
-          </button>
-          <button class="nav-item" data-view="conflicts">
-            <span class="nav-item-title">Conflicts & Locks</span>
-            <span class="nav-item-caption">Runtime contention lanes</span>
-          </button>
-          <button class="nav-item" data-view="audit">
-            <span class="nav-item-title">Audit Trail</span>
-            <span class="nav-item-caption">Chain integrity and evidence</span>
-          </button>
-          <button class="nav-item" data-view="studio">
-            <span class="nav-item-title">Role Private Studio</span>
-            <span class="nav-item-caption">Governed hat authoring</span>
-          </button>
-          <button class="nav-item" data-view="human_ask">
-            <span class="nav-item-title">Human Ask</span>
-            <span class="nav-item-caption">Report and meeting records</span>
-          </button>
-          <button class="nav-item" data-view="sessions">
-            <span class="nav-item-title">Sessions</span>
-            <span class="nav-item-caption">Access continuity and revocation</span>
-          </button>
-          <button class="nav-item" data-view="policies">
-            <span class="nav-item-title">Roles & Policies</span>
-            <span class="nav-item-caption">Director hats and PTAG</span>
-          </button>
-          <button class="nav-item" data-view="health">
-            <span class="nav-item-title">Runtime Health</span>
-            <span class="nav-item-caption">Deployment and infrastructure</span>
-          </button>
-        </nav>
         <section class="sidebar-intel">
-          <div class="eyebrow">Director Compass</div>
+          <div class="eyebrow">Command Compass</div>
           <div class="sidebar-intel-grid">
             <article class="sidebar-intel-card">
               <span class="sidebar-intel-label">Current View</span>
-              <strong id="sidebar-view-title">Overview</strong>
-              <span id="sidebar-view-description" class="sidebar-intel-copy">Executive runtime posture</span>
+              <strong id="sidebar-view-title">Home</strong>
+              <span id="sidebar-view-description" class="sidebar-intel-copy">Executive command surface</span>
             </article>
             <article class="sidebar-intel-card">
               <span class="sidebar-intel-label">Operator Session</span>
@@ -97,55 +39,83 @@
             <article class="sidebar-intel-card sidebar-intel-card-wide">
               <span class="sidebar-intel-label">Live Cadence</span>
               <strong id="sidebar-generated-label">Waiting for live data</strong>
-              <span class="sidebar-intel-copy">The Director surface updates from private runtime snapshots and short-lived sessions.</span>
+              <span class="sidebar-intel-copy">Normal users stay on Home. Advanced governance tooling lives in Control Room.</span>
             </article>
           </div>
         </section>
         <div class="sidebar-foot">
           <span class="pill">PTAG governed</span>
-          <span class="pill pill-muted">Private Server Ready</span>
+          <span class="pill pill-muted">AI workforce active</span>
         </div>
       </aside>
-      <main class="main-panel">
-        <header class="topbar">
-          <div class="topbar-copy">
-            <div class="eyebrow">Operator Surface</div>
-            <h2 id="view-title">Overview</h2>
-            <p id="view-description" class="view-description">Executive runtime posture for the active Director surface.</p>
-            <div class="topbar-ribbon">
-              <span class="topbar-ribbon-item">
-                <span class="topbar-ribbon-label">Operating mode</span>
-                <strong>Governance-first</strong>
-              </span>
-              <span class="topbar-ribbon-item">
-                <span class="topbar-ribbon-label">Director model</span>
-                <strong>One core, many hats</strong>
-              </span>
-              <span class="topbar-ribbon-item">
-                <span class="topbar-ribbon-label">Boundary</span>
-                <strong>Human only beyond scope</strong>
-              </span>
+      <main class="main-panel command-main">
+        <header class="command-topbar">
+          <div class="command-nav-row">
+            <div class="command-brand-inline">
+              <div class="brand-mark brand-mark-inline"><span>SA</span></div>
+              <div>
+                <div class="eyebrow">Command Surface</div>
+                <strong>SA-NOM</strong>
+              </div>
+            </div>
+            <nav class="nav-list command-nav" id="nav-list">
+              <button class="nav-item is-active" data-view="overview"><span class="nav-item-title">Home</span></button>
+              <button class="nav-item" data-view="requests"><span class="nav-item-title">Work Inbox</span></button>
+              <button class="nav-item" data-view="cases"><span class="nav-item-title">Cases</span></button>
+              <button class="nav-item" data-view="documents"><span class="nav-item-title">Documents</span></button>
+              <button class="nav-item" data-view="actions"><span class="nav-item-title">AI Actions</span></button>
+              <details class="nav-dropdown" id="governance-dropdown" hidden>
+                <summary class="nav-dropdown-toggle">Governance</summary>
+                <div class="nav-dropdown-menu">
+                  <button class="nav-item nav-subitem" data-view="control_room"><span class="nav-item-title">Control Room</span></button>
+                </div>
+              </details>
+            </nav>
+            <div class="command-utility-row">
+              <span id="session-label" class="status-chip status-chip-muted">disconnected</span>
+              <select id="organization-selector" class="command-org-selector">
+                <option value="">Organization</option>
+              </select>
+              <button id="ask-ai-button" class="action-button action-button-muted" type="button">Ask AI anything...</button>
+              <button id="refresh-button" class="action-button" type="button">Refresh</button>
+              <button id="logout-button" class="action-button action-button-muted" type="button">Sign out</button>
             </div>
           </div>
-          <div class="topbar-meta">
-            <div class="topbar-actions">
-              <button id="refresh-button" class="action-button">Refresh</button>
-              <button id="logout-button" class="action-button action-button-muted">Clear Token</button>
+          <div class="topbar">
+            <div class="topbar-copy">
+              <div class="eyebrow">Operator Surface</div>
+              <h2 id="view-title">Home</h2>
+              <p id="view-description" class="view-description">What should happen next across the Director right now.</p>
+              <div class="topbar-ribbon">
+                <span class="topbar-ribbon-item">
+                  <span class="topbar-ribbon-label">Operating mode</span>
+                  <strong>Governance-first</strong>
+                </span>
+                <span class="topbar-ribbon-item">
+                  <span class="topbar-ribbon-label">Director model</span>
+                  <strong>One core, many hats</strong>
+                </span>
+                <span class="topbar-ribbon-item">
+                  <span class="topbar-ribbon-label">Boundary</span>
+                  <strong>Humans direct, AI works</strong>
+                </span>
+              </div>
             </div>
-            <div class="topbar-statuses">
-              <span id="session-label" class="status-chip status-chip-muted">disconnected</span>
-              <span id="environment-label" class="status-chip">loading</span>
-            </div>
-            <span id="generated-at" class="timestamp">waiting for live data</span>
-            <div class="topbar-glance">
-              <article class="topbar-glance-card">
-                <span class="topbar-ribbon-label">Surface</span>
-                <strong id="topbar-focus-label">Overview</strong>
-              </article>
-              <article class="topbar-glance-card">
-                <span class="topbar-ribbon-label">Runtime</span>
-                <strong id="topbar-runtime-label">Awaiting session</strong>
-              </article>
+            <div class="topbar-meta">
+              <div class="topbar-statuses">
+                <span id="environment-label" class="status-chip">loading</span>
+              </div>
+              <span id="generated-at" class="timestamp">waiting for live data</span>
+              <div class="topbar-glance">
+                <article class="topbar-glance-card">
+                  <span class="topbar-ribbon-label">Surface</span>
+                  <strong id="topbar-focus-label">Home</strong>
+                </article>
+                <article class="topbar-glance-card">
+                  <span class="topbar-ribbon-label">Runtime</span>
+                  <strong id="topbar-runtime-label">Awaiting session</strong>
+                </article>
+              </div>
             </div>
           </div>
         </header>
@@ -154,10 +124,6 @@
         </section>
       </main>
     </div>
-    <script type="module" src="dashboard_app.js?v=0.7.6-ui1"></script>
+    <script type="module" src="dashboard_app.js?v=0.7.7-ui3"></script>
   </body>
 </html>
-
-
-
-

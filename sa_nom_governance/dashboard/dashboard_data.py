@@ -175,6 +175,16 @@ class DashboardSnapshotBuilder:
             documents_snapshot=documents,
             actions_snapshot=actions,
         )
+        command_surface = self.command_surface(
+            assignment_queue=assignment_queue,
+            master_data=master_data,
+            actions=actions,
+            evidence_exports=evidence_exports,
+            runtime_health=runtime_health,
+            go_live_readiness=go_live_readiness,
+            operator_queue_health=operator_queue_health,
+            owner_registration=owner_registration,
+        )
         governance_materials = runtime_health.get('governance_materials', {}) if isinstance(runtime_health.get('governance_materials', {}), dict) else {}
         role_library = runtime_health.get('role_library', {}) if isinstance(runtime_health.get('role_library', {}), dict) else {}
         role_hierarchy = runtime_health.get('role_hierarchy', {}) if isinstance(runtime_health.get('role_hierarchy', {}), dict) else {}
@@ -345,6 +355,7 @@ class DashboardSnapshotBuilder:
             'model_providers': model_providers,
             'operator_alert_policy': operator_alert_policy,
             'operator_queue_health': operator_queue_health,
+            'command_surface': command_surface,
             'unified_work_inbox': unified_work_inbox,
             'operator_notification_center': operator_notification_center,
             'operator_notification_delivery_readiness': operator_notification_delivery_readiness,
@@ -2476,6 +2487,69 @@ class DashboardSnapshotBuilder:
         if value in {'slack', 'teams'}:
             return 'chatops'
         return value or 'unknown'
+
+    def command_surface(self, *, assignment_queue: dict[str, object], master_data: dict[str, object], actions: dict[str, object], evidence_exports: dict[str, object], runtime_health: dict[str, object], go_live_readiness: dict[str, object], operator_queue_health: dict[str, object], owner_registration: dict[str, object]) -> dict[str, object]:
+        assignment_items = assignment_queue.get('items', []) if isinstance(assignment_queue.get('items', []), list) else []
+        team_items = master_data.get('teams', []) if isinstance(master_data.get('teams', []), list) else []
+        action_items = actions.get('items', []) if isinstance(actions.get('items', []), list) else []
+        action_summary = actions.get('summary', {}) if isinstance(actions.get('summary', {}), dict) else {}
+        evidence_summary = evidence_exports.get('summary', {}) if isinstance(evidence_exports.get('summary', {}), dict) else {}
+        audit_integrity = runtime_health.get('audit_integrity', {}) if isinstance(runtime_health.get('audit_integrity', {}), dict) else {}
+        queue_items = operator_queue_health.get('items', []) if isinstance(operator_queue_health.get('items', []), list) else []
+
+        next_actions = sorted(
+            assignment_items,
+            key=lambda item: (
+                0 if str(item.get('status', '') or '') == 'human_required' else 1 if str(item.get('status', '') or '') == 'blocked' else 2,
+                0 if str(item.get('priority', '') or '') == 'critical' else 1 if str(item.get('priority', '') or '') == 'high' else 2,
+                -(float(item.get('age_hours', 0.0) or 0.0)),
+            ),
+        )[:8]
+
+        ai_activity = sorted(
+            action_items,
+            key=lambda item: str(item.get('updated_at', item.get('created_at', '')) or ''),
+            reverse=True,
+        )[:5]
+
+        team_counts: dict[str, int] = {}
+        for item in assignment_items:
+            label = str(item.get('team_label', '') or 'Operations').strip() or 'Operations'
+            team_counts[label] = team_counts.get(label, 0) + 1
+        quick_access = []
+        for team in team_items[:8]:
+            label = str(team.get('label', team.get('team_id', 'Team')) or 'Team')
+            quick_access.append(
+                {
+                    'team_id': str(team.get('team_id', '') or ''),
+                    'label': label,
+                    'member_total': len(team.get('member_ids', [])) if isinstance(team.get('member_ids', []), list) else 0,
+                    'seat_total': len(team.get('seat_ids', [])) if isinstance(team.get('seat_ids', []), list) else 0,
+                    'assignment_total': team_counts.get(label, 0),
+                }
+            )
+
+        return {
+            'organization_name': str(owner_registration.get('organization_name', master_data.get('summary', {}).get('organization_name', 'Organization')) or 'Organization'),
+            'posture_summary': {
+                'operating_mode': 'Governance-first',
+                'operating_status': 'stable' if str(go_live_readiness.get('status', 'blocked')) == 'ready' else 'guarded',
+                'ai_actions_running': int(action_summary.get('running_total', 0) or 0),
+                'ai_actions_total': int(action_summary.get('actions_total', len(action_items)) or len(action_items)),
+                'attention_items_total': sum(int(item.get('total', 0) or 0) for item in queue_items if str(item.get('status', '') or '') in {'warning', 'critical', 'stale'}),
+                'evidence_status': str(evidence_summary.get('posture', audit_integrity.get('status', 'unknown')) or 'unknown'),
+                'evidence_verified_at': str(audit_integrity.get('verified_at', evidence_summary.get('latest_exported_at', '')) or ''),
+            },
+            'next_actions': next_actions,
+            'ai_activity_feed': ai_activity,
+            'department_quick_access': quick_access,
+            'quick_links': [
+                {'view': 'requests', 'label': 'Work Inbox'},
+                {'view': 'cases', 'label': 'Cases'},
+                {'view': 'documents', 'label': 'Documents'},
+                {'view': 'actions', 'label': 'AI Actions'},
+            ],
+        }
 
     def runtime_alerts(
         self,
