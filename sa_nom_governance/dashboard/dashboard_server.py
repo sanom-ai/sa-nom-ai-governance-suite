@@ -66,6 +66,14 @@ class DashboardService:
             return True
         return profile.can('ops.manage') and profile.can('health.read') and profile.can('audit.read')
 
+    def _setup_assistant_access(self, profile: AccessProfile) -> bool:
+        role_name = str(profile.role_name or '').strip().lower()
+        if role_name in {'owner', 'founder', 'admin', 'it'}:
+            return True
+        if profile.can('*'):
+            return True
+        return profile.can('ops.manage')
+
     def _session_public(self, profile: AccessProfile) -> dict[str, object]:
         payload = profile.to_public_dict()
         role_name = str(profile.role_name or '').strip().lower()
@@ -79,6 +87,7 @@ class DashboardService:
             persona = 'executive'
         payload.update({
             'control_room_access': self._control_room_access(profile),
+            'setup_assistant_access': self._setup_assistant_access(profile),
             'persona': persona,
             'home_view': 'overview',
             'work_inbox_view': 'requests',

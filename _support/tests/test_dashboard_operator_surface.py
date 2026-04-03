@@ -1183,12 +1183,17 @@ def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_ro
         auditor_payload = service.dashboard(_build_profile('auditor'))
 
         assert owner_payload['session']['control_room_access'] is True
+        assert owner_payload['session']['setup_assistant_access'] is True
         assert owner_payload['session']['persona'] == 'founder'
         assert admin_payload['session']['control_room_access'] is True
+        assert admin_payload['session']['setup_assistant_access'] is True
         assert admin_payload['session']['persona'] == 'admin'
         assert it_payload['session']['control_room_access'] is True
+        assert it_payload['session']['setup_assistant_access'] is True
         assert it_payload['session']['persona'] == 'admin'
         assert operator_payload['session']['control_room_access'] is False
+        assert operator_payload['session']['setup_assistant_access'] is False
         assert operator_payload['session']['persona'] == 'operator'
         assert auditor_payload['session']['control_room_access'] is False
+        assert auditor_payload['session']['setup_assistant_access'] is False
         assert auditor_payload['session']['persona'] == 'executive'

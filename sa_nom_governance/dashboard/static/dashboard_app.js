@@ -66,6 +66,7 @@ const VIEW_TITLES = {
   directory: 'Directory & Search',
   documents: 'Documents',
   actions: 'AI Actions',
+  setup: 'Setup Assistant',
   overrides: 'Overrides',
   conflicts: 'Conflicts & Locks',
   audit: 'Audit Trail',
@@ -84,6 +85,7 @@ const VIEW_DESCRIPTIONS = {
   directory: 'Browse people, teams, seats, assignments, and linked search results from one governed surface.',
   documents: 'Work governed documents as live runtime objects, not static files.',
   actions: 'Launch, review, and follow governed AI execution inside one runtime lane.',
+  setup: 'First-run assistant, doctor, and pilot hardening from one privileged surface.',
   overrides: 'Work only the decisions that crossed a human boundary.',
   conflicts: 'Inspect locks, contention, and safe retry posture.',
   audit: 'Review chain integrity, evidence, and trusted history.',
@@ -156,6 +158,12 @@ const VIEW_INTELLIGENCE = {
     narrative: 'Use this page when AI should act inside a case instead of only reporting on it.',
     emphasis: 'action execution',
   },
+  setup: {
+    eyebrow: 'First-Run Assistant',
+    title: 'Make the runtime pilot-ready without dropping into plumbing first',
+    narrative: 'Use this page when onboarding, diagnostics, doctor results, and pilot hardening need one governed setup lane.',
+    emphasis: 'pilot readiness',
+  },
   overrides: {
     eyebrow: 'Boundary Changes',
     title: 'Human intervention only where autonomy ended',
@@ -213,6 +221,7 @@ const VIEW_USE_HINTS = {
   directory: { value: 'Route work to real owners', note: 'Use this when ownership, assignment, team context, or search continuity matters.', tone: 'accent' },
   documents: { value: 'Work the governed document lane', note: 'Use this when draft, review, publish, archive, or active-version logic matters.', tone: 'accent' },
   actions: { value: 'Let AI execute governed work', note: 'Use this when a case is ready for summarize, document draft, or human handoff actions.', tone: 'accent' },
+  setup: { value: 'Finish pilot setup', note: 'Use this when onboarding, diagnostics, and pilot hardening still need guided action.', tone: 'warning' },
   overrides: { value: 'Resolve human decisions', note: 'Use this when the runtime paused and a human must approve or veto.', tone: 'warning' },
   conflicts: { value: 'Unblock stalled work', note: 'Use this when locks or contention stop safe execution.', tone: 'warning' },
   audit: { value: 'Prove what happened', note: 'Use this when you need evidence, reason, and chain integrity.', tone: 'accent' },
@@ -230,6 +239,7 @@ const VIEW_PERMISSIONS = {
   directory: 'dashboard.read',
   documents: 'documents.read',
   actions: 'actions.read',
+  setup: 'dashboard.read',
   overrides: 'overrides.read',
   conflicts: 'locks.read',
   audit: 'audit.read',
@@ -501,16 +511,19 @@ root.addEventListener('submit', async (event) => {
         body: JSON.stringify(payload),
       });
       const item = response.item || {};
+      const registrationTargetView = state.view === 'setup' ? 'setup' : 'health';
       state.lastError = `Registration code ${item.registration_code || 'saved'} is active for ${item.organization_name || 'the current organization'} in ${item.deployment_mode || 'private'} mode.`;
       setActionContext({
         entityType: '',
         entityId: '',
-        view: 'health',
-        title: 'Owner registration saved.',
-        detail: 'Runtime Health is the next governed lane because deployment, trust, and operator posture may have changed.',
-        actionLabel: 'Open Runtime Health',
+        view: registrationTargetView,
+        title: state.view === 'setup' ? 'Owner registration saved inside Setup Assistant.' : 'Owner registration saved.',
+        detail: state.view === 'setup'
+          ? 'The setup lane refreshed so pilot readiness, doctor status, and next setup actions stay visible in one place.'
+          : 'Runtime Health is the next governed lane because deployment, trust, and operator posture may have changed.',
+        actionLabel: state.view === 'setup' ? 'Stay in Setup Assistant' : 'Open Runtime Health',
       });
-      state.view = 'health';
+      state.view = registrationTargetView;
       updateNav();
       await loadDashboard();
     } catch (error) {
@@ -1828,6 +1841,11 @@ function render() {
     updateNav();
     return;
   }
+  if (state.view === 'setup' && !canAccessSetupAssistant()) {
+    root.innerHTML = renderSetupAssistantDenied();
+    updateNav();
+    return;
+  }
   const requiredPermission = VIEW_PERMISSIONS[state.view];
   if (requiredPermission && !can(requiredPermission)) {
     root.innerHTML = renderPermissionNotice(requiredPermission);
@@ -1843,6 +1861,7 @@ function render() {
   if (state.view === 'directory') viewContent = renderDirectory(scopedSnapshot);
   if (state.view === 'documents') viewContent = renderDocuments(scopedSnapshot);
   if (state.view === 'actions') viewContent = renderActions(scopedSnapshot);
+  if (state.view === 'setup') viewContent = renderSetupAssistant(snapshot);
   if (state.view === 'control_room') viewContent = renderControlRoom(snapshot);
   if (state.view === 'overrides') viewContent = renderOverridesView(scopedSnapshot);
   if (state.view === 'conflicts') viewContent = renderConflicts(scopedSnapshot);
@@ -1861,7 +1880,7 @@ function render() {
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
-  const compactCommandView = ['overview', 'control_room'].includes(state.view);
+  const compactCommandView = ['overview', 'control_room', 'setup'].includes(state.view);
   const focusedInbox = compactCommandView ? '' : renderFocusedWorkInbox(snapshot, state.view);
   const caseSpotlight = compactCommandView ? '' : renderCaseSpotlight(snapshot);
   const workLanguageGuide = compactCommandView ? '' : renderWorkLanguageGuide(snapshot);
@@ -2834,7 +2853,7 @@ function studioReadinessTone(readiness) {
 
 function updateNav() {
   const controlRoomAllowed = canAccessControlRoom();
-  const activeView = isControlRoomTool(state.view) ? 'control_room' : state.view;
+  const activeView = isControlRoomTool(state.view) ? 'control_room' : (state.view === 'setup' ? 'overview' : state.view);
   if (governanceDropdown) {
     governanceDropdown.hidden = !controlRoomAllowed;
     if (!controlRoomAllowed) governanceDropdown.open = false;
@@ -4127,7 +4146,9 @@ function renderCommandHome(snapshot) {
   const nextActions = buildHomeNextActions(snapshot, surface).slice(0, 5);
   const aiFeed = Array.isArray(surface.ai_activity_feed) ? surface.ai_activity_feed.slice(0, 5) : [];
   const departments = Array.isArray(surface.department_quick_access) ? surface.department_quick_access.slice(0, 6) : [];
-  const quickLinks = Array.isArray(surface.quick_links) ? surface.quick_links : [];
+  const quickLinks = Array.isArray(surface.quick_links) ? [...surface.quick_links] : [];
+  if (canAccessSetupAssistant()) quickLinks.push({ view: 'setup', label: 'Setup Assistant' });
+  const setupContinuation = renderHomeSetupContinuation(snapshot);
   const attentionTotal = Number(posture.attention_items_total || 0);
   const aiRunning = Number(posture.ai_actions_running || 0);
   const aiTotal = Number(posture.ai_actions_total || aiFeed.length || 0);
@@ -4135,7 +4156,7 @@ function renderCommandHome(snapshot) {
   const evidenceLabel = formatStatusLabel(posture.evidence_status || 'verified');
   const modeNote = posture.operating_status === 'stable' ? 'Stable - green' : 'Guarded - review';
   const controlRoomAction = canAccessControlRoom()
-    ? '<button class="action-button action-button-muted" type="button" data-view-jump="control_room">Open Control Room</button>'
+    ? renderViewJumpButton({ view: 'control_room', label: 'Open Control Room', className: 'action-button action-button-muted' })
     : '<span class="pill pill-muted">Governance lead required</span>';
   return `
     <section class="command-home-stack stack gap-lg">
@@ -4150,8 +4171,8 @@ function renderCommandHome(snapshot) {
             <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(state.session?.persona || state.session?.role_name || 'operator')}</div>
           </div>
           <div class="inline-actions">
-            <button class="action-button" type="button" data-view-jump="requests">Open Work Inbox</button>
-            <button class="action-button action-button-muted" type="button" data-view-jump="actions">See AI Activity</button>
+            ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button' })}
+            ${renderViewJumpButton({ view: 'actions', label: 'See AI Activity', className: 'action-button action-button-muted' })}
             ${controlRoomAction}
           </div>
         </article>
@@ -4179,6 +4200,7 @@ function renderCommandHome(snapshot) {
           ${renderHomePostureCard('Evidence Integrity', evidenceLabel, evidenceDate, posture.evidence_status === 'verified' ? 'success' : 'warning', 'Evidence remains verified while identifiers stay hidden by default.')}
         </div>
       </section>
+      ${setupContinuation}
       <section class="card command-next-actions-card stack command-home-section">
         <div class="hero-heading">
           <div>
@@ -4225,13 +4247,16 @@ function renderCommandHome(snapshot) {
 }
 
 function renderHomePostureCard(label, value, note, tone = 'default', detail = '', view = '') {
+  const action = view
+    ? `<div class="inline-actions">${renderViewJumpButton({ view, label: 'Open', className: 'action-button action-button-muted' })}</div>`
+    : '';
   return `
     <article class="command-summary-card tone-${escapeHtml(tone)}">
       <span class="command-summary-label">${escapeHtml(label)}</span>
       <strong>${escapeHtml(value)}</strong>
       <p class="muted">${escapeHtml(note)}</p>
       ${detail ? `<p class="muted small">${escapeHtml(detail)}</p>` : ''}
-      ${view ? `<div class="inline-actions"><button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(view)}">Open</button></div>` : ''}
+      ${action}
     </article>
   `;
 }
@@ -4312,11 +4337,174 @@ function renderDepartmentQuickAccessCard(item) {
 }
 
 function renderHomeQuickLink(item) {
-  return `<button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(item.view || 'overview')}">${escapeHtml(item.label || VIEW_TITLES[item.view || 'overview'] || 'Open')}</button>`;
+  return renderViewJumpButton({
+    view: item.view || 'overview',
+    label: item.label || VIEW_TITLES[item.view || 'overview'] || 'Open',
+    className: 'action-button action-button-muted',
+    title: `${item.label || VIEW_TITLES[item.view || 'overview'] || 'Open'} reopened from Home.`,
+    detail: 'Keep the command surface moving from one governed lane to the next without hunting through the dashboard.',
+  });
 }
 
 function renderCommandEmptyState(title, note) {
   return `<article class="mini-card stack"><strong>${escapeHtml(title)}</strong><p class="muted">${escapeHtml(note)}</p></article>`;
+}
+
+
+function renderHomeSetupContinuation(snapshot) {
+  if (!canAccessSetupAssistant()) return '';
+  const firstRun = snapshot.first_run_readiness || {};
+  const operations = snapshot.operations || {};
+  const center = operations.first_run_action_center || {};
+  const doctor = operations.quick_start_doctor || {};
+  const proof = operations.usability_proof || {};
+  const registration = snapshot.owner_registration || {};
+  const requiredTotal = Number(center.required_total || firstRun.blockers_total || 0);
+  const advisoryTotal = Number(center.items_total || firstRun.advisories_total || 0);
+  if (Boolean(firstRun.ready) && requiredTotal <= 0 && String(doctor.status || 'ready') === 'ready') return '';
+  return `
+    <section class="card stack command-home-section">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Setup continuity</div>
+          <h3 class="card-title">First-run assistant is still active</h3>
+          <p class="card-subtitle">Pilot setup is not fully finished yet. Use the guided setup lane instead of hunting through Health, backups, and doctor details separately.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(firstRun.status || 'blocked')}${statusBadge(`${requiredTotal} required`)}</div>
+      </div>
+      <div class="command-summary-grid">
+        ${renderHomePostureCard('Registration', registration.registered ? 'Active' : 'Missing', registration.organization_name || 'No organization yet', registration.registered ? 'success' : 'warning', 'Registration is the first anchor for setup continuity.', 'setup')}
+        ${renderHomePostureCard('First-run status', formatStatusLabel(firstRun.status || 'blocked'), `${requiredTotal} required`, requiredTotal ? 'warning' : 'success', 'Registration, doctor, and readiness are grouped into one guided setup flow.', 'setup')}
+        ${renderHomePostureCard('Doctor', formatStatusLabel(doctor.status || 'missing'), `${doctor.required_failed_total || 0} required failed`, doctor.required_failed_total ? 'warning' : 'success', 'Quick-start doctor shows whether the pilot path is truly usable.', 'setup')}
+        ${renderHomePostureCard('Usability proof', formatStatusLabel(proof.status || 'missing'), `${proof.criteria_failed_total || 0} failed`, proof.criteria_failed_total ? 'warning' : 'accent', 'Pilot hardening uses evidence, not assumptions, before you call the runtime ready.', 'setup')}
+      </div>
+    </section>
+  `;
+}
+
+function labelForOpsAction(action = '') {
+  const normalized = String(action || '').trim();
+  if (!normalized) return 'Run action';
+  const known = {
+    backup: 'Create backup',
+    'usability-proof': 'Generate usability proof',
+    'usability-proof-refresh': 'Refresh usability proof',
+    'quick-start-doctor': 'Run quick-start doctor',
+    'quick-start-doctor-refresh': 'Refresh doctor status',
+    'first-run-action-center-sync': 'Run first-run sync',
+    'first-run-action-center-refresh': 'Refresh first-run actions',
+  };
+  return known[normalized] || titleCase(normalized);
+}
+
+function renderSetupActionCard(item) {
+  const detail = item.detail || item.message || item.note || item.description || 'Keep the setup lane moving until the runtime is pilot-ready.';
+  const opsAction = String(item.ops_action || '').trim();
+  const targetView = String(item.view || 'setup').trim() || 'setup';
+  const primary = opsAction && can('ops.manage')
+    ? `<button class="action-button" type="button" data-ops-action="${escapeHtml(opsAction)}">${escapeHtml(labelForOpsAction(opsAction))}</button>`
+    : renderViewJumpButton({ view: targetView, label: 'Open details', className: 'action-button' });
+  const secondary = targetView && targetView !== 'setup'
+    ? renderViewJumpButton({
+        view: targetView,
+        label: `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+        className: 'action-button action-button-muted',
+        title: `${item.title || 'Setup item'} reopened in ${VIEW_TITLES[targetView] || titleCase(targetView)}.`,
+        detail,
+      })
+    : renderViewJumpButton({ view: 'overview', label: 'Back to Home', className: 'action-button action-button-muted' });
+  return `
+    <article class="command-action-card">
+      <div class="hero-chip-row">${statusBadge(item.severity === 'required' ? 'blocked' : item.severity || 'monitoring')}${statusBadge(item.status || 'open')}</div>
+      <strong>${escapeHtml(item.title || item.action_id || 'Setup action')}</strong>
+      <p class="muted">${escapeHtml(detail)}</p>
+      <div class="command-action-meta">${escapeHtml(item.action_id || 'setup')} | ${escapeHtml(item.ops_action || 'manual review')}</div>
+      <div class="inline-actions">${primary}${secondary}</div>
+    </article>
+  `;
+}
+
+function renderSetupAssistant(snapshot) {
+  const firstRun = snapshot.first_run_readiness || {};
+  const operations = snapshot.operations || {};
+  const center = operations.first_run_action_center || {};
+  const doctor = operations.quick_start_doctor || {};
+  const proof = operations.usability_proof || {};
+  const registration = snapshot.owner_registration || {};
+  const goLive = snapshot.go_live_readiness || {};
+  const items = Array.isArray(center.items) ? center.items : [];
+  const requiredItems = items.filter((item) => item.severity === 'required');
+  const advisoryItems = items.filter((item) => item.severity !== 'required');
+  const leadItems = (requiredItems.length ? requiredItems : advisoryItems).slice(0, 6);
+  const readinessMessage = firstRun.ready
+    ? 'Registration, doctor, and readiness are largely aligned. Finish pilot hardening and proof refresh before wider use.'
+    : 'This page tells you what still blocks a serious pilot and what should happen next.';
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow">First-Run Assistant</div>
+              <h3 class="hero-title">Setup, doctor, and pilot hardening in one guided lane</h3>
+              <p class="hero-subtitle">Use this surface to finish registration, run diagnostics, review pilot blockers, and prove the runtime is ready without dropping into low-level operator plumbing first.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(firstRun.status || 'blocked')}${statusBadge(center.recommended_action || 'guided setup')}</div>
+          </div>
+          <div class="inline-actions">
+            ${renderViewJumpButton({ view: 'overview', label: 'Back to Home', className: 'action-button' })}
+            ${can('ops.manage') ? '<button class="action-button action-button-muted" type="button" data-ops-action="first-run-action-center-sync">Run Setup Sync</button>' : ''}
+            ${can('ops.manage') ? '<button class="action-button action-button-muted" type="button" data-ops-action="quick-start-doctor-refresh">Refresh Doctor</button>' : ''}
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Current setup posture</div>
+            <h3 class="card-title">${escapeHtml(firstRun.ready ? 'Pilot path is almost clear' : 'Pilot path still needs guided work')}</h3>
+            <p class="card-subtitle">${escapeHtml(readinessMessage)}</p>
+          </div>
+          ${keyValue([
+            ['Organization', registration.organization_name || '-'],
+            ['Required actions', String(center.required_total || firstRun.blockers_total || 0)],
+            ['Doctor', doctor.status || 'missing'],
+            ['Usability proof', proof.status || 'missing'],
+            ['Go-live', goLive.status || 'blocked'],
+          ])}
+        </article>
+      </section>
+      <section class="card stack">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Pilot readiness summary</div>
+            <h3 class="card-title">What still blocks a serious pilot?</h3>
+            <p class="card-subtitle">Keep the number of setup signals small and actionable. If this row is readable, the rest of the setup flow becomes manageable.</p>
+          </div>
+        </div>
+        <div class="command-summary-grid">
+          ${renderHomePostureCard('Registration', registration.registered ? 'Active' : 'Missing', registration.organization_name || 'No organization yet', registration.registered ? 'success' : 'warning', 'One registration code anchors the runtime identity before broader delegation begins.')}
+          ${renderHomePostureCard('First-run status', formatStatusLabel(firstRun.status || 'blocked'), `${center.required_total || firstRun.blockers_total || 0} required`, firstRun.ready ? 'success' : 'warning', 'Blockers and advisories are grouped into one setup posture.')}
+          ${renderHomePostureCard('Quick-start doctor', formatStatusLabel(doctor.status || 'missing'), `${doctor.required_failed_total || 0} required failed`, doctor.required_failed_total ? 'danger' : 'success', 'Diagnostics stay readable before you trust broader pilot rollout.')}
+          ${renderHomePostureCard('Usability proof', formatStatusLabel(proof.status || 'missing'), `${proof.criteria_failed_total || 0} failed criteria`, proof.criteria_failed_total ? 'warning' : 'accent', 'Pilot hardening should be proven, not assumed.')}
+        </div>
+      </section>
+      <section class="card stack">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Do these first</div>
+            <h3 class="card-title">Guided setup actions</h3>
+            <p class="card-subtitle">These are the next setup moves the system believes matter most before calling the runtime pilot-ready.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(`${leadItems.length} visible`)}</div>
+        </div>
+        <div class="command-next-grid">${leadItems.length ? leadItems.map((item) => renderSetupActionCard(item)).join('') : renderCommandEmptyState('No guided setup actions are queued.', 'Open Home to continue normal governed work.')}</div>
+      </section>
+      <section class="split-grid">
+        ${renderOwnerRegistrationPanel(snapshot.owner_registration || {}, { compact: false })}
+        ${renderGoLiveReadinessCard(snapshot.go_live_readiness || {})}
+      </section>
+      ${renderOperationsSection(snapshot.operations || {})}
+    </section>
+  `;
 }
 
 function renderControlRoom(snapshot) {
@@ -7426,6 +7614,31 @@ function canAccessControlRoom() {
   const role = String(state.session.role_name || '').toLowerCase();
   if (['owner', 'founder', 'admin', 'it'].includes(role)) return true;
   return can('ops.manage') && can('health.read') && can('audit.read');
+}
+
+
+function canAccessSetupAssistant() {
+  if (!state.session) return false;
+  if (typeof state.session.setup_assistant_access === 'boolean') return state.session.setup_assistant_access;
+  const role = String(state.session.role_name || '').toLowerCase();
+  if (['owner', 'founder', 'admin', 'it'].includes(role)) return true;
+  return can('ops.manage');
+}
+
+function renderSetupAssistantDenied() {
+  return `
+    <article class="card notice-card notice-warning stack">
+      <div>
+        <div class="eyebrow muted">Setup surface restricted</div>
+        <h3 class="card-title">Setup Assistant is reserved for owner, admin, and IT sessions</h3>
+        <p class="card-subtitle">Normal users stay on the simple command surface while onboarding, diagnostics, and pilot hardening remain inside a privileged setup lane.</p>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-view-jump="overview">Open Home</button>
+        <button class="action-button action-button-muted" type="button" data-view-jump="requests">Open Work Inbox</button>
+      </div>
+    </article>
+  `;
 }
 
 function syncCommandRoute() {
