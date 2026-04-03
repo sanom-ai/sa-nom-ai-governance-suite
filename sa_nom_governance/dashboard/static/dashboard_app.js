@@ -226,6 +226,10 @@ const VIEW_TITLES = {
   control_room: 'Control Room',
   backup_restore: 'Backup & Restore',
   admin_settings: 'Admin Settings',
+  owner_registration: 'Owner Registration',
+  retention: 'Documents & Records',
+  integrations: 'Integrations',
+  model_providers: 'Model Providers',
 };
 
 const VIEW_DESCRIPTIONS = {
@@ -247,6 +251,10 @@ const VIEW_DESCRIPTIONS = {
   control_room: 'Advanced governance tools for admin, IT, and founder sessions only.',
   backup_restore: 'Recovery bundles, restore guidance, and pilot-hardening artifacts inside Control Room.',
   admin_settings: 'Organization identity, access policy, providers, and routing posture inside Control Room.',
+  owner_registration: 'Runtime identity, registration code, and deployment ownership posture.',
+  retention: 'Retention, legal hold, and governed records posture inside Control Room.',
+  integrations: 'Outbound routing, delivery posture, and integration readiness inside Control Room.',
+  model_providers: 'AI provider readiness and default workforce execution posture inside Control Room.',
 };
 
 const DEV_LANES = {
@@ -402,7 +410,8 @@ const VIEW_PERMISSIONS = {
   health: 'health.read',
 };
 
-const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings']);
+const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings', 'owner_registration', 'retention', 'integrations', 'model_providers']);
+const GOVERNANCE_EMBEDDED_VIEWS = new Set(['setup', 'studio']);
 
 const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-dev-lane]',
@@ -417,6 +426,7 @@ const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-audit-action]',
   '[data-ops-action]',
   '[data-integration-action]',
+  '[data-retention-action]',
   '[data-human-ask-action]',
   '[data-action-runtime-action]',
   '[data-control-room-tool]',
@@ -430,7 +440,12 @@ const ACTIONABLE_BUTTON_SELECTOR = [
 navList.addEventListener('click', (event) => {
   const target = event.target.closest('.nav-item');
   if (!target) return;
-  state.view = target.dataset.view;
+  const nextView = target.dataset.view || 'overview';
+  const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
+  state.view = nextView;
+  if (nextView === 'control_room') {
+    state.controlRoomTool = controlRoomTool || getInitialControlRoomTool();
+  }
   updateNav();
   render();
   scrollDashboardToTop();
@@ -563,7 +578,8 @@ root.addEventListener('submit', async (event) => {
       });
       if (editingRequestId) delete state.studioPtagDrafts[editingRequestId];
       clearStudioEditor();
-      state.view = 'studio';
+      state.view = canAccessControlRoom() ? 'control_room' : 'studio';
+      if (canAccessControlRoom()) state.controlRoomTool = 'studio';
       updateNav();
       await loadDashboard();
     } catch (error) {
@@ -1153,6 +1169,43 @@ root.addEventListener('click', async (event) => {
         state.lastError = String(error.message || error);
         render();
       }
+    }
+    if (action === 'probe-model-providers') {
+      try {
+        const providerId = String(integrationButton.dataset.providerId || '').trim();
+        const response = await apiFetch('/api/model-providers/probe', {
+          method: 'POST',
+          body: JSON.stringify(providerId ? { provider_id: providerId } : {}),
+        });
+        const result = response.result || {};
+        state.lastError = providerId
+          ? `Model provider probe for ${providerId} ${result.status || 'completed'}.`
+          : `Model provider probe ${result.status || 'completed'}.`;
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
+    return;
+  }
+
+  const retentionButton = event.target.closest('[data-retention-action]');
+  if (retentionButton) {
+    try {
+      const dryRun = String(retentionButton.dataset.retentionAction || 'dry-run') !== 'enforce-now';
+      const response = await apiFetch('/api/retention/enforce', {
+        method: 'POST',
+        body: JSON.stringify({ dry_run: dryRun }),
+      });
+      const result = response.result || {};
+      state.lastError = dryRun
+        ? `Retention dry run ${result.status || 'completed'}.`
+        : `Retention execution ${result.status || 'completed'}.`;
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
     }
     return;
   }
@@ -1898,6 +1951,26 @@ function resolveNavigationTarget({ view = '', controlRoomTool = '', title = '', 
       controlRoomTool: tool,
       title: title || `Control Room opened on ${toolLabel}.`,
       detail: detail || `${toolLabel} is grouped inside the protected Control Room for advanced governance review.`,
+      actionLabel: 'Open Control Room',
+    };
+  }
+  if (GOVERNANCE_EMBEDDED_VIEWS.has(normalizedView)) {
+    if (!canAccessControlRoom()) {
+      return {
+        view: normalizedView,
+        controlRoomTool: '',
+        title,
+        detail,
+        actionLabel,
+      };
+    }
+    const tool = String(controlRoomTool || normalizedView).trim() || normalizedView;
+    const toolLabel = VIEW_TITLES[tool] || titleCase(tool);
+    return {
+      view: 'control_room',
+      controlRoomTool: tool,
+      title: title || `Control Room opened on ${toolLabel}.`,
+      detail: detail || `${toolLabel} now lives inside the protected Control Room instead of the simple command surface.`,
       actionLabel: 'Open Control Room',
     };
   }
@@ -3055,14 +3128,22 @@ function studioReadinessTone(readiness) {
 
 function updateNav() {
   const controlRoomAllowed = canAccessControlRoom();
-  const activeView = isControlRoomTool(state.view) ? 'control_room' : (state.view === 'setup' ? 'overview' : state.view);
+  const activeView = (isControlRoomTool(state.view) || GOVERNANCE_EMBEDDED_VIEWS.has(state.view)) ? 'control_room' : state.view;
   if (governanceDropdown) {
     governanceDropdown.hidden = !controlRoomAllowed;
     if (!controlRoomAllowed) governanceDropdown.open = false;
     governanceDropdown.classList.toggle('is-active', activeView === 'control_room');
   }
+  const activeControlRoomTool = String(state.controlRoomTool || getInitialControlRoomTool()).trim() || getInitialControlRoomTool();
   for (const item of navList.querySelectorAll('.nav-item')) {
-    const isActive = item.dataset.view === activeView;
+    const itemView = item.dataset.view || '';
+    const itemTool = String(item.dataset.controlRoomTool || '').trim();
+    let isActive = itemView === activeView;
+    if (itemView === 'control_room' && itemTool) {
+      isActive = activeView === 'control_room' && itemTool === activeControlRoomTool;
+    } else if (itemView === 'control_room' && !itemTool) {
+      isActive = activeView === 'control_room' && activeControlRoomTool === getInitialControlRoomTool();
+    }
     item.classList.toggle('is-active', isActive);
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   }
@@ -4935,25 +5016,221 @@ function renderSetupAssistant(snapshot) {
   `;
 }
 
-function renderControlRoom(snapshot) {
+function controlRoomToolLabel(tool) {
+  return VIEW_TITLES[tool] || titleCase(String(tool || '').replaceAll('_', ' '));
+}
+
+function buildControlRoomCategoryGroups(snapshot) {
+  const summary = snapshot.summary || {};
   const runtimeHealth = snapshot.runtime_health || {};
   const operations = snapshot.operations || {};
-  const auditIntegrity = runtimeHealth.audit_integrity || {};
+  const registration = snapshot.owner_registration || {};
+  const firstRun = snapshot.first_run_readiness || {};
   const roleLibrary = runtimeHealth.role_library || {};
-  const accessControl = runtimeHealth.access_control || {};
+  const auditIntegrity = runtimeHealth.audit_integrity || {};
+  const studioSummary = snapshot.role_private_studio?.summary || {};
+  const integrationSummary = snapshot.integrations?.summary || {};
+  const modelProviders = snapshot.model_providers || {};
   const backupSummary = operations.summary || {};
   const latestBackup = backupSummary.latest_backup || {};
-  const registration = snapshot.owner_registration || {};
-  const currentTool = state.controlRoomTool || 'health';
-  const governanceSummary = [
-    { tool: 'health', label: 'Runtime Health', value: runtimeHealth.status || 'unknown', note: 'Deployment, storage, and integration posture.' },
-    { tool: 'conflicts', label: 'Conflicts & Locks', value: String(snapshot.summary.active_locks || 0), note: 'Blocked or contended execution lanes.' },
-    { tool: 'audit', label: 'Audit Chain', value: auditIntegrity.status || 'verified', note: 'Chain integrity and evidence continuity.' },
-    { tool: 'policies', label: 'Trusted Registry', value: roleLibrary.signature_status || roleLibrary.status || 'unknown', note: 'Role packs, manifest trust, and signature posture.' },
-    { tool: 'sessions', label: 'Sessions', value: String((snapshot.sessions || []).length), note: 'Short-lived runtime access and revocation.' },
-    { tool: 'backup_restore', label: 'Backup & Restore', value: latestBackup.backup_id || `${String(backupSummary.backups_total || 0)} bundles`, note: 'Recovery bundles, restore guidance, and pilot-hardening artifacts.' },
-    { tool: 'admin_settings', label: 'Admin Settings', value: registration.registered ? (registration.organization_name || 'registered') : 'setup needed', note: 'Organization identity, access policy, providers, and routing posture.' },
+  const retention = snapshot.retention || {};
+  const sessions = Array.isArray(snapshot.sessions) ? snapshot.sessions : [];
+  return [
+    {
+      title: 'Setup & Onboarding',
+      note: 'These tools establish runtime identity, onboarding continuity, and pilot-readiness before deeper delegation spreads.',
+      items: [
+        {
+          tool: 'setup',
+          label: 'Setup Assistant',
+          value: firstRun.ready ? 'ready' : `${String(operations.first_run_action_center?.required_total || firstRun.blockers_total || 0)} required`,
+          note: 'First-run assistant, doctor, and pilot hardening in one guided lane.',
+          tone: firstRun.ready ? 'tone-success' : 'tone-warning',
+          badges: [formatStatusLabel(firstRun.status || 'blocked')],
+        },
+        {
+          tool: 'owner_registration',
+          label: 'Owner Registration',
+          value: registration.registered ? (registration.organization_name || 'registered') : 'setup needed',
+          note: 'Registration code, organization identity, and executive-owner posture.',
+          tone: registration.registered ? 'tone-success' : 'tone-warning',
+          badges: [registration.registered ? 'registered' : 'missing', registration.deployment_mode || 'private'],
+        },
+      ].filter((item) => item.tool !== 'setup' || canAccessSetupAssistant()),
+    },
+    {
+      title: 'AI Workforce & Roles',
+      note: 'Role creation, PTAG posture, trusted publication, and advanced role boundaries live here instead of the normal Home surface.',
+      items: [
+        {
+          tool: 'studio',
+          label: 'Role Private Studio',
+          value: `${String(studioSummary.publisher_ready_total || 0)} publish ready`,
+          note: 'Draft, review, simulate, and publish governed AI roles from the same protected lane.',
+          tone: Number(studioSummary.trust_attention_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [Number(studioSummary.trust_attention_total || 0) > 0 ? 'trust attention' : 'studio live'],
+        },
+        {
+          tool: 'policies',
+          label: 'Roles & Policies',
+          value: roleLibrary.signature_status || roleLibrary.status || 'unknown',
+          note: 'Trusted hats, manifest posture, hierarchy, and policy boundaries.',
+          tone: String(roleLibrary.signature_status || roleLibrary.status || '').toLowerCase() === 'verified' ? 'tone-success' : 'tone-warning',
+          badges: [roleLibrary.signature_status || roleLibrary.status || 'unknown'],
+        },
+      ],
+    },
+    {
+      title: 'Documents & Records',
+      note: 'Retention, legal hold, and records governance stay here so Home can focus on day-to-day operating work.',
+      items: [
+        {
+          tool: 'retention',
+          label: 'Retention & Records',
+          value: Number(retention.expired_candidate_total || 0) > 0 ? `${String(retention.expired_candidate_total || 0)} expiring` : 'monitoring',
+          note: 'Retention windows, legal holds, archive posture, and governed records pressure.',
+          tone: Number(retention.hold_blocked_total || 0) > 0 || Number(retention.expired_candidate_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [Number(retention.hold_blocked_total || 0) > 0 ? 'hold active' : 'records clear'],
+        },
+      ],
+    },
+    {
+      title: 'Trust & Evidence',
+      note: 'Use these tools when you must prove what happened, why the trust chain still holds, or what evidence posture needs attention.',
+      items: [
+        {
+          tool: 'audit',
+          label: 'Audit Trail',
+          value: auditIntegrity.status || 'unknown',
+          note: 'Chain integrity, evidence continuity, and operator-readable proof posture.',
+          tone: String(auditIntegrity.status || '').toLowerCase() === 'verified' ? 'tone-success' : 'tone-warning',
+          badges: [auditIntegrity.status || 'unknown'],
+        },
+      ],
+    },
+    {
+      title: 'Access & Sessions',
+      note: 'Short-lived access, revocation, and runtime identity discipline should stay visible to advanced operators without cluttering Home.',
+      items: [
+        {
+          tool: 'sessions',
+          label: 'Sessions',
+          value: sessions.length ? `${String(sessions.length)} active` : 'clear',
+          note: 'Issued sessions, expiry windows, and revocation posture.',
+          tone: sessions.length ? 'tone-accent' : 'tone-success',
+          badges: [sessions.length ? 'active access' : 'no pressure'],
+        },
+      ],
+    },
+    {
+      title: 'Runtime & Recovery',
+      note: 'Health, lock pressure, backups, and runtime recovery belong here because they are advanced operator signals, not Home clutter.',
+      items: [
+        {
+          tool: 'health',
+          label: 'Runtime Health',
+          value: runtimeHealth.status || 'unknown',
+          note: 'Deployment, storage, runtime stores, and infrastructure posture.',
+          tone: String(runtimeHealth.status || '').toLowerCase() === 'ok' ? 'tone-success' : 'tone-warning',
+          badges: [runtimeHealth.status || 'unknown'],
+        },
+        {
+          tool: 'conflicts',
+          label: 'Conflicts & Locks',
+          value: `${String(summary.active_locks || 0)} items`,
+          note: 'Contention, blocked execution, and shared resource pressure.',
+          tone: Number(summary.active_locks || 0) > 0 ? 'tone-warning' : 'tone-success',
+          badges: [Number(summary.active_locks || 0) > 0 ? 'attention' : 'clear'],
+        },
+        {
+          tool: 'backup_restore',
+          label: 'Backup & Restore',
+          value: latestBackup.backup_id || `${String(backupSummary.backups_total || 0)} bundles`,
+          note: 'Recovery bundles, restore guidance, and pilot-hardening artifacts.',
+          tone: latestBackup.backup_id ? 'tone-accent' : 'tone-warning',
+          badges: [latestBackup.backup_id ? 'backup ready' : 'backup needed'],
+        },
+      ],
+    },
+    {
+      title: 'Integrations & Providers',
+      note: 'Outbound delivery, model providers, and workforce execution dependencies should stay grouped inside one advanced governance section.',
+      items: [
+        {
+          tool: 'integrations',
+          label: 'Integrations',
+          value: Number(integrationSummary.active_targets || 0) > 0 ? `${String(integrationSummary.active_targets || 0)} active targets` : 'setup needed',
+          note: 'Targets, delivery posture, outbox pressure, and notification routing.',
+          tone: Number(integrationSummary.failed_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [Number(integrationSummary.failed_total || 0) > 0 ? 'delivery pressure' : 'routing posture'],
+        },
+        {
+          tool: 'model_providers',
+          label: 'Model Providers',
+          value: Number(modelProviders.configured_providers || 0) > 0 ? `${String(modelProviders.configured_providers || 0)} configured` : 'setup needed',
+          note: 'Default provider readiness and AI workforce execution path.',
+          tone: Number(modelProviders.configured_providers || 0) > 0 && modelProviders.default_provider_ready !== false ? 'tone-success' : 'tone-warning',
+          badges: [modelProviders.default_provider || 'no default'],
+        },
+      ],
+    },
+    {
+      title: 'Admin Settings',
+      note: 'One place for organization identity, access, provider, routing, and operating posture when a founder or admin needs the current setting surface.',
+      items: [
+        {
+          tool: 'admin_settings',
+          label: 'Admin Settings',
+          value: registration.registered ? (registration.organization_name || 'registered') : 'setup needed',
+          note: 'Organization identity, access posture, provider posture, and routing configuration summary.',
+          tone: registration.registered ? 'tone-accent' : 'tone-warning',
+          badges: [registration.registered ? 'registered' : 'needs setup'],
+        },
+      ],
+    },
   ];
+}
+
+function renderControlRoomCategorySection(group, currentTool) {
+  return `
+    <section class="card stack control-room-category">
+      <div class="control-room-category-head">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(group.title)}</div>
+          <h3 class="card-title">${escapeHtml(group.title)}</h3>
+          <p class="card-subtitle">${escapeHtml(group.note)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${group.items.length} tools`)}</div>
+      </div>
+      <div class="control-room-tool-grid">
+        ${group.items.map((item) => renderControlRoomToolCard(item, currentTool)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderControlRoomToolCard(item, currentTool) {
+  const isCurrent = currentTool === item.tool;
+  const badges = Array.isArray(item.badges) ? item.badges.filter(Boolean) : [];
+  return `
+    <article class="command-summary-card control-room-tool-card ${escapeHtml(item.tone || 'tone-accent')}${isCurrent ? ' is-active' : ''}">
+      <span class="command-summary-label">${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <p class="muted">${escapeHtml(item.note)}</p>
+      ${badges.length ? `<div class="hero-chip-row">${badges.map((badge) => statusBadge(badge)).join('')}</div>` : ''}
+      <div class="inline-actions">
+        <button class="action-button${isCurrent ? ' action-button-muted' : ''}" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(isCurrent ? 'Current tool' : 'Open')}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderControlRoom(snapshot) {
+  const currentTool = state.controlRoomTool || getInitialControlRoomTool();
+  const groups = buildControlRoomCategoryGroups(snapshot);
+  const currentToolLabel = controlRoomToolLabel(currentTool);
+  const currentGroup = groups.find((group) => group.items.some((item) => item.tool === currentTool));
+  const toolsTotal = groups.reduce((total, group) => total + group.items.length, 0);
   const embedded = renderControlRoomTool(snapshot, currentTool);
   return `
     <section class="stack gap-lg">
@@ -4962,42 +5239,35 @@ function renderControlRoom(snapshot) {
           <div class="hero-heading">
             <div>
               <div class="eyebrow">Control Room</div>
-              <h3 class="hero-title">Advanced Governance Tools (Admin / IT / Founder only)</h3>
-              <p class="hero-subtitle">This surface keeps audit chain, evidence integrity, trusted registry, runtime health, backup recovery, and administrative posture out of the normal Home dashboard until an advanced operator truly needs them.</p>
+              <h3 class="hero-title">Advanced governance setup, trust, and recovery in one protected surface</h3>
+              <p class="hero-subtitle">Home stays simple for normal users. Control Room is where the runtime is configured, verified, published, restored, and governed by advanced operators.</p>
             </div>
             <div class="hero-chip-row">${statusBadge('advanced governance')}${statusBadge(state.session?.role_name || 'admin')}</div>
           </div>
           <div class="inline-actions">
             ${renderViewJumpButton({ view: 'overview', label: 'Back to Home', className: 'action-button action-button-muted' })}
-            <button class="action-button" type="button" data-control-room-tool="health">Open Runtime Health</button>
-            ${canAccessSetupAssistant() ? renderViewJumpButton({ view: 'setup', label: 'Open Setup Assistant', className: 'action-button action-button-muted' }) : ''}
+            ${canAccessSetupAssistant() ? '<button class="action-button action-button-muted" type="button" data-control-room-tool="setup">Open Setup & Onboarding</button>' : ''}
+            <button class="action-button" type="button" data-control-room-tool="studio">Open Role Private Studio</button>
           </div>
         </article>
         <article class="card hero-card hero-card-secondary">
           <div>
-            <div class="eyebrow muted">Current tool</div>
-            <h3 class="card-title">${escapeHtml(VIEW_TITLES[currentTool] || titleCase(currentTool))}</h3>
-            <p class="card-subtitle">Use Control Room when simple posture is not enough and you need the underlying governance reason, trust state, recovery bundle, or runtime repair signal.</p>
+            <div class="eyebrow muted">Current focus</div>
+            <h3 class="card-title">${escapeHtml(currentToolLabel)}</h3>
+            <p class="card-subtitle">${escapeHtml(currentGroup ? `${currentGroup.title} is the active Control Room section.` : 'Use the sections below to choose the advanced tool you need next.')}</p>
           </div>
           ${keyValue([
             ['Current role', state.session?.role_name || 'unknown'],
-            ['Current tool', VIEW_TITLES[currentTool] || titleCase(currentTool)],
-            ['Profiles active', String(accessControl.profiles_active || 0)],
-            ['Evidence integrity', auditIntegrity.status || 'unknown'],
-            ['Signature posture', roleLibrary.signature_status || roleLibrary.status || 'unknown'],
-            ['Setup assistant', canAccessSetupAssistant() ? 'available' : 'restricted'],
+            ['Current section', currentGroup?.title || 'Advanced governance'],
+            ['Current tool', currentToolLabel],
+            ['Control Room groups', String(groups.length)],
+            ['Advanced tools', String(toolsTotal)],
+            ['Home boundary', 'simple by default'],
           ])}
         </article>
       </section>
-      <section class="command-summary-grid">
-        ${governanceSummary.map((item) => `
-          <article class="command-summary-card tone-accent">
-            <span class="command-summary-label">${escapeHtml(item.label)}</span>
-            <strong>${escapeHtml(item.value)}</strong>
-            <p class="muted">${escapeHtml(item.note)}</p>
-            <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-control-room-tool="${escapeHtml(item.tool)}">Open</button></div>
-          </article>
-        `).join('')}
+      <section class="control-room-groups">
+        ${groups.map((group) => renderControlRoomCategorySection(group, currentTool)).join('')}
       </section>
       <section class="stack gap-md control-room-detail-shell">${embedded}</section>
     </section>
@@ -5005,13 +5275,231 @@ function renderControlRoom(snapshot) {
 }
 
 function renderControlRoomTool(snapshot, tool) {
+  if (tool === 'setup') return renderSetupAssistant(snapshot);
+  if (tool === 'studio') return renderStudio(snapshot.role_private_studio || { summary: {}, requests: [], template: {}, examples: [] });
   if (tool === 'conflicts') return renderConflicts(snapshot);
   if (tool === 'audit') return renderAudit(snapshot);
   if (tool === 'policies') return renderPolicies(snapshot.roles || []);
   if (tool === 'sessions') return wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Short-lived runtime sessions and revocation state for advanced governance review.');
+  if (tool === 'owner_registration') return renderOwnerRegistrationTool(snapshot);
+  if (tool === 'retention') return renderRetentionTool(snapshot);
+  if (tool === 'integrations') return renderIntegrationsTool(snapshot);
+  if (tool === 'model_providers') return renderModelProvidersTool(snapshot);
   if (tool === 'backup_restore') return renderBackupRestoreTool(snapshot);
   if (tool === 'admin_settings') return renderAdminSettingsTool(snapshot);
   return renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
+}
+
+function renderOwnerRegistrationTool(snapshot) {
+  const registration = snapshot.owner_registration || snapshot.runtime_health?.owner_registration || {};
+  const setupAssistant = snapshot.operations?.first_run_action_center || {};
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Owner Registration</div>
+              <h2 class="hero-title">Anchor deployment identity before delegated work fans out across the organization.</h2>
+              <p class="hero-subtitle">This is where the private runtime keeps organization identity, executive ownership, and registration posture aligned before additional operators or AI workforce roles are trusted.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(registration.registered ? 'registered' : 'setup needed')}${statusBadge(registration.deployment_mode || 'private')}</div>
+          </div>
+          ${renderOwnerRegistrationPanel(registration)}
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Setup continuity</div>
+            <h3 class="card-title">Identity should stay connected to first-run readiness</h3>
+            <p class="card-subtitle">Registration is not a detached setup field. It shapes onboarding, diagnostics, trusted publication, and the default ownership line used across the suite.</p>
+          </div>
+          ${keyValue([
+            ['Setup status', formatStatusLabel(setupAssistant.status || 'blocked')],
+            ['Required actions', String(setupAssistant.required_total || 0)],
+            ['Recommended action', setupAssistant.recommended_action || 'none'],
+            ['Organization', registration.organization_name || '-'],
+            ['Executive owner id', registration.executive_owner_id || '-'],
+            ['Registry signer', registration.trusted_registry_signed_by || '-'],
+          ])}
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="setup">Open Setup &amp; Onboarding</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="admin_settings">Open Admin Settings</button>
+          </div>
+        </article>
+      </section>
+    </section>
+  `;
+}
+
+function renderRetentionTool(snapshot) {
+  const retentionReport = snapshot.retention || {};
+  const retentionPlan = snapshot.retention_plan || {};
+  const datasets = Array.isArray(retentionReport.datasets) ? retentionReport.datasets : [];
+  const canManageRetention = can('retention.manage');
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Documents &amp; Records</div>
+              <h2 class="hero-title">Retention, legal hold, and governed records posture live here inside Control Room.</h2>
+              <p class="hero-subtitle">Normal users work documents from the command surface. This advanced lane is for retention policy, expiry pressure, legal hold posture, and recovery-sensitive record management.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(datasets.length ? 'present' : 'setup needed')}${statusBadge((retentionReport.hold_blocked_total || 0) > 0 ? 'human required' : 'monitoring')}</div>
+          </div>
+          <div class="hero-split">
+            ${keyValue([
+              ['Datasets', String(datasets.length)],
+              ['Expired candidates', String(retentionReport.expired_candidate_total || 0)],
+              ['Hold blocked', String(retentionReport.hold_blocked_total || 0)],
+              ['Next expiry', retentionReport.next_expiry_at || '-'],
+              ['Retention mode', retentionPlan.mode || 'governed'],
+              ['Archive root', retentionPlan.archive_path || '-'],
+            ])}
+            <div class="hero-note"><strong>Records doctrine</strong><p>Documents, audit material, and governed runtime artifacts should age predictably. This lane exists to keep retention readable without leaking raw stores back into Home.</p></div>
+          </div>
+          ${canManageRetention ? '<div class="inline-actions"><button class="action-button" type="button" data-retention-action="enforce-now">Run retention policy</button></div>' : ''}
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Linked governance</div>
+            <h3 class="card-title">Retention should stay connected to audit and recovery</h3>
+            <p class="card-subtitle">Operators should review retention together with evidence, restore posture, and go-live expectations rather than treating record lifecycle as an isolated maintenance chore.</p>
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="audit">Open Trust &amp; Evidence</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="backup_restore">Open Backup &amp; Restore</button>
+          </div>
+        </article>
+      </section>
+      ${renderRetentionSection(retentionReport) || renderNoWorkState('No retention datasets are visible yet.', {
+        eyebrow: 'Records posture',
+        title: 'Retention has not been seeded yet.',
+        detail: 'As governed documents, audit events, and workflow artifacts accumulate, the records and retention lane will show expiry, hold, and archive posture here.',
+        primaryActionView: 'documents',
+        primaryActionLabel: 'Open Documents',
+        secondaryActionView: 'audit',
+        secondaryActionLabel: 'Open Audit',
+        pills: ['records lane', 'retention ready'],
+      })}
+    </section>
+  `;
+}
+
+function renderModelProvidersPanel(modelProviders, options = {}) {
+  const summary = modelProviders || {};
+  const providers = Array.isArray(summary.providers) ? summary.providers : [];
+  const compact = Boolean(options.compact);
+  if (!providers.length) {
+    return renderNoWorkState('No model providers are configured yet.', {
+      eyebrow: compact ? 'Provider posture' : 'AI provider posture',
+      title: 'The AI workforce has no provider lane yet.',
+      detail: 'Configure at least one provider before expecting governed AI actions to execute from the private runtime.',
+      primaryActionView: 'actions',
+      primaryActionLabel: 'Open AI Actions',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Back to Home',
+      pills: ['provider setup', 'private-first'],
+    });
+  }
+  return `
+    <section class="control-room-provider-grid">
+      ${providers.map((provider) => `
+        <article class="trace-box compact-trace control-room-provider-card">
+          <div class="hero-chip-row">${statusBadge(provider.ready ? 'ready' : 'monitoring')}${provider.is_default ? statusBadge('default') : ''}</div>
+          <strong>${escapeHtml(provider.provider_id || provider.label || 'provider')}</strong>
+          ${keyValue([
+            ['Status', provider.status || (provider.ready ? 'ready' : 'monitoring')],
+            ['Default', provider.is_default ? 'yes' : 'no'],
+            ['Model', provider.model || '-'],
+            ['Endpoint', provider.endpoint || '-'],
+          ])}
+          <p class="muted">${escapeHtml(provider.note || provider.message || 'Provider posture is available for governed AI execution routing.')}</p>
+        </article>
+      `).join('')}
+    </section>
+  `;
+}
+
+function renderModelProvidersTool(snapshot) {
+  const modelProviders = snapshot.model_providers || {};
+  const hasProviders = Number(modelProviders.configured_providers || 0) > 0;
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Model Providers</div>
+              <h2 class="hero-title">Keep AI workforce execution inside one readable provider posture lane.</h2>
+              <p class="hero-subtitle">This advanced tool is where operators review default-provider readiness, probe model execution posture, and confirm the workforce can still execute inside the private runtime boundary.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(hasProviders ? 'configured' : 'setup needed')}${statusBadge(modelProviders.default_provider_ready === false ? 'attention required' : 'ready')}</div>
+          </div>
+          <div class="hero-split">
+            ${keyValue([
+              ['Configured providers', String(modelProviders.configured_providers || 0)],
+              ['Default provider', modelProviders.default_provider || '-'],
+              ['Default ready', modelProviders.default_provider_ready === false ? 'no' : 'yes'],
+              ['Partial providers', String(modelProviders.partial_providers || 0)],
+              ['Status', formatStatusLabel(modelProviders.status || 'missing')],
+            ])}
+            <div class="hero-note"><strong>Workforce doctrine</strong><p>AI remains the primary workforce. Provider posture exists here so Home can stay simple while Control Room keeps the execution dependency visible for admins and founders.</p></div>
+          </div>
+          ${can('integration.manage') ? '<div class="inline-actions"><button class="action-button" type="button" data-integration-action="probe-model-providers">Probe model providers</button></div>' : ''}
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Linked governance</div>
+            <h3 class="card-title">Provider health should stay close to actions and integrations</h3>
+            <p class="card-subtitle">Use this with AI Actions when workforce execution looks paused, and with Integrations when the output lane depends on provider health.</p>
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-view-jump="actions">Open AI Actions</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="integrations">Open Integrations</button>
+          </div>
+        </article>
+      </section>
+      ${renderModelProvidersPanel(modelProviders)}
+    </section>
+  `;
+}
+
+function renderIntegrationsTool(snapshot) {
+  const integrations = snapshot.integrations || {};
+  const modelProviders = snapshot.model_providers || {};
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Integrations &amp; Providers</div>
+              <h2 class="hero-title">Outbound routing, delivery posture, and provider readiness belong together in Control Room.</h2>
+              <p class="hero-subtitle">This lane keeps webhook targets, delivery failures, model providers, and workforce execution dependencies in one place so advanced operators can troubleshoot without leaking plumbing onto Home.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge((integrations.summary?.active_targets || 0) > 0 ? 'configured' : 'setup needed')}${statusBadge(modelProviders.default_provider_ready === false ? 'monitoring' : 'ready')}</div>
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="model_providers">Open Model Providers</button>
+            <button class="action-button action-button-muted" type="button" data-view-jump="actions">Open AI Actions</button>
+          </div>
+        </article>
+      </section>
+      ${renderIntegrationSection(integrations)}
+      <article class="table-card stack control-room-compact-panel">
+        <div class="table-card-head">
+          <div>
+            <div class="eyebrow muted">Provider snapshot</div>
+            <h3 class="table-title">Model provider posture</h3>
+            <p class="card-subtitle">A compact provider reading stays here so integration routing and AI execution can be read together.</p>
+          </div>
+        </div>
+        ${renderModelProvidersPanel(modelProviders, { compact: true })}
+      </article>
+    </section>
+  `;
 }
 
 function renderBackupRestoreTool(snapshot) {

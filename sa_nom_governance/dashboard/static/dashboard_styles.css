@@ -3233,6 +3233,55 @@ button:focus-visible {
   gap: 12px;
 }
 
+.control-room-groups {
+  display: grid;
+  gap: 18px;
+}
+
+.control-room-category {
+  padding: 22px 24px;
+}
+
+.control-room-category-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.control-room-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.control-room-tool-card {
+  align-content: start;
+}
+
+.control-room-tool-card.is-active {
+  border-color: rgba(190, 142, 58, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 20px 34px rgba(110, 78, 28, 0.12);
+}
+
+.control-room-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.control-room-provider-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.control-room-compact-panel {
+  padding: 22px 24px;
+}
+
 .control-room-detail-shell {
   display: grid;
   gap: 18px;
@@ -3241,7 +3290,6 @@ button:focus-visible {
 .control-room-detail-shell > * {
   min-width: 0;
 }
-
 .compact-trace {
   padding: 14px 16px;
 }

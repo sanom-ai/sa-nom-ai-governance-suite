@@ -1258,6 +1258,29 @@ def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_ro
         assert auditor_payload['session']['session_continuity_action'] == 'reconnect_session'
 
 
+def test_dashboard_service_exposes_control_room_governance_domains_for_owner_session() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        service = DashboardService(config=config)
+
+        payload = service.dashboard(_build_profile('owner'))
+        snapshot = payload
+
+        assert payload['session']['control_room_access'] is True
+        assert isinstance(snapshot.get('owner_registration', {}), dict)
+        assert isinstance(snapshot.get('operations', {}), dict)
+        assert isinstance(snapshot.get('role_private_studio', {}), dict)
+        assert isinstance(snapshot.get('retention', {}), dict)
+        assert isinstance(snapshot.get('integrations', {}), dict)
+        assert isinstance(snapshot.get('model_providers', {}), dict)
+        assert isinstance(snapshot.get('runtime_health', {}), dict)
+        assert isinstance(snapshot.get('operations', {}).get('first_run_action_center', {}), dict)
+        assert isinstance(snapshot.get('role_private_studio', {}).get('summary', {}), dict)
+        assert isinstance(snapshot.get('integrations', {}).get('summary', {}), dict)
+        assert 'status' in snapshot.get('model_providers', {})
+        assert isinstance(snapshot.get('runtime_health', {}).get('audit_integrity', {}), dict)
+
+
 def test_dashboard_service_surfaces_private_session_continuity_for_active_sessions() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)
