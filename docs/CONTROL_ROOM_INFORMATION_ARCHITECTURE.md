@@ -139,38 +139,25 @@ Includes:
 - draft readiness
 - restore and revision governance
 
-### 4. Documents And Records Governance
+### 4. Structural Risk And Alignment
 
 Purpose:
 
-- govern the system of record for documents and records
+- review structural governance pressure and alignment posture
 
 Includes:
 
-- document classes
-- numbering rules
-- approval routing rules
-- publish and archive authority
-- template governance
-- retention category mapping
-- records governance posture
+- PT-OSS Structural Intelligence
+- structural readiness posture
+- structural fragility and pressure posture
+- publication risk posture
+- AI workforce structural review
+- Global Harmony and alignment governance
+- alignment default region
+- constitution selection posture
+- resonance and regulatory posture
 
-### 5. Access And Sessions
-
-Purpose:
-
-- control who can access what and how runtime sessions behave
-
-Includes:
-
-- access profiles
-- delegated privilege posture
-- session policy posture
-- revoke and continuity controls
-- idle and expiry policy posture
-- operator access posture
-
-### 6. Trust And Evidence
+### 5. Trust And Evidence
 
 Purpose:
 
@@ -187,6 +174,22 @@ Includes:
 - signature status
 - manifest posture
 - trusted role mismatch posture
+
+### 6. Documents And Records
+
+Purpose:
+
+- govern the system of record for documents and records
+
+Includes:
+
+- document classes
+- numbering rules
+- approval routing rules
+- publish and archive authority
+- template governance
+- retention category mapping
+- records governance posture
 
 ### 7. Runtime And Recovery
 
@@ -220,7 +223,25 @@ Includes:
 - fallback lane readiness
 - notification and delivery diagnostics
 
-### 9. Master Data And Routing
+### 9. Access And Security
+
+Purpose:
+
+- control who can access what and how runtime sessions behave
+
+Includes:
+
+- access profiles
+- delegated privilege posture
+- session policy posture
+- revoke and continuity controls
+- idle and expiry policy posture
+- operator access posture
+- Authority Guard posture
+- Resource Lock posture
+- privileged access posture
+
+### 10. Master Data And Routing
 
 Purpose:
 
@@ -235,20 +256,6 @@ Includes:
 - fallback owner logic
 - SLA ownership posture
 - searchable directory posture
-
-### 10. Alignment
-
-Purpose:
-
-- govern cultural, regional, and alignment posture
-
-Includes:
-
-- Global Harmony and alignment governance
-- alignment default region
-- constitution selection posture
-- resonance and regulatory posture
-- culturally aware runtime switching posture
 
 ### 11. Admin Settings
 
@@ -276,19 +283,20 @@ Top navigation:
 Dropdown:
 
 - `Control Room`
+- optional shortcuts for `Setup & Onboarding`, `Role Private Studio`, and `Admin Settings` may appear under `Governance` as long as they still open inside Control Room
 
 Inside Control Room:
 
 - `Overview`
 - `Setup & Onboarding`
 - `AI Workforce & Roles`
-- `Documents & Records`
-- `Access & Sessions`
+- `Structural Risk & Alignment`
 - `Trust & Evidence`
+- `Documents & Records`
 - `Runtime & Recovery`
 - `Integrations & Providers`
+- `Access & Security`
 - `Master Data & Routing`
-- `Alignment`
 - `Admin Settings`
 
 ## Recommended Immediate Moves
@@ -309,6 +317,12 @@ The next Control Room consolidation pass should clearly expose these existing ca
 - Master Data governance
 - Assignment and routing governance
 - Global Harmony and alignment governance
+
+## Specific Product Notes
+
+- `Role Private Studio` remains the canonical name. Operators fill a normal JD-style document and the runtime converts it into PTAG and publication governance behind the scenes.
+- `Owner Registration` is primarily a SA-NOM team first-time setup lane, not a daily business-user tool.
+- `PT-OSS Structural Intelligence` is not a setup wizard. It is a structural governance posture surface that should be visible as risk and readiness intelligence.
 
 ## Progressive Disclosure Rules
 

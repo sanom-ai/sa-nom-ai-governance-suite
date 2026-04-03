@@ -230,6 +230,9 @@ const VIEW_TITLES = {
   retention: 'Documents & Records',
   integrations: 'Integrations',
   model_providers: 'Model Providers',
+  evidence_exports: 'Trust & Evidence',
+  master_data: 'Master Data & Routing',
+  structural_risk: 'Structural Risk & Alignment',
 };
 
 const VIEW_DESCRIPTIONS = {
@@ -255,6 +258,9 @@ const VIEW_DESCRIPTIONS = {
   retention: 'Retention, legal hold, and governed records posture inside Control Room.',
   integrations: 'Outbound routing, delivery posture, and integration readiness inside Control Room.',
   model_providers: 'AI provider readiness and default workforce execution posture inside Control Room.',
+  evidence_exports: 'Evidence exports, workflow proof posture, and trust continuity inside Control Room.',
+  master_data: 'People, teams, routing, assignments, and searchable directory governance inside Control Room.',
+  structural_risk: 'PT-OSS structural intelligence and advanced governance posture inside Control Room.',
 };
 
 const DEV_LANES = {
@@ -410,7 +416,7 @@ const VIEW_PERMISSIONS = {
   health: 'health.read',
 };
 
-const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings', 'owner_registration', 'retention', 'integrations', 'model_providers']);
+const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings', 'owner_registration', 'retention', 'integrations', 'model_providers', 'evidence_exports', 'master_data', 'structural_risk']);
 const GOVERNANCE_EMBEDDED_VIEWS = new Set(['setup', 'studio']);
 
 const ACTIONABLE_BUTTON_SELECTOR = [
@@ -5035,24 +5041,30 @@ function buildControlRoomCategoryGroups(snapshot) {
   const latestBackup = backupSummary.latest_backup || {};
   const retention = snapshot.retention || {};
   const sessions = Array.isArray(snapshot.sessions) ? snapshot.sessions : [];
+  const evidenceSummary = snapshot.evidence_exports?.summary || {};
+  const masterDataSummary = snapshot.master_data?.summary || {};
+  const assignmentSummary = snapshot.assignment_queue?.summary || {};
+  const searchSummary = snapshot.global_search?.summary || {};
+  const studioStructural = runtimeHealth.studio_structural || snapshot.go_live_readiness?.studio_structural || {};
+  const structuralAttention = Number(summary.studio_pt_oss_elevated_total || 0) + Number(summary.studio_pt_oss_critical_total || 0) + Number(summary.studio_pt_oss_blocking_issue_total || 0);
   return [
     {
       title: 'Setup & Onboarding',
-      note: 'These tools establish runtime identity, onboarding continuity, and pilot-readiness before deeper delegation spreads.',
+      note: 'First-run setup, deployment identity, diagnostics, and pilot hardening stay here so Home can remain operationally simple.',
       items: [
         {
           tool: 'setup',
-          label: 'Setup Assistant',
+          label: 'Setup & Onboarding',
           value: firstRun.ready ? 'ready' : `${String(operations.first_run_action_center?.required_total || firstRun.blockers_total || 0)} required`,
-          note: 'First-run assistant, doctor, and pilot hardening in one guided lane.',
+          note: 'Setup Assistant, Quick-Start Doctor, usability proof, and first-run continuity in one advanced lane.',
           tone: firstRun.ready ? 'tone-success' : 'tone-warning',
           badges: [formatStatusLabel(firstRun.status || 'blocked')],
         },
         {
           tool: 'owner_registration',
           label: 'Owner Registration',
-          value: registration.registered ? (registration.organization_name || 'registered') : 'setup needed',
-          note: 'Registration code, organization identity, and executive-owner posture.',
+          value: registration.registered ? (registration.organization_name || 'registered') : 'sa-nom setup required',
+          note: 'Private runtime identity, registration code, and executive-owner posture anchored during initial setup.',
           tone: registration.registered ? 'tone-success' : 'tone-warning',
           badges: [registration.registered ? 'registered' : 'missing', registration.deployment_mode || 'private'],
         },
@@ -5060,29 +5072,65 @@ function buildControlRoomCategoryGroups(snapshot) {
     },
     {
       title: 'AI Workforce & Roles',
-      note: 'Role creation, PTAG posture, trusted publication, and advanced role boundaries live here instead of the normal Home surface.',
+      note: 'Role Private Studio and trusted role governance stay together because this is where the AI workforce is created, reviewed, and published.',
       items: [
         {
           tool: 'studio',
           label: 'Role Private Studio',
           value: `${String(studioSummary.publisher_ready_total || 0)} publish ready`,
-          note: 'Draft, review, simulate, and publish governed AI roles from the same protected lane.',
+          note: 'Operators fill a normal JD-style form, and the runtime turns it into PTAG, review posture, and publication governance behind the scenes.',
           tone: Number(studioSummary.trust_attention_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
           badges: [Number(studioSummary.trust_attention_total || 0) > 0 ? 'trust attention' : 'studio live'],
         },
         {
           tool: 'policies',
-          label: 'Roles & Policies',
+          label: 'Role Library & Policies',
           value: roleLibrary.signature_status || roleLibrary.status || 'unknown',
-          note: 'Trusted hats, manifest posture, hierarchy, and policy boundaries.',
+          note: 'Trusted hats, manifest posture, hierarchy, authority boundaries, and publication trust remain visible here.',
           tone: String(roleLibrary.signature_status || roleLibrary.status || '').toLowerCase() === 'verified' ? 'tone-success' : 'tone-warning',
           badges: [roleLibrary.signature_status || roleLibrary.status || 'unknown'],
         },
       ],
     },
     {
+      title: 'Structural Risk & Alignment',
+      note: 'PT-OSS is a governance posture lane, not a setup wizard. It should stay visible as structural risk intelligence for advanced operators.',
+      items: [
+        {
+          tool: 'structural_risk',
+          label: 'PT-OSS Structural Intelligence',
+          value: structuralAttention > 0 ? `${String(structuralAttention)} risk signals` : 'monitoring',
+          note: 'Structural readiness, pressure posture, and governance risk across AI workforce roles and publication lanes.',
+          tone: structuralAttention > 0 ? 'tone-warning' : 'tone-success',
+          badges: [summary.studio_pt_oss_critical_total ? 'critical posture' : summary.studio_pt_oss_elevated_total ? 'elevated posture' : 'healthy watch'],
+        },
+      ],
+    },
+    {
+      title: 'Trust & Evidence',
+      note: 'Use these tools when you must prove what happened, review export posture, or verify that trust and evidence continuity still hold.',
+      items: [
+        {
+          tool: 'audit',
+          label: 'Audit Trail',
+          value: auditIntegrity.status || 'unknown',
+          note: 'Audit chain integrity, tamper-evident history, and operator-readable trust posture.',
+          tone: String(auditIntegrity.status || '').toLowerCase() === 'verified' ? 'tone-success' : 'tone-warning',
+          badges: [auditIntegrity.status || 'unknown'],
+        },
+        {
+          tool: 'evidence_exports',
+          label: 'Evidence Exports',
+          value: Number(evidenceSummary.exports_total || 0) > 0 ? `${String(evidenceSummary.exports_total || 0)} exports` : 'monitoring',
+          note: 'Evidence packs, workflow proof bundles, export posture, and trusted mismatch attention.',
+          tone: Number(evidenceSummary.attention_total || 0) > 0 || Number(evidenceSummary.trusted_role_mismatch_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [evidenceSummary.posture || 'unknown'],
+        },
+      ],
+    },
+    {
       title: 'Documents & Records',
-      note: 'Retention, legal hold, and records governance stay here so Home can focus on day-to-day operating work.',
+      note: 'Retention, legal hold, and governed records live here instead of the normal document work surface.',
       items: [
         {
           tool: 'retention',
@@ -5095,58 +5143,22 @@ function buildControlRoomCategoryGroups(snapshot) {
       ],
     },
     {
-      title: 'Trust & Evidence',
-      note: 'Use these tools when you must prove what happened, why the trust chain still holds, or what evidence posture needs attention.',
-      items: [
-        {
-          tool: 'audit',
-          label: 'Audit Trail',
-          value: auditIntegrity.status || 'unknown',
-          note: 'Chain integrity, evidence continuity, and operator-readable proof posture.',
-          tone: String(auditIntegrity.status || '').toLowerCase() === 'verified' ? 'tone-success' : 'tone-warning',
-          badges: [auditIntegrity.status || 'unknown'],
-        },
-      ],
-    },
-    {
-      title: 'Access & Sessions',
-      note: 'Short-lived access, revocation, and runtime identity discipline should stay visible to advanced operators without cluttering Home.',
-      items: [
-        {
-          tool: 'sessions',
-          label: 'Sessions',
-          value: sessions.length ? `${String(sessions.length)} active` : 'clear',
-          note: 'Issued sessions, expiry windows, and revocation posture.',
-          tone: sessions.length ? 'tone-accent' : 'tone-success',
-          badges: [sessions.length ? 'active access' : 'no pressure'],
-        },
-      ],
-    },
-    {
       title: 'Runtime & Recovery',
-      note: 'Health, lock pressure, backups, and runtime recovery belong here because they are advanced operator signals, not Home clutter.',
+      note: 'Health, recovery bundles, diagnostics, and operational resilience belong here because they are advanced operator signals, not Home clutter.',
       items: [
         {
           tool: 'health',
           label: 'Runtime Health',
           value: runtimeHealth.status || 'unknown',
-          note: 'Deployment, storage, runtime stores, and infrastructure posture.',
+          note: 'Deployment, storage, runtime stores, diagnostics, and infrastructure posture.',
           tone: String(runtimeHealth.status || '').toLowerCase() === 'ok' ? 'tone-success' : 'tone-warning',
           badges: [runtimeHealth.status || 'unknown'],
-        },
-        {
-          tool: 'conflicts',
-          label: 'Conflicts & Locks',
-          value: `${String(summary.active_locks || 0)} items`,
-          note: 'Contention, blocked execution, and shared resource pressure.',
-          tone: Number(summary.active_locks || 0) > 0 ? 'tone-warning' : 'tone-success',
-          badges: [Number(summary.active_locks || 0) > 0 ? 'attention' : 'clear'],
         },
         {
           tool: 'backup_restore',
           label: 'Backup & Restore',
           value: latestBackup.backup_id || `${String(backupSummary.backups_total || 0)} bundles`,
-          note: 'Recovery bundles, restore guidance, and pilot-hardening artifacts.',
+          note: 'Recovery bundles, restore guidance, performance baseline, and pilot-hardening artifacts.',
           tone: latestBackup.backup_id ? 'tone-accent' : 'tone-warning',
           badges: [latestBackup.backup_id ? 'backup ready' : 'backup needed'],
         },
@@ -5154,13 +5166,13 @@ function buildControlRoomCategoryGroups(snapshot) {
     },
     {
       title: 'Integrations & Providers',
-      note: 'Outbound delivery, model providers, and workforce execution dependencies should stay grouped inside one advanced governance section.',
+      note: 'Outbound delivery, notification routing, and model provider readiness should stay grouped inside one advanced governance section.',
       items: [
         {
           tool: 'integrations',
           label: 'Integrations',
           value: Number(integrationSummary.active_targets || 0) > 0 ? `${String(integrationSummary.active_targets || 0)} active targets` : 'setup needed',
-          note: 'Targets, delivery posture, outbox pressure, and notification routing.',
+          note: 'Targets, delivery posture, outbox pressure, and outbound governance routing.',
           tone: Number(integrationSummary.failed_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
           badges: [Number(integrationSummary.failed_total || 0) > 0 ? 'delivery pressure' : 'routing posture'],
         },
@@ -5168,9 +5180,45 @@ function buildControlRoomCategoryGroups(snapshot) {
           tool: 'model_providers',
           label: 'Model Providers',
           value: Number(modelProviders.configured_providers || 0) > 0 ? `${String(modelProviders.configured_providers || 0)} configured` : 'setup needed',
-          note: 'Default provider readiness and AI workforce execution path.',
+          note: 'Default provider readiness and AI workforce execution path inside the private-first boundary.',
           tone: Number(modelProviders.configured_providers || 0) > 0 && modelProviders.default_provider_ready !== false ? 'tone-success' : 'tone-warning',
           badges: [modelProviders.default_provider || 'no default'],
+        },
+      ],
+    },
+    {
+      title: 'Access & Security',
+      note: 'Session posture, authority boundaries, and protected resource pressure stay here for advanced governance review.',
+      items: [
+        {
+          tool: 'sessions',
+          label: 'Sessions',
+          value: sessions.length ? `${String(sessions.length)} active` : 'clear',
+          note: 'Issued sessions, expiry windows, continuity, and revocation posture.',
+          tone: sessions.length ? 'tone-accent' : 'tone-success',
+          badges: [sessions.length ? 'active access' : 'no pressure'],
+        },
+        {
+          tool: 'conflicts',
+          label: 'Authority Guard & Locks',
+          value: `${String(summary.active_locks || 0)} items`,
+          note: 'Contention, blocked execution, protected resources, and advanced pressure in governed lanes.',
+          tone: Number(summary.active_locks || 0) > 0 ? 'tone-warning' : 'tone-success',
+          badges: [Number(summary.active_locks || 0) > 0 ? 'attention' : 'clear'],
+        },
+      ],
+    },
+    {
+      title: 'Master Data & Routing',
+      note: 'People, teams, assignments, and searchable routing posture should be maintained here as governance infrastructure, not treated as raw directory plumbing.',
+      items: [
+        {
+          tool: 'master_data',
+          label: 'Master Data & Routing',
+          value: Number(masterDataSummary.people_total || 0) > 0 ? `${String(masterDataSummary.people_total || 0)} people` : 'setup needed',
+          note: 'Organization structure, assignment queue posture, team routing, and searchable governance continuity.',
+          tone: Number(assignmentSummary.human_required_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [searchSummary.search_ready ? 'search ready' : 'index warming'],
         },
       ],
     },
@@ -5277,19 +5325,282 @@ function renderControlRoom(snapshot) {
 function renderControlRoomTool(snapshot, tool) {
   if (tool === 'setup') return renderSetupAssistant(snapshot);
   if (tool === 'studio') return renderStudio(snapshot.role_private_studio || { summary: {}, requests: [], template: {}, examples: [] });
-  if (tool === 'conflicts') return renderConflicts(snapshot);
+  if (tool === 'structural_risk') return renderStructuralRiskTool(snapshot);
   if (tool === 'audit') return renderAudit(snapshot);
+  if (tool === 'evidence_exports') return renderEvidenceExportsTool(snapshot);
   if (tool === 'policies') return renderPolicies(snapshot.roles || []);
-  if (tool === 'sessions') return wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Short-lived runtime sessions and revocation state for advanced governance review.');
-  if (tool === 'owner_registration') return renderOwnerRegistrationTool(snapshot);
   if (tool === 'retention') return renderRetentionTool(snapshot);
+  if (tool === 'health') return renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
+  if (tool === 'backup_restore') return renderBackupRestoreTool(snapshot);
   if (tool === 'integrations') return renderIntegrationsTool(snapshot);
   if (tool === 'model_providers') return renderModelProvidersTool(snapshot);
-  if (tool === 'backup_restore') return renderBackupRestoreTool(snapshot);
+  if (tool === 'sessions') return wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Short-lived runtime sessions and revocation state for advanced governance review.');
+  if (tool === 'conflicts') return renderConflicts(snapshot);
+  if (tool === 'master_data') return renderMasterDataGovernanceTool(snapshot);
   if (tool === 'admin_settings') return renderAdminSettingsTool(snapshot);
+  if (tool === 'owner_registration') return renderOwnerRegistrationTool(snapshot);
   return renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
 }
 
+function renderStructuralRiskTool(snapshot) {
+  const summary = snapshot.summary || {};
+  const studioSummary = snapshot.role_private_studio?.summary || {};
+  const studioStructural = snapshot.runtime_health?.studio_structural || snapshot.go_live_readiness?.studio_structural || {};
+  const guardedTotal = Number(summary.studio_structural_guarded_total || studioSummary.structural_guarded_total || 0);
+  const blockedTotal = Number(summary.studio_structural_blocked_total || studioSummary.structural_blocked_total || 0);
+  const readyTotal = Number(summary.studio_structural_ready_total || studioSummary.structural_ready_total || 0);
+  const elevatedTotal = Number(summary.studio_pt_oss_elevated_total || studioSummary.pt_oss_elevated_total || 0);
+  const criticalTotal = Number(summary.studio_pt_oss_critical_total || studioSummary.pt_oss_critical_total || 0);
+  const blockingIssueTotal = Number(summary.studio_pt_oss_blocking_issue_total || studioSummary.pt_oss_blocking_issue_total || 0);
+  const healthyTotal = Number(summary.studio_pt_oss_healthy_total || studioSummary.pt_oss_healthy_total || 0);
+  const publicSectorTotal = Number(summary.studio_pt_oss_public_sector_total || studioSummary.pt_oss_public_sector_mode_total || 0);
+  const posture = studioStructural.status || (criticalTotal > 0 ? 'critical' : elevatedTotal > 0 || blockingIssueTotal > 0 ? 'elevated' : guardedTotal > 0 ? 'watch' : 'healthy');
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Structural Risk &amp; Alignment</div>
+              <h2 class="hero-title">PT-OSS stays visible here as structural governance intelligence, not as a setup wizard.</h2>
+              <p class="hero-subtitle">Use this lane to understand whether the AI workforce is structurally calm enough for trusted publication and delegated execution before advanced operators approve the next governance move.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(posture)}${statusBadge(publicSectorTotal > 0 ? 'public sector mode' : 'private sector mix')}</div>
+          </div>
+          <div class="metrics-grid metrics-grid-luxury">
+            ${metricCard('Guarded drafts', guardedTotal, guardedTotal > 0 ? 'warning' : 'success', 'Draft hats that still need structural review before trusted publication.')}
+            ${metricCard('Blocked drafts', blockedTotal, blockedTotal > 0 ? 'danger' : 'success', 'Role packs blocked by structural readiness or fragility concerns.')}
+            ${metricCard('Elevated posture', elevatedTotal, elevatedTotal > 0 ? 'warning' : 'success', 'PT-OSS elevated signals that still need operator attention.')}
+            ${metricCard('Critical posture', criticalTotal, criticalTotal > 0 ? 'danger' : 'success', 'Highest structural risk posture currently visible across governed hats.')}
+            ${metricCard('Blocking issues', blockingIssueTotal, blockingIssueTotal > 0 ? 'warning' : 'success', 'Explicit PT-OSS blocking issues that stop publication or governed movement.')}
+            ${metricCard('Healthy lanes', healthyTotal || readyTotal, healthyTotal || readyTotal ? 'success' : 'default', 'Hats and structural lanes that are calm enough to move without extra pressure.')}
+          </div>
+          <div class="inline-actions">
+            <button class="action-button" type="button" data-control-room-tool="studio">Open Role Private Studio</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="policies">Open Role Library &amp; Policies</button>
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">What this means</div>
+            <h3 class="card-title">Structural posture should guide publication and delegation</h3>
+            <p class="card-subtitle">PT-OSS belongs in Control Room because it explains why a role is structurally safe, guarded, or blocked before advanced operators trust it in the real organization.</p>
+          </div>
+          ${keyValue([
+            ['Current posture', formatStatusLabel(posture)],
+            ['Guarded total', String(guardedTotal)],
+            ['Blocked total', String(blockedTotal)],
+            ['Critical total', String(criticalTotal)],
+            ['Public-sector mode hats', String(publicSectorTotal)],
+            ['Structural note', studioStructural.note || studioStructural.message || 'PT-OSS posture is active on this runtime.'],
+          ])}
+        </article>
+      </section>
+      <section class="split-grid">
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Publication pressure</div>
+            <h3 class="card-title">What must settle before the next trusted publish</h3>
+            <p class="card-subtitle">Advanced operators should review guarded or blocked drafts before publication, especially when elevated or critical PT-OSS signals are still live.</p>
+          </div>
+          <div class="hero-split">
+            <div class="trace-box"><strong>Guarded lane</strong><p class="muted">${escapeHtml(guardedTotal > 0 ? `${guardedTotal} draft hats still require structural review before trusted release.` : 'No guarded drafts are waiting right now.')}</p></div>
+            <div class="trace-box"><strong>Blocked lane</strong><p class="muted">${escapeHtml(blockedTotal > 0 ? `${blockedTotal} hats are blocked because structural pressure still prevents safe publication.` : 'No blocked studio drafts are visible right now.')}</p></div>
+          </div>
+        </article>
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Alignment note</div>
+            <h3 class="card-title">Alignment stays in this same governance lane</h3>
+            <p class="card-subtitle">Global Harmony belongs with structural governance. PT-OSS is the active signal today, while deeper alignment controls stay behind the same Control Room boundary.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge('pt-oss visible')}${statusBadge('advanced governance')}</div>
+        </article>
+      </section>
+    </section>
+  `;
+}
+function renderEvidenceExportsTool(snapshot) {
+  const evidence = snapshot.evidence_exports || { summary: {}, exports: [], workflow_proofs: [] };
+  const summary = evidence.summary || {};
+  const exports = Array.isArray(evidence.exports) ? evidence.exports : [];
+  const proofs = Array.isArray(evidence.workflow_proofs) ? evidence.workflow_proofs : [];
+  const latestExport = summary.latest_export || exports[0] || {};
+  const latestProof = summary.latest_workflow_proof || proofs[0] || {};
+  const auditIntegrity = snapshot.runtime_health?.audit_integrity || {};
+  const trustedRegistry = snapshot.runtime_health?.trusted_registry || {};
+  const exportCards = exports.slice(0, 4).map((item) => {
+    const exportId = item.evidence_pack_id || item.export_id || item.bundle_id || 'evidence export';
+    return `
+      <article class="trace-box compact-trace">
+        <div class="hero-chip-row">${statusBadge(item.posture || 'ready')}</div>
+        <strong>${escapeHtml(exportId)}</strong>
+        ${keyValue([
+          ['Created', item.created_at || item.exported_at || '-'],
+          ['Requested by', item.requested_by || item.exported_by || '-'],
+          ['Workflow proof total', String(item.workflow_proof_total || 0)],
+          ['Trusted mismatches', String(item.trusted_role_mismatch_total || 0)],
+          ['Export path', item.export_path || '-'],
+        ])}
+      </article>
+    `;
+  }).join('');
+  const proofCards = proofs.slice(0, 4).map((item) => {
+    const workflowId = item.workflow_id || item.bundle_id || 'workflow proof';
+    return `
+      <article class="trace-box compact-trace">
+        <div class="hero-chip-row">${statusBadge(item.posture || 'ready')}</div>
+        <strong>${escapeHtml(workflowId)}</strong>
+        ${keyValue([
+          ['Created', item.created_at || '-'],
+          ['Requested by', item.requested_by || '-'],
+          ['Human sessions', String(item.human_session_total || 0)],
+          ['Audit events', String(item.audit_event_total || 0)],
+          ['Export path', item.export_path || '-'],
+        ])}
+      </article>
+    `;
+  }).join('');
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Trust &amp; Evidence</div>
+              <h2 class="hero-title">Evidence exports and workflow proof bundles keep trust readable without leaking low-level identifiers onto Home.</h2>
+              <p class="hero-subtitle">Use this advanced lane when a founder, admin, or IT operator needs to confirm export posture, workflow proof continuity, or trusted mismatch attention before treating a case as auditor-ready.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(summary.posture || auditIntegrity.status || 'unknown')}${statusBadge(trustedRegistry.signature_status || trustedRegistry.status || 'registry status')}</div>
+          </div>
+          <div class="metrics-grid metrics-grid-luxury">
+            ${metricCard('Evidence exports', summary.exports_total || 0, Number(summary.exports_total || 0) > 0 ? 'accent' : 'default', 'Exported evidence packs currently visible from the private runtime.')}
+            ${metricCard('Workflow proofs', summary.workflow_proof_total || 0, Number(summary.workflow_proof_total || 0) > 0 ? 'accent' : 'default', 'Workflow proof bundles that already tie human, document, and audit context together.')}
+            ${metricCard('Attention', summary.attention_total || 0, Number(summary.attention_total || 0) > 0 ? 'warning' : 'success', 'Evidence or proof exports that still require operator review.')}
+            ${metricCard('Trusted mismatches', summary.trusted_role_mismatch_total || 0, Number(summary.trusted_role_mismatch_total || 0) > 0 ? 'danger' : 'success', 'Exports that surfaced trust drift between live role material and the trusted registry manifest.')}
+          </div>
+          <div class="inline-actions">
+            <button class="action-button" type="button" data-control-room-tool="audit">Open Audit Trail</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="policies">Open Role Library &amp; Policies</button>
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Latest trust signals</div>
+            <h3 class="card-title">The newest export and proof bundle stay visible together</h3>
+            <p class="card-subtitle">Evidence should read as one trust story. Export posture, workflow proof, audit integrity, and trusted registry posture belong in the same advanced decision lane.</p>
+          </div>
+          ${keyValue([
+            ['Audit integrity', auditIntegrity.status || '-'],
+            ['Registry signature', trustedRegistry.signature_status || trustedRegistry.status || '-'],
+            ['Latest export', latestExport.evidence_pack_id || latestExport.export_id || latestExport.bundle_id || '-'],
+            ['Latest proof', latestProof.workflow_id || latestProof.bundle_id || '-'],
+            ['Latest export posture', latestExport.posture || summary.posture || '-'],
+            ['Latest proof posture', latestProof.posture || '-'],
+          ])}
+        </article>
+      </section>
+      <section class="card-grid">
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Recent exports</div>
+            <h3 class="card-title">Evidence packs</h3>
+            <p class="card-subtitle">Use exports when you need a portable bundle of audit, trust, and workflow material.</p>
+          </div>
+          ${exportCards || emptyState('No evidence exports have been created yet.')}
+        </article>
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Recent workflow proofs</div>
+            <h3 class="card-title">Workflow proof bundles</h3>
+            <p class="card-subtitle">Workflow proof bundles connect document, audit, human handoff, and runtime action continuity into one review-ready package.</p>
+          </div>
+          ${proofCards || emptyState('No workflow proof bundles have been created yet.')}
+        </article>
+      </section>
+    </section>
+  `;
+}
+function renderMasterDataGovernanceTool(snapshot) {
+  const masterData = snapshot.master_data || { summary: {}, people: [], seats: [], teams: [] };
+  const masterSummary = masterData.summary || {};
+  const assignmentQueue = snapshot.assignment_queue || { summary: {}, items: [] };
+  const assignmentSummary = assignmentQueue.summary || {};
+  const assignmentItems = Array.isArray(assignmentQueue.items) ? assignmentQueue.items.slice(0, 4) : [];
+  const search = snapshot.global_search || { summary: {}, items: [] };
+  const searchSummary = search.summary || {};
+  const searchItems = Array.isArray(search.items) ? search.items.slice(0, 4) : [];
+  const teams = Array.isArray(masterData.teams) ? masterData.teams.slice(0, 4) : [];
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Master Data &amp; Routing</div>
+              <h2 class="hero-title">Keep people, teams, routing, and searchable ownership readable as governance infrastructure.</h2>
+              <p class="hero-subtitle">This is the advanced lane for governing organization structure, assignment ownership, fallback routing, and searchable continuity across cases, documents, and AI work. Normal users should not need to inspect this just to do daily work.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(searchSummary.search_ready ? 'search ready' : 'index warming')}${statusBadge(Number(assignmentSummary.human_required_total || 0) > 0 ? 'human routing active' : 'routing clear')}</div>
+          </div>
+          <div class="metrics-grid metrics-grid-luxury">
+            ${metricCard('People', masterSummary.people_total || 0, Number(masterSummary.people_total || 0) > 0 ? 'accent' : 'default', 'Directory people available to route governed work.')}
+            ${metricCard('Seats', masterSummary.seats_total || 0, Number(masterSummary.seats_total || 0) > 0 ? 'accent' : 'default', 'Governed seats attached to teams, owners, or workflow lanes.')}
+            ${metricCard('Teams', masterSummary.teams_total || 0, Number(masterSummary.teams_total || 0) > 0 ? 'accent' : 'default', 'Business teams visible to the routing and search layer.')}
+            ${metricCard('Assignments', assignmentSummary.items_total || 0, Number(assignmentSummary.items_total || 0) > 0 ? 'accent' : 'default', 'Governed assignment items currently routed through the runtime.')}
+            ${metricCard('Human required', assignmentSummary.human_required_total || 0, Number(assignmentSummary.human_required_total || 0) > 0 ? 'warning' : 'success', 'Assignments that still need an explicit human boundary move.')}
+            ${metricCard('Indexed records', searchSummary.indexed_total || 0, Number(searchSummary.indexed_total || 0) > 0 ? 'success' : 'default', 'Searchable objects currently visible through the global directory and retrieval layer.')}
+          </div>
+          <div class="inline-actions">
+            ${renderViewJumpButton({ view: 'directory', label: 'Open Directory & Search', className: 'action-button' })}
+            ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button action-button-muted' })}
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Routing governance</div>
+            <h3 class="card-title">Search, assignment, and fallback ownership belong together</h3>
+            <p class="card-subtitle">Master data becomes governance infrastructure when the runtime can route work to a real owner, explain why, and still let advanced operators trace search continuity back through the command surface.</p>
+          </div>
+          ${keyValue([
+            ['Organization', masterSummary.organization_name || '-'],
+            ['Primary view', assignmentSummary.primary_view || searchSummary.primary_view || 'directory'],
+            ['Critical assignments', String(assignmentSummary.critical_total || 0)],
+            ['High priority', String(assignmentSummary.high_priority_total || 0)],
+            ['Search ready', searchSummary.search_ready ? 'yes' : 'no'],
+            ['Indexed types', String(searchSummary.indexed_types_total || 0)],
+          ])}
+        </article>
+      </section>
+      <section class="card-grid">
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Teams in scope</div>
+            <h3 class="card-title">Governed routing map</h3>
+            <p class="card-subtitle">Use this to confirm the team layer exists before expecting clean assignment or department-driven quick access.</p>
+          </div>
+          ${teams.length ? `<div class="stack gap-sm">${teams.map((item) => renderDirectoryEntityCard(item, 'team')).join('')}</div>` : emptyState('No teams are seeded yet.')}
+        </article>
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Assignment pressure</div>
+            <h3 class="card-title">Current routed work</h3>
+            <p class="card-subtitle">Assignment governance should show who owns the next move, not force operators to guess where work landed.</p>
+          </div>
+          ${assignmentItems.length ? `<div class="stack gap-sm">${assignmentItems.map((item) => renderDirectoryAssignmentCard(item)).join('')}</div>` : emptyState('No assignment items are visible yet.')}
+        </article>
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Search continuity</div>
+            <h3 class="card-title">Recent searchable objects</h3>
+            <p class="card-subtitle">Search belongs in Control Room here because advanced operators need to verify index health and routing discoverability, not because normal users should see search internals on Home.</p>
+          </div>
+          ${searchItems.length ? `<div class="stack gap-sm">${searchItems.map((item) => renderDirectorySearchResultCard(item)).join('')}</div>` : emptyState('Global search has not indexed any records yet.')}
+        </article>
+      </section>
+    </section>
+  `;
+}
 function renderOwnerRegistrationTool(snapshot) {
   const registration = snapshot.owner_registration || snapshot.runtime_health?.owner_registration || {};
   const setupAssistant = snapshot.operations?.first_run_action_center || {};

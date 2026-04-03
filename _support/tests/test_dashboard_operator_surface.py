@@ -1277,8 +1277,16 @@ def test_dashboard_service_exposes_control_room_governance_domains_for_owner_ses
         assert isinstance(snapshot.get('operations', {}).get('first_run_action_center', {}), dict)
         assert isinstance(snapshot.get('role_private_studio', {}).get('summary', {}), dict)
         assert isinstance(snapshot.get('integrations', {}).get('summary', {}), dict)
+        assert isinstance(snapshot.get('evidence_exports', {}), dict)
+        assert isinstance(snapshot.get('evidence_exports', {}).get('summary', {}), dict)
+        assert isinstance(snapshot.get('master_data', {}), dict)
+        assert isinstance(snapshot.get('assignment_queue', {}), dict)
+        assert isinstance(snapshot.get('global_search', {}), dict)
         assert 'status' in snapshot.get('model_providers', {})
         assert isinstance(snapshot.get('runtime_health', {}).get('audit_integrity', {}), dict)
+        assert isinstance(snapshot.get('runtime_health', {}).get('trusted_registry', {}), dict)
+        assert 'studio_pt_oss_critical_total' in snapshot.get('summary', {})
+        assert 'studio_structural_guarded_total' in snapshot.get('summary', {})
 
 
 def test_dashboard_service_surfaces_private_session_continuity_for_active_sessions() -> None:
