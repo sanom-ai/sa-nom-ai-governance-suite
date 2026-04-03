@@ -7,6 +7,7 @@ from sa_nom_governance.compliance.retention_manager import RetentionManager
 from sa_nom_governance.deployment.deployment_profile import build_deployment_report
 from sa_nom_governance.deployment.go_live_readiness import build_go_live_readiness
 from sa_nom_governance.documents.document_service import GovernedDocumentService
+from sa_nom_governance.master_data.master_data_service import MasterDataService
 from sa_nom_governance.ptag.role_loader import RoleLoader
 from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.utils.registry import RoleRegistry
@@ -22,6 +23,7 @@ class DashboardSnapshotBuilder:
         self.document_center = GovernedDocumentService(self.config)
         self.action_runtime = self.app.action_runtime
         self.access_control = self.app.access_control
+        self.master_data = self.app.master_data if hasattr(self.app, 'master_data') else MasterDataService(self.config, self.access_control)
 
     def build(self) -> dict[str, object]:
         audit_entries = self.list_audit(limit=200)
@@ -111,6 +113,39 @@ class DashboardSnapshotBuilder:
             actions=actions,
             audit_entries=audit_entries,
             cases=cases,
+        )
+        master_data = self.master_data.master_data_snapshot(
+            roles=roles,
+            requests=requests,
+            overrides=overrides,
+            human_ask=human_ask,
+            role_private_studio=role_private_studio,
+            documents=documents,
+            actions=actions,
+            cases=cases,
+            owner_registration=owner_registration,
+        )
+        assignment_queue = self.master_data.assignment_queue_snapshot(
+            master_data=master_data,
+            overrides=overrides,
+            human_ask=human_ask,
+            role_private_studio=role_private_studio,
+            documents=documents,
+            actions=actions,
+            unified_work_inbox=unified_work_inbox,
+        )
+        global_search = self.master_data.global_search_snapshot(
+            master_data=master_data,
+            assignment_queue=assignment_queue,
+            cases=cases,
+            requests=requests,
+            documents=documents,
+            actions=actions,
+            human_ask=human_ask,
+            roles=roles,
+            evidence_exports=evidence_exports,
+            sessions=sessions,
+            role_private_studio=role_private_studio,
         )
         operator_notification_center = self.operator_notification_center(
             queue_health=operator_queue_health,
@@ -269,6 +304,15 @@ class DashboardSnapshotBuilder:
                 'cases_human_required_total': int((cases.get('summary', {}) or {}).get('human_required_total', 0) or 0),
                 'cases_blocked_total': int((cases.get('summary', {}) or {}).get('blocked_total', 0) or 0),
                 'cases_primary_view': str((cases.get('summary', {}) or {}).get('primary_view', 'overview')),
+                'directory_people_total': int((master_data.get('summary', {}) if isinstance(master_data.get('summary', {}), dict) else {}).get('people_total', 0) or 0),
+                'directory_seats_total': int((master_data.get('summary', {}) if isinstance(master_data.get('summary', {}), dict) else {}).get('seats_total', 0) or 0),
+                'directory_teams_total': int((master_data.get('summary', {}) if isinstance(master_data.get('summary', {}), dict) else {}).get('teams_total', 0) or 0),
+                'assignment_items_total': int((assignment_queue.get('summary', {}) if isinstance(assignment_queue.get('summary', {}), dict) else {}).get('items_total', 0) or 0),
+                'assignment_critical_total': int((assignment_queue.get('summary', {}) if isinstance(assignment_queue.get('summary', {}), dict) else {}).get('critical_total', 0) or 0),
+                'assignment_human_required_total': int((assignment_queue.get('summary', {}) if isinstance(assignment_queue.get('summary', {}), dict) else {}).get('human_required_total', 0) or 0),
+                'assignment_primary_view': str((assignment_queue.get('summary', {}) if isinstance(assignment_queue.get('summary', {}), dict) else {}).get('primary_view', 'directory')),
+                'search_index_total': int((global_search.get('summary', {}) if isinstance(global_search.get('summary', {}), dict) else {}).get('indexed_total', 0) or 0),
+                'search_primary_view': str((global_search.get('summary', {}) if isinstance(global_search.get('summary', {}), dict) else {}).get('primary_view', 'directory')),
                 'operator_notification_candidates_total': int(operator_notification_center.get('dispatch_candidates_total', 0) or 0),
                 'operator_notification_channels_total': int(operator_notification_center.get('active_channel_total', 0) or 0),
                 'operator_notification_posture': str(operator_notification_delivery_readiness.get('posture', 'unknown')),
@@ -290,6 +334,9 @@ class DashboardSnapshotBuilder:
             'documents': documents,
             'actions': actions,
             'cases': cases,
+            'master_data': master_data,
+            'assignment_queue': assignment_queue,
+            'global_search': global_search,
             'operations': operations,
             'compliance': compliance,
             'evidence_exports': evidence_exports,
@@ -1830,6 +1877,7 @@ class DashboardSnapshotBuilder:
             'human_ask_store': self._file_health(self.config.human_ask_store_path),
             'document_store': self._file_health(self.config.document_store_path),
             'action_runtime_store': self._file_health(self.config.action_runtime_store_path),
+            'master_data_store': self._file_health(self.config.master_data_store_path),
             'startup_smoke_report': self._file_health(self.config.startup_smoke_report_path),
             'retention_archive_dir': self._file_health(self.config.retention_archive_dir),
             'runtime_backup_dir': self._file_health(self.config.runtime_backup_dir),

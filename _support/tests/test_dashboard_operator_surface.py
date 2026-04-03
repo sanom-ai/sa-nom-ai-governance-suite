@@ -75,6 +75,35 @@ def test_dashboard_snapshot_includes_operational_readiness_summary() -> None:
 
 
 
+def test_dashboard_snapshot_exposes_master_data_assignment_and_search_summary() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        snapshot = DashboardSnapshotBuilder(config=config).build()
+
+        master_data = snapshot.get('master_data', {})
+        assignment_queue = snapshot.get('assignment_queue', {})
+        global_search = snapshot.get('global_search', {})
+        summary = snapshot.get('summary', {})
+        runtime_health = snapshot.get('runtime_health', {})
+
+        assert isinstance(master_data, dict)
+        assert isinstance(assignment_queue, dict)
+        assert isinstance(global_search, dict)
+        assert isinstance(master_data.get('summary', {}), dict)
+        assert isinstance(assignment_queue.get('summary', {}), dict)
+        assert isinstance(global_search.get('summary', {}), dict)
+        assert isinstance(summary.get('directory_people_total'), int)
+        assert isinstance(summary.get('directory_seats_total'), int)
+        assert isinstance(summary.get('directory_teams_total'), int)
+        assert isinstance(summary.get('assignment_items_total'), int)
+        assert isinstance(summary.get('assignment_critical_total'), int)
+        assert isinstance(summary.get('assignment_human_required_total'), int)
+        assert summary.get('assignment_primary_view') in {'overview', 'requests', 'overrides', 'directory', 'documents', 'actions', 'human_ask', 'studio'}
+        assert isinstance(summary.get('search_index_total'), int)
+        assert summary.get('search_primary_view') == 'directory'
+        assert runtime_health.get('master_data_store', {}).get('status') in {'present', 'missing'}
+
+
 def test_build_operator_decision_lanes_maps_human_required_and_blocked_paths() -> None:
     lanes = DashboardSnapshotBuilder.build_operator_decision_lanes(
         {
