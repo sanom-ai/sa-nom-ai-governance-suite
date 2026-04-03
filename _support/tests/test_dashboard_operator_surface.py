@@ -1197,3 +1197,18 @@ def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_ro
         assert auditor_payload['session']['control_room_access'] is False
         assert auditor_payload['session']['setup_assistant_access'] is False
         assert auditor_payload['session']['persona'] == 'executive'
+
+
+def test_dashboard_service_operations_include_runtime_performance_baseline() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        service = DashboardService(config=config)
+
+        operations = service.operations(limit=5)
+
+        assert isinstance(operations, dict)
+        assert 'runtime_performance_baseline' in operations
+        baseline = operations.get('runtime_performance_baseline', {})
+        assert isinstance(baseline, dict)
+        assert baseline.get('status') in {'missing', 'ready', 'warning', 'critical'}
+        assert isinstance(baseline.get('available'), bool)

@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.7-ui1';
+import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.7-ui2';
 
 const state = {
   view: getInitialDashboardView(),
@@ -76,6 +76,8 @@ const VIEW_TITLES = {
   policies: 'Roles & Policies',
   health: 'Runtime Health',
   control_room: 'Control Room',
+  backup_restore: 'Backup & Restore',
+  admin_settings: 'Admin Settings',
 };
 
 const VIEW_DESCRIPTIONS = {
@@ -95,6 +97,8 @@ const VIEW_DESCRIPTIONS = {
   policies: 'Inspect active role packs and policy boundaries.',
   health: 'Check deployment, storage, integrations, and runtime posture.',
   control_room: 'Advanced governance tools for admin, IT, and founder sessions only.',
+  backup_restore: 'Recovery bundles, restore guidance, and pilot-hardening artifacts inside Control Room.',
+  admin_settings: 'Organization identity, access policy, providers, and routing posture inside Control Room.',
 };
 
 const DEV_LANES = {
@@ -250,7 +254,7 @@ const VIEW_PERMISSIONS = {
   health: 'health.read',
 };
 
-const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions']);
+const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings']);
 
 const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-dev-lane]',
@@ -4509,16 +4513,23 @@ function renderSetupAssistant(snapshot) {
 
 function renderControlRoom(snapshot) {
   const runtimeHealth = snapshot.runtime_health || {};
+  const operations = snapshot.operations || {};
   const auditIntegrity = runtimeHealth.audit_integrity || {};
   const roleLibrary = runtimeHealth.role_library || {};
+  const accessControl = runtimeHealth.access_control || {};
+  const backupSummary = operations.summary || {};
+  const latestBackup = backupSummary.latest_backup || {};
+  const registration = snapshot.owner_registration || {};
+  const currentTool = state.controlRoomTool || 'health';
   const governanceSummary = [
     { tool: 'health', label: 'Runtime Health', value: runtimeHealth.status || 'unknown', note: 'Deployment, storage, and integration posture.' },
     { tool: 'conflicts', label: 'Conflicts & Locks', value: String(snapshot.summary.active_locks || 0), note: 'Blocked or contended execution lanes.' },
     { tool: 'audit', label: 'Audit Chain', value: auditIntegrity.status || 'verified', note: 'Chain integrity and evidence continuity.' },
-    { tool: 'policies', label: 'Trusted Registry', value: roleLibrary.status || 'unknown', note: 'Role packs, manifest trust, and signature posture.' },
+    { tool: 'policies', label: 'Trusted Registry', value: roleLibrary.signature_status || roleLibrary.status || 'unknown', note: 'Role packs, manifest trust, and signature posture.' },
     { tool: 'sessions', label: 'Sessions', value: String((snapshot.sessions || []).length), note: 'Short-lived runtime access and revocation.' },
+    { tool: 'backup_restore', label: 'Backup & Restore', value: latestBackup.backup_id || `${String(backupSummary.backups_total || 0)} bundles`, note: 'Recovery bundles, restore guidance, and pilot-hardening artifacts.' },
+    { tool: 'admin_settings', label: 'Admin Settings', value: registration.registered ? (registration.organization_name || 'registered') : 'setup needed', note: 'Organization identity, access policy, providers, and routing posture.' },
   ];
-  const currentTool = state.controlRoomTool || 'health';
   const embedded = renderControlRoomTool(snapshot, currentTool);
   return `
     <section class="stack gap-lg">
@@ -4528,25 +4539,29 @@ function renderControlRoom(snapshot) {
             <div>
               <div class="eyebrow">Control Room</div>
               <h3 class="hero-title">Advanced Governance Tools (Admin / IT / Founder only)</h3>
-              <p class="hero-subtitle">This surface keeps audit chain, evidence integrity, trusted registry, runtime health, and contention tooling out of the normal Home dashboard until an advanced operator truly needs them.</p>
+              <p class="hero-subtitle">This surface keeps audit chain, evidence integrity, trusted registry, runtime health, backup recovery, and administrative posture out of the normal Home dashboard until an advanced operator truly needs them.</p>
             </div>
             <div class="hero-chip-row">${statusBadge('advanced governance')}${statusBadge(state.session?.role_name || 'admin')}</div>
           </div>
           <div class="inline-actions">
-            <button class="action-button action-button-muted" type="button" data-view-jump="overview">Back to Home</button>
+            ${renderViewJumpButton({ view: 'overview', label: 'Back to Home', className: 'action-button action-button-muted' })}
             <button class="action-button" type="button" data-control-room-tool="health">Open Runtime Health</button>
+            ${canAccessSetupAssistant() ? renderViewJumpButton({ view: 'setup', label: 'Open Setup Assistant', className: 'action-button action-button-muted' }) : ''}
           </div>
         </article>
         <article class="card hero-card hero-card-secondary">
           <div>
             <div class="eyebrow muted">Current tool</div>
             <h3 class="card-title">${escapeHtml(VIEW_TITLES[currentTool] || titleCase(currentTool))}</h3>
-            <p class="card-subtitle">Use Control Room when simple posture is not enough and you need the underlying governance reason, trust state, or runtime repair signal.</p>
+            <p class="card-subtitle">Use Control Room when simple posture is not enough and you need the underlying governance reason, trust state, recovery bundle, or runtime repair signal.</p>
           </div>
           ${keyValue([
             ['Current role', state.session?.role_name || 'unknown'],
+            ['Current tool', VIEW_TITLES[currentTool] || titleCase(currentTool)],
+            ['Profiles active', String(accessControl.profiles_active || 0)],
             ['Evidence integrity', auditIntegrity.status || 'unknown'],
             ['Signature posture', roleLibrary.signature_status || roleLibrary.status || 'unknown'],
+            ['Setup assistant', canAccessSetupAssistant() ? 'available' : 'restricted'],
           ])}
         </article>
       </section>
@@ -4570,10 +4585,254 @@ function renderControlRoomTool(snapshot, tool) {
   if (tool === 'audit') return renderAudit(snapshot);
   if (tool === 'policies') return renderPolicies(snapshot.roles || []);
   if (tool === 'sessions') return wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Short-lived runtime sessions and revocation state for advanced governance review.');
+  if (tool === 'backup_restore') return renderBackupRestoreTool(snapshot);
+  if (tool === 'admin_settings') return renderAdminSettingsTool(snapshot);
   return renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
 }
 
+function renderBackupRestoreTool(snapshot) {
+  const operations = snapshot.operations || {};
+  const summary = operations.summary || {};
+  const backups = Array.isArray(operations.backups) ? operations.backups : [];
+  const proof = operations.usability_proof || {};
+  const doctor = operations.quick_start_doctor || {};
+  const baseline = operations.runtime_performance_baseline || {};
+  const runtimeHealth = snapshot.runtime_health || {};
+  const goLive = snapshot.go_live_readiness || {};
+  const registration = snapshot.owner_registration || {};
+  const latestBackup = summary.latest_backup || {};
+  const formatMs = (value) => Number.isFinite(Number(value)) && Number(value) > 0 ? `${Number(value).toFixed(1)} ms` : '-';
+  const managementActions = can('ops.manage')
+    ? `<div class="inline-actions"><button class="action-button" type="button" data-ops-action="backup">Create Runtime Backup</button><button class="action-button action-button-muted" type="button" data-ops-action="quick-start-doctor">Run Quick-Start Doctor</button><button class="action-button action-button-muted" type="button" data-ops-action="usability-proof">Generate Usability Proof</button><button class="action-button action-button-muted" type="button" data-ops-action="first-run-action-center-sync">Run First-Run Sync</button></div>`
+    : '';
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Backup & Restore</div>
+              <h2 class="hero-title">Recovery bundles, restore playbook, and pilot-hardening artifacts in one governed surface.</h2>
+              <p class="hero-subtitle">Use this tool when the runtime needs a sealed backup, when an operator must rehearse recovery, or when proof and diagnostics must be refreshed immediately after operational change.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(latestBackup.backup_id ? 'backup ready' : 'backup needed')}${statusBadge(goLive.status || 'blocked')}</div>
+          </div>
+          ${managementActions}
+          <div class="hero-split">
+            ${keyValue([
+              ['Latest backup', latestBackup.backup_id || 'No backup yet'],
+              ['Backups total', String(summary.backups_total || 0)],
+              ['Latest created', latestBackup.created_at || '-'],
+              ['Latest bundle bytes', latestBackup.bytes_total != null ? String(latestBackup.bytes_total) : '-'],
+              ['Go-live posture', formatStatusLabel(goLive.status || 'blocked')],
+            ])}
+            <div class="hero-note"><strong>Restore doctrine</strong><p>Recover backup, evidence, registry, and owner identity together. A restore is not complete until doctor and proof artifacts are refreshed and reviewed again.</p></div>
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Pilot-hardening artifacts</div>
+            <h3 class="card-title">Proof and diagnostics must move with recovery</h3>
+            <p class="card-subtitle">A backup by itself is not enough. The runtime should also carry doctor, proof, and performance posture so the restored system is readable within minutes.</p>
+          </div>
+          ${keyValue([
+            ['Quick-start doctor', formatStatusLabel(doctor.status || 'missing')],
+            ['Usability proof', formatStatusLabel(proof.status || 'missing')],
+            ['Performance baseline', formatStatusLabel(baseline.status || 'missing')],
+            ['Slowest metric', baseline.slowest_metric || '-'],
+            ['Slowest elapsed', formatMs(baseline.slowest_elapsed_ms)],
+            ['Warnings', String(baseline.warning_total || 0)],
+          ])}
+        </article>
+      </section>
+      <section class="split-grid">
+        <article class="table-card stack">
+          <div class="table-card-head">
+            <div>
+              <h3 class="table-title">Restore playbook</h3>
+              <p class="muted">Keep recovery steps human-readable so one operator can rehydrate the runtime without falling into low-level store hunting.</p>
+            </div>
+          </div>
+          <div class="trace-box compact-trace"><strong>Restore sequence</strong>${keyValue([
+            ['1. Freeze risky changes', 'Pause publish, review, and high-risk execution before choosing a restore source.'],
+            ['2. Inspect the newest bundle', latestBackup.backup_path || summary.backup_dir || 'Create a backup first so a restore source exists.'],
+            ['3. Restore governed runtime files', 'Bring stores, evidence, registry artifacts, and registration identity back together as one operating state.'],
+            ['4. Re-run doctor and proof', 'Refresh quick-start doctor, usability proof, and baseline artifacts immediately after restore.'],
+          ])}</div>
+          <div class="trace-box compact-trace"><strong>Critical paths</strong>${keyValue([
+            ['Backup directory', summary.backup_dir || runtimeHealth.runtime_backup_dir?.path || '-'],
+            ['Evidence directory', runtimeHealth.runtime_evidence_dir?.path || '-'],
+            ['Archive directory', runtimeHealth.retention_archive_dir?.path || '-'],
+            ['Owner registration', registration.path || '-'],
+            ['Trusted manifest', runtimeHealth.trusted_registry_manifest?.path || '-'],
+          ])}</div>
+          <div class="trace-box compact-trace"><strong>Latest artifact state</strong>${keyValue([
+            ['Doctor next actions', Array.isArray(doctor.next_actions) && doctor.next_actions.length ? doctor.next_actions.slice(0, 2).join(' | ') : 'No recommended next actions.'],
+            ['Proof failed criteria', Array.isArray(proof.failed_criteria) && proof.failed_criteria.length ? proof.failed_criteria.join(' | ') : 'No failing proof criteria.'],
+            ['Performance criticals', String(baseline.critical_total || 0)],
+            ['Performance failed', String(baseline.failed_total || 0)],
+          ])}</div>
+        </article>
+        <article class="table-card stack">
+          <div class="table-card-head">
+            <div>
+              <h3 class="table-title">Runtime backup history</h3>
+              <p class="muted">Use the latest sealed bundle as the primary restore anchor, then verify proof and doctor continuity from the same Control Room.</p>
+            </div>
+          </div>
+          <div class="table-wrapper">${backupTable(backups)}</div>
+        </article>
+      </section>
+    </section>
+  `;
+}
+
+function renderAdminSettingsTool(snapshot) {
+  const registration = snapshot.owner_registration || {};
+  const runtimeHealth = snapshot.runtime_health || {};
+  const accessControl = runtimeHealth.access_control || {};
+  const integrations = snapshot.integrations || {};
+  const integrationSummary = integrations.summary || {};
+  const modelProviders = snapshot.model_providers || {};
+  const masterSummary = snapshot.master_data?.summary || {};
+  const retention = snapshot.retention || {};
+  const alertPolicy = snapshot.operator_alert_policy || {};
+  const availableProfiles = Array.isArray(snapshot.available_profiles) ? snapshot.available_profiles : [];
+  const profilePreview = availableProfiles.length
+    ? availableProfiles.slice(0, 4).map((item) => item.display_name || item.profile_id || 'profile').join(' | ')
+    : 'No access profiles are visible.';
+  const aging = alertPolicy.aging || {};
+  const onboardingActions = `
+    <div class="inline-actions">
+      ${canAccessSetupAssistant() ? renderViewJumpButton({ view: 'setup', label: 'Open Setup Assistant', className: 'action-button' }) : ''}
+      ${renderViewJumpButton({ view: 'directory', label: 'Open Directory & Search', className: 'action-button action-button-muted' })}
+      ${renderViewJumpButton({ view: 'health', label: 'Open Runtime Health', className: 'action-button action-button-muted' })}
+    </div>
+  `;
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Admin Settings</div>
+              <h2 class="hero-title">Organization identity, access, providers, and routing posture without exposing raw plumbing first.</h2>
+              <p class="hero-subtitle">Use this tool when you need the living operating settings of the runtime: who the organization is, how access behaves, how AI providers are configured, and whether routing and retention still match pilot expectations.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(registration.registered ? 'registered' : 'setup needed')}${statusBadge(modelProviders.status || 'providers unknown')}</div>
+          </div>
+          ${onboardingActions}
+          <div class="hero-split">
+            ${keyValue([
+              ['Organization', registration.organization_name || masterSummary.organization_name || 'Unregistered runtime'],
+              ['Deployment mode', registration.deployment_mode || snapshot.environment || 'private'],
+              ['Profiles active', String(accessControl.profiles_active || 0)],
+              ['Providers configured', String(modelProviders.configured_providers || 0)],
+              ['Active integrations', String(integrationSummary.active_targets || 0)],
+            ])}
+            <div class="hero-note"><strong>Admin principle</strong><p>Settings should answer whether the runtime is governable, assignable, and pilot-ready. Editing deeper internals still belongs in Setup Assistant or the underlying runtime tools.</p></div>
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Operator-facing settings posture</div>
+            <h3 class="card-title">Small enough to read, deep enough to act</h3>
+            <p class="card-subtitle">The goal is not to expose every config knob. The goal is to show the few settings that explain why Home, AI Actions, routing, and governance behave the way they do.</p>
+          </div>
+          ${keyValue([
+            ['Session TTL', accessControl.session_ttl_minutes != null ? `${accessControl.session_ttl_minutes} minutes` : '-'],
+            ['Idle timeout', accessControl.session_idle_timeout_minutes != null ? `${accessControl.session_idle_timeout_minutes} minutes` : '-'],
+            ['Token gate', runtimeHealth.token_gate || 'unknown'],
+            ['Access config', accessControl.access_profile_configuration_valid ? 'valid' : 'needs review'],
+            ['Search ready', masterSummary.search_ready ? 'yes' : 'no'],
+            ['Retention datasets', String(retention.dataset_count || 0)],
+          ])}
+        </article>
+      </section>
+      <section class="split-grid">
+        <article class="table-card stack">
+          <div class="table-card-head">
+            <div>
+              <h3 class="table-title">Organization & runtime identity</h3>
+              <p class="muted">These settings define which organization the runtime serves and who anchors ownership when advanced governance decisions happen.</p>
+            </div>
+          </div>
+          ${keyValue([
+            ['Organization', registration.organization_name || masterSummary.organization_name || '-'],
+            ['Organization id', registration.organization_id || '-'],
+            ['Executive owner id', registration.executive_owner_id || '-'],
+            ['Registration code', registration.registration_code || '-'],
+            ['Deployment mode', registration.deployment_mode || snapshot.environment || '-'],
+            ['Registration file', registration.path || '-'],
+          ])}
+          <div class="trace-box compact-trace"><strong>Why this matters</strong><p class="muted">Identity drift here changes who may govern the runtime, how cases are labeled, and which private deployment story the pilot actually represents.</p></div>
+        </article>
+        <article class="table-card stack">
+          <div class="table-card-head">
+            <div>
+              <h3 class="table-title">Access & operator control</h3>
+              <p class="muted">These signals explain whether the right people can enter the runtime and whether sessions behave like a controlled private product instead of an ad-hoc dev surface.</p>
+            </div>
+          </div>
+          ${keyValue([
+            ['Profiles total', String(accessControl.profiles_total || availableProfiles.length || 0)],
+            ['Profiles active', String(accessControl.profiles_active || 0)],
+            ['Sessions active', String(accessControl.sessions_active || 0)],
+            ['Rotation required', String(accessControl.profiles_rotation_required || 0)],
+            ['Plain tokens', String(accessControl.plain_tokens || 0)],
+            ['Visible profiles', profilePreview],
+          ])}
+          <div class="trace-box compact-trace"><strong>Operator alert policy</strong>${keyValue([
+            ['Warning age', aging.warning_hours != null ? `${aging.warning_hours} hours` : '-'],
+            ['Critical age', aging.critical_hours != null ? `${aging.critical_hours} hours` : '-'],
+            ['Stale age', aging.stale_hours != null ? `${aging.stale_hours} hours` : '-'],
+          ])}</div>
+        </article>
+      </section>
+      <section class="split-grid">
+        <article class="table-card stack">
+          <div class="table-card-head">
+            <div>
+              <h3 class="table-title">AI providers & integration routing</h3>
+              <p class="muted">Use this to confirm whether the AI workforce has a healthy provider path and whether outbound routing is ready when the runtime escalates beyond the dashboard.</p>
+            </div>
+          </div>
+          ${keyValue([
+            ['Provider status', modelProviders.status || 'unknown'],
+            ['Configured providers', String(modelProviders.configured_providers || 0)],
+            ['Default provider', modelProviders.default_provider || '-'],
+            ['Active targets', String(integrationSummary.active_targets || 0)],
+            ['Notification channels', String(integrationSummary.notification_channels_active || 0)],
+            ['Signed targets', String(integrationSummary.signed_targets || 0)],
+            ['HTTP enabled', String(Boolean(integrationSummary.http_enabled))],
+          ])}
+          <div class="trace-box compact-trace"><strong>Routing note</strong><p class="muted">Normal users should not have to think about routing internals. This surface exists so advanced operators can confirm that alerts, tickets, and webhook delivery are ready when governance needs them.</p></div>
+        </article>
+        <article class="table-card stack">
+          <div class="table-card-head">
+            <div>
+              <h3 class="table-title">Master data, retention, and pilot discipline</h3>
+              <p class="muted">These settings keep the runtime grounded in real people and teams while still protecting records, evidence, and archive posture as the pilot expands.</p>
+            </div>
+          </div>
+          ${keyValue([
+            ['People', String(masterSummary.people_total || 0)],
+            ['Teams', String(masterSummary.teams_total || 0)],
+            ['Seats', String(masterSummary.seats_total || 0)],
+            ['Archive candidates', String(retention.archive_candidate_total || 0)],
+            ['Expired candidates', String(retention.expired_candidate_total || 0)],
+            ['Legal hold datasets', String(retention.legal_hold_datasets || 0)],
+            ['Archive directory', retention.archive_dir || runtimeHealth.retention_archive_dir?.path || '-'],
+          ])}
+          <div class="trace-box compact-trace"><strong>Pilot hardening note</strong><p class="muted">If master data is thin, assignment becomes guesswork. If retention is unclear, evidence becomes fragile. Productization depends on both staying readable to one human governor.</p></div>
+        </article>
+      </section>
+    </section>
+  `;
+}
+
 function renderActions(snapshot) {
+
   const surface = snapshot.actions || { summary: {}, registry: [], items: [] };
   const summary = surface.summary || {};
   const registry = Array.isArray(surface.registry) ? surface.registry : [];

@@ -206,6 +206,7 @@ class DashboardService:
             'backups': self.app.list_runtime_backups(limit=limit),
             'usability_proof': self.snapshot_builder.usability_proof_summary(),
             'quick_start_doctor': self.snapshot_builder.quick_start_doctor_summary(),
+            'runtime_performance_baseline': self.snapshot_builder.runtime_performance_baseline_summary(),
         }
         go_live_readiness = self.snapshot_builder.go_live_readiness()
         first_run_readiness = self.snapshot_builder.first_run_readiness(
