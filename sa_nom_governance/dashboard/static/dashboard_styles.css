@@ -3128,6 +3128,19 @@ button:focus-visible {
   align-content: start;
 }
 
+.command-touch-card-emphasis-primary {
+  border-color: rgba(185, 146, 79, 0.34);
+  box-shadow: 0 18px 42px rgba(11, 16, 28, 0.18), 0 0 0 1px rgba(185, 146, 79, 0.14) inset;
+}
+
+.command-touch-card-emphasis-secondary {
+  border-color: rgba(185, 146, 79, 0.24);
+}
+
+.command-touch-card-emphasis-support {
+  border-style: dashed;
+}
+
 .command-touch-card-active {
   border-color: rgba(185, 146, 79, 0.4);
   box-shadow: 0 18px 38px rgba(11, 16, 28, 0.18), 0 0 0 1px rgba(185, 146, 79, 0.18) inset;

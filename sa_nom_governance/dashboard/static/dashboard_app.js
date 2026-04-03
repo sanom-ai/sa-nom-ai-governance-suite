@@ -91,8 +91,11 @@ function formatRemainingDuration(remainingMs) {
   return `${seconds}s left`;
 }
 
-function refreshSessionContinuityTick(nowMs = Date.now()) {
-  const session = state.session || {};
+function hasStoredAccessToken() {
+  return Boolean(String(state.token || '').trim());
+}
+
+function buildSessionContinuityState(session, nowMs = Date.now()) {
   const idleTarget = session.session_idle_expires_at ? new Date(session.session_idle_expires_at).getTime() : Number.NaN;
   const signedTarget = session.session_expires_at ? new Date(session.session_expires_at).getTime() : Number.NaN;
   const idleLabel = Number.isNaN(idleTarget)
@@ -101,24 +104,76 @@ function refreshSessionContinuityTick(nowMs = Date.now()) {
   const signedLabel = Number.isNaN(signedTarget)
     ? `${session.session_ttl_minutes || '-'} minute signed session`
     : formatRemainingDuration(signedTarget - nowMs);
-  const status = String(session.session_status || 'inactive');
-  let note = 'This private session is warm and ready for touch-first work.';
-  if (status !== 'active') {
-    note = 'No live tablet session is active yet. The next refresh or sign-in will warm the private runtime again.';
-  } else if (!Number.isNaN(idleTarget) && idleTarget - nowMs <= 5 * 60 * 1000) {
-    note = 'Idle lock is close. Keep moving or refresh before the private tablet session cools down.';
-  } else if (!Number.isNaN(signedTarget) && signedTarget - nowMs <= 15 * 60 * 1000) {
-    note = 'The signed session window is closing. Plan a refresh or sign-in soon.';
-  }
+  const canReconnect = hasStoredAccessToken();
+  const continuityStatus = String(session.session_continuity_status || '').trim() || String(session.session_status || 'inactive');
+  const shape = {
+    status: continuityStatus,
+    title: String(session.session_continuity_title || ''),
+    note: String(session.session_continuity_note || ''),
+    action: String(session.session_continuity_action || ''),
+    badge: continuityStatus,
+    actionLabel: 'Keep working',
+    helper: canReconnect
+      ? 'A stored private access token can renew this tablet session without leaving Home.'
+      : 'This device will need the private access token again once the current session cools down.',
+    idleLabel,
+    signedLabel,
+  };
 
+  if (!canReconnect && continuityStatus === 'standby') {
+    shape.status = 'sign_in_again';
+    shape.badge = 'sign in again';
+    shape.actionLabel = 'Sign in again';
+    shape.title = shape.title || 'Sign in again to reopen the private runtime';
+    shape.note = shape.note || 'No active tablet session is available and this device is not holding a stored access token for silent reconnect.';
+    return shape;
+  }
+  if (continuityStatus === 'reconnect_now' || continuityStatus === 'standby') {
+    shape.badge = continuityStatus === 'standby' ? 'standby' : 'reconnect now';
+    shape.actionLabel = canReconnect ? 'Reconnect now' : 'Sign in again';
+    shape.title = shape.title || (canReconnect ? 'Reconnect now to keep work moving' : 'Sign in again to continue tablet work');
+    shape.note = shape.note || (canReconnect
+      ? 'The private session is no longer active. Reconnect from Home before you continue touch-first work.'
+      : 'The private session is no longer active and needs a fresh sign-in before work can continue.');
+    return shape;
+  }
+  if (continuityStatus === 'idle_lock_soon') {
+    shape.badge = 'renew now';
+    shape.actionLabel = 'Renew session';
+    return shape;
+  }
+  if (continuityStatus === 'renew_soon') {
+    shape.badge = 'renew soon';
+    shape.actionLabel = 'Renew soon';
+    return shape;
+  }
+  shape.status = 'ready';
+  shape.badge = 'ready';
+  shape.actionLabel = 'Stay in lane';
+  shape.title = shape.title || 'The private session is live and stable';
+  shape.note = shape.note || 'This private session is warm and ready for touch-first work.';
+  return shape;
+}
+
+function refreshSessionContinuityTick(nowMs = Date.now()) {
+  const continuity = buildSessionContinuityState(state.session || {}, nowMs);
   document.querySelectorAll('[data-session-clock="idle"]').forEach((node) => {
-    node.textContent = idleLabel;
+    node.textContent = continuity.idleLabel;
   });
   document.querySelectorAll('[data-session-clock="signed"]').forEach((node) => {
-    node.textContent = signedLabel;
+    node.textContent = continuity.signedLabel;
   });
   document.querySelectorAll('[data-session-clock="note"]').forEach((node) => {
-    node.textContent = note;
+    node.textContent = continuity.note;
+  });
+  document.querySelectorAll('[data-session-clock="title"]').forEach((node) => {
+    node.textContent = continuity.title;
+  });
+  document.querySelectorAll('[data-session-clock="helper"]').forEach((node) => {
+    node.textContent = continuity.helper;
+  });
+  document.querySelectorAll('[data-session-clock="action-label"]').forEach((node) => {
+    node.textContent = continuity.actionLabel;
   });
 }
 
@@ -358,6 +413,7 @@ const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-studio-clear]',
   '[data-override-action]',
   '[data-session-revoke]',
+  '[data-session-renew]',
   '[data-audit-action]',
   '[data-ops-action]',
   '[data-integration-action]',
@@ -684,6 +740,13 @@ root.addEventListener('click', async (event) => {
     state.lastError = '';
     window.localStorage.setItem('sanom_api_token', lane.token);
     await withButtonBusy(devLaneButton, () => loadDashboard(), 'Connecting...');
+    scrollDashboardToTop();
+    return;
+  }
+
+  const sessionRenewButton = event.target.closest('[data-session-renew]');
+  if (sessionRenewButton) {
+    await withButtonBusy(sessionRenewButton, () => renewPrivateSession({ manual: true }), 'Renewing...');
     scrollDashboardToTop();
     return;
   }
@@ -1599,7 +1662,7 @@ async function loadDashboard() {
     if (!state.sessionToken && state.token) {
       await loginWithAccessToken();
     }
-    const snapshot = await apiFetch('/api/dashboard', {}, { useSession: Boolean(state.sessionToken) });
+    const snapshot = await apiFetch('/api/dashboard', {}, { useSession: Boolean(state.sessionToken), allowSessionRecovery: true });
     state.snapshot = snapshot;
     state.session = snapshot.session || null;
     state.authRequired = false;
@@ -1615,19 +1678,46 @@ async function loadDashboard() {
       state.authRequired = true;
       state.session = null;
       state.snapshot = null;
-      state.sessionToken = '';
-      window.localStorage.removeItem('sanom_session_token');
+      clearSessionToken();
     }
     state.lastError = message;
     render();
   }
 }
 
+function clearSessionToken() {
+  state.sessionToken = '';
+  window.localStorage.removeItem('sanom_session_token');
+}
+
 async function loginWithAccessToken() {
   if (!state.token) return;
-  const response = await apiFetch('/api/session/login', { method: 'POST' }, { useAccessToken: true });
+  const response = await apiFetch('/api/session/login', { method: 'POST' }, { useAccessToken: true, allowSessionRecovery: false });
   state.sessionToken = response.session_token || '';
-  if (state.sessionToken) window.localStorage.setItem('sanom_session_token', state.sessionToken);
+  if (state.sessionToken) {
+    window.localStorage.setItem('sanom_session_token', state.sessionToken);
+    state.authRequired = false;
+  }
+}
+
+async function renewPrivateSession({ manual = false } = {}) {
+  if (!state.token) {
+    clearSessionToken();
+    state.session = null;
+    state.snapshot = null;
+    state.authRequired = true;
+    state.lastError = 'Private session can no longer be renewed from this device. Sign in again with the private access token.';
+    render();
+    return false;
+  }
+  clearSessionToken();
+  await loginWithAccessToken();
+  await loadDashboard();
+  if (manual) {
+    state.lastError = 'Private session renewed. Continue from the same command lane.';
+    render();
+  }
+  return Boolean(state.sessionToken);
 }
 
 async function copyTextToClipboard(text) {
@@ -1741,6 +1831,21 @@ async function apiFetch(path, options = {}, auth = {}) {
   else if (state.sessionToken) headers['X-SA-NOM-Session'] = state.sessionToken;
   else if (state.token) headers['X-SA-NOM-Token'] = state.token;
   const response = await fetch(path, { ...options, headers });
+  const method = String(options.method || 'GET').toUpperCase();
+  const canRecoverSession = response.status === 401
+    && method === 'GET'
+    && !auth.useAccessToken
+    && Boolean(state.sessionToken)
+    && hasStoredAccessToken()
+    && auth.allowSessionRecovery !== false
+    && !auth._retriedSession;
+  if (canRecoverSession) {
+    clearSessionToken();
+    await loginWithAccessToken();
+    if (state.sessionToken) {
+      return apiFetch(path, options, { ...auth, useSession: true, allowSessionRecovery: false, _retriedSession: true });
+    }
+  }
   if (!response.ok) throw new Error(`API ${response.status}: ${await response.text()}`);
   return response.json();
 }
@@ -4398,34 +4503,41 @@ function renderCommandTabletFocusCard(session, primaryViews) {
 }
 
 function renderCommandSessionContinuityCard(session) {
-  const sessionStatus = formatStatusLabel(session.session_status || 'inactive');
-  const lastSeen = session.session_last_seen_at ? shortTime(session.session_last_seen_at) : 'Waiting for the first active tablet session';
+  const continuity = buildSessionContinuityState(session, Date.now());
   const authMethod = session.session_auth_method ? titleCase(String(session.session_auth_method).replaceAll('_', ' ')) : 'Private access token';
-  const idleUntil = session.session_idle_expires_at ? formatRemainingDuration(new Date(session.session_idle_expires_at).getTime() - Date.now()) : `${session.session_idle_timeout_minutes || '-'} minute idle window`;
-  const signedUntil = session.session_expires_at ? formatRemainingDuration(new Date(session.session_expires_at).getTime() - Date.now()) : `${session.session_ttl_minutes || '-'} minute signed session`;
-  const note = session.session_status === 'active'
-    ? 'This private session is warm and ready for touch-first work.'
-    : 'No live tablet session is active yet. The next refresh or sign-in will warm the private runtime again.';
+  const lastSeen = session.session_last_seen_at ? shortTime(session.session_last_seen_at) : 'Waiting for the first active tablet session';
+  const primaryLane = getTabletPrimaryViews(session).find((view) => view && view !== 'overview') || 'requests';
+  const primaryLaneLabel = VIEW_TITLES[primaryLane] || titleCase(primaryLane);
+  const renewButton = continuity.action !== 'monitor'
+    ? `<button class="action-button" type="button" data-session-renew="true"><span data-session-clock="action-label">${escapeHtml(continuity.actionLabel)}</span></button>`
+    : `<button class="action-button action-button-muted" type="button" data-session-renew="true"><span data-session-clock="action-label">Renew session</span></button>`;
   return `
-    <article class="card command-home-section command-guidance-card">
+    <article class="card command-home-section command-guidance-card" data-session-continuity-root="true">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">Private session continuity</div>
-          <h3 class="card-title">${escapeHtml(session.session_status === 'active' ? 'This private session is live' : 'Session continuity is standing by')}</h3>
+          <h3 class="card-title" data-session-clock="title">${escapeHtml(continuity.title)}</h3>
           <p class="card-subtitle">Keep the tablet session alive inside the private runtime without exposing lower-level runtime stores on Home.</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(sessionStatus)}</div>
+        <div class="hero-chip-row">${statusBadge(continuity.badge)}${statusBadge(authMethod)}</div>
       </div>
       <div class="key-value">
         <div class="key-value-row"><span class="muted">Last seen</span><span class="key-value-value">${escapeHtml(lastSeen)}</span></div>
-        <div class="key-value-row"><span class="muted">Idle lock</span><span class="key-value-value" data-session-clock="idle">${escapeHtml(idleUntil)}</span></div>
-        <div class="key-value-row"><span class="muted">Signed session</span><span class="key-value-value" data-session-clock="signed">${escapeHtml(signedUntil)}</span></div>
+        <div class="key-value-row"><span class="muted">Idle lock</span><span class="key-value-value" data-session-clock="idle">${escapeHtml(continuity.idleLabel)}</span></div>
+        <div class="key-value-row"><span class="muted">Signed session</span><span class="key-value-value" data-session-clock="signed">${escapeHtml(continuity.signedLabel)}</span></div>
         <div class="key-value-row"><span class="muted">Auth method</span><span class="key-value-value">${escapeHtml(authMethod)}</span></div>
         <div class="key-value-row"><span class="muted">Active sessions</span><span class="key-value-value">${escapeHtml(String(session.active_session_count || 0))}</span></div>
       </div>
-      <p class="muted small" data-session-clock="note">${escapeHtml(note)}</p>
+      <p class="muted small" data-session-clock="note">${escapeHtml(continuity.note)}</p>
+      <p class="muted small" data-session-clock="helper">${escapeHtml(continuity.helper)}</p>
+      <div class="inline-actions">${renewButton}${renderViewJumpButton({ view: primaryLane, label: `Open ${primaryLaneLabel}`, className: 'action-button action-button-muted', title: `${primaryLaneLabel} is the best adjacent lane for this persona on tablet.`, detail: `Continue in ${primaryLaneLabel} while the private session stays inside the governed runtime.`, actionLabel: `Open ${primaryLaneLabel}` })}</div>
     </article>
   `;
+}
+
+function getTabletLaneEmphasis(session = state.session || {}) {
+  const emphasis = session.tablet_lane_emphasis;
+  return emphasis && typeof emphasis === 'object' ? emphasis : {};
 }
 
 function buildCommandTouchLanes(snapshot, primaryViews = getTabletPrimaryViews(state.session || {})) {
@@ -4435,6 +4547,7 @@ function buildCommandTouchLanes(snapshot, primaryViews = getTabletPrimaryViews(s
   const actionSummary = snapshot.actions?.summary || {};
   const masterSummary = snapshot.master_data?.summary || {};
   const assignmentSummary = snapshot.assignment_queue?.summary || {};
+  const laneEmphasis = getTabletLaneEmphasis(state.session || {});
   const laneMap = {
     requests: {
       view: 'requests',
@@ -4489,12 +4602,23 @@ function buildCommandTouchLanes(snapshot, primaryViews = getTabletPrimaryViews(s
   };
   const orderedViews = (primaryViews.length ? primaryViews : ['requests', 'cases', 'documents', 'actions', 'directory'])
     .filter((view, index, views) => view && view !== 'overview' && laneMap[view] && views.indexOf(view) === index);
-  return orderedViews.map((view) => laneMap[view]);
+  return orderedViews.map((view, index) => {
+    const emphasis = laneEmphasis[view] || {};
+    const rank = emphasis.rank || (index === 0 ? 'primary' : index <= 2 ? 'secondary' : 'support');
+    const emphasisLabel = emphasis.label || (rank === 'primary' ? 'Start here' : rank === 'secondary' ? 'Keep close' : 'Keep nearby');
+    return {
+      ...laneMap[view],
+      emphasis: rank,
+      emphasisLabel,
+      emphasisNote: emphasis.note || '',
+    };
+  });
 }
 
 function renderCommandTouchLaneCard(item, compact = false) {
   if (!item) return '';
   const active = state.view === item.view;
+  const emphasisClass = item.emphasis ? ` command-touch-card-emphasis-${item.emphasis}` : '';
   const buttonLabel = active ? `Stay in ${item.title}` : item.actionLabel || `Open ${item.title}`;
   const button = renderViewJumpButton({
     view: item.view,
@@ -4505,11 +4629,12 @@ function renderCommandTouchLaneCard(item, compact = false) {
     actionLabel: buttonLabel,
   });
   return `
-    <article class="command-touch-card${active ? ' command-touch-card-active' : ''}${compact ? ' command-touch-card-compact' : ''}">
-      <div class="hero-chip-row">${statusBadge(item.badge || 'lane')}</div>
+    <article class="command-touch-card${active ? ' command-touch-card-active' : ''}${compact ? ' command-touch-card-compact' : ''}${emphasisClass}">
+      <div class="hero-chip-row"><span class="pill">${escapeHtml(item.emphasisLabel || 'Lane')}</span>${statusBadge(item.badge || 'lane')}</div>
       <strong>${escapeHtml(item.title)}</strong>
       <p class="command-touch-count">${escapeHtml(item.countLabel || '0')}</p>
       <p class="muted">${escapeHtml(item.note || 'Continue in the governed lane that currently owns the work.')}</p>
+      ${item.emphasisNote ? `<p class="muted small">${escapeHtml(item.emphasisNote)}</p>` : ''}
       <div class="inline-actions">${button}</div>
     </article>
   `;
@@ -7968,6 +8093,10 @@ function formatStatusLabel(value) {
     notifications_disabled: 'Notifications Disabled',
     queue_stable: 'Queue Stable',
     approval_action_required: 'Approval Action Required',
+    renew_soon: 'Renew Soon',
+    reconnect_now: 'Reconnect Now',
+    idle_lock_soon: 'Idle Lock Soon',
+    sign_in_again: 'Sign In Again',
   };
   if (known[normalized]) return known[normalized];
   if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(normalized)) {

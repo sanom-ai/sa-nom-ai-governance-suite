@@ -1244,13 +1244,18 @@ def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_ro
         assert owner_payload['session']['private_runtime_mode'] == 'private_first'
         assert owner_payload['session']['tablet_focus_title'] == 'Organization command'
         assert owner_payload['session']['tablet_primary_views'][0] == 'overview'
+        assert owner_payload['session']['tablet_lane_emphasis']['requests']['rank'] == 'primary'
         assert admin_payload['session']['tablet_focus_title'] == 'Runtime stability and governance pressure'
         assert admin_payload['session']['tablet_primary_views'][0] == 'overview'
+        assert admin_payload['session']['tablet_lane_emphasis']['actions']['rank'] == 'primary'
         assert operator_payload['session']['tablet_focus_title'] == 'Assignments and governed follow-through'
         assert operator_payload['session']['tablet_primary_views'][0] == 'requests'
+        assert operator_payload['session']['tablet_lane_emphasis']['requests']['label'] == 'Start here'
         assert auditor_payload['session']['tablet_focus_title'] == 'Department direction'
         assert auditor_payload['session']['session_ttl_minutes'] == config.session_ttl_minutes
         assert auditor_payload['session']['session_idle_timeout_minutes'] == config.session_idle_timeout_minutes
+        assert auditor_payload['session']['session_continuity_status'] == 'standby'
+        assert auditor_payload['session']['session_continuity_action'] == 'reconnect_session'
 
 
 def test_dashboard_service_surfaces_private_session_continuity_for_active_sessions() -> None:
@@ -1270,6 +1275,33 @@ def test_dashboard_service_surfaces_private_session_continuity_for_active_sessio
         assert session['session_expires_at'] == state.expires_at
         assert session['session_idle_expires_at'] == state.idle_expires_at
         assert session['session_auth_method'] == 'access_token'
+        assert session['session_continuity_status'] == 'ready'
+        assert session['session_continuity_action'] == 'monitor'
+
+
+def test_dashboard_service_marks_private_session_as_renewable_when_idle_window_is_short() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        service = DashboardService(config=config)
+        profile = _build_profile('operator')
+        state, _token = service.access_control.session_manager.issue(profile, auth_method='access_token')
+
+        hot_session = service.access_control.session_manager._sessions[state.session_id]
+        now = datetime.now(timezone.utc)
+        hot_session.last_seen_at = now.isoformat()
+        hot_session.idle_expires_at = (now + timedelta(seconds=90)).isoformat()
+        hot_session.expires_at = (now + timedelta(minutes=40)).isoformat()
+        service.access_control.session_manager._persist()
+
+        payload = service.dashboard(profile)
+        session = payload['session']
+
+        assert session['session_status'] == 'active'
+        assert session['session_continuity_status'] == 'idle_lock_soon'
+        assert session['session_continuity_action'] == 'renew_session'
+        assert session['session_continuity_tone'] == 'warning'
+        assert int(session['session_idle_remaining_seconds']) <= 120
+        assert int(session['session_signed_remaining_seconds']) > 0
 
 
 def test_dashboard_service_operations_include_runtime_performance_baseline() -> None:
