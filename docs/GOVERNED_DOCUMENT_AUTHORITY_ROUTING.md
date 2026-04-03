@@ -43,7 +43,7 @@ Typical roles include:
 - `Viewer`
 - `Records Custodian`
 
-Organizations may add more specialized roles through PTAG and Private Rule logic, but the public model should remain understandable.
+Organizations may add more specialized roles through PTAG and `Role Private Studio`, but the public model should remain understandable.
 
 ## Typical Routing Pattern
 
@@ -144,13 +144,13 @@ At that point, SA-NOM should:
 - notify the right human path
 - keep the evidence chain intact
 
-## Relationship To PTAG And Private Rule Logic
+## Relationship To PTAG And Role Private Studio
 
-PTAG and Private Rule logic are what make routing flexible without making it chaotic.
+PTAG and `Role Private Studio` are what make routing flexible without making it chaotic.
 
 Use this mental model:
 - `PTAG` defines policy logic and authority boundaries
-- `Private Rule Position` defines organization-specific hats when needed
+- `Role Private Studio` defines organization-specific hats when needed
 - `Governed Document Template Model` provides one stable document structure
 - `Authority Routing` determines how the document moves between controlled human checkpoints
 
@@ -166,4 +166,5 @@ SA-NOM's Governed Document Center should use explicit authority and approval rou
 - [GOVERNED_DOCUMENT_CLASSES.md](GOVERNED_DOCUMENT_CLASSES.md)
 - [GOVERNED_DOCUMENT_LIFECYCLE.md](GOVERNED_DOCUMENT_LIFECYCLE.md)
 - [GOVERNED_DOCUMENT_TEMPLATE_MODEL.md](GOVERNED_DOCUMENT_TEMPLATE_MODEL.md)
+- [ROLE_PRIVATE_STUDIO.md](ROLE_PRIVATE_STUDIO.md)
 - [PRIVATE_RULE_POSITION.md](PRIVATE_RULE_POSITION.md)

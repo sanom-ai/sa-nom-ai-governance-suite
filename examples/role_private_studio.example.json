@@ -1,5 +1,5 @@
 {
-    "position_name": "Factory Recovery Coordinator",
+    "role_name": "Factory Recovery Coordinator",
     "source_type": "starter_jd_plus_org_customization",
     "source_summary": "Based on a starter manufacturing recovery JD, then adapted for one plant's escalation and reporting model.",
     "studio_entrypoint": "Role Private Studio",

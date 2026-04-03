@@ -17,7 +17,7 @@ SA-NOM already aligns with many governance ideas these frameworks care about, bu
 
 | Area | SA-NOM Baseline | Standards Reading | Current Position |
 | --- | --- | --- | --- |
-| AI role definition and bounded responsibility | Governed role packs, Private Rule Studio, Private Rule Position | Governance structure, accountable scope, defined AI system roles | Included baseline |
+| AI role definition and bounded responsibility | Governed role packs, Role Private Studio, organization-defined governed hats | Governance structure, accountable scope, defined AI system roles | Included baseline |
 | Human involvement | Human Ask, override, escalation boundaries | Human oversight and accountability controls | Included baseline |
 | Auditability and evidence | Audit chain, evidence-oriented execution, response and scenario artifacts | Traceability, reviewability, documented controls | Included baseline |
 | Risk-aware operational routing | Authority guard, escalation, review-and-escalation patterns | Risk treatment and control operation | Included baseline |
