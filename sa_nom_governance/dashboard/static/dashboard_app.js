@@ -1,6 +1,6 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.4-ui2';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.5-ui2';
 
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.4-ui2';
+import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.5-ui2';
 
 const state = {
   view: 'overview',
@@ -51,6 +51,7 @@ const VIEW_TITLES = {
   requests: 'Requests',
   cases: 'Cases',
   documents: 'Documents',
+  actions: 'AI Actions',
   overrides: 'Overrides',
   conflicts: 'Conflicts & Locks',
   audit: 'Audit Trail',
@@ -66,6 +67,7 @@ const VIEW_DESCRIPTIONS = {
   requests: 'Submit governed work and follow where it goes next.',
   cases: 'Follow one governed issue across requests, overrides, Human Ask, documents, and audit proof.',
   documents: 'Work governed documents as live runtime objects, not static files.',
+  actions: 'Launch, review, and follow governed AI execution inside one runtime lane.',
   overrides: 'Work only the decisions that crossed a human boundary.',
   conflicts: 'Inspect locks, contention, and safe retry posture.',
   audit: 'Review chain integrity, evidence, and trusted history.',
@@ -125,6 +127,12 @@ const VIEW_INTELLIGENCE = {
     narrative: 'Use this page when a draft, review, publish, or supersede flow must stay tied to runtime proof and case continuity.',
     emphasis: 'document lifecycle',
   },
+  actions: {
+    eyebrow: 'AI Runtime',
+    title: 'Governed AI work with explicit authority, side effects, and proof',
+    narrative: 'Use this page when AI should act inside a case instead of only reporting on it.',
+    emphasis: 'action execution',
+  },
   overrides: {
     eyebrow: 'Boundary Changes',
     title: 'Human intervention only where autonomy ended',
@@ -180,6 +188,7 @@ const VIEW_USE_HINTS = {
   requests: { value: 'Submit or trace work', note: 'Use this when you are creating a governed request or following its next lane.', tone: 'accent' },
   cases: { value: 'Trace the whole issue', note: 'Use this when one business issue spans requests, approvals, records, documents, and evidence.', tone: 'accent' },
   documents: { value: 'Work the governed document lane', note: 'Use this when draft, review, publish, archive, or active-version logic matters.', tone: 'accent' },
+  actions: { value: 'Let AI execute governed work', note: 'Use this when a case is ready for summarize, document draft, or human handoff actions.', tone: 'accent' },
   overrides: { value: 'Resolve human decisions', note: 'Use this when the runtime paused and a human must approve or veto.', tone: 'warning' },
   conflicts: { value: 'Unblock stalled work', note: 'Use this when locks or contention stop safe execution.', tone: 'warning' },
   audit: { value: 'Prove what happened', note: 'Use this when you need evidence, reason, and chain integrity.', tone: 'accent' },
@@ -195,6 +204,7 @@ const VIEW_PERMISSIONS = {
   requests: 'requests.read',
   cases: 'dashboard.read',
   documents: 'documents.read',
+  actions: 'actions.read',
   overrides: 'overrides.read',
   conflicts: 'locks.read',
   audit: 'audit.read',
@@ -217,6 +227,7 @@ const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-ops-action]',
   '[data-integration-action]',
   '[data-human-ask-action]',
+  '[data-action-runtime-action]',
   '[data-studio-governance-select]',
   '[data-studio-template-apply]',
   '[data-studio-panel-action]',
@@ -918,6 +929,73 @@ root.addEventListener('click', async (event) => {
     return;
   }
 
+
+  const actionRuntimeButton = event.target.closest('[data-action-runtime-action]');
+  if (actionRuntimeButton) {
+    const runtimeAction = actionRuntimeButton.dataset.actionRuntimeAction || '';
+    try {
+      if (runtimeAction === 'create') {
+        const actionType = actionRuntimeButton.dataset.actionType || '';
+        const caseItem = getScopedActionCase(state.snapshot);
+        if (!caseItem) {
+          state.lastError = 'Open a case first, then launch the AI action inside that governed issue.';
+          render();
+          return;
+        }
+        const response = await apiFetch('/api/actions', {
+          method: 'POST',
+          body: JSON.stringify(buildActionRuntimePayload(actionType, caseItem, {
+            label: actionRuntimeButton.dataset.actionLabel || '',
+          })),
+        });
+        const item = response.item || response;
+        const primary = resolveActionPrimaryFocus(item);
+        const primaryView = primary.view || 'actions';
+        const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView);
+        state.lastError = `${item.label || titleCase(actionType || 'AI action')} created for ${caseItem.case_id}.`;
+        setActionContext({
+          entityType: primary.entityType || 'action',
+          entityId: primary.entityId || item.action_id || '',
+          caseId: item.case_id || caseItem.case_id || '',
+          view: primaryView,
+          title: `${item.label || titleCase(actionType || 'AI action')} completed its latest governed step.`,
+          detail: item.next_action || 'The resulting work item stays linked to the same case and is ready in the next lane.',
+          actionLabel: `Open ${primaryViewLabel}`,
+        });
+        await loadDashboard();
+        return;
+      }
+      if (runtimeAction === 'execute') {
+        const actionId = actionRuntimeButton.dataset.actionId || '';
+        const currentItem = getActionById(state.snapshot, actionId);
+        const response = await apiFetch(`/api/actions/${encodeURIComponent(actionId)}/execute`, {
+          method: 'POST',
+          body: JSON.stringify({}),
+        });
+        const item = response.item || response;
+        const primary = resolveActionPrimaryFocus(item);
+        const primaryView = primary.view || 'actions';
+        const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView);
+        state.lastError = `${item.label || currentItem?.label || actionId} re-ran in the governed AI runtime.`;
+        setActionContext({
+          entityType: primary.entityType || 'action',
+          entityId: primary.entityId || item.action_id || actionId,
+          caseId: item.case_id || currentItem?.case_id || '',
+          view: primaryView,
+          title: `${item.label || currentItem?.label || actionId} refreshed its governed result.`,
+          detail: item.next_action || 'The refreshed action result is ready in the linked runtime lane.',
+          actionLabel: `Open ${primaryViewLabel}`,
+        });
+        await loadDashboard();
+        return;
+      }
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
+      return;
+    }
+  }
+
   const governanceSelectButton = event.target.closest('[data-studio-governance-select]');
   if (governanceSelectButton) {
     state.studioGovernanceRequestId = governanceSelectButton.dataset.requestId || null;
@@ -1521,6 +1599,7 @@ function render() {
   if (state.view === 'requests') viewContent = renderRequests(scopedSnapshot);
   if (state.view === 'cases') viewContent = renderCases(snapshot);
   if (state.view === 'documents') viewContent = renderDocuments(scopedSnapshot);
+  if (state.view === 'actions') viewContent = renderActions(scopedSnapshot);
   if (state.view === 'overrides') viewContent = renderOverridesView(scopedSnapshot);
   if (state.view === 'conflicts') viewContent = renderConflicts(scopedSnapshot);
   if (state.view === 'audit') viewContent = renderAudit(scopedSnapshot);
@@ -1755,7 +1834,7 @@ function renderWorkflowGuide(snapshot) {
 }
 
 function renderWorkLanguageGuide(snapshot) {
-  if (!['overview', 'requests', 'overrides', 'studio', 'human_ask', 'conflicts'].includes(state.view)) return '';
+  if (!['overview', 'requests', 'overrides', 'studio', 'human_ask', 'conflicts', 'actions'].includes(state.view)) return '';
   const summary = snapshot.unified_work_inbox?.summary || {};
   return `
     <section class="card stack">
@@ -1789,7 +1868,7 @@ function renderWorkLanguageGuide(snapshot) {
           <p class="muted">A governed path is fail-closed until someone resolves the issue or deliberately resumes it.</p>
         </article>
       </div>
-      <div class="trace-box"><strong>Work item definition</strong><p class="muted">A governed work item can be a request, override, Human Ask record, recovery item, or Studio draft. The dashboard should always tell you who owns it, what state it is in, and what happens next.</p></div>
+      <div class="trace-box"><strong>Work item definition</strong><p class="muted">A governed work item can be a request, AI action, override, Human Ask record, recovery item, or Studio draft. The dashboard should always tell you who owns it, what state it is in, and what happens next.</p></div>
     </section>
   `;
 }
@@ -1874,6 +1953,14 @@ function buildViewCues(snapshot) {
       { label: 'Role packs', value: (snapshot.roles || []).length, note: 'Trusted hats currently available to the Director.', tone: 'accent' },
       { label: 'Manifest trust', value: runtimeHealth.trusted_registry?.signature_status || 'unknown', note: 'Registry signature posture for the live PTAG library.', tone: runtimeHealth.trusted_registry?.signature_status === 'verified' ? 'success' : 'warning' },
       { label: 'Hierarchy map', value: runtimeHealth.role_hierarchy?.roles_total || 0, note: 'Roles currently visible in the runtime authority graph.', tone: 'default' },
+    ];
+  }
+  if (state.view === 'actions') {
+    const actionsSummary = snapshot.actions?.summary || {};
+    return [
+      { label: 'AI actions', value: actionsSummary.actions_total || 0, note: 'Governed AI executions currently visible in the runtime lane.', tone: 'accent' },
+      { label: 'Waiting human', value: actionsSummary.waiting_human_total || 0, note: 'AI actions paused because a real human decision is required before flow can continue.', tone: (actionsSummary.waiting_human_total || 0) ? 'warning' : 'success' },
+      { label: 'Document drafts', value: actionsSummary.document_artifact_total || 0, note: 'Governed documents created as side effects by the AI action runtime.', tone: (actionsSummary.document_artifact_total || 0) ? 'success' : 'default' },
     ];
   }
   if (state.view === 'health') {
@@ -2108,6 +2195,34 @@ function buildWorkflowGuide(snapshot) {
     addWorkflowLink(related, 'policies', 'Open live library', 'Compare drafts against the published, trusted role packs.');
     addWorkflowLink(related, 'human_ask', 'Open governed record', 'Call a draft or published hat into a governed report lane.');
     addWorkflowLink(related, 'audit', 'Check evidence', 'Review trusted registry and publication evidence after changes.');
+  } else if (state.view === 'actions') {
+    const actionSummary = snapshot.actions?.summary || {};
+    const currentCaseId = getActionContextCaseId();
+    primary = currentCaseId
+      ? {
+          view: 'cases',
+          eyebrow: 'Next governed move',
+          title: 'Return to the canonical case after AI execution',
+          detail: 'Use Cases to keep the action, document, human handoff, and proof trail attached to one governed issue.',
+          badge: 'case continuity',
+          actionLabel: 'Open Cases',
+          details: [
+            ['Case', currentCaseId],
+            ['AI actions', String(actionSummary.actions_total || 0)],
+            ['Waiting human', String(actionSummary.waiting_human_total || 0)],
+          ],
+        }
+      : {
+          view: 'cases',
+          eyebrow: 'Next governed move',
+          title: 'Open a case first, then let AI act inside it',
+          detail: 'The AI action runtime is safest when launch, side effects, proof, and follow-up all stay attached to one canonical case.',
+          badge: 'pick case',
+          actionLabel: 'Open Cases',
+        };
+    addWorkflowLink(related, 'documents', 'Open Documents', 'Review governed document drafts or publish follow-through created by AI actions.');
+    addWorkflowLink(related, 'human_ask', 'Open Human Ask', 'Follow human handoff records opened by the AI action runtime.');
+    addWorkflowLink(related, 'audit', 'Open Audit Trail', 'Confirm authority basis, side effects, and proof after AI execution.');
   } else if (state.view === 'human_ask') {
     primary = (humanAsk.waiting_human_total || 0)
       ? {
@@ -2268,7 +2383,7 @@ function getActionContextCaseId() {
 }
 
 function isCaseScopedView(view = state.view) {
-  return ['requests', 'documents', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask'].includes(String(view || '').trim());
+  return ['requests', 'documents', 'actions', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask'].includes(String(view || '').trim());
 }
 
 function getCaseById(snapshot, caseId = '') {
@@ -2293,6 +2408,7 @@ function getCurrentViewCaseLinkedTotal(item) {
   if (state.view === 'studio') return Array.isArray(item.linked_studio_request_ids) ? item.linked_studio_request_ids.length : 0;
   if (state.view === 'human_ask') return Array.isArray(item.linked_session_ids) ? item.linked_session_ids.length : 0;
   if (state.view === 'documents') return Array.isArray(item.linked_document_ids) ? item.linked_document_ids.length : 0;
+  if (state.view === 'actions') return Array.isArray(item.linked_action_ids) ? item.linked_action_ids.length : 0;
   return 0;
 }
 
@@ -2333,6 +2449,12 @@ function getCaseScopedSnapshot(snapshot) {
           items: filterRowsByCase(snapshot.documents.items || [], caseId),
         }
       : snapshot.documents,
+    actions: snapshot.actions
+      ? {
+          ...snapshot.actions,
+          items: filterRowsByCase(snapshot.actions.items || [], caseId),
+        }
+      : snapshot.actions,
   };
 }
 
@@ -2389,6 +2511,13 @@ function renderCaseSpotlight(snapshot) {
           detail: 'Return to the canonical case lane when you need the full linked work, timeline, and proof story again.',
           actionLabel: 'Open Cases',
         })}>Open Cases</button>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: 'actions',
+          caseId: item.case_id,
+          title: item.case_id ? `Case ${item.case_id} opened in AI Actions.` : 'Opened AI Actions.',
+          detail: 'Launch or review governed AI execution inside the same canonical case.',
+          actionLabel: 'Open AI Actions',
+        })}>Open AI Actions</button>
         <button class="action-button action-button-muted" type="button" data-case-scope-clear="true">Show full ${escapeHtml(currentViewLabel)}</button>
       </div>
     </section>
@@ -3069,6 +3198,8 @@ function resolveCaseWorkItemFocus(workItem = {}) {
       return { entityType: 'studio_request', entityId: firstId };
     case 'document':
       return { entityType: 'document', entityId: firstId };
+    case 'action':
+      return { entityType: 'action', entityId: firstId };
     case 'audit':
       return { entityType: firstId ? 'request' : 'case', entityId: firstId || '' };
     default:
@@ -3165,6 +3296,7 @@ function renderCaseCard(item) {
     ...(item.linked_request_ids || []).slice(0, 3),
     ...(item.linked_override_ids || []).slice(0, 2),
     ...(item.linked_session_ids || []).slice(0, 2),
+    ...(item.linked_action_ids || []).slice(0, 2),
     ...(item.linked_workflow_ids || []).slice(0, 2),
     ...(item.linked_studio_request_ids || []).slice(0, 2),
   ].filter(Boolean);
@@ -3190,6 +3322,7 @@ function renderCaseCard(item) {
         ['Requests', String((item.linked_request_ids || []).length)],
         ['Overrides', String((item.linked_override_ids || []).length)],
         ['Human Ask', String((item.linked_session_ids || []).length)],
+        ['AI actions', String((item.linked_action_ids || []).length)],
         ['Documents', String((item.linked_document_ids || []).length)],
         ['Workflow refs', String((item.linked_workflow_ids || []).length)],
         ['Audit events', String(item.audit_event_total || 0)],
@@ -3218,6 +3351,13 @@ function renderCaseCard(item) {
           detail: secondaryView === 'audit' ? 'Use Audit to verify the evidence trail attached to this case.' : 'Use Requests to reopen the linked runtime intake lane.',
           actionLabel: `Open ${secondaryViewLabel}`,
         })}>${escapeHtml(`Open ${secondaryViewLabel}`)}</button>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: 'actions',
+          caseId: item.case_id,
+          title: item.case_id ? `Case ${item.case_id} opened in AI Actions.` : 'Opened AI Actions.',
+          detail: 'Use the AI action runtime to summarize, draft, or hand off work inside this case.',
+          actionLabel: 'Open AI Actions',
+        })}>Open AI Actions</button>
       </div>
     </article>
   `;
@@ -3232,6 +3372,7 @@ function resolveCaseTimelineFocus(entry = {}) {
   if (eventType === 'human_ask') return { entityType: 'human_ask_session', entityId: reference };
   if (eventType === 'studio') return { entityType: 'studio_request', entityId: reference };
   if (eventType === 'document') return { entityType: 'document', entityId: reference };
+  if (eventType === 'action') return { entityType: 'action', entityId: reference };
   if (eventType === 'audit') return { entityType: 'request', entityId: reference };
   return { entityType: 'case', entityId: '' };
 }
@@ -3282,6 +3423,234 @@ function renderCaseEmptyState() {
         <button class="action-button action-button-muted" type="button" data-view-jump="documents">Open Documents</button>
       </div>
     </article>
+  `;
+}
+
+
+function getScopedActionCase(snapshot = state.snapshot) {
+  const caseId = getActionContextCaseId();
+  return caseId ? getCaseById(snapshot, caseId) : null;
+}
+
+function getActionById(snapshot, actionId = '') {
+  const normalizedActionId = String(actionId || '').trim();
+  if (!normalizedActionId) return null;
+  const items = Array.isArray(snapshot?.actions?.items) ? snapshot.actions.items : [];
+  return items.find((item) => String(item.action_id || '').trim() === normalizedActionId) || null;
+}
+
+function buildActionRuntimePayload(actionType, caseItem, context = {}) {
+  if (!caseItem) throw new Error('AI action runtime requires a live case context.');
+  const payload = {
+    action_type: actionType,
+    case_id: caseItem.case_id,
+    case_reference: caseItem.case_reference || caseItem.case_id,
+    requested_role: state.session?.role_name || '',
+    metadata: {
+      source: 'dashboard_actions_lane',
+      origin_view: state.view,
+      origin_case_id: caseItem.case_id,
+    },
+  };
+  if (actionType === 'draft_document') {
+    payload.title = `${caseItem.title || caseItem.case_id} governed record`;
+    payload.document_class = 'record';
+    payload.tags = ['ai_action_runtime', 'dashboard'];
+  }
+  if (actionType === 'request_human') {
+    payload.mode = 'report';
+    payload.prompt = `Please review case ${caseItem.case_id}, summarize the governed posture, and state the next safe action.`;
+  }
+  if (context.label) payload.label = context.label;
+  return payload;
+}
+
+function resolveActionArtifactFocus(artifact = {}) {
+  const kind = String(artifact.kind || '').trim();
+  const refId = String(artifact.ref_id || '').trim();
+  const caseId = String(artifact.case_id || '').trim();
+  if (kind === 'document') return { view: 'documents', entityType: refId ? 'document' : '', entityId: refId, caseId };
+  if (kind === 'human_ask_session') return { view: 'human_ask', entityType: refId ? 'human_ask_session' : '', entityId: refId, caseId };
+  if (kind === 'case_summary') return { view: 'cases', entityType: caseId ? 'case' : '', entityId: caseId || refId, caseId: caseId || refId };
+  return { view: 'actions', entityType: refId ? 'action' : '', entityId: refId, caseId };
+}
+
+function resolveActionPrimaryFocus(item = {}) {
+  const nextView = String(item.next_view || item.catalog?.primary_view || 'actions').trim() || 'actions';
+  const artifacts = Array.isArray(item.artifacts) ? item.artifacts : [];
+  const artifactFocus = artifacts.length ? resolveActionArtifactFocus(artifacts[0]) : null;
+  if (nextView === 'documents' && artifactFocus?.view === 'documents') return artifactFocus;
+  if (nextView === 'human_ask' && artifactFocus?.view === 'human_ask') return artifactFocus;
+  if (nextView === 'cases') return { view: 'cases', entityType: 'case', entityId: item.case_id || '', caseId: item.case_id || '' };
+  return { view: 'actions', entityType: item.action_id ? 'action' : '', entityId: item.action_id || '', caseId: item.case_id || '' };
+}
+
+function renderActionRegistryCard(entry, currentCase) {
+  const canLaunch = Boolean(currentCase) && can('actions.create');
+  return `
+    <article class="card stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(entry.action_type || 'action')}</div>
+          <h3 class="card-title">${escapeHtml(entry.label || titleCase(entry.action_type || 'AI action'))}</h3>
+          <p class="card-subtitle">${escapeHtml(entry.description || 'Governed AI runtime action.')}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(entry.primary_view || 'actions')}</div>
+      </div>
+      ${keyValue([
+        ['Authority', String(entry.authority_boundary || '-')],
+        ['Side effects', String(entry.side_effect_policy || '-')],
+      ])}
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-action-runtime-action="create" data-action-type="${escapeHtml(entry.action_type || '')}" ${canLaunch ? '' : 'disabled'}>${escapeHtml(canLaunch ? 'Run in current case' : 'Open a case first')}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderActionArtifactCard(artifact = {}, actionItem = {}) {
+  const focus = resolveActionArtifactFocus(artifact);
+  const viewLabel = VIEW_TITLES[focus.view] || titleCase(focus.view || 'actions');
+  return `
+    <article class="mini-card stack">
+      <div class="eyebrow muted">${escapeHtml(artifact.kind || 'artifact')}</div>
+      <strong>${escapeHtml(artifact.label || artifact.ref_id || 'Artifact')}</strong>
+      <p class="muted">${escapeHtml(artifact.detail || 'Governed artifact created by the AI runtime.')}</p>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: focus.view,
+          focusType: focus.entityType,
+          focusId: focus.entityId,
+          caseId: focus.caseId || actionItem.case_id || '',
+          title: `${artifact.label || artifact.ref_id || 'Artifact'} opened in ${viewLabel}.`,
+          detail: 'The linked artifact stays attached to the same governed case and runtime story.',
+          actionLabel: `Open ${viewLabel}`,
+        })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderActionCard(item) {
+  const primary = resolveActionPrimaryFocus(item);
+  const primaryViewLabel = VIEW_TITLES[primary.view] || titleCase(primary.view || 'actions');
+  const canExecute = can('actions.execute') && ['planned', 'failed_closed'].includes(String(item.status || ''));
+  const artifacts = Array.isArray(item.artifacts) ? item.artifacts : [];
+  const executionLog = Array.isArray(item.execution_log) ? item.execution_log.slice(0, 3) : [];
+  return `
+    <article class="card stack${isFocusedEntity('action', item.action_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('action', item.action_id))}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(item.action_id || 'action')}</div>
+          <h3 class="card-title">${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</h3>
+          <p class="card-subtitle">${escapeHtml(item.output_summary || item.next_action || 'Governed AI runtime item.')}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(item.status || 'planned')}${statusBadge(item.action_type || 'action')}</div>
+      </div>
+      ${keyValue([
+        ['Case', String(item.case_id || '-')],
+        ['Authority', String(item.authority_boundary || '-')],
+        ['Side effects', String(item.side_effect_policy || '-')],
+        ['Next view', primaryViewLabel],
+        ['Artifacts', String(item.artifacts_total || artifacts.length || 0)],
+      ])}
+      ${item.waiting_reason ? `<div class="trace-box"><strong>Waiting reason</strong><p class="muted">${escapeHtml(item.waiting_reason)}</p></div>` : ''}
+      ${item.latest_error ? `<div class="trace-box trace-box-danger"><strong>Failure detail</strong><p class="muted">${escapeHtml(item.latest_error)}</p></div>` : ''}
+      ${artifacts.length ? `<div class="card-grid">${artifacts.map((artifact) => renderActionArtifactCard(artifact, item)).join('')}</div>` : ''}
+      ${executionLog.length ? `<div class="trace-box"><strong>Runtime trace</strong><p class="muted">${escapeHtml(executionLog.map((entry) => `${entry.status}: ${entry.title}`).join(' | '))}</p></div>` : ''}
+      <div class="inline-actions">
+        <button class="action-button" type="button" ${buildViewJumpAttributes({
+          view: primary.view,
+          focusType: primary.entityType,
+          focusId: primary.entityId,
+          caseId: primary.caseId || item.case_id || '',
+          title: `${item.label || item.action_id} opened in ${primaryViewLabel}.`,
+          detail: item.next_action || 'Continue the governed flow from the linked runtime lane.',
+          actionLabel: `Open ${primaryViewLabel}`,
+        })}>${escapeHtml(`Open ${primaryViewLabel}`)}</button>
+        <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
+          view: 'cases',
+          focusType: 'case',
+          focusId: item.case_id || '',
+          caseId: item.case_id || '',
+          title: item.case_id ? `Case ${item.case_id} reopened from the AI action runtime.` : 'Opened Cases.',
+          detail: 'Return to the canonical case to keep actions, documents, and human review in one story.',
+          actionLabel: 'Open Cases',
+        })}>Open Cases</button>
+        ${canExecute ? `<button class="action-button action-button-muted" type="button" data-action-runtime-action="execute" data-action-id="${escapeHtml(item.action_id || '')}">Run again</button>` : ''}
+      </div>
+    </article>
+  `;
+}
+
+function renderActionEmptyState(currentCase) {
+  const title = currentCase ? `No AI action has run for ${currentCase.case_id} yet` : 'Open a case to start governed AI execution';
+  const detail = currentCase
+    ? 'Launch summarize, document draft, or human handoff actions from this lane and they will stay tied to the same case, evidence, and follow-up flow.'
+    : 'The AI action runtime is case-bound. Open Cases first, select the governed issue, then return here to let AI work inside explicit authority and side-effect rules.';
+  return `
+    <article class="card stack">
+      <div>
+        <div class="eyebrow muted">AI action runtime</div>
+        <h3 class="card-title">${escapeHtml(title)}</h3>
+        <p class="card-subtitle">${escapeHtml(detail)}</p>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-view-jump="cases">Open Cases</button>
+        ${currentCase ? `<button class="action-button action-button-muted" type="button" data-view-jump="documents" data-view-jump-case-id="${escapeHtml(currentCase.case_id || '')}">Open Documents</button>` : ''}
+      </div>
+    </article>
+  `;
+}
+
+function renderActions(snapshot) {
+  const surface = snapshot.actions || { summary: {}, registry: [], items: [] };
+  const summary = surface.summary || {};
+  const registry = Array.isArray(surface.registry) ? surface.registry : [];
+  const items = Array.isArray(surface.items) ? surface.items : [];
+  const currentCase = getScopedActionCase(snapshot);
+  const caseLabel = currentCase?.case_id || 'No case selected';
+  return `
+    <section class="overview-hero">
+      <article class="card hero-card hero-card-primary">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">AI Action Runtime</div>
+            <h2 class="hero-title">Governed AI work now executes as explicit actions, not hidden side effects.</h2>
+            <p class="hero-subtitle">Each action stays attached to one case, one authority boundary, one side-effect policy, and one proof trail.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(currentCase ? 'case scoped' : 'pick case')}${statusBadge(summary.waiting_human_total ? 'human follow-up active' : 'runtime ready')}</div>
+        </div>
+        <div class="hero-split">
+          ${keyValue([
+            ['Selected case', caseLabel],
+            ['AI actions', String(summary.actions_total || items.length)],
+            ['Waiting human', String(summary.waiting_human_total || 0)],
+            ['Completed', String(summary.completed_total || 0)],
+            ['Failed closed', String(summary.failed_closed_total || 0)],
+            ['Document artifacts', String(summary.document_artifact_total || 0)],
+          ])}
+          <div class="hero-note"><strong>Execution contract</strong><p>AI actions only launch inside a canonical case so document drafting, human handoff, and evidence stay in one governed story.</p></div>
+        </div>
+      </article>
+      <article class="card hero-card hero-card-secondary">
+        <div>
+          <div class="eyebrow muted">Current case</div>
+          <h3 class="card-title">${escapeHtml(caseLabel)}</h3>
+          <p class="card-subtitle">${escapeHtml(currentCase ? (currentCase.continuity?.next_detail || 'This case is ready for governed AI execution.') : 'Open Cases first, then jump back here to let AI act inside the selected governed issue.')}</p>
+        </div>
+        <div class="inline-actions">
+          <button class="action-button" type="button" data-view-jump="cases">Open Cases</button>
+          ${currentCase ? `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: 'cases', focusType: 'case', focusId: currentCase.case_id, caseId: currentCase.case_id, title: `Case ${currentCase.case_id} reopened from AI Actions.`, detail: 'Return to the canonical case to review linked work, proof, and next moves.', actionLabel: 'Open Cases' })}>Open selected case</button>` : ''}
+        </div>
+      </article>
+    </section>
+    <section class="card-grid">
+      ${registry.map((entry) => renderActionRegistryCard(entry, currentCase)).join('')}
+    </section>
+    <section class="card-grid">
+      ${items.length ? items.map((item) => renderActionCard(item)).join('') : renderActionEmptyState(currentCase)}
+    </section>
   `;
 }
 
@@ -3733,6 +4102,10 @@ function resolveCasePrimaryFocus(item, primaryView = '') {
   if (view === 'documents') {
     const documentId = (item.linked_document_ids || [])[0] || '';
     return { entityType: documentId ? 'document' : '', entityId: documentId };
+  }
+  if (view === 'actions') {
+    const actionId = (item.linked_action_ids || [])[0] || '';
+    return { entityType: actionId ? 'action' : '', entityId: actionId };
   }
   if (view === 'conflicts') {
     const requestId = (item.linked_request_ids || [])[0] || (item.linked_override_ids || [])[0] || '';
