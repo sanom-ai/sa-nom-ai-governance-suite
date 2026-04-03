@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SA-NOM AI Governance Suite</title>
-    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.7-ui3" />
+    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.8-ui1" />
   </head>
   <body>
     <div class="page-atmosphere" aria-hidden="true">
@@ -58,27 +58,33 @@
                 <strong>SA-NOM</strong>
               </div>
             </div>
-            <nav class="nav-list command-nav" id="nav-list">
-              <button class="nav-item is-active" data-view="overview"><span class="nav-item-title">Home</span></button>
-              <button class="nav-item" data-view="requests"><span class="nav-item-title">Work Inbox</span></button>
-              <button class="nav-item" data-view="cases"><span class="nav-item-title">Cases</span></button>
-              <button class="nav-item" data-view="documents"><span class="nav-item-title">Documents</span></button>
-              <button class="nav-item" data-view="actions"><span class="nav-item-title">AI Actions</span></button>
-              <details class="nav-dropdown" id="governance-dropdown" hidden>
-                <summary class="nav-dropdown-toggle">Governance</summary>
-                <div class="nav-dropdown-menu">
-                  <button class="nav-item nav-subitem" data-view="control_room"><span class="nav-item-title">Control Room</span></button>
-                </div>
-              </details>
-            </nav>
+            <div class="command-nav-scroll">
+              <nav class="nav-list command-nav" id="nav-list">
+                <button class="nav-item is-active" data-view="overview"><span class="nav-item-title">Home</span></button>
+                <button class="nav-item" data-view="requests"><span class="nav-item-title">Work Inbox</span></button>
+                <button class="nav-item" data-view="cases"><span class="nav-item-title">Cases</span></button>
+                <button class="nav-item" data-view="documents"><span class="nav-item-title">Documents</span></button>
+                <button class="nav-item" data-view="actions"><span class="nav-item-title">AI Actions</span></button>
+                <details class="nav-dropdown" id="governance-dropdown" hidden>
+                  <summary class="nav-dropdown-toggle">Governance</summary>
+                  <div class="nav-dropdown-menu">
+                    <button class="nav-item nav-subitem" data-view="control_room"><span class="nav-item-title">Control Room</span></button>
+                  </div>
+                </details>
+              </nav>
+            </div>
             <div class="command-utility-row">
-              <span id="session-label" class="status-chip status-chip-muted">disconnected</span>
-              <select id="organization-selector" class="command-org-selector">
-                <option value="">Organization</option>
-              </select>
-              <button id="ask-ai-button" class="action-button action-button-muted" type="button">Ask AI anything...</button>
-              <button id="refresh-button" class="action-button" type="button">Refresh</button>
-              <button id="logout-button" class="action-button action-button-muted" type="button">Sign out</button>
+              <div class="command-session-row">
+                <span id="session-label" class="status-chip status-chip-muted">disconnected</span>
+                <select id="organization-selector" class="command-org-selector">
+                  <option value="">Organization</option>
+                </select>
+              </div>
+              <div class="command-action-row">
+                <button id="ask-ai-button" class="action-button action-button-muted" type="button">Ask AI anything...</button>
+                <button id="refresh-button" class="action-button" type="button">Refresh</button>
+                <button id="logout-button" class="action-button action-button-muted" type="button">Sign out</button>
+              </div>
             </div>
           </div>
           <div class="topbar">
@@ -124,6 +130,6 @@
         </section>
       </main>
     </div>
-    <script type="module" src="dashboard_app.js?v=0.7.7-ui3"></script>
+    <script type="module" src="dashboard_app.js?v=0.7.8-ui1"></script>
   </body>
 </html>

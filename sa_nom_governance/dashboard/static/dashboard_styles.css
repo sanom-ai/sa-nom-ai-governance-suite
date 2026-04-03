@@ -2870,9 +2870,20 @@ button:focus-visible {
 }
 
 .command-main {
+  grid-area: main;
   display: grid;
   align-content: start;
   gap: 24px;
+}
+
+.command-shell {
+  grid-template-columns: minmax(280px, var(--sidebar-width)) minmax(0, 1fr);
+  grid-template-areas: "sidebar main";
+  align-items: start;
+}
+
+.command-sidebar {
+  grid-area: sidebar;
 }
 
 .command-topbar {
@@ -2893,6 +2904,23 @@ button:focus-visible {
   box-shadow: var(--shadow-md);
 }
 
+.command-nav-scroll {
+  flex: 1 1 460px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(185, 146, 79, 0.55) transparent;
+}
+
+.command-nav-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.command-nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(185, 146, 79, 0.42);
+  border-radius: 999px;
+}
+
 .command-brand-inline {
   display: inline-flex;
   align-items: center;
@@ -2910,10 +2938,12 @@ button:focus-visible {
 
 .command-nav {
   display: flex;
-  flex: 1 1 460px;
-  flex-wrap: wrap;
+  flex: none;
+  min-width: max-content;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
+  padding-bottom: 4px;
 }
 
 .command-nav .nav-item,
@@ -2921,6 +2951,7 @@ button:focus-visible {
   width: auto;
   min-width: 0;
   padding-inline: 16px;
+  min-height: 48px;
 }
 
 .command-utility-row {
@@ -2931,9 +2962,27 @@ button:focus-visible {
   gap: 10px;
 }
 
+.command-session-row,
+.command-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.command-action-row {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.command-session-row .status-chip,
+.command-action-row .action-button,
+.command-org-selector {
+  min-height: 48px;
+}
+
 .command-org-selector {
   min-width: 180px;
-  min-height: 42px;
   border-radius: 999px;
   border: 1px solid rgba(185, 146, 79, 0.18);
   background: rgba(255, 255, 255, 0.84);
@@ -3094,6 +3143,7 @@ button:focus-visible {
 
 .command-feed-list {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 14px;
 }
 
@@ -3127,9 +3177,118 @@ button:focus-visible {
   line-height: 1.5;
 }
 
+@media (max-width: 1280px) {
+  .command-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "sidebar";
+    gap: 18px;
+  }
+
+  .command-sidebar {
+    position: relative;
+    top: auto;
+    min-height: auto;
+    padding: 22px;
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+    align-items: start;
+    gap: 18px;
+  }
+
+  .brand-block {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-copy h1 {
+    font-size: clamp(1.85rem, 4vw, 2.5rem);
+  }
+
+  .brand-copy p {
+    max-width: none;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .sidebar-intel {
+    display: grid;
+    gap: 12px;
+  }
+
+  .sidebar-intel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sidebar-intel-card-wide {
+    grid-column: 1 / -1;
+  }
+
+  .sidebar-foot {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+
+  .command-nav-row {
+    position: sticky;
+    top: 14px;
+    z-index: 16;
+    display: grid;
+    gap: 14px;
+  }
+
+  .command-utility-row {
+    justify-content: space-between;
+  }
+
+  .command-home-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .command-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-department-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1360px) {
   .command-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .command-sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar-intel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-feed-list {
+    grid-template-columns: 1fr;
+  }
+
+  .command-department-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-utility-row {
+    display: grid;
+    gap: 10px;
+  }
+
+  .command-action-row {
+    margin-left: 0;
+    justify-content: flex-start;
   }
 }
 
@@ -3155,11 +3314,18 @@ button:focus-visible {
   }
 
   .command-nav {
+    min-width: 0;
     flex-basis: 100%;
+    flex-wrap: wrap;
   }
 
   .nav-dropdown-menu {
     position: static;
+  }
+
+  .command-session-row,
+  .command-action-row {
+    width: 100%;
   }
 
   .command-org-selector {

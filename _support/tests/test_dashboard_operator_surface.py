@@ -1161,6 +1161,50 @@ def test_dashboard_snapshot_exposes_command_surface_summary() -> None:
         assert [item.get('view') for item in quick_links] == ['requests', 'cases', 'documents', 'actions']
 
 
+
+def test_command_surface_prioritizes_active_department_quick_access_for_compact_surfaces() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        surface = builder.command_surface(
+            assignment_queue={
+                'items': [
+                    {'team_label': 'Operations', 'status': 'human_required', 'priority': 'critical', 'age_hours': 12},
+                    {'team_label': 'Operations', 'status': 'blocked', 'priority': 'high', 'age_hours': 4},
+                    {'team_label': 'Finance', 'status': 'in_progress', 'priority': 'high', 'age_hours': 8},
+                    {'team_label': 'Vendor Risk', 'status': 'human_required', 'priority': 'critical', 'age_hours': 6},
+                    {'team_label': 'HR', 'status': 'queued', 'priority': 'medium', 'age_hours': 1},
+                ],
+                'summary': {},
+            },
+            master_data={
+                'summary': {'organization_name': 'Tawan Company'},
+                'teams': [
+                    {'team_id': 'finance', 'label': 'Finance', 'member_ids': ['P1', 'P2'], 'seat_ids': ['S1', 'S2']},
+                    {'team_id': 'hr', 'label': 'HR', 'member_ids': ['P3'], 'seat_ids': ['S3']},
+                    {'team_id': 'legal', 'label': 'Legal', 'member_ids': ['P4'], 'seat_ids': ['S4']},
+                    {'team_id': 'operations', 'label': 'Operations', 'member_ids': ['P5', 'P6', 'P7'], 'seat_ids': ['S5', 'S6']},
+                    {'team_id': 'it', 'label': 'IT', 'member_ids': ['P8'], 'seat_ids': ['S7']},
+                    {'team_id': 'audit', 'label': 'Audit', 'member_ids': ['P9'], 'seat_ids': ['S8']},
+                    {'team_id': 'procurement', 'label': 'Procurement', 'member_ids': ['P10'], 'seat_ids': ['S9']},
+                ],
+            },
+            actions={'items': [], 'summary': {}},
+            evidence_exports={'summary': {}},
+            runtime_health={'audit_integrity': {}},
+            go_live_readiness={'status': 'ready'},
+            operator_queue_health={'items': []},
+            owner_registration={'organization_name': 'Tawan Company'},
+        )
+
+        quick_access = surface.get('department_quick_access', [])
+
+        assert len(quick_access) == 6
+        assert [item.get('label') for item in quick_access[:4]] == ['Operations', 'Vendor Risk', 'Finance', 'HR']
+        assert next(item for item in quick_access if item.get('label') == 'Vendor Risk').get('assignment_total') == 1
+
+
 def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_roles() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)

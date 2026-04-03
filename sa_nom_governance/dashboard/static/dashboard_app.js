@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.7-ui3';
+import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.8-ui1';
 
 const state = {
   view: getInitialDashboardView(),
@@ -8004,6 +8004,7 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
 
 
 

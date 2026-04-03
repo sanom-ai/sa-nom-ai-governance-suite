@@ -2516,10 +2516,12 @@ class DashboardSnapshotBuilder:
         for item in assignment_items:
             label = str(item.get('team_label', '') or 'Operations').strip() or 'Operations'
             team_counts[label] = team_counts.get(label, 0) + 1
-        quick_access = []
-        for team in team_items[:8]:
+        quick_access_candidates: list[dict[str, object]] = []
+        known_team_labels: set[str] = set()
+        for team in team_items:
             label = str(team.get('label', team.get('team_id', 'Team')) or 'Team')
-            quick_access.append(
+            known_team_labels.add(label)
+            quick_access_candidates.append(
                 {
                     'team_id': str(team.get('team_id', '') or ''),
                     'label': label,
@@ -2528,6 +2530,27 @@ class DashboardSnapshotBuilder:
                     'assignment_total': team_counts.get(label, 0),
                 }
             )
+        for label, assignment_total in team_counts.items():
+            if label in known_team_labels:
+                continue
+            quick_access_candidates.append(
+                {
+                    'team_id': '',
+                    'label': label,
+                    'member_total': 0,
+                    'seat_total': 0,
+                    'assignment_total': assignment_total,
+                }
+            )
+        quick_access = sorted(
+            quick_access_candidates,
+            key=lambda item: (
+                -int(item.get('assignment_total', 0) or 0),
+                0 if int(item.get('assignment_total', 0) or 0) > 0 and not str(item.get('team_id', '') or '') else 1,
+                -int(item.get('member_total', 0) or 0),
+                str(item.get('label', '') or ''),
+            ),
+        )[:6]
 
         return {
             'organization_name': str(owner_registration.get('organization_name', master_data.get('summary', {}).get('organization_name', 'Organization')) or 'Organization'),
