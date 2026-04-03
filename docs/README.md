@@ -151,3 +151,9 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 
 
+
+
+## v0.7.7
+- [ROADMAP_v0.7.7.md](ROADMAP_v0.7.7.md)
+- [ISSUE_DRAFTS_v0.7.7.md](ISSUE_DRAFTS_v0.7.7.md)
+

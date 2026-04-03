@@ -58,6 +58,33 @@ class DashboardService:
     def logout_session(self, headers):
         return self.access_control.revoke_session_from_headers(headers)
 
+    def _control_room_access(self, profile: AccessProfile) -> bool:
+        role_name = str(profile.role_name or '').strip().lower()
+        if role_name in {'owner', 'founder', 'admin', 'it'}:
+            return True
+        if profile.can('*'):
+            return True
+        return profile.can('ops.manage') and profile.can('health.read') and profile.can('audit.read')
+
+    def _session_public(self, profile: AccessProfile) -> dict[str, object]:
+        payload = profile.to_public_dict()
+        role_name = str(profile.role_name or '').strip().lower()
+        if role_name == 'owner':
+            persona = 'founder'
+        elif self._control_room_access(profile):
+            persona = 'admin'
+        elif role_name in {'operator', 'reviewer'}:
+            persona = 'operator'
+        else:
+            persona = 'executive'
+        payload.update({
+            'control_room_access': self._control_room_access(profile),
+            'persona': persona,
+            'home_view': 'overview',
+            'work_inbox_view': 'requests',
+        })
+        return payload
+
     def dashboard(self, profile: AccessProfile) -> dict[str, object]:
         snapshot = self.snapshot_builder.build()
         if not profile.can('requests.read'):
@@ -87,7 +114,7 @@ class DashboardService:
         if not profile.can('integration.read'):
             snapshot['integrations'] = {'summary': {}, 'targets': [], 'deliveries': []}
             snapshot['model_providers'] = {'status': 'hidden', 'providers': []}
-        snapshot['session'] = profile.to_public_dict()
+        snapshot['session'] = self._session_public(profile)
         snapshot['available_profiles'] = self.access_control.list_public_profiles()
         snapshot['deployment_profile'] = self.deployment_report.to_dict()
         return snapshot
@@ -110,7 +137,7 @@ class DashboardService:
             'model_providers': self.app.model_provider_snapshot(),
             'human_ask': self.app.human_ask_snapshot(limit=10),
             'actions': self.app.action_runtime_snapshot(limit=10),
-            'session': profile.to_public_dict(),
+            'session': self._session_public(profile),
         }
 
     def owner_registration(self) -> dict[str, object]:
@@ -615,7 +642,7 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == '/':
+        if parsed.path in {'/', '/home', '/control-room', '/governance/control-room'}:
             self.path = '/dashboard_index.html'
             return super().do_GET()
         if parsed.path.startswith('/api/'):
@@ -668,7 +695,7 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
                             case_id=case_id,
                             active_only=active_only,
                         ),
-                        'session': profile.to_public_dict(),
+                        'session': self._session_public(profile),
                     },
                 ),
             )
@@ -684,7 +711,7 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
                             action_type=(params.get('action_type', [''])[0] or None),
                             case_id=case_id,
                         ),
-                        'session': profile.to_public_dict(),
+                        'session': self._session_public(profile),
                     },
                 ),
             )
@@ -733,7 +760,7 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == '/api/role-private-studio/requests':
             return self._require_and_run('studio.read', lambda profile: self._respond_json(HTTPStatus.OK, {'items': self.service.list_studio_requests(status=status, limit=limit), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/session':
-            return self._require_and_run('dashboard.read', lambda profile: self._respond_json(HTTPStatus.OK, {'session': profile.to_public_dict(), 'available_profiles': self.service.access_control.list_public_profiles()}))
+            return self._require_and_run('dashboard.read', lambda profile: self._respond_json(HTTPStatus.OK, {'session': self._session_public(profile), 'available_profiles': self.service.access_control.list_public_profiles()}))
 
         parts = [part for part in parsed.path.split('/') if part]
         if len(parts) == 4 and parts[0] == 'api' and parts[1] == 'role-private-studio' and parts[2] == 'requests':

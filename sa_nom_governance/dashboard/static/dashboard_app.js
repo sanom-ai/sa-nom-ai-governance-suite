@@ -1,9 +1,7 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.6-ui1';
-
-import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.5-ui2';
+import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.7-ui1';
 
 const state = {
-  view: 'overview',
+  view: getInitialDashboardView(),
   snapshot: null,
   session: null,
   token: window.localStorage.getItem('sanom_api_token') || '',
@@ -28,6 +26,7 @@ const state = {
     activeOnly: false,
   },
   documentSearchResult: null,
+  controlRoomTool: getInitialControlRoomTool(),
 };
 
 const root = document.getElementById('dashboard-root');
@@ -35,6 +34,9 @@ const navList = document.getElementById('nav-list');
 const viewTitle = document.getElementById('view-title');
 const viewDescription = document.getElementById('view-description');
 const environmentLabel = document.getElementById('environment-label');
+const organizationSelector = document.getElementById('organization-selector');
+const askAiButton = document.getElementById('ask-ai-button');
+const governanceDropdown = document.getElementById('governance-dropdown');
 const generatedAt = document.getElementById('generated-at');
 const refreshButton = document.getElementById('refresh-button');
 const logoutButton = document.getElementById('logout-button');
@@ -47,9 +49,19 @@ const sidebarGeneratedLabel = document.getElementById('sidebar-generated-label')
 const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
 
+function getInitialDashboardView() {
+  const path = window.location.pathname || '/';
+  if (path === '/control-room' || path === '/governance/control-room') return 'control_room';
+  return 'overview';
+}
+
+function getInitialControlRoomTool() {
+  return 'health';
+}
+
 const VIEW_TITLES = {
-  overview: 'Overview',
-  requests: 'Requests',
+  overview: 'Home',
+  requests: 'Work Inbox',
   cases: 'Cases',
   directory: 'Directory & Search',
   documents: 'Documents',
@@ -62,11 +74,12 @@ const VIEW_TITLES = {
   sessions: 'Sessions',
   policies: 'Roles & Policies',
   health: 'Runtime Health',
+  control_room: 'Control Room',
 };
 
 const VIEW_DESCRIPTIONS = {
-  overview: 'See governance, runtime, and readiness posture in one scan.',
-  requests: 'Submit governed work and follow where it goes next.',
+  overview: 'Understand posture and the next human move within five seconds.',
+  requests: 'Your governed work inbox across approvals, blocked items, and follow-through.',
   cases: 'Follow one governed issue across requests, overrides, Human Ask, documents, and audit proof.',
   directory: 'Browse people, teams, seats, assignments, and linked search results from one governed surface.',
   documents: 'Work governed documents as live runtime objects, not static files.',
@@ -79,12 +92,13 @@ const VIEW_DESCRIPTIONS = {
   sessions: 'Monitor short-lived access, expiry, and revocation.',
   policies: 'Inspect active role packs and policy boundaries.',
   health: 'Check deployment, storage, integrations, and runtime posture.',
+  control_room: 'Advanced governance tools for admin, IT, and founder sessions only.',
 };
 
 const DEV_LANES = {
   viewer: {
     token: 'sanom-viewer-token',
-    view: 'overview',
+    view: getInitialDashboardView(),
     title: 'Viewer lane',
     summary: 'Inspect the dashboard, runtime health, and audit posture before you start changing anything.',
     followup: 'Start with Overview, then move to Health and Audit.',
@@ -240,10 +254,12 @@ const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-integration-action]',
   '[data-human-ask-action]',
   '[data-action-runtime-action]',
+  '[data-control-room-tool]',
   '[data-studio-governance-select]',
   '[data-studio-template-apply]',
   '[data-studio-panel-action]',
   '[data-studio-action]',
+  '[data-team-quick-access]',
 ].join(', ');
 
 navList.addEventListener('click', (event) => {
@@ -256,6 +272,12 @@ navList.addEventListener('click', (event) => {
 });
 
 refreshButton.addEventListener('click', () => withButtonBusy(refreshButton, () => loadDashboard(), 'Refreshing...'));
+askAiButton?.addEventListener('click', () => {
+  state.view = 'human_ask';
+  updateNav();
+  render();
+  scrollDashboardToTop();
+});
 logoutButton.addEventListener('click', async () => {
   if (state.sessionToken) {
     try {
@@ -578,6 +600,26 @@ root.addEventListener('click', async (event) => {
         state.lastError = String(error.message || error);
       }
     }
+    render();
+    scrollDashboardToTop();
+    return;
+  }
+
+  const controlRoomToolButton = event.target.closest('[data-control-room-tool]');
+  if (controlRoomToolButton) {
+    state.view = 'control_room';
+    state.controlRoomTool = controlRoomToolButton.dataset.controlRoomTool || 'health';
+    updateNav();
+    render();
+    scrollDashboardToTop();
+    return;
+  }
+
+  const teamQuickAccessButton = event.target.closest('[data-team-quick-access]');
+  if (teamQuickAccessButton) {
+    state.directorySearchQuery = teamQuickAccessButton.dataset.teamQuickAccess || '';
+    state.view = 'directory';
+    updateNav();
     render();
     scrollDashboardToTop();
     return;
@@ -1582,6 +1624,29 @@ async function loadStudioRequestIntoEditor(requestId) {
   fillStudioForm(item.structured_jd || {});
 }
 
+function hydrateOrganizationSelector(snapshot) {
+  if (!organizationSelector) return;
+  const surface = snapshot.command_surface || {};
+  const orgName = surface.organization_name || snapshot.owner_registration?.organization_name || snapshot.master_data?.summary?.organization_name || 'Organization';
+  organizationSelector.innerHTML = `<option value="default">${escapeHtml(orgName)}</option>`;
+}
+
+function renderControlRoomDenied() {
+  return `
+    <article class="card notice-card notice-warning stack">
+      <div>
+        <div class="eyebrow muted">Governance access restricted</div>
+        <h3 class="card-title">Control Room is reserved for Admin / IT / Founder sessions</h3>
+        <p class="card-subtitle">Normal users stay on the simple command surface. Escalate to your governance lead if you need deeper runtime posture or evidence tooling.</p>
+      </div>
+      <div class="inline-actions">
+        <button class="action-button" type="button" data-view-jump="overview">Open Home</button>
+        <button class="action-button action-button-muted" type="button" data-view-jump="requests">Open Work Inbox</button>
+      </div>
+    </article>
+  `;
+}
+
 function render() {
   viewTitle.textContent = VIEW_TITLES[state.view];
   viewDescription.textContent = VIEW_DESCRIPTIONS[state.view];
@@ -1610,7 +1675,14 @@ function render() {
   sidebarRuntimeLabel.textContent = `${snapshot.environment} runtime`;
   sidebarGeneratedLabel.textContent = generatedAt.textContent;
   topbarRuntimeLabel.textContent = state.session ? state.session.role_name : `${snapshot.environment} runtime`;
+  syncCommandRoute();
+  hydrateOrganizationSelector(snapshot);
 
+  if (state.view === 'control_room' && !canAccessControlRoom()) {
+    root.innerHTML = renderControlRoomDenied();
+    updateNav();
+    return;
+  }
   const requiredPermission = VIEW_PERMISSIONS[state.view];
   if (requiredPermission && !can(requiredPermission)) {
     root.innerHTML = renderPermissionNotice(requiredPermission);
@@ -1620,12 +1692,13 @@ function render() {
 
   const scopedSnapshot = getCaseScopedSnapshot(snapshot);
   let viewContent = '';
-  if (state.view === 'overview') viewContent = renderOverview(snapshot);
+  if (state.view === 'overview') viewContent = renderCommandHome(snapshot);
   if (state.view === 'requests') viewContent = renderRequests(scopedSnapshot);
   if (state.view === 'cases') viewContent = renderCases(snapshot);
   if (state.view === 'directory') viewContent = renderDirectory(scopedSnapshot);
   if (state.view === 'documents') viewContent = renderDocuments(scopedSnapshot);
   if (state.view === 'actions') viewContent = renderActions(scopedSnapshot);
+  if (state.view === 'control_room') viewContent = renderControlRoom(snapshot);
   if (state.view === 'overrides') viewContent = renderOverridesView(scopedSnapshot);
   if (state.view === 'conflicts') viewContent = renderConflicts(scopedSnapshot);
   if (state.view === 'audit') viewContent = renderAudit(scopedSnapshot);
@@ -1643,10 +1716,14 @@ function render() {
   if (state.view === 'sessions') viewContent = wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Live private-server sessions with rotation, idle discipline, and revocation control.');
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
-  const focusedInbox = state.view === 'overview' ? '' : renderFocusedWorkInbox(snapshot, state.view);
-  const caseSpotlight = renderCaseSpotlight(snapshot);
-  const workLanguageGuide = renderWorkLanguageGuide(snapshot);
-  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${renderAlertRail(snapshot)}${renderViewPrelude(snapshot)}${renderWorkflowGuide(snapshot)}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
+  const compactCommandView = ['overview', 'control_room'].includes(state.view);
+  const focusedInbox = compactCommandView ? '' : renderFocusedWorkInbox(snapshot, state.view);
+  const caseSpotlight = compactCommandView ? '' : renderCaseSpotlight(snapshot);
+  const workLanguageGuide = compactCommandView ? '' : renderWorkLanguageGuide(snapshot);
+  const alertRail = compactCommandView ? '' : renderAlertRail(snapshot);
+  const viewPrelude = compactCommandView ? '' : renderViewPrelude(snapshot);
+  const workflowGuide = compactCommandView ? '' : renderWorkflowGuide(snapshot);
+  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${alertRail}${viewPrelude}${workflowGuide}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
   focusActionContextTarget();
 }
@@ -2241,7 +2318,7 @@ function buildWorkflowGuide(snapshot) {
       };
     } else {
       primary = {
-        view: 'overview',
+        view: getInitialDashboardView(),
         eyebrow: 'Next governed move',
         title: 'Return to the executive posture scan',
         detail: 'Audit is clean. Go back to Overview to see the current posture with evidence already confirmed.',
@@ -2377,7 +2454,7 @@ function buildWorkflowGuide(snapshot) {
       };
     } else {
       primary = {
-        view: 'overview',
+        view: getInitialDashboardView(),
         eyebrow: 'Next governed move',
         title: 'Health looks readable, return to the top-level posture',
         detail: 'Once runtime domains are understood, Overview becomes the fastest place to judge whether operations can continue safely.',
@@ -2611,12 +2688,19 @@ function studioReadinessTone(readiness) {
 }
 
 function updateNav() {
+  const controlRoomAllowed = canAccessControlRoom();
+  if (governanceDropdown) {
+    governanceDropdown.hidden = !controlRoomAllowed;
+    if (!controlRoomAllowed) governanceDropdown.open = false;
+    governanceDropdown.classList.toggle('is-active', state.view === 'control_room');
+  }
   for (const item of navList.querySelectorAll('.nav-item')) {
     const isActive = item.dataset.view === state.view;
     item.classList.toggle('is-active', isActive);
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   }
 }
+
 
 function renderAuthCard() {
   const laneCards = Object.entries(DEV_LANES).map(([laneKey, lane]) => `
@@ -2708,7 +2792,7 @@ function renderPermissionNotice(permission) {
       </div>
       <div class="onboarding-grid lane-picker-grid permission-lane-grid">${recommendedLanes}</div>
       <div class="inline-actions">
-        <button class="action-button" type="button" data-view-jump="overview">Open Overview</button>
+        <button class="action-button" type="button" data-view-jump="overview">Open Home</button>
       </div>
     </article>
   `;
@@ -3889,6 +3973,270 @@ function renderActionEmptyState(currentCase) {
       </div>
     </article>
   `;
+}
+
+function renderCommandHome(snapshot) {
+  const surface = snapshot.command_surface || {};
+  const posture = surface.posture_summary || {};
+  const nextActions = buildHomeNextActions(snapshot, surface).slice(0, 5);
+  const aiFeed = Array.isArray(surface.ai_activity_feed) ? surface.ai_activity_feed.slice(0, 5) : [];
+  const departments = Array.isArray(surface.department_quick_access) ? surface.department_quick_access.slice(0, 6) : [];
+  const quickLinks = Array.isArray(surface.quick_links) ? surface.quick_links : [];
+  const attentionTotal = Number(posture.attention_items_total || 0);
+  const aiRunning = Number(posture.ai_actions_running || 0);
+  const aiTotal = Number(posture.ai_actions_total || aiFeed.length || 0);
+  const evidenceDate = posture.evidence_verified_at ? shortTime(posture.evidence_verified_at) : 'No recent verification';
+  const evidenceLabel = formatStatusLabel(posture.evidence_status || 'verified');
+  const modeNote = posture.operating_status === 'stable' ? 'Stable - green' : 'Guarded - review';
+  const controlRoomAction = canAccessControlRoom()
+    ? '<button class="action-button action-button-muted" type="button" data-view-jump="control_room">Open Control Room</button>'
+    : '<span class="pill pill-muted">Governance lead required</span>';
+  return `
+    <section class="command-home-stack stack gap-lg">
+      <section class="command-home-hero">
+        <article class="card hero-card hero-card-primary command-home-hero-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow">Simple Home Dashboard</div>
+              <h3 class="hero-title">สิ่งที่คุณต้องทำวันนี้ / Your Next Actions</h3>
+              <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(state.session?.persona || state.session?.role_name || 'operator')}</div>
+          </div>
+          <div class="inline-actions">
+            <button class="action-button" type="button" data-view-jump="requests">Open Work Inbox</button>
+            <button class="action-button action-button-muted" type="button" data-view-jump="actions">See AI Activity</button>
+            ${controlRoomAction}
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary command-home-hero-secondary">
+          <div>
+            <div class="eyebrow muted">What should happen next?</div>
+            <h3 class="card-title">${escapeHtml(nextActions[0]?.title || 'AI is operating without a new human boundary')}</h3>
+            <p class="card-subtitle">${escapeHtml(nextActions[0]?.detail || 'No human approvals are waiting right now. The AI workforce is still moving inside the governed lanes.')}</p>
+          </div>
+          <div class="trace-box compact-trace"><strong>AI workforce</strong><p class="muted">${escapeHtml(`${aiRunning} running | ${aiTotal} total governed actions`)}</p></div>
+        </article>
+      </section>
+      <section class="card stack command-home-section">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">System Posture Summary</div>
+            <h3 class="card-title">Five-second posture check</h3>
+            <p class="card-subtitle">Only the signals a normal user needs right now. Technical evidence, signatures, and runtime internals stay behind the Control Room boundary.</p>
+          </div>
+        </div>
+        <div class="command-summary-grid">
+          ${renderHomePostureCard('Operating Mode', 'Governance-first', modeNote, posture.operating_status === 'stable' ? 'success' : 'warning', 'One governed operating model stays active across the Director.')}
+          ${renderHomePostureCard('AI Workforce', `${aiRunning} actions running`, 'One core, many hats', aiRunning ? 'accent' : 'default', 'AI remains the primary workforce across active governed cases.')}
+          ${renderHomePostureCard('Conflicts & Locks', `${attentionTotal} items need attention`, canAccessControlRoom() ? 'Open Control Room' : 'Escalate to governance lead', attentionTotal ? 'warning' : 'success', 'Only show pressure that could change the next human move.', canAccessControlRoom() ? 'control_room' : '')}
+          ${renderHomePostureCard('Evidence Integrity', evidenceLabel, evidenceDate, posture.evidence_status === 'verified' ? 'success' : 'warning', 'Evidence remains verified while identifiers stay hidden by default.')}
+        </div>
+      </section>
+      <section class="card command-next-actions-card stack command-home-section">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">สิ่งที่คุณต้องทำวันนี้</div>
+            <h3 class="card-title">Your Next Actions</h3>
+            <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
+        </div>
+        <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
+      </section>
+      <section class="card stack command-home-section">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">AI Activity Feed</div>
+            <h3 class="card-title">What AI is doing now</h3>
+            <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}</div>
+        </div>
+        <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item) => renderAiFeedCard(item)).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
+      </section>
+      <section class="card stack command-home-section">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Quick Access by Department / Team</div>
+            <h3 class="card-title">Jump into the team context that owns the work</h3>
+            <p class="card-subtitle">These cards reuse master data and search continuity so you can route into the right business context without opening technical screens.</p>
+          </div>
+        </div>
+        <div class="command-department-grid">${departments.length ? departments.map((item) => renderDepartmentQuickAccessCard(item)).join('') : renderCommandEmptyState('No department baseline is visible yet.', 'Master data will surface functional teams here once the runtime sees more real work.')}</div>
+      </section>
+      <section class="card stack command-home-section command-quick-links-card">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Quick Links</div>
+            <h3 class="card-title">Continue in the right governed lane</h3>
+          </div>
+        </div>
+        <div class="command-quick-links-row">${quickLinks.map((item) => renderHomeQuickLink(item)).join('')}${canAccessControlRoom() ? renderHomeQuickLink({ view: 'control_room', label: 'Control Room' }) : ''}</div>
+      </section>
+    </section>
+  `;
+}
+
+function renderHomePostureCard(label, value, note, tone = 'default', detail = '', view = '') {
+  return `
+    <article class="command-summary-card tone-${escapeHtml(tone)}">
+      <span class="command-summary-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <p class="muted">${escapeHtml(note)}</p>
+      ${detail ? `<p class="muted small">${escapeHtml(detail)}</p>` : ''}
+      ${view ? `<div class="inline-actions"><button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(view)}">Open</button></div>` : ''}
+    </article>
+  `;
+}
+
+function buildHomeNextActions(snapshot, surface) {
+  const assignments = Array.isArray(snapshot.assignment_queue?.items) ? snapshot.assignment_queue.items : [];
+  const session = state.session || {};
+  const profileId = String(session.profile_id || '').toLowerCase();
+  const displayName = String(session.display_name || '').toLowerCase();
+  const roleName = String(session.role_name || '').toLowerCase();
+  const score = (item) => {
+    let base = 0;
+    const ownerId = String(item.owner_id || '').toLowerCase();
+    const ownerLabel = String(item.owner_label || '').toLowerCase();
+    const teamLabel = String(item.team_label || '').toLowerCase();
+    if (profileId && ownerId === profileId) base += 10;
+    if (displayName && ownerLabel === displayName) base += 8;
+    if (roleName && (ownerId === roleName || ownerLabel.includes(roleName))) base += 6;
+    if (teamLabel && roleName && teamLabel.includes(roleName)) base += 4;
+    if (item.status === 'human_required') base += 6;
+    if (item.status === 'blocked') base += 5;
+    if (item.priority === 'critical') base += 4;
+    if (item.priority === 'high') base += 2;
+    base += Math.min(Number(item.age_hours || 0), 72) / 24;
+    return base;
+  };
+  return [...assignments].sort((left, right) => score(right) - score(left)).slice(0, 6);
+}
+
+function renderHomeNextActionCard(item) {
+  const focusType = item.focus_type || '';
+  const focusId = item.focus_id || '';
+  const caseId = item.case_id || '';
+  const primaryButton = item.kind === 'override'
+    ? `<button class="action-button" type="button" data-override-action="approve" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Approve</button>`
+    : `<button class="action-button" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: item.status === 'blocked' ? 'Resolve Now' : 'Take Action' })}>${escapeHtml(item.status === 'blocked' ? 'Resolve Now' : 'Take Action')}</button>`;
+  const secondaryButton = item.kind === 'override'
+    ? `<button class="action-button action-button-muted" type="button" data-override-action="veto" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Reject</button>`
+    : `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: 'Details' })}>Details</button>`;
+  return `
+    <article class="command-action-card" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
+      <div class="hero-chip-row">${statusBadge(item.status || 'monitoring')}${statusBadge(item.priority || 'normal')}</div>
+      <strong>${escapeHtml(item.title || 'Governed work')}</strong>
+      <p class="muted">${escapeHtml(item.detail || item.next_action || 'Continue the linked governed work.')}</p>
+      <div class="command-action-meta">${escapeHtml(item.owner_label || 'Unassigned')} | ${escapeHtml(item.team_label || 'Operations')} | ${escapeHtml(item.case_id || 'No case')}</div>
+      <div class="inline-actions">${primaryButton}${secondaryButton}</div>
+    </article>
+  `;
+}
+
+function renderAiFeedCard(item) {
+  return `
+    <article class="command-feed-card">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(titleCase(item.action_type || 'ai action'))}</div>
+          <strong>${escapeHtml(item.label || item.action_type || 'AI action')}</strong>
+        </div>
+        <div class="hero-chip-row">${statusBadge(item.status || 'planned')}</div>
+      </div>
+      <p class="muted">${escapeHtml(item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
+      <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
+      <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: 'actions', focusType: 'action', focusId: item.action_id || '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.next_action || 'Review the governed AI execution lane.', actionLabel: 'Details' })}>Details</button></div>
+    </article>
+  `;
+}
+
+function renderDepartmentQuickAccessCard(item) {
+  const filterValue = item.label || item.team_id || '';
+  return `
+    <article class="command-department-card">
+      <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
+      <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
+      <p class="muted">${escapeHtml(String(item.member_total || 0))} members ? ${escapeHtml(String(item.seat_total || 0))} seats</p>
+      <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">Open team</button></div>
+    </article>
+  `;
+}
+
+function renderHomeQuickLink(item) {
+  return `<button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(item.view || 'overview')}">${escapeHtml(item.label || VIEW_TITLES[item.view || 'overview'] || 'Open')}</button>`;
+}
+
+function renderCommandEmptyState(title, note) {
+  return `<article class="mini-card stack"><strong>${escapeHtml(title)}</strong><p class="muted">${escapeHtml(note)}</p></article>`;
+}
+
+function renderControlRoom(snapshot) {
+  const runtimeHealth = snapshot.runtime_health || {};
+  const auditIntegrity = runtimeHealth.audit_integrity || {};
+  const roleLibrary = runtimeHealth.role_library || {};
+  const governanceSummary = [
+    { tool: 'health', label: 'Runtime Health', value: runtimeHealth.status || 'unknown', note: 'Deployment, storage, and integration posture.' },
+    { tool: 'conflicts', label: 'Conflicts & Locks', value: String(snapshot.summary.active_locks || 0), note: 'Blocked or contended execution lanes.' },
+    { tool: 'audit', label: 'Audit Chain', value: auditIntegrity.status || 'verified', note: 'Chain integrity and evidence continuity.' },
+    { tool: 'policies', label: 'Trusted Registry', value: roleLibrary.status || 'unknown', note: 'Role packs, manifest trust, and signature posture.' },
+    { tool: 'sessions', label: 'Sessions', value: String((snapshot.sessions || []).length), note: 'Short-lived runtime access and revocation.' },
+  ];
+  const currentTool = state.controlRoomTool || 'health';
+  const embedded = renderControlRoomTool(snapshot, currentTool);
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow">Control Room</div>
+              <h3 class="hero-title">Advanced Governance Tools (Admin / IT / Founder only)</h3>
+              <p class="hero-subtitle">This surface keeps audit chain, evidence integrity, trusted registry, runtime health, and contention tooling out of the normal Home dashboard until an advanced operator truly needs them.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge('advanced governance')}${statusBadge(state.session?.role_name || 'admin')}</div>
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-view-jump="overview">Back to Home</button>
+            <button class="action-button" type="button" data-control-room-tool="health">Open Runtime Health</button>
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Current tool</div>
+            <h3 class="card-title">${escapeHtml(VIEW_TITLES[currentTool] || titleCase(currentTool))}</h3>
+            <p class="card-subtitle">Use Control Room when simple posture is not enough and you need the underlying governance reason, trust state, or runtime repair signal.</p>
+          </div>
+          ${keyValue([
+            ['Current role', state.session?.role_name || 'unknown'],
+            ['Evidence integrity', auditIntegrity.status || 'unknown'],
+            ['Signature posture', roleLibrary.signature_status || roleLibrary.status || 'unknown'],
+          ])}
+        </article>
+      </section>
+      <section class="command-summary-grid">
+        ${governanceSummary.map((item) => `
+          <article class="command-summary-card tone-accent">
+            <span class="command-summary-label">${escapeHtml(item.label)}</span>
+            <strong>${escapeHtml(item.value)}</strong>
+            <p class="muted">${escapeHtml(item.note)}</p>
+            <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-control-room-tool="${escapeHtml(item.tool)}">Open</button></div>
+          </article>
+        `).join('')}
+      </section>
+      <section class="stack gap-md control-room-detail-shell">${embedded}</section>
+    </section>
+  `;
+}
+
+function renderControlRoomTool(snapshot, tool) {
+  if (tool === 'conflicts') return renderConflicts(snapshot);
+  if (tool === 'audit') return renderAudit(snapshot);
+  if (tool === 'policies') return renderPolicies(snapshot.roles || []);
+  if (tool === 'sessions') return wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Short-lived runtime sessions and revocation state for advanced governance review.');
+  return renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
 }
 
 function renderActions(snapshot) {
@@ -6922,6 +7270,21 @@ function parseListField(id) {
 
 function valueOf(id) {
   return document.getElementById(id).value.trim();
+}
+
+function canAccessControlRoom() {
+  if (!state.session) return false;
+  if (state.session.control_room_access) return true;
+  const role = String(state.session.role_name || '').toLowerCase();
+  if (['owner', 'founder', 'admin', 'it'].includes(role)) return true;
+  return can('ops.manage') && can('health.read') && can('audit.read');
+}
+
+function syncCommandRoute() {
+  const desiredPath = state.view === 'control_room' ? '/control-room' : '/';
+  if ((window.location.pathname || '/') !== desiredPath) {
+    window.history.replaceState({}, '', desiredPath);
+  }
 }
 
 function can(permission) {
