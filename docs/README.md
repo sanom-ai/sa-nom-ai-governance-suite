@@ -1,29 +1,19 @@
 # Documentation
 
-SA-NOM keeps product, deployment, evaluation, and release notes in this directory so the repository root stays focused on the codebase and top-level metadata.
+SA-NOM keeps product, deployment, evaluation, governance, and release materials in this directory so the repository root can stay focused on the codebase and top-level metadata.
 
 ## Start Here
 
-## Choose An Evaluation Path
+Pick the path that matches what you need first:
 
-- [Guided Evaluation](GUIDED_EVALUATION.md) for the shortest self-serve evaluator path, smoke tests, and the private-dashboard walkthrough
-- [Deployment](DEPLOYMENT.md) for the longer infrastructure and runtime setup path
+- [Guided Evaluation](GUIDED_EVALUATION.md) for the shortest self-serve evaluator path, smoke tests, and private-dashboard walkthrough
+- [Deployment](DEPLOYMENT.md) for the longer runtime and infrastructure setup path
 - [Troubleshooting](TROUBLESHOOTING.md) when startup readiness, smoke tests, or the private server do not behave as expected
 - [Provider Setup](PROVIDER_SETUP.md) when you want to enable a real model lane after the baseline runtime is up
+- [Product Tour](PRODUCT_TOUR.md) for the feature walkthrough before you run anything locally
 
-## Core Entry Points
+## Product And Governance
 
-- [Deployment](DEPLOYMENT.md)
-- [Guided Evaluation](GUIDED_EVALUATION.md)
-- [Troubleshooting](TROUBLESHOOTING.md)
-- [Provider Setup](PROVIDER_SETUP.md)
-- [Ollama Demo Environment](OLLAMA_DEMO_ENVIRONMENT.md)
-- [Discovery Demo](DISCOVERY_DEMO.md)
-- [Live Customer Walkthrough](LIVE_CUSTOMER_WALKTHROUGH.md)
-- [Live Customer Walkthrough (TH)](LIVE_CUSTOMER_WALKTHROUGH_TH.md)
-- [Demo Checklist](DEMO_CHECKLIST.md)
-- [Demo Checklist (TH)](DEMO_CHECKLIST_TH.md)
-- [Product Tour](PRODUCT_TOUR.md)
 - [Feature Matrix](FEATURE_MATRIX.md)
 - [PTAG Framework](PTAG_FRAMEWORK.md)
 - [PTAG Quick Start](PTAG_QUICK_START.md)
@@ -34,17 +24,14 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Private Rule Position (Historical Note)](PRIVATE_RULE_POSITION.md)
 - [Governed Runtime Orchestration](GOVERNED_RUNTIME_ORCHESTRATION.md)
 - [Governed Human-In-The-Loop Operations](GOVERNED_HITL_OPERATIONS.md)
-- [Minimal Human Approval Surface](MINIMAL_HUMAN_APPROVAL_SURFACE.md)
 - [Control Room Information Architecture](CONTROL_ROOM_INFORMATION_ARCHITECTURE.md)
-- [Governed HITL Human Ask Reporting](GOVERNED_HITL_HUMAN_ASK_REPORTING.md)
-- [Governed HITL Reliability And Observability](GOVERNED_HITL_RELIABILITY_AND_OBSERVABILITY.md)
-- [Governed HITL Integration And Compliance Continuity](GOVERNED_HITL_INTEGRATION_AND_COMPLIANCE_CONTINUITY.md)
 - [SA-NOM Global Harmony Protocol](SA_NOM_GLOBAL_HARMONY_PROTOCOL.md)
 - [Global Harmony Constitution Templates](GLOBAL_HARMONY_CONSTITUTION_TEMPLATES.md)
 - [Global Harmony Evaluation Baseline](GLOBAL_HARMONY_EVALUATION_BASELINE.md)
 - [Global Harmony Runtime State Baseline](GLOBAL_HARMONY_RUNTIME_STATE_BASELINE.md)
-- [HITL Role Packs And Use Cases](HITL_ROLE_PACKS_AND_USE_CASES.md)
-- [Governed Authority And Decision Engine](GOVERNED_AUTHORITY_DECISION_ENGINE.md)
+
+## Documents, Evidence, And Operational Safety
+
 - [Governed Document Center](GOVERNED_DOCUMENT_CENTER.md)
 - [Governed Document Classes](GOVERNED_DOCUMENT_CLASSES.md)
 - [Governed Document Lifecycle](GOVERNED_DOCUMENT_LIFECYCLE.md)
@@ -55,19 +42,23 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Governed Document Retention And Records Governance](GOVERNED_DOCUMENT_RETENTION_RECORDS.md)
 - [Governed Document Release And Change-Control Scenario](GOVERNED_DOCUMENT_RELEASE_SCENARIO.md)
 - [Document Governance Role Pack](DOCUMENT_GOVERNANCE_ROLE_PACK.md)
-- [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
-- [Development Workflow](DEVELOPMENT_WORKFLOW.md)
-- [Test Coverage Policy](TEST_COVERAGE_POLICY.md)
-- [Secrets And Credentials Handling](SECRETS_AND_CREDENTIALS_HANDLING.md)
-- [Security And Dependency Hygiene](SECURITY_AND_DEPENDENCY_HYGIENE.md)
 - [Runtime Failure And Recovery](RUNTIME_FAILURE_AND_RECOVERY.md)
 - [Backup And Restore Validation](BACKUP_AND_RESTORE_VALIDATION.md)
-- [Security Automation Baseline](SECURITY_AUTOMATION_BASELINE.md)
-- [Dependency Review Workflow](DEPENDENCY_REVIEW_WORKFLOW.md)
-- [Security Exception Workflow](SECURITY_EXCEPTION_WORKFLOW.md)
-- [Security Follow-Up Visibility](SECURITY_FOLLOW_UP_VISIBILITY.md)
+- [Secrets And Credentials Handling](SECRETS_AND_CREDENTIALS_HANDLING.md)
+- [Security And Dependency Hygiene](SECURITY_AND_DEPENDENCY_HYGIENE.md)
+- [Test Coverage Policy](TEST_COVERAGE_POLICY.md)
 
-## Planning And Release Notes
+## Demos And Walkthroughs
+
+- [Discovery Demo](DISCOVERY_DEMO.md)
+- [Live Customer Walkthrough](LIVE_CUSTOMER_WALKTHROUGH.md)
+- [Live Customer Walkthrough (TH)](LIVE_CUSTOMER_WALKTHROUGH_TH.md)
+- [Demo Checklist](DEMO_CHECKLIST.md)
+- [Demo Checklist (TH)](DEMO_CHECKLIST_TH.md)
+- [Ollama Demo Environment](OLLAMA_DEMO_ENVIRONMENT.md)
+- [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
+
+## Planning And Releases
 
 - [Roadmap v0.7.9](ROADMAP_v0.7.9.md)
 - [Issue Drafts v0.7.9](ISSUE_DRAFTS_v0.7.9.md)
@@ -79,104 +70,6 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Release Notes v0.7.8](releases/RELEASE_NOTES_v0.7.8.md)
 - [PR Description v0.7.8](releases/PR_DESCRIPTION_v0.7.8.md)
 - [v0.7.8 Handoff](V0_7_8_HANDOFF.md)
-- [Release Notes v0.7.7](releases/RELEASE_NOTES_v0.7.7.md)
-- [PR Description v0.7.7](releases/PR_DESCRIPTION_v0.7.7.md)
-- [v0.7.7 Handoff](V0_7_7_HANDOFF.md)
-- [Release Notes v0.7.6](releases/RELEASE_NOTES_v0.7.6.md)
-- [PR Description v0.7.6](releases/PR_DESCRIPTION_v0.7.6.md)
-- [v0.7.6 Handoff](V0_7_6_HANDOFF.md)
-- [Release Notes v0.7.5](releases/RELEASE_NOTES_v0.7.5.md)
-- [PR Description v0.7.5](releases/PR_DESCRIPTION_v0.7.5.md)
-- [v0.7.5 Handoff](V0_7_5_HANDOFF.md)
-- [Release Notes v0.7.4](releases/RELEASE_NOTES_v0.7.4.md)
-- [PR Description v0.7.4](releases/PR_DESCRIPTION_v0.7.4.md)
-- [v0.7.4 Handoff](V0_7_4_HANDOFF.md)
-- [Roadmap v0.7.1](ROADMAP_v0.7.1.md)
-- [Issue Drafts v0.7.1](ISSUE_DRAFTS_v0.7.1.md)
-- [Release Notes v0.7.1](releases/RELEASE_NOTES_v0.7.1.md)
-- [PR Description v0.7.1](releases/PR_DESCRIPTION_v0.7.1.md)
-- [v0.7.1 Handoff](V0_7_1_HANDOFF.md)
-- [Release Notes v0.7.0](releases/RELEASE_NOTES_v0.7.0.md)
-- [v0.7.0 Handoff](V0_7_0_HANDOFF.md)
-- [Roadmap v0.7.0](ROADMAP_v0.7.0.md)
-- [Issue Drafts v0.7.0](ISSUE_DRAFTS_v0.7.0.md)
-- [Release Notes v0.6.2](releases/RELEASE_NOTES_v0.6.2.md)
-- [Release Notes v0.6.1](releases/RELEASE_NOTES_v0.6.1.md)
-- [Release Notes v0.6.0](releases/RELEASE_NOTES_v0.6.0.md)
-- [Roadmap v0.6.0](ROADMAP_v0.6.0.md)
-- [Issue Drafts v0.6.0](ISSUE_DRAFTS_v0.6.0.md)
-- [Release Notes v0.5.2](releases/RELEASE_NOTES_v0.5.2.md)
-- [Roadmap v0.5.2](ROADMAP_v0.5.2.md)
-- [Issue Drafts v0.5.2](ISSUE_DRAFTS_v0.5.2.md)
-- [Roadmap v0.5.0](ROADMAP_v0.5.0.md)
-- [Issue Drafts v0.5.0](ISSUE_DRAFTS_v0.5.0.md)
-- [Release Notes v0.5.0](releases/RELEASE_NOTES_v0.5.0.md)
-- [Roadmap v0.4.1](ROADMAP_v0.4.1.md)
-- [Issue Drafts v0.4.1](ISSUE_DRAFTS_v0.4.1.md)
-- [Release Notes v0.4.1](releases/RELEASE_NOTES_v0.4.1.md)
-- [Roadmap v0.4.0](ROADMAP_v0.4.0.md)
-- [Issue Drafts v0.4.0](ISSUE_DRAFTS_v0.4.0.md)
-- [Release Notes v0.4.0](releases/RELEASE_NOTES_v0.4.0.md)
-- [PTAG Public Opening Announcement](PTAG_PUBLIC_OPENING_ANNOUNCEMENT.md)
-- [Roadmap v0.3.0](ROADMAP_v0.3.0.md)
-- [Issue Drafts v0.3.0](ISSUE_DRAFTS_v0.3.0.md)
-- [v0.3.0 Handoff](V0_3_0_HANDOFF.md)
-- [Release Notes v0.3.0](releases/RELEASE_NOTES_v0.3.0.md)
-- [Release Notes v0.2.7](releases/RELEASE_NOTES_v0.2.7.md)
-- [Roadmap v0.2.6](ROADMAP_v0.2.6.md)
-- [Issue Drafts v0.2.6](ISSUE_DRAFTS_v0.2.6.md)
-- [Release Notes v0.2.6](releases/RELEASE_NOTES_v0.2.6.md)
-- [Roadmap v0.2.5](ROADMAP_v0.2.5.md)
-- [Issue Drafts v0.2.5](ISSUE_DRAFTS_v0.2.5.md)
-- [Release Notes v0.2.5](releases/RELEASE_NOTES_v0.2.5.md)
-- [Roadmap v0.2.4](ROADMAP_v0.2.4.md)
-- [Issue Drafts v0.2.4](ISSUE_DRAFTS_v0.2.4.md)
-- [Release Notes v0.2.4](releases/RELEASE_NOTES_v0.2.4.md)
-- [Roadmap v0.2.0](ROADMAP_v0.2.0.md)
-- [Issue Drafts v0.2.0](ISSUE_DRAFTS_v0.2.0.md)
-- [Release Notes v0.2.3](releases/RELEASE_NOTES_v0.2.3.md)
-- [Release Notes v0.2.2](releases/RELEASE_NOTES_v0.2.2.md)
-- [Release Notes v0.2.1](releases/RELEASE_NOTES_v0.2.1.md)
-- [Release Notes v0.2.0](releases/RELEASE_NOTES_v0.2.0.md)
-- [Roadmap v0.1.17](ROADMAP_v0.1.17.md)
-- [Issue Drafts v0.1.17](ISSUE_DRAFTS_v0.1.17.md)
-- [Release Notes v0.1.17](releases/RELEASE_NOTES_v0.1.17.md)
-- [Roadmap v0.1.15](ROADMAP_v0.1.15.md)
-- [Issue Drafts v0.1.15](ISSUE_DRAFTS_v0.1.15.md)
-- [Release Notes v0.1.15](releases/RELEASE_NOTES_v0.1.15.md)
-- [Roadmap v0.1.14](ROADMAP_v0.1.14.md)
-- [Issue Drafts v0.1.14](ISSUE_DRAFTS_v0.1.14.md)
-- [Release Notes v0.1.14](releases/RELEASE_NOTES_v0.1.14.md)
-- [Roadmap v0.1.13](ROADMAP_v0.1.13.md)
-- [Issue Drafts v0.1.13](ISSUE_DRAFTS_v0.1.13.md)
-- [Release Notes v0.1.13](releases/RELEASE_NOTES_v0.1.13.md)
-- [Roadmap v0.1.12](ROADMAP_v0.1.12.md)
-- [Issue Drafts v0.1.12](ISSUE_DRAFTS_v0.1.12.md)
-- [Release Notes v0.1.12](releases/RELEASE_NOTES_v0.1.12.md)
-- [Roadmap v0.1.11](ROADMAP_v0.1.11.md)
-- [Issue Drafts v0.1.11](ISSUE_DRAFTS_v0.1.11.md)
-- [Release Notes v0.1.11](releases/RELEASE_NOTES_v0.1.11.md)
-- [Roadmap v0.1.10](ROADMAP_v0.1.10.md)
-- [Issue Drafts v0.1.10](ISSUE_DRAFTS_v0.1.10.md)
-- [Release Notes v0.1.10](releases/RELEASE_NOTES_v0.1.10.md)
-- [Release Notes v0.1.9](releases/RELEASE_NOTES_v0.1.9.md)
-- [Release Notes v0.1.8](releases/RELEASE_NOTES_v0.1.8.md)
+- [Release Notes](releases)
 
-
-
-
-
-
-
-## v0.7.8
-- [ROADMAP_v0.7.8.md](ROADMAP_v0.7.8.md)
-- [ISSUE_DRAFTS_v0.7.8.md](ISSUE_DRAFTS_v0.7.8.md)
-
-## v0.7.7
-- [ROADMAP_v0.7.7.md](ROADMAP_v0.7.7.md)
-- [ISSUE_DRAFTS_v0.7.7.md](ISSUE_DRAFTS_v0.7.7.md)
-- [Release Notes v0.7.7](releases/RELEASE_NOTES_v0.7.7.md)
-- [PR Description v0.7.7](releases/PR_DESCRIPTION_v0.7.7.md)
-- [v0.7.7 Handoff](V0_7_7_HANDOFF.md)
-
-
+For older release lines, see the full history under [`docs/releases/`](releases) and the versioned handoff/roadmap files in this directory.

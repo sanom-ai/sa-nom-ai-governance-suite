@@ -31,7 +31,7 @@ Choose the path that matches what you want to see first:
 
 ## Command Surface
 
-By the `v0.7.7` line, SA-NOM exposes a simple command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
+By the `v0.7.9` line, SA-NOM exposes a private-first command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
 
 ![SA-NOM Command Surface](docs/assets/command-surface-home-v0.7.7.png)
 
