@@ -1161,17 +1161,33 @@ def test_dashboard_snapshot_exposes_command_surface_summary() -> None:
         assert [item.get('view') for item in quick_links] == ['requests', 'cases', 'documents', 'actions']
 
 
-def test_dashboard_service_marks_control_room_access_for_founder_only_roles() -> None:
+def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_roles() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)
         service = DashboardService(config=config)
 
         owner_payload = service.dashboard(_build_profile('owner'))
+        admin_payload = service.dashboard(AccessProfile(
+            profile_id='admin-test',
+            display_name='Admin',
+            role_name='admin',
+            permissions={'*'},
+        ))
+        it_payload = service.dashboard(AccessProfile(
+            profile_id='it-test',
+            display_name='IT',
+            role_name='it',
+            permissions={'ops.manage', 'health.read', 'audit.read'},
+        ))
         operator_payload = service.dashboard(_build_profile('operator'))
         auditor_payload = service.dashboard(_build_profile('auditor'))
 
         assert owner_payload['session']['control_room_access'] is True
         assert owner_payload['session']['persona'] == 'founder'
+        assert admin_payload['session']['control_room_access'] is True
+        assert admin_payload['session']['persona'] == 'admin'
+        assert it_payload['session']['control_room_access'] is True
+        assert it_payload['session']['persona'] == 'admin'
         assert operator_payload['session']['control_room_access'] is False
         assert operator_payload['session']['persona'] == 'operator'
         assert auditor_payload['session']['control_room_access'] is False

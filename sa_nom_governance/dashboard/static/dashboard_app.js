@@ -240,6 +240,8 @@ const VIEW_PERMISSIONS = {
   health: 'health.read',
 };
 
+const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions']);
+
 const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-dev-lane]',
   '[data-view-jump]',
@@ -582,18 +584,28 @@ root.addEventListener('click', async (event) => {
     const focusType = viewJumpButton.dataset.viewJumpFocusType || '';
     const focusId = viewJumpButton.dataset.viewJumpFocusId || '';
     const caseId = viewJumpButton.dataset.viewJumpCaseId || '';
-    setActionContext({
-      entityType: focusType,
-      entityId: focusId,
-      caseId,
+    const controlRoomTool = viewJumpButton.dataset.viewJumpControlRoomTool || '';
+    const resolvedTarget = normalizeActionContextTarget({
       view: targetView,
+      controlRoomTool,
       title: viewJumpButton.dataset.viewJumpTitle || `Moved to ${VIEW_TITLES[targetView] || titleCase(targetView)}.`,
       detail: viewJumpButton.dataset.viewJumpDetail || 'The linked governed item stays highlighted in the next lane so you can continue without hunting for it.',
       actionLabel: viewJumpButton.dataset.viewJumpActionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
     });
-    state.view = targetView;
+    setActionContext({
+      entityType: focusType,
+      entityId: focusId,
+      caseId,
+      view: resolvedTarget.view,
+      controlRoomTool: resolvedTarget.controlRoomTool,
+      title: resolvedTarget.title,
+      detail: resolvedTarget.detail,
+      actionLabel: resolvedTarget.actionLabel,
+    });
+    state.view = resolvedTarget.view;
+    if (resolvedTarget.controlRoomTool) state.controlRoomTool = resolvedTarget.controlRoomTool;
     updateNav();
-    if (targetView === 'documents' && documentFiltersActive()) {
+    if (resolvedTarget.view === 'documents' && documentFiltersActive()) {
       try {
         await refreshDocumentSearchResults({ silent: true, skipRender: true });
       } catch (error) {
@@ -1344,21 +1356,29 @@ function buildFocusKey(entityType, entityId) {
   return type && id ? `${type}:${id}` : '';
 }
 
-function setActionContext({ entityType = '', entityId = '', caseId = '', view = '', title = '', detail = '', actionLabel = '' } = {}) {
+function setActionContext({ entityType = '', entityId = '', caseId = '', view = '', controlRoomTool = '', title = '', detail = '', actionLabel = '' } = {}) {
   const normalizedEntityType = String(entityType || '').trim();
   const normalizedEntityId = String(entityId || '').trim();
   const normalizedCaseId = String(caseId || (normalizedEntityType === 'case' ? normalizedEntityId : '')).trim();
   const focusKey = buildFocusKey(normalizedEntityType, normalizedEntityId);
-  const targetView = view || state.view || 'overview';
+  const normalizedTarget = normalizeActionContextTarget({
+    view: view || state.view || 'overview',
+    controlRoomTool,
+    title,
+    detail,
+    actionLabel,
+  });
+  const targetView = normalizedTarget.view || 'overview';
   state.actionContext = {
     entityType: normalizedEntityType,
     entityId: normalizedEntityId,
     caseId: normalizedCaseId,
     focusKey,
     view: targetView,
-    title: title || 'Latest governed result',
-    detail: detail || 'The Director recorded the latest action and mapped the next governed move.',
-    actionLabel: actionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+    controlRoomTool: normalizedTarget.controlRoomTool || '',
+    title: normalizedTarget.title || 'Latest governed result',
+    detail: normalizedTarget.detail || 'The Director recorded the latest action and mapped the next governed move.',
+    actionLabel: normalizedTarget.actionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
     pendingFocus: Boolean(focusKey),
   };
 }
@@ -1647,7 +1667,132 @@ function renderControlRoomDenied() {
   `;
 }
 
+
+function isControlRoomTool(view = '') {
+  return CONTROL_ROOM_TOOLS.has(String(view || '').trim());
+}
+
+function resolveNavigationTarget({ view = '', controlRoomTool = '', title = '', detail = '', actionLabel = '' } = {}) {
+  const normalizedView = String(view || 'overview').trim() || 'overview';
+  if (normalizedView === 'control_room') {
+    if (!canAccessControlRoom()) return null;
+    const tool = String(controlRoomTool || state.controlRoomTool || getInitialControlRoomTool()).trim() || getInitialControlRoomTool();
+    const toolLabel = VIEW_TITLES[tool] || titleCase(tool);
+    return {
+      view: 'control_room',
+      controlRoomTool: tool,
+      title: title || `Control Room opened on ${toolLabel}.`,
+      detail: detail || `${toolLabel} is grouped inside the protected Control Room for advanced governance review.`,
+      actionLabel: 'Open Control Room',
+    };
+  }
+  if (!isControlRoomTool(normalizedView)) {
+    return {
+      view: normalizedView,
+      controlRoomTool: '',
+      title,
+      detail,
+      actionLabel,
+    };
+  }
+  if (!canAccessControlRoom()) return null;
+  const tool = String(controlRoomTool || normalizedView).trim();
+  const toolLabel = VIEW_TITLES[tool] || titleCase(tool);
+  return {
+    view: 'control_room',
+    controlRoomTool: tool,
+    title: title || `Control Room opened on ${toolLabel}.`,
+    detail: detail || `${toolLabel} is available through the protected Control Room, not the simple command surface.`,
+    actionLabel: 'Open Control Room',
+  };
+}
+
+function normalizeActionContextTarget(options = {}) {
+  const resolved = resolveNavigationTarget(options);
+  if (resolved) return resolved;
+  if (!isControlRoomTool(options.view) && String(options.view || '').trim() !== 'control_room') {
+    return {
+      view: String(options.view || 'overview').trim() || 'overview',
+      controlRoomTool: '',
+      title: options.title || '',
+      detail: options.detail || '',
+      actionLabel: options.actionLabel || '',
+    };
+  }
+  return {
+    view: 'overview',
+    controlRoomTool: '',
+    title: options.title || 'Advanced governance detail requires Control Room.',
+    detail: 'This session stays on the simple command surface. Ask an Admin, IT, or Founder session to continue inside Control Room.',
+    actionLabel: 'Open Home',
+  };
+}
+
+function normalizeWorkflowPrimary(primary) {
+  if (!primary) return null;
+  const resolved = resolveNavigationTarget(primary);
+  if (resolved) return { ...primary, ...resolved };
+  if (!isControlRoomTool(primary.view) && String(primary.view || '').trim() !== 'control_room') return primary;
+  return {
+    ...primary,
+    view: state.view,
+    controlRoomTool: '',
+    title: 'Advanced governance detail requires Control Room.',
+    detail: 'This session stays on the simple command surface. Keep work moving here and escalate to Admin, IT, or Founder if deeper runtime proof is required.',
+    badge: 'governance escalation',
+    actionLabel: `Stay in ${VIEW_TITLES[state.view] || titleCase(state.view)}`,
+  };
+}
+
+function normalizeWorkflowRelated(related = []) {
+  return (Array.isArray(related) ? related : [])
+    .map((item) => {
+      const resolved = resolveNavigationTarget(item);
+      if (resolved) return { ...item, ...resolved };
+      if (isControlRoomTool(item?.view) || String(item?.view || '').trim() === 'control_room') return null;
+      return item;
+    })
+    .filter(Boolean);
+}
+
+function renderViewJumpButton({
+  view = '',
+  controlRoomTool = '',
+  label = '',
+  className = 'action-button',
+  type = 'button',
+  focusType = '',
+  focusId = '',
+  caseId = '',
+  title = '',
+  detail = '',
+  actionLabel = '',
+} = {}) {
+  const resolved = resolveNavigationTarget({ view, controlRoomTool, title, detail, actionLabel: actionLabel || label });
+  if (!resolved) return '';
+  const buttonLabel = label || resolved.actionLabel || `Open ${VIEW_TITLES[resolved.view] || titleCase(resolved.view)}`;
+  const attrs = buildViewJumpAttributes({
+    view: resolved.view,
+    controlRoomTool: resolved.controlRoomTool,
+    focusType,
+    focusId,
+    caseId,
+    title: resolved.title || title,
+    detail: resolved.detail || detail,
+    actionLabel: resolved.actionLabel || actionLabel || buttonLabel,
+  });
+  return `<button class="${escapeHtml(className)}" type="${escapeHtml(type)}" ${attrs}>${escapeHtml(buttonLabel)}</button>`;
+}
+
+function normalizeProtectedGovernanceView() {
+  const requestedView = String(state.view || '').trim();
+  if (!isControlRoomTool(requestedView)) return;
+  state.controlRoomTool = requestedView;
+  state.view = 'control_room';
+}
+
 function render() {
+  if (!state.authRequired && state.snapshot) normalizeProtectedGovernanceView();
   viewTitle.textContent = VIEW_TITLES[state.view];
   viewDescription.textContent = VIEW_DESCRIPTIONS[state.view];
   sidebarViewTitle.textContent = VIEW_TITLES[state.view];
@@ -1758,7 +1903,7 @@ function renderActionContinuity() {
         <div class="hero-chip-row">${statusBadge('latest result')}${statusBadge(viewLabel)}</div>
       </div>
       <div class="inline-actions">
-        <button class="action-button action-button-muted" type="button" data-view-jump="${escapeHtml(context.view || 'overview')}">${escapeHtml(context.actionLabel || `Open ${viewLabel}`)}</button>
+        ${renderViewJumpButton({ view: context.view || 'overview', controlRoomTool: context.controlRoomTool || '', label: context.actionLabel || `Open ${viewLabel}`, className: 'action-button action-button-muted', focusType: context.entityType, focusId: context.entityId, caseId: context.caseId, title: context.title || 'Latest governed result', detail: context.detail || focusNote, actionLabel: context.actionLabel || `Open ${viewLabel}` })}
         ${reference}
       </div>
       <p class="muted">${escapeHtml(focusNote)}</p>
@@ -1789,7 +1934,7 @@ function renderAlertRail(snapshot) {
             <div class="hero-chip-row">${statusBadge(alert.badge || alert.tone || 'warning')}</div>
           </div>
           ${alert.details?.length ? keyValue(alert.details) : ''}
-          ${alert.view ? `<div class="inline-actions"><button class="action-button" data-view-jump="${escapeHtml(alert.view)}">${escapeHtml(alert.actionLabel || 'Open view')}</button></div>` : ''}
+          ${alert.view ? `<div class="inline-actions">${renderViewJumpButton({ view: alert.view, label: alert.actionLabel || 'Open view', className: 'action-button' })}</div>` : ''}
         </article>
       `).join('')}
     </section>
@@ -1891,9 +2036,9 @@ function renderWorkflowGuide(snapshot) {
   const workflow = buildWorkflowGuide(snapshot);
   if (!workflow.primary && !workflow.related.length) return '';
   const primaryAction = workflow.primary
-    ? (workflow.primary.view === state.view
+    ? (workflow.primary.view === state.view && !workflow.primary.controlRoomTool
       ? `<p class="permission-note workflow-current-note">${escapeHtml(workflow.primary.actionLabel || 'You are already in the right place.')}</p>`
-      : `<div class="inline-actions"><button class="action-button" data-view-jump="${escapeHtml(workflow.primary.view)}">${escapeHtml(workflow.primary.actionLabel || `Open ${VIEW_TITLES[workflow.primary.view] || workflow.primary.view}`)}</button></div>`)
+      : `<div class="inline-actions">${renderViewJumpButton({ view: workflow.primary.view, controlRoomTool: workflow.primary.controlRoomTool || '', label: workflow.primary.actionLabel || `Open ${VIEW_TITLES[workflow.primary.view] || workflow.primary.view}`, className: 'action-button', title: workflow.primary.title, detail: workflow.primary.detail })}</div>`)
     : '';
   return `
     <section class="workflow-guide-grid">
@@ -2470,8 +2615,8 @@ function buildWorkflowGuide(snapshot) {
 
   const workflowGuide = applyActionContextToWorkflowGuide(primary, related.filter((item) => item.view !== state.view));
   return {
-    primary: workflowGuide.primary,
-    related: workflowGuide.related.slice(0, 3),
+    primary: normalizeWorkflowPrimary(workflowGuide.primary),
+    related: normalizeWorkflowRelated(workflowGuide.related).slice(0, 3),
   };
 }
 
@@ -2689,13 +2834,14 @@ function studioReadinessTone(readiness) {
 
 function updateNav() {
   const controlRoomAllowed = canAccessControlRoom();
+  const activeView = isControlRoomTool(state.view) ? 'control_room' : state.view;
   if (governanceDropdown) {
     governanceDropdown.hidden = !controlRoomAllowed;
     if (!controlRoomAllowed) governanceDropdown.open = false;
-    governanceDropdown.classList.toggle('is-active', state.view === 'control_room');
+    governanceDropdown.classList.toggle('is-active', activeView === 'control_room');
   }
   for (const item of navList.querySelectorAll('.nav-item')) {
-    const isActive = item.dataset.view === state.view;
+    const isActive = item.dataset.view === activeView;
     item.classList.toggle('is-active', isActive);
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   }
@@ -4687,14 +4833,16 @@ function focusDocumentEditor() {
   });
 }
 
-function buildViewJumpAttributes({ view = '', focusType = '', focusId = '', caseId = '', title = '', detail = '', actionLabel = '' } = {}) {
-  const attrs = [`data-view-jump="${escapeHtml(view || 'overview')}"`];
+function buildViewJumpAttributes({ view = '', controlRoomTool = '', focusType = '', focusId = '', caseId = '', title = '', detail = '', actionLabel = '' } = {}) {
+  const resolved = normalizeActionContextTarget({ view, controlRoomTool, title, detail, actionLabel });
+  const attrs = [`data-view-jump="${escapeHtml(resolved.view || 'overview')}"`];
+  if (resolved.controlRoomTool) attrs.push(`data-view-jump-control-room-tool="${escapeHtml(resolved.controlRoomTool)}"`);
   if (focusType) attrs.push(`data-view-jump-focus-type="${escapeHtml(focusType)}"`);
   if (focusId) attrs.push(`data-view-jump-focus-id="${escapeHtml(focusId)}"`);
   if (caseId) attrs.push(`data-view-jump-case-id="${escapeHtml(caseId)}"`);
-  if (title) attrs.push(`data-view-jump-title="${escapeHtml(title)}"`);
-  if (detail) attrs.push(`data-view-jump-detail="${escapeHtml(detail)}"`);
-  if (actionLabel) attrs.push(`data-view-jump-action-label="${escapeHtml(actionLabel)}"`);
+  if (resolved.title) attrs.push(`data-view-jump-title="${escapeHtml(resolved.title)}"`);
+  if (resolved.detail) attrs.push(`data-view-jump-detail="${escapeHtml(resolved.detail)}"`);
+  if (resolved.actionLabel) attrs.push(`data-view-jump-action-label="${escapeHtml(resolved.actionLabel)}"`);
   return attrs.join(' ');
 }
 
