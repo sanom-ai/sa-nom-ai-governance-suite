@@ -2,6 +2,7 @@ import json
 import os
 from argparse import ArgumentParser
 from dataclasses import asdict, is_dataclass
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -74,6 +75,130 @@ class DashboardService:
             return True
         return profile.can('ops.manage')
 
+    def _tablet_focus_profile(self, persona: str) -> dict[str, object]:
+        if persona == 'founder':
+            return {
+                'tablet_focus_title': 'Organization command',
+                'tablet_focus_note': 'Stay above the whole operating picture while AI carries the daily workload and only true governance boundaries rise back to you.',
+                'tablet_primary_views': ['overview', 'requests', 'cases', 'actions', 'documents'],
+                'tablet_lane_emphasis': {
+                    'requests': {'rank': 'primary', 'label': 'Start here', 'note': 'Open the live inbox first whenever human approvals or blocked work could change the next organizational move.'},
+                    'cases': {'rank': 'secondary', 'label': 'Keep close', 'note': 'Use cases right after the inbox when you need the whole governed story in one thread.'},
+                    'actions': {'rank': 'secondary', 'label': 'Keep close', 'note': 'Watch AI execution once approvals are clear so the workforce keeps moving without guesswork.'},
+                    'documents': {'rank': 'support', 'label': 'Reference', 'note': 'Drop into documents when the governed artifact itself becomes the operating object.'},
+                    'directory': {'rank': 'support', 'label': 'Route', 'note': 'Use directory search to route the next move through real seats, teams, and owners.'},
+                },
+            }
+        if persona == 'admin':
+            return {
+                'tablet_focus_title': 'Runtime stability and governance pressure',
+                'tablet_focus_note': 'Watch active workload, escalations, and AI execution from Home first, then move into Control Room only when deeper runtime proof is required.',
+                'tablet_primary_views': ['overview', 'requests', 'actions', 'cases', 'documents'],
+                'tablet_lane_emphasis': {
+                    'requests': {'rank': 'primary', 'label': 'Start here', 'note': 'Keep the work inbox one tap away so human-required boundaries are cleared before the queue hardens.'},
+                    'actions': {'rank': 'primary', 'label': 'AI live', 'note': 'Stay close to AI Actions on tablet because runtime execution pressure changes faster than static reports.'},
+                    'cases': {'rank': 'secondary', 'label': 'Keep close', 'note': 'Use cases to connect queue pressure, human review, and proof without leaving the command surface.'},
+                    'documents': {'rank': 'support', 'label': 'Artifacts', 'note': 'Move into documents when runtime execution or review starts producing governed artifacts.'},
+                    'directory': {'rank': 'support', 'label': 'Route', 'note': 'Use directory search when a blocked lane needs a real owner, seat, or team.'},
+                },
+            }
+        if persona == 'operator':
+            return {
+                'tablet_focus_title': 'Assignments and governed follow-through',
+                'tablet_focus_note': 'Work from the inbox first, then continue across linked cases, documents, and AI actions without losing the private runtime thread.',
+                'tablet_primary_views': ['requests', 'cases', 'actions', 'documents', 'directory'],
+                'tablet_lane_emphasis': {
+                    'requests': {'rank': 'primary', 'label': 'Start here', 'note': 'This is the fastest lane for the next owned action, approval, or blocked follow-up.'},
+                    'cases': {'rank': 'primary', 'label': 'Stay close', 'note': 'Open the case thread right after the inbox so the same issue stays connected across runtime surfaces.'},
+                    'actions': {'rank': 'secondary', 'label': 'AI follow-through', 'note': 'Use AI Actions when the workforce is waiting on a human or producing work you need to release.'},
+                    'documents': {'rank': 'secondary', 'label': 'Document follow-through', 'note': 'Keep documents nearby when review or publication is part of the current governed task.'},
+                    'directory': {'rank': 'support', 'label': 'Route', 'note': 'Reach directory search when work must move to a real seat, team, or person.'},
+                },
+            }
+        return {
+            'tablet_focus_title': 'Department direction',
+            'tablet_focus_note': 'Start from Home, then move through the inbox, linked cases, and documents that need executive direction while AI keeps the rest moving.',
+            'tablet_primary_views': ['overview', 'requests', 'cases', 'documents', 'actions'],
+            'tablet_lane_emphasis': {
+                'requests': {'rank': 'primary', 'label': 'Start here', 'note': 'Open the inbox first when a human decision could unblock the next business move today.'},
+                'cases': {'rank': 'secondary', 'label': 'Keep close', 'note': 'Use cases to read one issue end to end before stepping into a deeper lane.'},
+                'documents': {'rank': 'secondary', 'label': 'Review', 'note': 'Move into documents when the governed artifact needs review, approval, or executive direction.'},
+                'actions': {'rank': 'support', 'label': 'AI live', 'note': 'Check AI Actions when you want a direct read on what the workforce is doing now.'},
+                'directory': {'rank': 'support', 'label': 'Route', 'note': 'Use directory search when you need the right team, department, or owner without scanning the whole org.'},
+            },
+        }
+
+    @staticmethod
+    def _parse_time(value: object) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value))
+        except ValueError:
+            return None
+
+    def _session_continuity_profile(self, current_session: dict[str, object]) -> dict[str, object]:
+        if not current_session:
+            return {
+                'session_continuity_status': 'standby',
+                'session_continuity_tone': 'monitoring',
+                'session_continuity_action': 'reconnect_session',
+                'session_continuity_title': 'Reconnect when you return to tablet work',
+                'session_continuity_note': 'No live private session is active right now. Reconnect from Home when you are ready to continue the governed work surface.',
+                'session_idle_remaining_seconds': None,
+                'session_signed_remaining_seconds': None,
+            }
+
+        now = datetime.now(timezone.utc)
+        idle_target = self._parse_time(current_session.get('idle_expires_at'))
+        signed_target = self._parse_time(current_session.get('expires_at'))
+        idle_remaining = int((idle_target - now).total_seconds()) if idle_target else None
+        signed_remaining = int((signed_target - now).total_seconds()) if signed_target else None
+        session_status = str(current_session.get('status', 'inactive') or 'inactive')
+
+        if session_status != 'active' or (idle_remaining is not None and idle_remaining <= 0) or (signed_remaining is not None and signed_remaining <= 0):
+            return {
+                'session_continuity_status': 'reconnect_now',
+                'session_continuity_tone': 'danger',
+                'session_continuity_action': 'reconnect_session',
+                'session_continuity_title': 'Reconnect now to keep the private lane alive',
+                'session_continuity_note': 'The last signed or idle window is no longer active. Reconnect before you continue touch-first work so the tablet stays inside the private runtime.',
+                'session_idle_remaining_seconds': idle_remaining,
+                'session_signed_remaining_seconds': signed_remaining,
+            }
+
+        if (idle_remaining is not None and idle_remaining <= 120) or (signed_remaining is not None and signed_remaining <= 300):
+            return {
+                'session_continuity_status': 'idle_lock_soon',
+                'session_continuity_tone': 'warning',
+                'session_continuity_action': 'renew_session',
+                'session_continuity_title': 'Renew now before the private session cools down',
+                'session_continuity_note': 'The tablet session is close to its idle or signed boundary. Renew now so you do not lose the current governed flow mid-step.',
+                'session_idle_remaining_seconds': idle_remaining,
+                'session_signed_remaining_seconds': signed_remaining,
+            }
+
+        if (idle_remaining is not None and idle_remaining <= 300) or (signed_remaining is not None and signed_remaining <= 900):
+            return {
+                'session_continuity_status': 'renew_soon',
+                'session_continuity_tone': 'warning',
+                'session_continuity_action': 'renew_session',
+                'session_continuity_title': 'Plan a quick renewal soon',
+                'session_continuity_note': 'The private session is still healthy, but the next signed or idle boundary is close enough that a quick renewal is the safer tablet move.',
+                'session_idle_remaining_seconds': idle_remaining,
+                'session_signed_remaining_seconds': signed_remaining,
+            }
+
+        return {
+            'session_continuity_status': 'ready',
+            'session_continuity_tone': 'success',
+            'session_continuity_action': 'monitor',
+            'session_continuity_title': 'The private session is live and stable',
+            'session_continuity_note': 'This tablet session is warm enough for touch-first work. Keep moving inside the governed lanes and renew only when the window starts to tighten.',
+            'session_idle_remaining_seconds': idle_remaining,
+            'session_signed_remaining_seconds': signed_remaining,
+        }
+
     def _session_public(self, profile: AccessProfile) -> dict[str, object]:
         payload = profile.to_public_dict()
         role_name = str(profile.role_name or '').strip().lower()
@@ -85,12 +210,34 @@ class DashboardService:
             persona = 'operator'
         else:
             persona = 'executive'
+        tablet_focus = self._tablet_focus_profile(persona)
+        profile_expires_at = payload.get('expires_at')
+        active_sessions = [
+            session
+            for session in self.access_control.list_sessions(status='active')
+            if str(session.get('profile_id', '')) == profile.profile_id
+        ]
+        active_sessions.sort(key=lambda item: str(item.get('last_seen_at') or item.get('created_at') or ''), reverse=True)
+        current_session = active_sessions[0] if active_sessions else {}
         payload.update({
             'control_room_access': self._control_room_access(profile),
             'setup_assistant_access': self._setup_assistant_access(profile),
             'persona': persona,
             'home_view': 'overview',
             'work_inbox_view': 'requests',
+            'private_runtime_mode': 'private_first',
+            'profile_expires_at': profile_expires_at,
+            'session_ttl_minutes': self.config.session_ttl_minutes,
+            'session_idle_timeout_minutes': self.config.session_idle_timeout_minutes,
+            'active_session_count': len(active_sessions),
+            'session_status': current_session.get('status', 'inactive'),
+            'session_created_at': current_session.get('created_at'),
+            'session_last_seen_at': current_session.get('last_seen_at'),
+            'session_expires_at': current_session.get('expires_at'),
+            'session_idle_expires_at': current_session.get('idle_expires_at'),
+            'session_auth_method': current_session.get('auth_method'),
+            **self._session_continuity_profile(current_session),
+            **tablet_focus,
         })
         return payload
 

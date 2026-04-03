@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.7-ui3';
+import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.8-ui1';
 
 const state = {
   view: getInitialDashboardView(),
@@ -42,7 +42,9 @@ const viewDescription = document.getElementById('view-description');
 const environmentLabel = document.getElementById('environment-label');
 const organizationSelector = document.getElementById('organization-selector');
 const askAiButton = document.getElementById('ask-ai-button');
-const governanceDropdown = document.getElementById('governance-dropdown');
+const governanceLauncher = document.getElementById('governance-launcher');
+const governanceSheet = document.getElementById('governance-sheet');
+const governanceSheetClose = document.getElementById('governance-sheet-close');
 const generatedAt = document.getElementById('generated-at');
 const refreshButton = document.getElementById('refresh-button');
 const logoutButton = document.getElementById('logout-button');
@@ -55,11 +57,38 @@ const sidebarGeneratedLabel = document.getElementById('sidebar-generated-label')
 const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
 
+function closeGovernanceSheet() {
+  if (!governanceSheet) return;
+  governanceSheet.hidden = true;
+  governanceSheet.setAttribute('aria-hidden', 'true');
+  governanceLauncher?.setAttribute('aria-expanded', 'false');
+}
+
+function openGovernanceSheet() {
+  if (!governanceSheet) return;
+  governanceSheet.hidden = false;
+  governanceSheet.setAttribute('aria-hidden', 'false');
+  governanceLauncher?.setAttribute('aria-expanded', 'true');
+}
+
+function navigateFromGovernanceTarget(target) {
+  if (!target) return;
+  const nextView = target.dataset.view || 'overview';
+  const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
+  state.view = nextView;
+  if (nextView === 'control_room') {
+    state.controlRoomTool = controlRoomTool || getInitialControlRoomTool();
+  }
+  closeGovernanceSheet();
+  updateNav();
+  render();
+  scrollDashboardToTop();
+}
+
 function setLiveTimestampLabel(text) {
   generatedAt.textContent = text;
   sidebarGeneratedLabel.textContent = text;
 }
-
 function stopLiveTimestampTicker() {
   if (state.liveClock.timerId) {
     window.clearInterval(state.liveClock.timerId);
@@ -72,9 +101,109 @@ function stopLiveTimestampTicker() {
 
 function renderLiveTimestampTick() {
   if (!state.liveClock.sourceMs) return;
-  const elapsedMs = Math.max(0, Date.now() - state.liveClock.clientStartedMs);
+  const nowMs = Date.now();
+  const elapsedMs = Math.max(0, nowMs - state.liveClock.clientStartedMs);
   const liveTimestamp = new Date(state.liveClock.sourceMs + elapsedMs);
   setLiveTimestampLabel(`Live data: ${formatDateTime(liveTimestamp)}`);
+  refreshSessionContinuityTick(nowMs);
+}
+
+function formatRemainingDuration(remainingMs) {
+  if (!Number.isFinite(remainingMs)) return '-';
+  if (remainingMs <= 0) return 'Expired';
+  const totalSeconds = Math.max(0, Math.floor(remainingMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m left`;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s left`;
+  return `${seconds}s left`;
+}
+
+function hasStoredAccessToken() {
+  return Boolean(String(state.token || '').trim());
+}
+
+function buildSessionContinuityState(session, nowMs = Date.now()) {
+  const idleTarget = session.session_idle_expires_at ? new Date(session.session_idle_expires_at).getTime() : Number.NaN;
+  const signedTarget = session.session_expires_at ? new Date(session.session_expires_at).getTime() : Number.NaN;
+  const idleLabel = Number.isNaN(idleTarget)
+    ? `${session.session_idle_timeout_minutes || '-'} minute idle window`
+    : formatRemainingDuration(idleTarget - nowMs);
+  const signedLabel = Number.isNaN(signedTarget)
+    ? `${session.session_ttl_minutes || '-'} minute signed session`
+    : formatRemainingDuration(signedTarget - nowMs);
+  const canReconnect = hasStoredAccessToken();
+  const continuityStatus = String(session.session_continuity_status || '').trim() || String(session.session_status || 'inactive');
+  const shape = {
+    status: continuityStatus,
+    title: String(session.session_continuity_title || ''),
+    note: String(session.session_continuity_note || ''),
+    action: String(session.session_continuity_action || ''),
+    badge: continuityStatus,
+    actionLabel: 'Keep working',
+    helper: canReconnect
+      ? 'A stored private access token can renew this tablet session without leaving Home.'
+      : 'This device will need the private access token again once the current session cools down.',
+    idleLabel,
+    signedLabel,
+  };
+
+  if (!canReconnect && continuityStatus === 'standby') {
+    shape.status = 'sign_in_again';
+    shape.badge = 'sign in again';
+    shape.actionLabel = 'Sign in again';
+    shape.title = shape.title || 'Sign in again to reopen the private runtime';
+    shape.note = shape.note || 'No active tablet session is available and this device is not holding a stored access token for silent reconnect.';
+    return shape;
+  }
+  if (continuityStatus === 'reconnect_now' || continuityStatus === 'standby') {
+    shape.badge = continuityStatus === 'standby' ? 'standby' : 'reconnect now';
+    shape.actionLabel = canReconnect ? 'Reconnect now' : 'Sign in again';
+    shape.title = shape.title || (canReconnect ? 'Reconnect now to keep work moving' : 'Sign in again to continue tablet work');
+    shape.note = shape.note || (canReconnect
+      ? 'The private session is no longer active. Reconnect from Home before you continue touch-first work.'
+      : 'The private session is no longer active and needs a fresh sign-in before work can continue.');
+    return shape;
+  }
+  if (continuityStatus === 'idle_lock_soon') {
+    shape.badge = 'renew now';
+    shape.actionLabel = 'Renew session';
+    return shape;
+  }
+  if (continuityStatus === 'renew_soon') {
+    shape.badge = 'renew soon';
+    shape.actionLabel = 'Renew soon';
+    return shape;
+  }
+  shape.status = 'ready';
+  shape.badge = 'ready';
+  shape.actionLabel = 'Stay in lane';
+  shape.title = shape.title || 'The private session is live and stable';
+  shape.note = shape.note || 'This private session is warm and ready for touch-first work.';
+  return shape;
+}
+
+function refreshSessionContinuityTick(nowMs = Date.now()) {
+  const continuity = buildSessionContinuityState(state.session || {}, nowMs);
+  document.querySelectorAll('[data-session-clock="idle"]').forEach((node) => {
+    node.textContent = continuity.idleLabel;
+  });
+  document.querySelectorAll('[data-session-clock="signed"]').forEach((node) => {
+    node.textContent = continuity.signedLabel;
+  });
+  document.querySelectorAll('[data-session-clock="note"]').forEach((node) => {
+    node.textContent = continuity.note;
+  });
+  document.querySelectorAll('[data-session-clock="title"]').forEach((node) => {
+    node.textContent = continuity.title;
+  });
+  document.querySelectorAll('[data-session-clock="helper"]').forEach((node) => {
+    node.textContent = continuity.helper;
+  });
+  document.querySelectorAll('[data-session-clock="action-label"]').forEach((node) => {
+    node.textContent = continuity.actionLabel;
+  });
 }
 
 function startLiveTimestampTicker(value) {
@@ -126,6 +255,13 @@ const VIEW_TITLES = {
   control_room: 'Control Room',
   backup_restore: 'Backup & Restore',
   admin_settings: 'Admin Settings',
+  owner_registration: 'Owner Registration',
+  retention: 'Documents & Records',
+  integrations: 'Integrations',
+  model_providers: 'Model Providers',
+  evidence_exports: 'Trust & Evidence',
+  master_data: 'Master Data & Routing',
+  structural_risk: 'Structural Risk & Alignment',
 };
 
 const VIEW_DESCRIPTIONS = {
@@ -147,6 +283,13 @@ const VIEW_DESCRIPTIONS = {
   control_room: 'Advanced governance tools for admin, IT, and founder sessions only.',
   backup_restore: 'Recovery bundles, restore guidance, and pilot-hardening artifacts inside Control Room.',
   admin_settings: 'Organization identity, access policy, providers, and routing posture inside Control Room.',
+  owner_registration: 'Runtime identity, registration code, and deployment ownership posture.',
+  retention: 'Retention, legal hold, and governed records posture inside Control Room.',
+  integrations: 'Outbound routing, delivery posture, and integration readiness inside Control Room.',
+  model_providers: 'AI provider readiness and default workforce execution posture inside Control Room.',
+  evidence_exports: 'Evidence exports, workflow proof posture, and trust continuity inside Control Room.',
+  master_data: 'People, teams, routing, assignments, and searchable directory governance inside Control Room.',
+  structural_risk: 'PT-OSS structural intelligence and advanced governance posture inside Control Room.',
 };
 
 const DEV_LANES = {
@@ -302,7 +445,8 @@ const VIEW_PERMISSIONS = {
   health: 'health.read',
 };
 
-const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings']);
+const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings', 'owner_registration', 'retention', 'integrations', 'model_providers', 'evidence_exports', 'master_data', 'structural_risk']);
+const GOVERNANCE_EMBEDDED_VIEWS = new Set(['setup', 'studio']);
 
 const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-dev-lane]',
@@ -313,9 +457,11 @@ const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-studio-clear]',
   '[data-override-action]',
   '[data-session-revoke]',
+  '[data-session-renew]',
   '[data-audit-action]',
   '[data-ops-action]',
   '[data-integration-action]',
+  '[data-retention-action]',
   '[data-human-ask-action]',
   '[data-action-runtime-action]',
   '[data-control-room-tool]',
@@ -329,10 +475,45 @@ const ACTIONABLE_BUTTON_SELECTOR = [
 navList.addEventListener('click', (event) => {
   const target = event.target.closest('.nav-item');
   if (!target) return;
-  state.view = target.dataset.view;
+  const nextView = target.dataset.view || 'overview';
+  const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
+  state.view = nextView;
+  if (nextView === 'control_room') {
+    state.controlRoomTool = controlRoomTool || getInitialControlRoomTool();
+  }
+  closeGovernanceSheet();
   updateNav();
   render();
   scrollDashboardToTop();
+});
+
+governanceLauncher?.addEventListener('click', () => {
+  if (governanceSheet?.hidden) {
+    openGovernanceSheet();
+  } else {
+    closeGovernanceSheet();
+  }
+});
+
+governanceSheetClose?.addEventListener('click', () => {
+  closeGovernanceSheet();
+});
+
+governanceSheet?.addEventListener('click', (event) => {
+  if (event.target.closest('[data-governance-sheet-close]')) {
+    closeGovernanceSheet();
+    return;
+  }
+  const target = event.target.closest('.governance-sheet-item');
+  if (target) {
+    navigateFromGovernanceTarget(target);
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && governanceSheet && !governanceSheet.hidden) {
+    closeGovernanceSheet();
+  }
 });
 
 refreshButton.addEventListener('click', () => withButtonBusy(refreshButton, () => loadDashboard(), 'Refreshing...'));
@@ -462,7 +643,8 @@ root.addEventListener('submit', async (event) => {
       });
       if (editingRequestId) delete state.studioPtagDrafts[editingRequestId];
       clearStudioEditor();
-      state.view = 'studio';
+      state.view = canAccessControlRoom() ? 'control_room' : 'studio';
+      if (canAccessControlRoom()) state.controlRoomTool = 'studio';
       updateNav();
       await loadDashboard();
     } catch (error) {
@@ -639,6 +821,13 @@ root.addEventListener('click', async (event) => {
     state.lastError = '';
     window.localStorage.setItem('sanom_api_token', lane.token);
     await withButtonBusy(devLaneButton, () => loadDashboard(), 'Connecting...');
+    scrollDashboardToTop();
+    return;
+  }
+
+  const sessionRenewButton = event.target.closest('[data-session-renew]');
+  if (sessionRenewButton) {
+    await withButtonBusy(sessionRenewButton, () => renewPrivateSession({ manual: true }), 'Renewing...');
     scrollDashboardToTop();
     return;
   }
@@ -1045,6 +1234,43 @@ root.addEventListener('click', async (event) => {
         state.lastError = String(error.message || error);
         render();
       }
+    }
+    if (action === 'probe-model-providers') {
+      try {
+        const providerId = String(integrationButton.dataset.providerId || '').trim();
+        const response = await apiFetch('/api/model-providers/probe', {
+          method: 'POST',
+          body: JSON.stringify(providerId ? { provider_id: providerId } : {}),
+        });
+        const result = response.result || {};
+        state.lastError = providerId
+          ? `Model provider probe for ${providerId} ${result.status || 'completed'}.`
+          : `Model provider probe ${result.status || 'completed'}.`;
+        await loadDashboard();
+      } catch (error) {
+        state.lastError = String(error.message || error);
+        render();
+      }
+    }
+    return;
+  }
+
+  const retentionButton = event.target.closest('[data-retention-action]');
+  if (retentionButton) {
+    try {
+      const dryRun = String(retentionButton.dataset.retentionAction || 'dry-run') !== 'enforce-now';
+      const response = await apiFetch('/api/retention/enforce', {
+        method: 'POST',
+        body: JSON.stringify({ dry_run: dryRun }),
+      });
+      const result = response.result || {};
+      state.lastError = dryRun
+        ? `Retention dry run ${result.status || 'completed'}.`
+        : `Retention execution ${result.status || 'completed'}.`;
+      await loadDashboard();
+    } catch (error) {
+      state.lastError = String(error.message || error);
+      render();
     }
     return;
   }
@@ -1554,7 +1780,7 @@ async function loadDashboard() {
     if (!state.sessionToken && state.token) {
       await loginWithAccessToken();
     }
-    const snapshot = await apiFetch('/api/dashboard', {}, { useSession: Boolean(state.sessionToken) });
+    const snapshot = await apiFetch('/api/dashboard', {}, { useSession: Boolean(state.sessionToken), allowSessionRecovery: true });
     state.snapshot = snapshot;
     state.session = snapshot.session || null;
     state.authRequired = false;
@@ -1570,19 +1796,46 @@ async function loadDashboard() {
       state.authRequired = true;
       state.session = null;
       state.snapshot = null;
-      state.sessionToken = '';
-      window.localStorage.removeItem('sanom_session_token');
+      clearSessionToken();
     }
     state.lastError = message;
     render();
   }
 }
 
+function clearSessionToken() {
+  state.sessionToken = '';
+  window.localStorage.removeItem('sanom_session_token');
+}
+
 async function loginWithAccessToken() {
   if (!state.token) return;
-  const response = await apiFetch('/api/session/login', { method: 'POST' }, { useAccessToken: true });
+  const response = await apiFetch('/api/session/login', { method: 'POST' }, { useAccessToken: true, allowSessionRecovery: false });
   state.sessionToken = response.session_token || '';
-  if (state.sessionToken) window.localStorage.setItem('sanom_session_token', state.sessionToken);
+  if (state.sessionToken) {
+    window.localStorage.setItem('sanom_session_token', state.sessionToken);
+    state.authRequired = false;
+  }
+}
+
+async function renewPrivateSession({ manual = false } = {}) {
+  if (!state.token) {
+    clearSessionToken();
+    state.session = null;
+    state.snapshot = null;
+    state.authRequired = true;
+    state.lastError = 'Private session can no longer be renewed from this device. Sign in again with the private access token.';
+    render();
+    return false;
+  }
+  clearSessionToken();
+  await loginWithAccessToken();
+  await loadDashboard();
+  if (manual) {
+    state.lastError = 'Private session renewed. Continue from the same command lane.';
+    render();
+  }
+  return Boolean(state.sessionToken);
 }
 
 async function copyTextToClipboard(text) {
@@ -1696,6 +1949,21 @@ async function apiFetch(path, options = {}, auth = {}) {
   else if (state.sessionToken) headers['X-SA-NOM-Session'] = state.sessionToken;
   else if (state.token) headers['X-SA-NOM-Token'] = state.token;
   const response = await fetch(path, { ...options, headers });
+  const method = String(options.method || 'GET').toUpperCase();
+  const canRecoverSession = response.status === 401
+    && method === 'GET'
+    && !auth.useAccessToken
+    && Boolean(state.sessionToken)
+    && hasStoredAccessToken()
+    && auth.allowSessionRecovery !== false
+    && !auth._retriedSession;
+  if (canRecoverSession) {
+    clearSessionToken();
+    await loginWithAccessToken();
+    if (state.sessionToken) {
+      return apiFetch(path, options, { ...auth, useSession: true, allowSessionRecovery: false, _retriedSession: true });
+    }
+  }
   if (!response.ok) throw new Error(`API ${response.status}: ${await response.text()}`);
   return response.json();
 }
@@ -1748,6 +2016,26 @@ function resolveNavigationTarget({ view = '', controlRoomTool = '', title = '', 
       controlRoomTool: tool,
       title: title || `Control Room opened on ${toolLabel}.`,
       detail: detail || `${toolLabel} is grouped inside the protected Control Room for advanced governance review.`,
+      actionLabel: 'Open Control Room',
+    };
+  }
+  if (GOVERNANCE_EMBEDDED_VIEWS.has(normalizedView)) {
+    if (!canAccessControlRoom()) {
+      return {
+        view: normalizedView,
+        controlRoomTool: '',
+        title,
+        detail,
+        actionLabel,
+      };
+    }
+    const tool = String(controlRoomTool || normalizedView).trim() || normalizedView;
+    const toolLabel = VIEW_TITLES[tool] || titleCase(tool);
+    return {
+      view: 'control_room',
+      controlRoomTool: tool,
+      title: title || `Control Room opened on ${toolLabel}.`,
+      detail: detail || `${toolLabel} now lives inside the protected Control Room instead of the simple command surface.`,
       actionLabel: 'Open Control Room',
     };
   }
@@ -1937,8 +2225,9 @@ function render() {
   const workLanguageGuide = compactCommandView ? '' : renderWorkLanguageGuide(snapshot);
   const alertRail = compactCommandView ? '' : renderAlertRail(snapshot);
   const viewPrelude = compactCommandView ? '' : renderViewPrelude(snapshot);
+  const tabletLaneRail = compactCommandView ? '' : renderTabletLaneRail(snapshot);
   const workflowGuide = compactCommandView ? '' : renderWorkflowGuide(snapshot);
-  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${alertRail}${viewPrelude}${workflowGuide}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
+  root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${alertRail}${viewPrelude}${tabletLaneRail}${workflowGuide}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
   focusActionContextTarget();
 }
@@ -2904,16 +3193,41 @@ function studioReadinessTone(readiness) {
 
 function updateNav() {
   const controlRoomAllowed = canAccessControlRoom();
-  const activeView = isControlRoomTool(state.view) ? 'control_room' : (state.view === 'setup' ? 'overview' : state.view);
-  if (governanceDropdown) {
-    governanceDropdown.hidden = !controlRoomAllowed;
-    if (!controlRoomAllowed) governanceDropdown.open = false;
-    governanceDropdown.classList.toggle('is-active', activeView === 'control_room');
+  const activeView = (isControlRoomTool(state.view) || GOVERNANCE_EMBEDDED_VIEWS.has(state.view)) ? 'control_room' : state.view;
+  if (governanceLauncher) {
+    governanceLauncher.hidden = !controlRoomAllowed;
+    governanceLauncher.classList.toggle('is-active', activeView === 'control_room');
+    governanceLauncher.setAttribute('aria-expanded', governanceSheet && !governanceSheet.hidden ? 'true' : 'false');
   }
+  if (!controlRoomAllowed) {
+    closeGovernanceSheet();
+  }
+  const activeControlRoomTool = String(state.controlRoomTool || getInitialControlRoomTool()).trim() || getInitialControlRoomTool();
   for (const item of navList.querySelectorAll('.nav-item')) {
-    const isActive = item.dataset.view === activeView;
+    const itemView = item.dataset.view || '';
+    const itemTool = String(item.dataset.controlRoomTool || '').trim();
+    let isActive = itemView === activeView;
+    if (itemView === 'control_room' && itemTool) {
+      isActive = activeView === 'control_room' && itemTool === activeControlRoomTool;
+    } else if (itemView === 'control_room' && !itemTool) {
+      isActive = activeView === 'control_room' && activeControlRoomTool === getInitialControlRoomTool();
+    }
     item.classList.toggle('is-active', isActive);
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
+  }
+  if (governanceSheet) {
+    for (const item of governanceSheet.querySelectorAll('.governance-sheet-item')) {
+      const itemView = item.dataset.view || '';
+      const itemTool = String(item.dataset.controlRoomTool || '').trim();
+      let isActive = itemView === activeView;
+      if (itemView === 'control_room' && itemTool) {
+        isActive = activeView === 'control_room' && itemTool === activeControlRoomTool;
+      } else if (itemView === 'control_room' && !itemTool) {
+        isActive = activeView === 'control_room' && activeControlRoomTool === getInitialControlRoomTool();
+      }
+      item.classList.toggle('is-active', isActive);
+      item.setAttribute('aria-current', isActive ? 'page' : 'false');
+    }
   }
 }
 
@@ -4197,9 +4511,12 @@ function renderCommandHome(snapshot) {
   const nextActions = buildHomeNextActions(snapshot, surface).slice(0, 5);
   const aiFeed = Array.isArray(surface.ai_activity_feed) ? surface.ai_activity_feed.slice(0, 5) : [];
   const departments = Array.isArray(surface.department_quick_access) ? surface.department_quick_access.slice(0, 6) : [];
-  const quickLinks = Array.isArray(surface.quick_links) ? [...surface.quick_links] : [];
+  const session = state.session || {};
+  const primaryViews = getTabletPrimaryViews(session);
+  const quickLinks = orderCommandQuickLinksByPersona(Array.isArray(surface.quick_links) ? [...surface.quick_links] : [], primaryViews);
   if (canAccessSetupAssistant()) quickLinks.push({ view: 'setup', label: 'Setup Assistant' });
   const setupContinuation = renderHomeSetupContinuation(snapshot);
+  const touchLaneSection = renderHomeTouchLaneSection(snapshot, primaryViews);
   const attentionTotal = Number(posture.attention_items_total || 0);
   const aiRunning = Number(posture.ai_actions_running || 0);
   const aiTotal = Number(posture.ai_actions_total || aiFeed.length || 0);
@@ -4219,7 +4536,7 @@ function renderCommandHome(snapshot) {
               <h3 class="hero-title">Your Next Actions</h3>
               <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
             </div>
-            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(state.session?.persona || state.session?.role_name || 'operator')}</div>
+            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(session.persona || session.role_name || 'operator')}</div>
           </div>
           <div class="inline-actions">
             ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button' })}
@@ -4235,6 +4552,10 @@ function renderCommandHome(snapshot) {
           </div>
           <div class="trace-box compact-trace"><strong>AI workforce</strong><p class="muted">${escapeHtml(`${aiRunning} running | ${aiTotal} total governed actions`)}</p></div>
         </article>
+      </section>
+      <section class="command-guidance-grid">
+        ${renderCommandTabletFocusCard(session, primaryViews)}
+        ${renderCommandSessionContinuityCard(session)}
       </section>
       <section class="card stack command-home-section">
         <div class="hero-heading">
@@ -4263,6 +4584,7 @@ function renderCommandHome(snapshot) {
         </div>
         <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
       </section>
+      ${touchLaneSection}
       <section class="card stack command-home-section">
         <div class="hero-heading">
           <div>
@@ -4293,6 +4615,224 @@ function renderCommandHome(snapshot) {
         </div>
         <div class="command-quick-links-row">${quickLinks.map((item) => renderHomeQuickLink(item)).join('')}${canAccessControlRoom() ? renderHomeQuickLink({ view: 'control_room', label: 'Control Room' }) : ''}</div>
       </section>
+    </section>
+  `;
+}
+
+function getTabletPrimaryViews(session = state.session || {}) {
+  return (Array.isArray(session.tablet_primary_views) ? session.tablet_primary_views : [])
+    .map((item) => String(item || '').trim())
+    .filter((item) => item && VIEW_TITLES[item]);
+}
+
+function orderCommandQuickLinksByPersona(quickLinks, primaryViews = []) {
+  const order = new Map(primaryViews.map((view, index) => [view, index]));
+  return [...quickLinks].sort((left, right) => {
+    const leftRank = order.has(left.view) ? order.get(left.view) : 999;
+    const rightRank = order.has(right.view) ? order.get(right.view) : 999;
+    if (leftRank != rightRank) return leftRank - rightRank;
+    return String(left.label || left.view || '').localeCompare(String(right.label || right.view || ''));
+  });
+}
+
+function renderCommandTabletFocusCard(session, primaryViews) {
+  const focusTitle = session.tablet_focus_title || 'Department direction';
+  const focusNote = session.tablet_focus_note || 'Stay on Home for posture first, then move through the next governed lane without opening deeper runtime plumbing.';
+  const focusViews = primaryViews.slice(0, 4);
+  const focusActions = focusViews.length
+    ? focusViews.map((view) => renderViewJumpButton({
+      view,
+      label: VIEW_TITLES[view] || titleCase(view),
+      className: 'action-button action-button-muted',
+      title: `${VIEW_TITLES[view] || titleCase(view)} reopened from Home.`,
+      detail: `Continue from ${VIEW_TITLES[view] || titleCase(view)} while staying inside the private tablet lane.`,
+      actionLabel: VIEW_TITLES[view] || titleCase(view),
+    })).join('')
+    : renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button action-button-muted' });
+  return `
+    <article class="card command-home-section command-guidance-card">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Tablet focus</div>
+          <h3 class="card-title">${escapeHtml(focusTitle)}</h3>
+          <p class="card-subtitle">${escapeHtml(focusNote)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(session.private_runtime_mode || 'private first')}${statusBadge(session.persona || session.role_name || 'operator')}</div>
+      </div>
+      <div class="command-focus-actions">${focusActions}</div>
+      <p class="muted small">These are the lanes this persona should reach first on tablet before stepping into deeper governance tooling.</p>
+    </article>
+  `;
+}
+
+function renderCommandSessionContinuityCard(session) {
+  const continuity = buildSessionContinuityState(session, Date.now());
+  const authMethod = session.session_auth_method ? titleCase(String(session.session_auth_method).replaceAll('_', ' ')) : 'Private access token';
+  const lastSeen = session.session_last_seen_at ? shortTime(session.session_last_seen_at) : 'Waiting for the first active tablet session';
+  const primaryLane = getTabletPrimaryViews(session).find((view) => view && view !== 'overview') || 'requests';
+  const primaryLaneLabel = VIEW_TITLES[primaryLane] || titleCase(primaryLane);
+  const renewButton = continuity.action !== 'monitor'
+    ? `<button class="action-button" type="button" data-session-renew="true"><span data-session-clock="action-label">${escapeHtml(continuity.actionLabel)}</span></button>`
+    : `<button class="action-button action-button-muted" type="button" data-session-renew="true"><span data-session-clock="action-label">Renew session</span></button>`;
+  return `
+    <article class="card command-home-section command-guidance-card" data-session-continuity-root="true">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Private session continuity</div>
+          <h3 class="card-title" data-session-clock="title">${escapeHtml(continuity.title)}</h3>
+          <p class="card-subtitle">Keep the tablet session alive inside the private runtime without exposing lower-level runtime stores on Home.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(continuity.badge)}${statusBadge(authMethod)}</div>
+      </div>
+      <div class="key-value">
+        <div class="key-value-row"><span class="muted">Last seen</span><span class="key-value-value">${escapeHtml(lastSeen)}</span></div>
+        <div class="key-value-row"><span class="muted">Idle lock</span><span class="key-value-value" data-session-clock="idle">${escapeHtml(continuity.idleLabel)}</span></div>
+        <div class="key-value-row"><span class="muted">Signed session</span><span class="key-value-value" data-session-clock="signed">${escapeHtml(continuity.signedLabel)}</span></div>
+        <div class="key-value-row"><span class="muted">Auth method</span><span class="key-value-value">${escapeHtml(authMethod)}</span></div>
+        <div class="key-value-row"><span class="muted">Active sessions</span><span class="key-value-value">${escapeHtml(String(session.active_session_count || 0))}</span></div>
+      </div>
+      <p class="muted small" data-session-clock="note">${escapeHtml(continuity.note)}</p>
+      <p class="muted small" data-session-clock="helper">${escapeHtml(continuity.helper)}</p>
+      <div class="inline-actions">${renewButton}${renderViewJumpButton({ view: primaryLane, label: `Open ${primaryLaneLabel}`, className: 'action-button action-button-muted', title: `${primaryLaneLabel} is the best adjacent lane for this persona on tablet.`, detail: `Continue in ${primaryLaneLabel} while the private session stays inside the governed runtime.`, actionLabel: `Open ${primaryLaneLabel}` })}</div>
+    </article>
+  `;
+}
+
+function getTabletLaneEmphasis(session = state.session || {}) {
+  const emphasis = session.tablet_lane_emphasis;
+  return emphasis && typeof emphasis === 'object' ? emphasis : {};
+}
+
+function buildCommandTouchLanes(snapshot, primaryViews = getTabletPrimaryViews(state.session || {})) {
+  const inboxSummary = snapshot.unified_work_inbox?.summary || {};
+  const caseSummary = snapshot.cases?.summary || {};
+  const documentSummary = snapshot.documents?.summary || {};
+  const actionSummary = snapshot.actions?.summary || {};
+  const masterSummary = snapshot.master_data?.summary || {};
+  const assignmentSummary = snapshot.assignment_queue?.summary || {};
+  const laneEmphasis = getTabletLaneEmphasis(state.session || {});
+  const laneMap = {
+    requests: {
+      view: 'requests',
+      title: 'Work Inbox',
+      countLabel: `${Number(inboxSummary.open_total || 0)} open`,
+      note: Number(inboxSummary.human_required_total || 0)
+        ? `${Number(inboxSummary.human_required_total || 0)} human-required items are waiting in the live queue.`
+        : 'Stay in the owned work queue first when you need the next human move immediately.',
+      badge: Number(inboxSummary.human_required_total || 0) ? 'human required' : 'active queue',
+      actionLabel: 'Open Work Inbox',
+    },
+    cases: {
+      view: 'cases',
+      title: 'Cases',
+      countLabel: `${Number(caseSummary.cases_total || 0)} cases`,
+      note: Number(caseSummary.human_required_total || 0)
+        ? `${Number(caseSummary.human_required_total || 0)} cases still need a real human boundary.`
+        : 'Use the canonical case lane when one governed issue needs linked context, proof, and follow-through.',
+      badge: Number(caseSummary.human_required_total || 0) ? 'human required' : 'linked cases',
+      actionLabel: 'Open Cases',
+    },
+    documents: {
+      view: 'documents',
+      title: 'Documents',
+      countLabel: `${Number(documentSummary.documents_total || 0)} documents`,
+      note: Number(documentSummary.in_review_total || 0)
+        ? `${Number(documentSummary.in_review_total || 0)} documents are in review right now.`
+        : 'Open the document lane when governed artifacts themselves are the work object that needs action.',
+      badge: Number(documentSummary.in_review_total || 0) ? 'review active' : 'document runtime',
+      actionLabel: 'Open Documents',
+    },
+    actions: {
+      view: 'actions',
+      title: 'AI Actions',
+      countLabel: `${Number(actionSummary.actions_total || 0)} governed actions`,
+      note: Number(actionSummary.waiting_human_total || 0)
+        ? `${Number(actionSummary.waiting_human_total || 0)} AI actions are waiting on human follow-through.`
+        : 'Check AI execution when you want to see what the workforce is doing right now.',
+      badge: Number(actionSummary.waiting_human_total || 0) ? 'waiting human' : 'ai active',
+      actionLabel: 'Open AI Actions',
+    },
+    directory: {
+      view: 'directory',
+      title: 'Directory & Search',
+      countLabel: `${Number(masterSummary.people_total || 0)} people`,
+      note: Number(assignmentSummary.items_total || 0)
+        ? `${Number(assignmentSummary.items_total || 0)} assignments are linked to real owners, teams, and seats.`
+        : 'Use directory search when you need to route work through real people, teams, and seats.',
+      badge: Number(masterSummary.search_ready || 0) ? 'search ready' : 'directory live',
+      actionLabel: 'Open Directory',
+    },
+  };
+  const orderedViews = (primaryViews.length ? primaryViews : ['requests', 'cases', 'documents', 'actions', 'directory'])
+    .filter((view, index, views) => view && view !== 'overview' && laneMap[view] && views.indexOf(view) === index);
+  return orderedViews.map((view, index) => {
+    const emphasis = laneEmphasis[view] || {};
+    const rank = emphasis.rank || (index === 0 ? 'primary' : index <= 2 ? 'secondary' : 'support');
+    const emphasisLabel = emphasis.label || (rank === 'primary' ? 'Start here' : rank === 'secondary' ? 'Keep close' : 'Keep nearby');
+    return {
+      ...laneMap[view],
+      emphasis: rank,
+      emphasisLabel,
+      emphasisNote: emphasis.note || '',
+    };
+  });
+}
+
+function renderCommandTouchLaneCard(item, compact = false) {
+  if (!item) return '';
+  const active = state.view === item.view;
+  const emphasisClass = item.emphasis ? ` command-touch-card-emphasis-${item.emphasis}` : '';
+  const buttonLabel = active ? `Stay in ${item.title}` : item.actionLabel || `Open ${item.title}`;
+  const button = renderViewJumpButton({
+    view: item.view,
+    label: buttonLabel,
+    className: active ? 'action-button action-button-muted' : 'action-button',
+    title: `${item.title} reopened from the tablet command surface.`,
+    detail: item.note || `Continue in ${item.title}.`,
+    actionLabel: buttonLabel,
+  });
+  return `
+    <article class="command-touch-card${active ? ' command-touch-card-active' : ''}${compact ? ' command-touch-card-compact' : ''}${emphasisClass}">
+      <div class="hero-chip-row"><span class="pill">${escapeHtml(item.emphasisLabel || 'Lane')}</span>${statusBadge(item.badge || 'lane')}</div>
+      <strong>${escapeHtml(item.title)}</strong>
+      <p class="command-touch-count">${escapeHtml(item.countLabel || '0')}</p>
+      <p class="muted">${escapeHtml(item.note || 'Continue in the governed lane that currently owns the work.')}</p>
+      ${item.emphasisNote ? `<p class="muted small">${escapeHtml(item.emphasisNote)}</p>` : ''}
+      <div class="inline-actions">${button}</div>
+    </article>
+  `;
+}
+
+function renderHomeTouchLaneSection(snapshot, primaryViews) {
+  const lanes = buildCommandTouchLanes(snapshot, primaryViews).slice(0, 4);
+  if (!lanes.length) return '';
+  return `
+    <section class="card stack command-home-section">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Touch-first work lanes</div>
+          <h3 class="card-title">Move with one tap into the right operating lane</h3>
+          <p class="card-subtitle">These bigger lane cards are ordered for this persona so tablet work starts with the most relevant governed surface first.</p>
+        </div>
+      </div>
+      <div class="command-touch-grid">${lanes.map((item) => renderCommandTouchLaneCard(item)).join('')}</div>
+    </section>
+  `;
+}
+
+function renderTabletLaneRail(snapshot) {
+  const lanes = buildCommandTouchLanes(snapshot).slice(0, 4);
+  if (!lanes.length) return '';
+  return `
+    <section class="card stack command-home-section tablet-lane-rail">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Tablet lane rail</div>
+          <h3 class="card-title">Keep adjacent work lanes one tap away</h3>
+          <p class="card-subtitle">Switch between the core operating lanes without falling back into low-level runtime navigation.</p>
+        </div>
+      </div>
+      <div class="command-touch-grid command-touch-grid-compact">${lanes.map((item) => renderCommandTouchLaneCard(item, true)).join('')}</div>
     </section>
   `;
 }
@@ -4558,25 +5098,347 @@ function renderSetupAssistant(snapshot) {
   `;
 }
 
-function renderControlRoom(snapshot) {
+function controlRoomToolLabel(tool) {
+  return VIEW_TITLES[tool] || titleCase(String(tool || '').replaceAll('_', ' '));
+}
+
+function buildControlRoomCategoryGroups(snapshot) {
+  const summary = snapshot.summary || {};
   const runtimeHealth = snapshot.runtime_health || {};
   const operations = snapshot.operations || {};
-  const auditIntegrity = runtimeHealth.audit_integrity || {};
+  const registration = snapshot.owner_registration || {};
+  const firstRun = snapshot.first_run_readiness || {};
   const roleLibrary = runtimeHealth.role_library || {};
-  const accessControl = runtimeHealth.access_control || {};
+  const auditIntegrity = runtimeHealth.audit_integrity || {};
+  const studioSummary = snapshot.role_private_studio?.summary || {};
+  const integrationSummary = snapshot.integrations?.summary || {};
+  const modelProviders = snapshot.model_providers || {};
   const backupSummary = operations.summary || {};
   const latestBackup = backupSummary.latest_backup || {};
-  const registration = snapshot.owner_registration || {};
-  const currentTool = state.controlRoomTool || 'health';
-  const governanceSummary = [
-    { tool: 'health', label: 'Runtime Health', value: runtimeHealth.status || 'unknown', note: 'Deployment, storage, and integration posture.' },
-    { tool: 'conflicts', label: 'Conflicts & Locks', value: String(snapshot.summary.active_locks || 0), note: 'Blocked or contended execution lanes.' },
-    { tool: 'audit', label: 'Audit Chain', value: auditIntegrity.status || 'verified', note: 'Chain integrity and evidence continuity.' },
-    { tool: 'policies', label: 'Trusted Registry', value: roleLibrary.signature_status || roleLibrary.status || 'unknown', note: 'Role packs, manifest trust, and signature posture.' },
-    { tool: 'sessions', label: 'Sessions', value: String((snapshot.sessions || []).length), note: 'Short-lived runtime access and revocation.' },
-    { tool: 'backup_restore', label: 'Backup & Restore', value: latestBackup.backup_id || `${String(backupSummary.backups_total || 0)} bundles`, note: 'Recovery bundles, restore guidance, and pilot-hardening artifacts.' },
-    { tool: 'admin_settings', label: 'Admin Settings', value: registration.registered ? (registration.organization_name || 'registered') : 'setup needed', note: 'Organization identity, access policy, providers, and routing posture.' },
+  const retention = snapshot.retention || {};
+  const sessions = Array.isArray(snapshot.sessions) ? snapshot.sessions : [];
+  const evidenceSummary = snapshot.evidence_exports?.summary || {};
+  const masterDataSummary = snapshot.master_data?.summary || {};
+  const assignmentSummary = snapshot.assignment_queue?.summary || {};
+  const searchSummary = snapshot.global_search?.summary || {};
+  const studioStructural = runtimeHealth.studio_structural || snapshot.go_live_readiness?.studio_structural || {};
+  const structuralAttention = Number(summary.studio_pt_oss_elevated_total || 0) + Number(summary.studio_pt_oss_critical_total || 0) + Number(summary.studio_pt_oss_blocking_issue_total || 0);
+  return [
+    {
+      title: 'Setup & Onboarding',
+      note: 'First-run setup, deployment identity, diagnostics, and pilot hardening stay here so Home can remain operationally simple.',
+      items: [
+        {
+          tool: 'setup',
+          label: 'Setup & Onboarding',
+          value: firstRun.ready ? 'ready' : `${String(operations.first_run_action_center?.required_total || firstRun.blockers_total || 0)} required`,
+          note: 'Setup Assistant, Quick-Start Doctor, usability proof, and first-run continuity in one advanced lane.',
+          tone: firstRun.ready ? 'tone-success' : 'tone-warning',
+          badges: [formatStatusLabel(firstRun.status || 'blocked')],
+        },
+        {
+          tool: 'owner_registration',
+          label: 'Owner Registration',
+          value: registration.registered ? (registration.organization_name || 'registered') : 'sa-nom setup required',
+          note: 'Private runtime identity, registration code, and executive-owner posture anchored during initial setup.',
+          tone: registration.registered ? 'tone-success' : 'tone-warning',
+          badges: [registration.registered ? 'registered' : 'missing', registration.deployment_mode || 'private'],
+        },
+      ].filter((item) => item.tool !== 'setup' || canAccessSetupAssistant()),
+    },
+    {
+      title: 'AI Workforce & Roles',
+      note: 'Role Private Studio and trusted role governance stay together because this is where the AI workforce is created, reviewed, and published.',
+      items: [
+        {
+          tool: 'studio',
+          label: 'Role Private Studio',
+          value: `${String(studioSummary.publisher_ready_total || 0)} publish ready`,
+          note: 'Operators fill a normal JD-style form, and the runtime turns it into PTAG, review posture, and publication governance behind the scenes.',
+          tone: Number(studioSummary.trust_attention_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [Number(studioSummary.trust_attention_total || 0) > 0 ? 'trust attention' : 'studio live'],
+        },
+        {
+          tool: 'policies',
+          label: 'Role Library & Policies',
+          value: roleLibrary.signature_status || roleLibrary.status || 'unknown',
+          note: 'Trusted hats, manifest posture, hierarchy, authority boundaries, and publication trust remain visible here.',
+          tone: String(roleLibrary.signature_status || roleLibrary.status || '').toLowerCase() === 'verified' ? 'tone-success' : 'tone-warning',
+          badges: [roleLibrary.signature_status || roleLibrary.status || 'unknown'],
+        },
+      ],
+    },
+    {
+      title: 'Structural Risk & Alignment',
+      note: 'PT-OSS is a governance posture lane, not a setup wizard. It should stay visible as structural risk intelligence for advanced operators.',
+      items: [
+        {
+          tool: 'structural_risk',
+          label: 'Structural Risk & Alignment',
+          value: structuralAttention > 0 ? `${String(structuralAttention)} risk signals` : 'monitoring',
+          note: 'PT-OSS posture today, with Global Harmony and deeper alignment signals anchored in this same governance lane as data becomes active.',
+          tone: structuralAttention > 0 ? 'tone-warning' : 'tone-success',
+          badges: [summary.studio_pt_oss_critical_total ? 'critical posture' : summary.studio_pt_oss_elevated_total ? 'elevated posture' : 'healthy watch'],
+        },
+      ],
+    },
+    {
+      title: 'Trust & Evidence',
+      note: 'Use these tools when you must prove what happened, review export posture, or verify that trust and evidence continuity still hold.',
+      items: [
+        {
+          tool: 'audit',
+          label: 'Audit Trail',
+          value: auditIntegrity.status || 'unknown',
+          note: 'Audit chain integrity, tamper-evident history, and operator-readable trust posture.',
+          tone: String(auditIntegrity.status || '').toLowerCase() === 'verified' ? 'tone-success' : 'tone-warning',
+          badges: [auditIntegrity.status || 'unknown'],
+        },
+        {
+          tool: 'evidence_exports',
+          label: 'Evidence Exports',
+          value: Number(evidenceSummary.exports_total || 0) > 0 ? `${String(evidenceSummary.exports_total || 0)} exports` : 'monitoring',
+          note: 'Evidence packs, workflow proof bundles, export posture, and trusted mismatch attention.',
+          tone: Number(evidenceSummary.attention_total || 0) > 0 || Number(evidenceSummary.trusted_role_mismatch_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [evidenceSummary.posture || 'unknown'],
+        },
+      ],
+    },
+    {
+      title: 'Documents & Records',
+      note: 'Retention, legal hold, and governed records live here instead of the normal document work surface.',
+      items: [
+        {
+          tool: 'retention',
+          label: 'Retention & Records',
+          value: Number(retention.expired_candidate_total || 0) > 0 ? `${String(retention.expired_candidate_total || 0)} expiring` : 'monitoring',
+          note: 'Retention windows, legal holds, archive posture, and governed records pressure.',
+          tone: Number(retention.hold_blocked_total || 0) > 0 || Number(retention.expired_candidate_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [Number(retention.hold_blocked_total || 0) > 0 ? 'hold active' : 'records clear'],
+        },
+      ],
+    },
+    {
+      title: 'Runtime & Recovery',
+      note: 'Health, recovery bundles, diagnostics, and operational resilience belong here because they are advanced operator signals, not Home clutter.',
+      items: [
+        {
+          tool: 'health',
+          label: 'Runtime Health',
+          value: runtimeHealth.status || 'unknown',
+          note: 'Deployment, storage, runtime stores, diagnostics, and infrastructure posture.',
+          tone: String(runtimeHealth.status || '').toLowerCase() === 'ok' ? 'tone-success' : 'tone-warning',
+          badges: [runtimeHealth.status || 'unknown'],
+        },
+        {
+          tool: 'backup_restore',
+          label: 'Backup & Restore',
+          value: latestBackup.backup_id || `${String(backupSummary.backups_total || 0)} bundles`,
+          note: 'Recovery bundles, restore guidance, performance baseline, and pilot-hardening artifacts.',
+          tone: latestBackup.backup_id ? 'tone-accent' : 'tone-warning',
+          badges: [latestBackup.backup_id ? 'backup ready' : 'backup needed'],
+        },
+      ],
+    },
+    {
+      title: 'Integrations & Providers',
+      note: 'Outbound delivery, notification routing, and model provider readiness should stay grouped inside one advanced governance section.',
+      items: [
+        {
+          tool: 'integrations',
+          label: 'Integrations',
+          value: Number(integrationSummary.active_targets || 0) > 0 ? `${String(integrationSummary.active_targets || 0)} active targets` : 'setup needed',
+          note: 'Targets, delivery posture, outbox pressure, and outbound governance routing.',
+          tone: Number(integrationSummary.failed_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [Number(integrationSummary.failed_total || 0) > 0 ? 'delivery pressure' : 'routing posture'],
+        },
+        {
+          tool: 'model_providers',
+          label: 'Model Providers',
+          value: Number(modelProviders.configured_providers || 0) > 0 ? `${String(modelProviders.configured_providers || 0)} configured` : 'setup needed',
+          note: 'Default provider readiness and AI workforce execution path inside the private-first boundary.',
+          tone: Number(modelProviders.configured_providers || 0) > 0 && modelProviders.default_provider_ready !== false ? 'tone-success' : 'tone-warning',
+          badges: [modelProviders.default_provider || 'no default'],
+        },
+      ],
+    },
+    {
+      title: 'Access & Security',
+      note: 'Session posture, authority boundaries, and protected resource pressure stay here for advanced governance review.',
+      items: [
+        {
+          tool: 'sessions',
+          label: 'Sessions',
+          value: sessions.length ? `${String(sessions.length)} active` : 'clear',
+          note: 'Issued sessions, expiry windows, continuity, and revocation posture.',
+          tone: sessions.length ? 'tone-accent' : 'tone-success',
+          badges: [sessions.length ? 'active access' : 'no pressure'],
+        },
+        {
+          tool: 'conflicts',
+          label: 'Authority Guard & Locks',
+          value: `${String(summary.active_locks || 0)} items`,
+          note: 'Contention, blocked execution, protected resources, and advanced pressure in governed lanes.',
+          tone: Number(summary.active_locks || 0) > 0 ? 'tone-warning' : 'tone-success',
+          badges: [Number(summary.active_locks || 0) > 0 ? 'attention' : 'clear'],
+        },
+      ],
+    },
+    {
+      title: 'Master Data & Routing',
+      note: 'People, teams, assignments, and searchable routing posture should be maintained here as governance infrastructure, not treated as raw directory plumbing.',
+      items: [
+        {
+          tool: 'master_data',
+          label: 'Master Data & Routing',
+          value: Number(masterDataSummary.people_total || 0) > 0 ? `${String(masterDataSummary.people_total || 0)} people` : 'setup needed',
+          note: 'Organization structure, assignment queue posture, team routing, and searchable governance continuity.',
+          tone: Number(assignmentSummary.human_required_total || 0) > 0 ? 'tone-warning' : 'tone-accent',
+          badges: [searchSummary.search_ready ? 'search ready' : 'index warming'],
+        },
+      ],
+    },
+    {
+      title: 'Admin Settings',
+      note: 'One place for organization identity, access, provider, routing, and operating posture when a founder or admin needs the current setting surface.',
+      items: [
+        {
+          tool: 'admin_settings',
+          label: 'Admin Settings',
+          value: registration.registered ? (registration.organization_name || 'registered') : 'setup needed',
+          note: 'Organization identity, access posture, provider posture, and routing configuration summary.',
+          tone: registration.registered ? 'tone-accent' : 'tone-warning',
+          badges: [registration.registered ? 'registered' : 'needs setup'],
+        },
+      ],
+    },
   ];
+}
+
+function controlRoomPrimaryActionLabel(tool) {
+  const labels = {
+    setup: 'Continue setup',
+    owner_registration: 'Review setup',
+    studio: 'Open Studio',
+    policies: 'Open library',
+    structural_risk: 'Review posture',
+    audit: 'Open audit',
+    evidence_exports: 'Review trust',
+    retention: 'Review records',
+    health: 'Check runtime',
+    backup_restore: 'Open recovery',
+    integrations: 'Open integrations',
+    model_providers: 'Open providers',
+    sessions: 'Open sessions',
+    conflicts: 'Review pressure',
+    master_data: 'Open routing',
+    admin_settings: 'Open settings',
+  };
+  return labels[tool] || 'Open';
+}
+
+function findControlRoomToolItem(groups, tool) {
+  return groups.flatMap((group) => group.items || []).find((item) => item.tool === tool) || null;
+}
+
+function buildControlRoomMissionItems(snapshot, groups) {
+  const preferredTools = canAccessSetupAssistant()
+    ? ['setup', 'studio', 'structural_risk', 'evidence_exports', 'health']
+    : ['studio', 'structural_risk', 'evidence_exports', 'health', 'master_data'];
+  const noteOverrides = {
+    setup: 'Finish owner bootstrap, first-run guidance, and doctor before broader pilot delegation.',
+    studio: 'Create or revise governed AI workforce roles from a normal JD-style input form.',
+    structural_risk: 'Use PT-OSS and alignment posture before trusted publication or wider delegation.',
+    evidence_exports: 'Review proof, trusted registry posture, and export attention before calling anything auditor-ready.',
+    health: 'Check diagnostics, backup posture, and recovery readiness before risky changes.',
+    master_data: 'Keep people, teams, search, and routing calm before work drifts across the org.',
+  };
+  return preferredTools
+    .map((tool) => findControlRoomToolItem(groups, tool))
+    .filter(Boolean)
+    .map((item) => ({
+      ...item,
+      note: noteOverrides[item.tool] || item.note,
+      actionLabel: controlRoomPrimaryActionLabel(item.tool),
+    }));
+}
+
+function renderControlRoomMissionCard(item, currentTool) {
+  const isCurrent = currentTool === item.tool;
+  const badges = Array.isArray(item.badges) ? item.badges.filter(Boolean) : [];
+  return `
+    <article class="command-summary-card control-room-mission-card ${escapeHtml(item.tone || 'tone-accent')}${isCurrent ? ' is-active' : ''}">
+      <span class="command-summary-label">${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <p class="muted">${escapeHtml(item.note)}</p>
+      ${badges.length ? `<div class="hero-chip-row">${badges.map((badge) => statusBadge(badge)).join('')}</div>` : ''}
+      <div class="inline-actions">
+        <button class="action-button${isCurrent ? ' action-button-muted' : ''}" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(isCurrent ? 'Current lane' : item.actionLabel || controlRoomPrimaryActionLabel(item.tool))}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderControlRoomMissionSection(snapshot, groups, currentTool) {
+  const missionItems = buildControlRoomMissionItems(snapshot, groups);
+  if (!missionItems.length) return '';
+  return `
+    <section class="card stack control-room-mission-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Mission control priorities</div>
+          <h3 class="card-title">Open the right advanced lane in one tap</h3>
+          <p class="card-subtitle">Control Room should point straight to setup, roles, structural risk, trust, and recovery instead of making tablet operators hunt through long panels.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${missionItems.length} primary lanes`)}</div>
+      </div>
+      <div class="control-room-mission-grid">
+        ${missionItems.map((item) => renderControlRoomMissionCard(item, currentTool)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderControlRoomCategorySection(group, currentTool) {
+  return `
+    <section class="card stack control-room-category">
+      <div class="control-room-category-head">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(group.title)}</div>
+          <h3 class="card-title">${escapeHtml(group.title)}</h3>
+          <p class="card-subtitle">${escapeHtml(group.note)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${group.items.length} lanes`)}</div>
+      </div>
+      <div class="control-room-tool-grid">
+        ${group.items.map((item) => renderControlRoomToolCard(item, currentTool)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderControlRoomToolCard(item, currentTool) {
+  const isCurrent = currentTool === item.tool;
+  const badges = Array.isArray(item.badges) ? item.badges.filter(Boolean) : [];
+  return `
+    <article class="command-summary-card control-room-tool-card ${escapeHtml(item.tone || 'tone-accent')}${isCurrent ? ' is-active' : ''}">
+      <span class="command-summary-label">${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <p class="muted">${escapeHtml(item.note)}</p>
+      ${badges.length ? `<div class="hero-chip-row">${badges.map((badge) => statusBadge(badge)).join('')}</div>` : ''}
+      <div class="inline-actions">
+        <button class="action-button${isCurrent ? ' action-button-muted' : ''}" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(isCurrent ? 'Current lane' : controlRoomPrimaryActionLabel(item.tool))}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderControlRoom(snapshot) {
+  const currentTool = state.controlRoomTool || getInitialControlRoomTool();
+  const groups = buildControlRoomCategoryGroups(snapshot);
+  const currentToolLabel = controlRoomToolLabel(currentTool);
+  const currentGroup = groups.find((group) => group.items.some((item) => item.tool === currentTool));
+  const currentItem = findControlRoomToolItem(groups, currentTool);
   const embedded = renderControlRoomTool(snapshot, currentTool);
   return `
     <section class="stack gap-lg">
@@ -4585,42 +5447,37 @@ function renderControlRoom(snapshot) {
           <div class="hero-heading">
             <div>
               <div class="eyebrow">Control Room</div>
-              <h3 class="hero-title">Advanced Governance Tools (Admin / IT / Founder only)</h3>
-              <p class="hero-subtitle">This surface keeps audit chain, evidence integrity, trusted registry, runtime health, backup recovery, and administrative posture out of the normal Home dashboard until an advanced operator truly needs them.</p>
+              <h3 class="hero-title">Advanced governance setup, trust, and recovery in one protected mission console</h3>
+              <p class="hero-subtitle">Home stays simple for normal users. Control Room is where advanced operators configure, verify, publish, recover, and govern the private-first runtime.</p>
             </div>
             <div class="hero-chip-row">${statusBadge('advanced governance')}${statusBadge(state.session?.role_name || 'admin')}</div>
           </div>
           <div class="inline-actions">
             ${renderViewJumpButton({ view: 'overview', label: 'Back to Home', className: 'action-button action-button-muted' })}
-            <button class="action-button" type="button" data-control-room-tool="health">Open Runtime Health</button>
-            ${canAccessSetupAssistant() ? renderViewJumpButton({ view: 'setup', label: 'Open Setup Assistant', className: 'action-button action-button-muted' }) : ''}
+            ${canAccessSetupAssistant() ? '<button class="action-button action-button-muted" type="button" data-control-room-tool="setup">Open Setup & Onboarding</button>' : ''}
+            <button class="action-button" type="button" data-control-room-tool="studio">Open Role Private Studio</button>
           </div>
         </article>
         <article class="card hero-card hero-card-secondary">
           <div>
-            <div class="eyebrow muted">Current tool</div>
-            <h3 class="card-title">${escapeHtml(VIEW_TITLES[currentTool] || titleCase(currentTool))}</h3>
-            <p class="card-subtitle">Use Control Room when simple posture is not enough and you need the underlying governance reason, trust state, recovery bundle, or runtime repair signal.</p>
+            <div class="eyebrow muted">Current focus</div>
+            <h3 class="card-title">${escapeHtml(currentToolLabel)}</h3>
+            <p class="card-subtitle">${escapeHtml(currentItem?.note || (currentGroup ? `${currentGroup.title} is the active Control Room section.` : 'Use the sections below to choose the advanced tool you need next.'))}</p>
           </div>
-          ${keyValue([
-            ['Current role', state.session?.role_name || 'unknown'],
-            ['Current tool', VIEW_TITLES[currentTool] || titleCase(currentTool)],
-            ['Profiles active', String(accessControl.profiles_active || 0)],
-            ['Evidence integrity', auditIntegrity.status || 'unknown'],
-            ['Signature posture', roleLibrary.signature_status || roleLibrary.status || 'unknown'],
-            ['Setup assistant', canAccessSetupAssistant() ? 'available' : 'restricted'],
-          ])}
+          <div class="control-room-focus-grid">
+            ${renderCommandEmptyState('Current group', currentGroup?.title || 'Advanced governance')}
+            ${renderCommandEmptyState('Next operator move', controlRoomPrimaryActionLabel(currentTool))}
+            ${renderCommandEmptyState('Home boundary', 'Keep routine work on Home')}
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="health">Open Runtime & Recovery</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="evidence_exports">Open Trust & Evidence</button>
+          </div>
         </article>
       </section>
-      <section class="command-summary-grid">
-        ${governanceSummary.map((item) => `
-          <article class="command-summary-card tone-accent">
-            <span class="command-summary-label">${escapeHtml(item.label)}</span>
-            <strong>${escapeHtml(item.value)}</strong>
-            <p class="muted">${escapeHtml(item.note)}</p>
-            <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-control-room-tool="${escapeHtml(item.tool)}">Open</button></div>
-          </article>
-        `).join('')}
+      ${renderControlRoomMissionSection(snapshot, groups, currentTool)}
+      <section class="control-room-groups">
+        ${groups.map((group) => renderControlRoomCategorySection(group, currentTool)).join('')}
       </section>
       <section class="stack gap-md control-room-detail-shell">${embedded}</section>
     </section>
@@ -4628,13 +5485,494 @@ function renderControlRoom(snapshot) {
 }
 
 function renderControlRoomTool(snapshot, tool) {
-  if (tool === 'conflicts') return renderConflicts(snapshot);
+  if (tool === 'setup') return renderSetupAssistant(snapshot);
+  if (tool === 'studio') return renderStudio(snapshot.role_private_studio || { summary: {}, requests: [], template: {}, examples: [] });
+  if (tool === 'structural_risk') return renderStructuralRiskTool(snapshot);
   if (tool === 'audit') return renderAudit(snapshot);
+  if (tool === 'evidence_exports') return renderEvidenceExportsTool(snapshot);
   if (tool === 'policies') return renderPolicies(snapshot.roles || []);
-  if (tool === 'sessions') return wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Short-lived runtime sessions and revocation state for advanced governance review.');
+  if (tool === 'retention') return renderRetentionTool(snapshot);
+  if (tool === 'health') return renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
   if (tool === 'backup_restore') return renderBackupRestoreTool(snapshot);
+  if (tool === 'integrations') return renderIntegrationsTool(snapshot);
+  if (tool === 'model_providers') return renderModelProvidersTool(snapshot);
+  if (tool === 'sessions') return wrapTableCard('Sessions', sessionTable(snapshot.sessions || []), 'Short-lived runtime sessions and revocation state for advanced governance review.');
+  if (tool === 'conflicts') return renderConflicts(snapshot);
+  if (tool === 'master_data') return renderMasterDataGovernanceTool(snapshot);
   if (tool === 'admin_settings') return renderAdminSettingsTool(snapshot);
+  if (tool === 'owner_registration') return renderOwnerRegistrationTool(snapshot);
   return renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
+}
+
+function renderStructuralRiskTool(snapshot) {
+  const summary = snapshot.summary || {};
+  const studioSummary = snapshot.role_private_studio?.summary || {};
+  const studioStructural = snapshot.runtime_health?.studio_structural || snapshot.go_live_readiness?.studio_structural || {};
+  const guardedTotal = Number(summary.studio_structural_guarded_total || studioSummary.structural_guarded_total || 0);
+  const blockedTotal = Number(summary.studio_structural_blocked_total || studioSummary.structural_blocked_total || 0);
+  const readyTotal = Number(summary.studio_structural_ready_total || studioSummary.structural_ready_total || 0);
+  const elevatedTotal = Number(summary.studio_pt_oss_elevated_total || studioSummary.pt_oss_elevated_total || 0);
+  const criticalTotal = Number(summary.studio_pt_oss_critical_total || studioSummary.pt_oss_critical_total || 0);
+  const blockingIssueTotal = Number(summary.studio_pt_oss_blocking_issue_total || studioSummary.pt_oss_blocking_issue_total || 0);
+  const healthyTotal = Number(summary.studio_pt_oss_healthy_total || studioSummary.pt_oss_healthy_total || 0);
+  const publicSectorTotal = Number(summary.studio_pt_oss_public_sector_total || studioSummary.pt_oss_public_sector_mode_total || 0);
+  const posture = studioStructural.status || (criticalTotal > 0 ? 'critical' : elevatedTotal > 0 || blockingIssueTotal > 0 ? 'elevated' : guardedTotal > 0 ? 'watch' : 'healthy');
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Structural Risk &amp; Alignment</div>
+              <h2 class="hero-title">PT-OSS and Global Harmony alignment belong in one structural governance lane.</h2>
+              <p class="hero-subtitle">Use this lane to understand whether the AI workforce is calm enough for trusted publication, delegated execution, and alignment-sensitive change before advanced operators approve the next move.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(posture)}${statusBadge(publicSectorTotal > 0 ? 'public sector mode' : 'private sector mix')}</div>
+          </div>
+          <div class="metrics-grid metrics-grid-luxury">
+            ${metricCard('Guarded drafts', guardedTotal, guardedTotal > 0 ? 'warning' : 'success', 'Draft hats that still need structural review before trusted publication.')}
+            ${metricCard('Blocked drafts', blockedTotal, blockedTotal > 0 ? 'danger' : 'success', 'Role packs blocked by structural readiness or fragility concerns.')}
+            ${metricCard('Elevated posture', elevatedTotal, elevatedTotal > 0 ? 'warning' : 'success', 'PT-OSS elevated signals that still need operator attention.')}
+            ${metricCard('Critical posture', criticalTotal, criticalTotal > 0 ? 'danger' : 'success', 'Highest structural risk posture currently visible across governed hats.')}
+            ${metricCard('Blocking issues', blockingIssueTotal, blockingIssueTotal > 0 ? 'warning' : 'success', 'Explicit PT-OSS blocking issues that stop publication or governed movement.')}
+            ${metricCard('Healthy lanes', healthyTotal || readyTotal, healthyTotal || readyTotal ? 'success' : 'default', 'Hats and structural lanes that are calm enough to move without extra pressure.')}
+          </div>
+          <div class="inline-actions">
+            <button class="action-button" type="button" data-control-room-tool="studio">Open Role Private Studio</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="policies">Open Role Library &amp; Policies</button>
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">What this means</div>
+            <h3 class="card-title">Structural posture should guide publication and delegation</h3>
+            <p class="card-subtitle">PT-OSS belongs in Control Room because it explains why a role is structurally safe, guarded, or blocked before advanced operators trust it in the real organization.</p>
+          </div>
+          ${keyValue([
+            ['Current posture', formatStatusLabel(posture)],
+            ['Guarded total', String(guardedTotal)],
+            ['Blocked total', String(blockedTotal)],
+            ['Critical total', String(criticalTotal)],
+            ['Public-sector mode hats', String(publicSectorTotal)],
+            ['Structural note', studioStructural.note || studioStructural.message || 'PT-OSS posture is active on this runtime.'],
+          ])}
+        </article>
+      </section>
+      <section class="split-grid">
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Publication pressure</div>
+            <h3 class="card-title">What must settle before the next trusted publish</h3>
+            <p class="card-subtitle">Advanced operators should review guarded or blocked drafts before publication, especially when elevated or critical PT-OSS signals are still live.</p>
+          </div>
+          <div class="hero-split">
+            <div class="trace-box"><strong>Guarded lane</strong><p class="muted">${escapeHtml(guardedTotal > 0 ? `${guardedTotal} draft hats still require structural review before trusted release.` : 'No guarded drafts are waiting right now.')}</p></div>
+            <div class="trace-box"><strong>Blocked lane</strong><p class="muted">${escapeHtml(blockedTotal > 0 ? `${blockedTotal} hats are blocked because structural pressure still prevents safe publication.` : 'No blocked studio drafts are visible right now.')}</p></div>
+          </div>
+        </article>
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Alignment note</div>
+            <h3 class="card-title">Alignment lives in this same governance lane</h3>
+            <p class="card-subtitle">Global Harmony should surface here when alignment data is active. PT-OSS is the structural signal visible today, and alignment stays under the same advanced governance boundary.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge('pt-oss visible')}${statusBadge('advanced governance')}</div>
+        </article>
+      </section>
+    </section>
+  `;
+}
+function renderEvidenceExportsTool(snapshot) {
+  const evidence = snapshot.evidence_exports || { summary: {}, exports: [], workflow_proofs: [] };
+  const summary = evidence.summary || {};
+  const exports = Array.isArray(evidence.exports) ? evidence.exports : [];
+  const proofs = Array.isArray(evidence.workflow_proofs) ? evidence.workflow_proofs : [];
+  const latestExport = summary.latest_export || exports[0] || {};
+  const latestProof = summary.latest_workflow_proof || proofs[0] || {};
+  const auditIntegrity = snapshot.runtime_health?.audit_integrity || {};
+  const trustedRegistry = snapshot.runtime_health?.trusted_registry || {};
+  const exportCards = exports.slice(0, 4).map((item) => {
+    const exportId = item.evidence_pack_id || item.export_id || item.bundle_id || 'evidence export';
+    return `
+      <article class="trace-box compact-trace">
+        <div class="hero-chip-row">${statusBadge(item.posture || 'ready')}</div>
+        <strong>${escapeHtml(exportId)}</strong>
+        ${keyValue([
+          ['Created', item.created_at || item.exported_at || '-'],
+          ['Requested by', item.requested_by || item.exported_by || '-'],
+          ['Workflow proof total', String(item.workflow_proof_total || 0)],
+          ['Trusted mismatches', String(item.trusted_role_mismatch_total || 0)],
+          ['Export path', item.export_path || '-'],
+        ])}
+      </article>
+    `;
+  }).join('');
+  const proofCards = proofs.slice(0, 4).map((item) => {
+    const workflowId = item.workflow_id || item.bundle_id || 'workflow proof';
+    return `
+      <article class="trace-box compact-trace">
+        <div class="hero-chip-row">${statusBadge(item.posture || 'ready')}</div>
+        <strong>${escapeHtml(workflowId)}</strong>
+        ${keyValue([
+          ['Created', item.created_at || '-'],
+          ['Requested by', item.requested_by || '-'],
+          ['Human sessions', String(item.human_session_total || 0)],
+          ['Audit events', String(item.audit_event_total || 0)],
+          ['Export path', item.export_path || '-'],
+        ])}
+      </article>
+    `;
+  }).join('');
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Trust &amp; Evidence</div>
+              <h2 class="hero-title">Evidence exports and workflow proof bundles keep trust readable without leaking low-level identifiers onto Home.</h2>
+              <p class="hero-subtitle">Use this advanced lane when a founder, admin, or IT operator needs to confirm export posture, workflow proof continuity, or trusted mismatch attention before treating a case as auditor-ready.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(summary.posture || auditIntegrity.status || 'unknown')}${statusBadge(trustedRegistry.signature_status || trustedRegistry.status || 'registry status')}</div>
+          </div>
+          <div class="metrics-grid metrics-grid-luxury">
+            ${metricCard('Evidence exports', summary.exports_total || 0, Number(summary.exports_total || 0) > 0 ? 'accent' : 'default', 'Exported evidence packs currently visible from the private runtime.')}
+            ${metricCard('Workflow proofs', summary.workflow_proof_total || 0, Number(summary.workflow_proof_total || 0) > 0 ? 'accent' : 'default', 'Workflow proof bundles that already tie human, document, and audit context together.')}
+            ${metricCard('Attention', summary.attention_total || 0, Number(summary.attention_total || 0) > 0 ? 'warning' : 'success', 'Evidence or proof exports that still require operator review.')}
+            ${metricCard('Trusted mismatches', summary.trusted_role_mismatch_total || 0, Number(summary.trusted_role_mismatch_total || 0) > 0 ? 'danger' : 'success', 'Exports that surfaced trust drift between live role material and the trusted registry manifest.')}
+          </div>
+          <div class="inline-actions">
+            <button class="action-button" type="button" data-control-room-tool="audit">Open Audit Trail</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="policies">Open Role Library &amp; Policies</button>
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Latest trust signals</div>
+            <h3 class="card-title">The newest export and proof bundle stay visible together</h3>
+            <p class="card-subtitle">Evidence should read as one trust story. Export posture, workflow proof, audit integrity, and trusted registry posture belong in the same advanced decision lane.</p>
+          </div>
+          ${keyValue([
+            ['Audit integrity', auditIntegrity.status || '-'],
+            ['Registry signature', trustedRegistry.signature_status || trustedRegistry.status || '-'],
+            ['Latest export', latestExport.evidence_pack_id || latestExport.export_id || latestExport.bundle_id || '-'],
+            ['Latest proof', latestProof.workflow_id || latestProof.bundle_id || '-'],
+            ['Latest export posture', latestExport.posture || summary.posture || '-'],
+            ['Latest proof posture', latestProof.posture || '-'],
+          ])}
+        </article>
+      </section>
+      <section class="card-grid">
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Recent exports</div>
+            <h3 class="card-title">Evidence packs</h3>
+            <p class="card-subtitle">Use exports when you need a portable bundle of audit, trust, and workflow material.</p>
+          </div>
+          ${exportCards || emptyState('No evidence exports have been created yet.')}
+        </article>
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Recent workflow proofs</div>
+            <h3 class="card-title">Workflow proof bundles</h3>
+            <p class="card-subtitle">Workflow proof bundles connect document, audit, human handoff, and runtime action continuity into one review-ready package.</p>
+          </div>
+          ${proofCards || emptyState('No workflow proof bundles have been created yet.')}
+        </article>
+      </section>
+    </section>
+  `;
+}
+function renderMasterDataGovernanceTool(snapshot) {
+  const masterData = snapshot.master_data || { summary: {}, people: [], seats: [], teams: [] };
+  const masterSummary = masterData.summary || {};
+  const assignmentQueue = snapshot.assignment_queue || { summary: {}, items: [] };
+  const assignmentSummary = assignmentQueue.summary || {};
+  const assignmentItems = Array.isArray(assignmentQueue.items) ? assignmentQueue.items.slice(0, 4) : [];
+  const search = snapshot.global_search || { summary: {}, items: [] };
+  const searchSummary = search.summary || {};
+  const searchItems = Array.isArray(search.items) ? search.items.slice(0, 4) : [];
+  const teams = Array.isArray(masterData.teams) ? masterData.teams.slice(0, 4) : [];
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Master Data &amp; Routing</div>
+              <h2 class="hero-title">Keep people, teams, routing, and searchable ownership readable as governance infrastructure.</h2>
+              <p class="hero-subtitle">This is the advanced lane for governing organization structure, assignment ownership, fallback routing, and searchable continuity across cases, documents, and AI work. Normal users should not need to inspect this just to do daily work.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(searchSummary.search_ready ? 'search ready' : 'index warming')}${statusBadge(Number(assignmentSummary.human_required_total || 0) > 0 ? 'human routing active' : 'routing clear')}</div>
+          </div>
+          <div class="metrics-grid metrics-grid-luxury">
+            ${metricCard('People', masterSummary.people_total || 0, Number(masterSummary.people_total || 0) > 0 ? 'accent' : 'default', 'Directory people available to route governed work.')}
+            ${metricCard('Seats', masterSummary.seats_total || 0, Number(masterSummary.seats_total || 0) > 0 ? 'accent' : 'default', 'Governed seats attached to teams, owners, or workflow lanes.')}
+            ${metricCard('Teams', masterSummary.teams_total || 0, Number(masterSummary.teams_total || 0) > 0 ? 'accent' : 'default', 'Business teams visible to the routing and search layer.')}
+            ${metricCard('Assignments', assignmentSummary.items_total || 0, Number(assignmentSummary.items_total || 0) > 0 ? 'accent' : 'default', 'Governed assignment items currently routed through the runtime.')}
+            ${metricCard('Human required', assignmentSummary.human_required_total || 0, Number(assignmentSummary.human_required_total || 0) > 0 ? 'warning' : 'success', 'Assignments that still need an explicit human boundary move.')}
+            ${metricCard('Indexed records', searchSummary.indexed_total || 0, Number(searchSummary.indexed_total || 0) > 0 ? 'success' : 'default', 'Searchable objects currently visible through the global directory and retrieval layer.')}
+          </div>
+          <div class="inline-actions">
+            ${renderViewJumpButton({ view: 'directory', label: 'Open Directory & Search', className: 'action-button' })}
+            ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button action-button-muted' })}
+          </div>
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Routing governance</div>
+            <h3 class="card-title">Search, assignment, and fallback ownership belong together</h3>
+            <p class="card-subtitle">Master data becomes governance infrastructure when the runtime can route work to a real owner, explain why, and still let advanced operators trace search continuity back through the command surface.</p>
+          </div>
+          ${keyValue([
+            ['Organization', masterSummary.organization_name || '-'],
+            ['Primary view', assignmentSummary.primary_view || searchSummary.primary_view || 'directory'],
+            ['Critical assignments', String(assignmentSummary.critical_total || 0)],
+            ['High priority', String(assignmentSummary.high_priority_total || 0)],
+            ['Search ready', searchSummary.search_ready ? 'yes' : 'no'],
+            ['Indexed types', String(searchSummary.indexed_types_total || 0)],
+          ])}
+        </article>
+      </section>
+      <section class="card-grid">
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Teams in scope</div>
+            <h3 class="card-title">Governed routing map</h3>
+            <p class="card-subtitle">Use this to confirm the team layer exists before expecting clean assignment or department-driven quick access.</p>
+          </div>
+          ${teams.length ? `<div class="stack gap-sm">${teams.map((item) => renderDirectoryEntityCard(item, 'team')).join('')}</div>` : emptyState('No teams are seeded yet.')}
+        </article>
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Assignment pressure</div>
+            <h3 class="card-title">Current routed work</h3>
+            <p class="card-subtitle">Assignment governance should show who owns the next move, not force operators to guess where work landed.</p>
+          </div>
+          ${assignmentItems.length ? `<div class="stack gap-sm">${assignmentItems.map((item) => renderDirectoryAssignmentCard(item)).join('')}</div>` : emptyState('No assignment items are visible yet.')}
+        </article>
+        <article class="card stack">
+          <div>
+            <div class="eyebrow muted">Search continuity</div>
+            <h3 class="card-title">Recent searchable objects</h3>
+            <p class="card-subtitle">Search belongs in Control Room here because advanced operators need to verify index health and routing discoverability, not because normal users should see search internals on Home.</p>
+          </div>
+          ${searchItems.length ? `<div class="stack gap-sm">${searchItems.map((item) => renderDirectorySearchResultCard(item)).join('')}</div>` : emptyState('Global search has not indexed any records yet.')}
+        </article>
+      </section>
+    </section>
+  `;
+}
+function renderOwnerRegistrationTool(snapshot) {
+  const registration = snapshot.owner_registration || snapshot.runtime_health?.owner_registration || {};
+  const setupAssistant = snapshot.operations?.first_run_action_center || {};
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Owner Registration</div>
+              <h2 class="hero-title">Anchor deployment identity before delegated work fans out across the organization.</h2>
+              <p class="hero-subtitle">This is where the private runtime keeps organization identity, executive ownership, and registration posture aligned before additional operators or AI workforce roles are trusted.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(registration.registered ? 'registered' : 'setup needed')}${statusBadge(registration.deployment_mode || 'private')}</div>
+          </div>
+          ${renderOwnerRegistrationPanel(registration)}
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Setup continuity</div>
+            <h3 class="card-title">Identity should stay connected to first-run readiness</h3>
+            <p class="card-subtitle">Registration is not a detached setup field. It shapes onboarding, diagnostics, trusted publication, and the default ownership line used across the suite.</p>
+          </div>
+          ${keyValue([
+            ['Setup status', formatStatusLabel(setupAssistant.status || 'blocked')],
+            ['Required actions', String(setupAssistant.required_total || 0)],
+            ['Recommended action', setupAssistant.recommended_action || 'none'],
+            ['Organization', registration.organization_name || '-'],
+            ['Executive owner id', registration.executive_owner_id || '-'],
+            ['Registry signer', registration.trusted_registry_signed_by || '-'],
+          ])}
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="setup">Open Setup &amp; Onboarding</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="admin_settings">Open Admin Settings</button>
+          </div>
+        </article>
+      </section>
+    </section>
+  `;
+}
+
+function renderRetentionTool(snapshot) {
+  const retentionReport = snapshot.retention || {};
+  const retentionPlan = snapshot.retention_plan || {};
+  const datasets = Array.isArray(retentionReport.datasets) ? retentionReport.datasets : [];
+  const canManageRetention = can('retention.manage');
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Documents &amp; Records</div>
+              <h2 class="hero-title">Retention, legal hold, and governed records posture live here inside Control Room.</h2>
+              <p class="hero-subtitle">Normal users work documents from the command surface. This advanced lane is for retention policy, expiry pressure, legal hold posture, and recovery-sensitive record management.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(datasets.length ? 'present' : 'setup needed')}${statusBadge((retentionReport.hold_blocked_total || 0) > 0 ? 'human required' : 'monitoring')}</div>
+          </div>
+          <div class="hero-split">
+            ${keyValue([
+              ['Datasets', String(datasets.length)],
+              ['Expired candidates', String(retentionReport.expired_candidate_total || 0)],
+              ['Hold blocked', String(retentionReport.hold_blocked_total || 0)],
+              ['Next expiry', retentionReport.next_expiry_at || '-'],
+              ['Retention mode', retentionPlan.mode || 'governed'],
+              ['Archive root', retentionPlan.archive_path || '-'],
+            ])}
+            <div class="hero-note"><strong>Records doctrine</strong><p>Documents, audit material, and governed runtime artifacts should age predictably. This lane exists to keep retention readable without leaking raw stores back into Home.</p></div>
+          </div>
+          ${canManageRetention ? '<div class="inline-actions"><button class="action-button" type="button" data-retention-action="enforce-now">Run retention policy</button></div>' : ''}
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Linked governance</div>
+            <h3 class="card-title">Retention should stay connected to audit and recovery</h3>
+            <p class="card-subtitle">Operators should review retention together with evidence, restore posture, and go-live expectations rather than treating record lifecycle as an isolated maintenance chore.</p>
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="audit">Open Trust &amp; Evidence</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="backup_restore">Open Backup &amp; Restore</button>
+          </div>
+        </article>
+      </section>
+      ${renderRetentionSection(retentionReport) || renderNoWorkState('No retention datasets are visible yet.', {
+        eyebrow: 'Records posture',
+        title: 'Retention has not been seeded yet.',
+        detail: 'As governed documents, audit events, and workflow artifacts accumulate, the records and retention lane will show expiry, hold, and archive posture here.',
+        primaryActionView: 'documents',
+        primaryActionLabel: 'Open Documents',
+        secondaryActionView: 'audit',
+        secondaryActionLabel: 'Open Audit',
+        pills: ['records lane', 'retention ready'],
+      })}
+    </section>
+  `;
+}
+
+function renderModelProvidersPanel(modelProviders, options = {}) {
+  const summary = modelProviders || {};
+  const providers = Array.isArray(summary.providers) ? summary.providers : [];
+  const compact = Boolean(options.compact);
+  if (!providers.length) {
+    return renderNoWorkState('No model providers are configured yet.', {
+      eyebrow: compact ? 'Provider posture' : 'AI provider posture',
+      title: 'The AI workforce has no provider lane yet.',
+      detail: 'Configure at least one provider before expecting governed AI actions to execute from the private runtime.',
+      primaryActionView: 'actions',
+      primaryActionLabel: 'Open AI Actions',
+      secondaryActionView: 'overview',
+      secondaryActionLabel: 'Back to Home',
+      pills: ['provider setup', 'private-first'],
+    });
+  }
+  return `
+    <section class="control-room-provider-grid">
+      ${providers.map((provider) => `
+        <article class="trace-box compact-trace control-room-provider-card">
+          <div class="hero-chip-row">${statusBadge(provider.ready ? 'ready' : 'monitoring')}${provider.is_default ? statusBadge('default') : ''}</div>
+          <strong>${escapeHtml(provider.provider_id || provider.label || 'provider')}</strong>
+          ${keyValue([
+            ['Status', provider.status || (provider.ready ? 'ready' : 'monitoring')],
+            ['Default', provider.is_default ? 'yes' : 'no'],
+            ['Model', provider.model || '-'],
+            ['Endpoint', provider.endpoint || '-'],
+          ])}
+          <p class="muted">${escapeHtml(provider.note || provider.message || 'Provider posture is available for governed AI execution routing.')}</p>
+        </article>
+      `).join('')}
+    </section>
+  `;
+}
+
+function renderModelProvidersTool(snapshot) {
+  const modelProviders = snapshot.model_providers || {};
+  const hasProviders = Number(modelProviders.configured_providers || 0) > 0;
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Model Providers</div>
+              <h2 class="hero-title">Keep AI workforce execution inside one readable provider posture lane.</h2>
+              <p class="hero-subtitle">This advanced tool is where operators review default-provider readiness, probe model execution posture, and confirm the workforce can still execute inside the private runtime boundary.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(hasProviders ? 'configured' : 'setup needed')}${statusBadge(modelProviders.default_provider_ready === false ? 'attention required' : 'ready')}</div>
+          </div>
+          <div class="hero-split">
+            ${keyValue([
+              ['Configured providers', String(modelProviders.configured_providers || 0)],
+              ['Default provider', modelProviders.default_provider || '-'],
+              ['Default ready', modelProviders.default_provider_ready === false ? 'no' : 'yes'],
+              ['Partial providers', String(modelProviders.partial_providers || 0)],
+              ['Status', formatStatusLabel(modelProviders.status || 'missing')],
+            ])}
+            <div class="hero-note"><strong>Workforce doctrine</strong><p>AI remains the primary workforce. Provider posture exists here so Home can stay simple while Control Room keeps the execution dependency visible for admins and founders.</p></div>
+          </div>
+          ${can('integration.manage') ? '<div class="inline-actions"><button class="action-button" type="button" data-integration-action="probe-model-providers">Probe model providers</button></div>' : ''}
+        </article>
+        <article class="card hero-card hero-card-secondary">
+          <div>
+            <div class="eyebrow muted">Linked governance</div>
+            <h3 class="card-title">Provider health should stay close to actions and integrations</h3>
+            <p class="card-subtitle">Use this with AI Actions when workforce execution looks paused, and with Integrations when the output lane depends on provider health.</p>
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-view-jump="actions">Open AI Actions</button>
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="integrations">Open Integrations</button>
+          </div>
+        </article>
+      </section>
+      ${renderModelProvidersPanel(modelProviders)}
+    </section>
+  `;
+}
+
+function renderIntegrationsTool(snapshot) {
+  const integrations = snapshot.integrations || {};
+  const modelProviders = snapshot.model_providers || {};
+  return `
+    <section class="stack gap-lg">
+      <section class="overview-hero">
+        <article class="card hero-card hero-card-primary">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Integrations &amp; Providers</div>
+              <h2 class="hero-title">Outbound routing, delivery posture, and provider readiness belong together in Control Room.</h2>
+              <p class="hero-subtitle">This lane keeps webhook targets, delivery failures, model providers, and workforce execution dependencies in one place so advanced operators can troubleshoot without leaking plumbing onto Home.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge((integrations.summary?.active_targets || 0) > 0 ? 'configured' : 'setup needed')}${statusBadge(modelProviders.default_provider_ready === false ? 'monitoring' : 'ready')}</div>
+          </div>
+          <div class="inline-actions">
+            <button class="action-button action-button-muted" type="button" data-control-room-tool="model_providers">Open Model Providers</button>
+            <button class="action-button action-button-muted" type="button" data-view-jump="actions">Open AI Actions</button>
+          </div>
+        </article>
+      </section>
+      ${renderIntegrationSection(integrations)}
+      <article class="table-card stack control-room-compact-panel">
+        <div class="table-card-head">
+          <div>
+            <div class="eyebrow muted">Provider snapshot</div>
+            <h3 class="table-title">Model provider posture</h3>
+            <p class="card-subtitle">A compact provider reading stays here so integration routing and AI execution can be read together.</p>
+          </div>
+        </div>
+        ${renderModelProvidersPanel(modelProviders, { compact: true })}
+      </article>
+    </section>
+  `;
 }
 
 function renderBackupRestoreTool(snapshot) {
@@ -7716,6 +9054,10 @@ function formatStatusLabel(value) {
     notifications_disabled: 'Notifications Disabled',
     queue_stable: 'Queue Stable',
     approval_action_required: 'Approval Action Required',
+    renew_soon: 'Renew Soon',
+    reconnect_now: 'Reconnect Now',
+    idle_lock_soon: 'Idle Lock Soon',
+    sign_in_again: 'Sign In Again',
   };
   if (known[normalized]) return known[normalized];
   if (/^[a-z0-9]+(?:[_-][a-z0-9]+)+$/.test(normalized)) {
@@ -8004,6 +9346,7 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
 
 
 

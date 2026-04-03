@@ -34,6 +34,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Governed Runtime Orchestration](GOVERNED_RUNTIME_ORCHESTRATION.md)
 - [Governed Human-In-The-Loop Operations](GOVERNED_HITL_OPERATIONS.md)
 - [Minimal Human Approval Surface](MINIMAL_HUMAN_APPROVAL_SURFACE.md)
+- [Control Room Information Architecture](CONTROL_ROOM_INFORMATION_ARCHITECTURE.md)
 - [Governed HITL Human Ask Reporting](GOVERNED_HITL_HUMAN_ASK_REPORTING.md)
 - [Governed HITL Reliability And Observability](GOVERNED_HITL_RELIABILITY_AND_OBSERVABILITY.md)
 - [Governed HITL Integration And Compliance Continuity](GOVERNED_HITL_INTEGRATION_AND_COMPLIANCE_CONTINUITY.md)
@@ -67,6 +68,11 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Planning And Release Notes
 
+- [Roadmap v0.7.8](ROADMAP_v0.7.8.md)
+- [Issue Drafts v0.7.8](ISSUE_DRAFTS_v0.7.8.md)
+- [Release Notes v0.7.8](releases/RELEASE_NOTES_v0.7.8.md)
+- [PR Description v0.7.8](releases/PR_DESCRIPTION_v0.7.8.md)
+- [v0.7.8 Handoff](V0_7_8_HANDOFF.md)
 - [Release Notes v0.7.7](releases/RELEASE_NOTES_v0.7.7.md)
 - [PR Description v0.7.7](releases/PR_DESCRIPTION_v0.7.7.md)
 - [v0.7.7 Handoff](V0_7_7_HANDOFF.md)
@@ -155,6 +161,10 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 
 
+
+## v0.7.8
+- [ROADMAP_v0.7.8.md](ROADMAP_v0.7.8.md)
+- [ISSUE_DRAFTS_v0.7.8.md](ISSUE_DRAFTS_v0.7.8.md)
 
 ## v0.7.7
 - [ROADMAP_v0.7.7.md](ROADMAP_v0.7.7.md)
