@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.5-ui2';
+import { buildHumanAskPayload, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.6-ui1';
 
 import { buildHumanAskOutcomeMessage } from './dashboard_human_ask.js?v=0.7.5-ui2';
 
@@ -19,6 +19,7 @@ const state = {
   studioPtagDrafts: {},
   studioPtagHistory: {},
   actionContext: null,
+  directorySearchQuery: '',
   documentFilters: {
     query: '',
     status: '',
@@ -50,6 +51,7 @@ const VIEW_TITLES = {
   overview: 'Overview',
   requests: 'Requests',
   cases: 'Cases',
+  directory: 'Directory & Search',
   documents: 'Documents',
   actions: 'AI Actions',
   overrides: 'Overrides',
@@ -66,6 +68,7 @@ const VIEW_DESCRIPTIONS = {
   overview: 'See governance, runtime, and readiness posture in one scan.',
   requests: 'Submit governed work and follow where it goes next.',
   cases: 'Follow one governed issue across requests, overrides, Human Ask, documents, and audit proof.',
+  directory: 'Browse people, teams, seats, assignments, and linked search results from one governed surface.',
   documents: 'Work governed documents as live runtime objects, not static files.',
   actions: 'Launch, review, and follow governed AI execution inside one runtime lane.',
   overrides: 'Work only the decisions that crossed a human boundary.',
@@ -120,6 +123,12 @@ const VIEW_INTELLIGENCE = {
     title: 'One governed issue, one readable operating story',
     narrative: 'Use this page when you need the linked request, override, Human Ask, document, and audit trail in one place.',
     emphasis: 'end-to-end trace',
+  },
+  directory: {
+    eyebrow: 'Org Work Graph',
+    title: 'Real people, real teams, real assignments, one searchable operating map',
+    narrative: 'Use this page when you need to route work to a real owner, inspect who sits where, or search continuity across cases, documents, and AI actions.',
+    emphasis: 'people and ownership',
   },
   documents: {
     eyebrow: 'Document Runtime',
@@ -187,6 +196,7 @@ const VIEW_USE_HINTS = {
   overview: { value: 'Start here', note: 'Open this first for the quickest full-system scan.', tone: 'accent' },
   requests: { value: 'Submit or trace work', note: 'Use this when you are creating a governed request or following its next lane.', tone: 'accent' },
   cases: { value: 'Trace the whole issue', note: 'Use this when one business issue spans requests, approvals, records, documents, and evidence.', tone: 'accent' },
+  directory: { value: 'Route work to real owners', note: 'Use this when ownership, assignment, team context, or search continuity matters.', tone: 'accent' },
   documents: { value: 'Work the governed document lane', note: 'Use this when draft, review, publish, archive, or active-version logic matters.', tone: 'accent' },
   actions: { value: 'Let AI execute governed work', note: 'Use this when a case is ready for summarize, document draft, or human handoff actions.', tone: 'accent' },
   overrides: { value: 'Resolve human decisions', note: 'Use this when the runtime paused and a human must approve or veto.', tone: 'warning' },
@@ -203,6 +213,7 @@ const VIEW_PERMISSIONS = {
   overview: 'dashboard.read',
   requests: 'requests.read',
   cases: 'dashboard.read',
+  directory: 'dashboard.read',
   documents: 'documents.read',
   actions: 'actions.read',
   overrides: 'overrides.read',
@@ -220,6 +231,7 @@ const ACTIONABLE_BUTTON_SELECTOR = [
   '[data-view-jump]',
   '[data-case-scope-clear]',
   '[data-path-action]',
+  '[data-directory-search-clear]',
   '[data-studio-clear]',
   '[data-override-action]',
   '[data-session-revoke]',
@@ -486,6 +498,11 @@ root.addEventListener('submit', async (event) => {
 });
 
 root.addEventListener('input', (event) => {
+  if (event.target.id === 'directory-search-input') {
+    state.directorySearchQuery = event.target.value || '';
+    render();
+    return;
+  }
   if (event.target.id === 'studio-governance-note' && state.studioGovernanceRequestId) {
     state.studioGovernanceNotes[state.studioGovernanceRequestId] = event.target.value;
   }
@@ -579,6 +596,14 @@ root.addEventListener('click', async (event) => {
       }
     }
     state.lastError = `Showing the full ${VIEW_TITLES[state.view] || titleCase(state.view)} lane again.`;
+    render();
+    scrollDashboardToTop();
+    return;
+  }
+
+  const directorySearchClearButton = event.target.closest('[data-directory-search-clear]');
+  if (directorySearchClearButton) {
+    state.directorySearchQuery = '';
     render();
     scrollDashboardToTop();
     return;
@@ -1598,6 +1623,7 @@ function render() {
   if (state.view === 'overview') viewContent = renderOverview(snapshot);
   if (state.view === 'requests') viewContent = renderRequests(scopedSnapshot);
   if (state.view === 'cases') viewContent = renderCases(snapshot);
+  if (state.view === 'directory') viewContent = renderDirectory(scopedSnapshot);
   if (state.view === 'documents') viewContent = renderDocuments(scopedSnapshot);
   if (state.view === 'actions') viewContent = renderActions(scopedSnapshot);
   if (state.view === 'overrides') viewContent = renderOverridesView(scopedSnapshot);
@@ -1834,7 +1860,7 @@ function renderWorkflowGuide(snapshot) {
 }
 
 function renderWorkLanguageGuide(snapshot) {
-  if (!['overview', 'requests', 'overrides', 'studio', 'human_ask', 'conflicts', 'actions'].includes(state.view)) return '';
+  if (!['overview', 'requests', 'directory', 'overrides', 'studio', 'human_ask', 'conflicts', 'actions'].includes(state.view)) return '';
   const summary = snapshot.unified_work_inbox?.summary || {};
   return `
     <section class="card stack">
@@ -1911,6 +1937,13 @@ function buildViewCues(snapshot) {
       { label: 'Queue volume', value: summary.requests_total || requests.length, note: 'Visible governed submissions currently flowing through runtime intake.', tone: 'accent' },
       { label: 'Pending overrides', value: pendingOverrides, note: 'Requests that crossed a human boundary and still need resolution.', tone: pendingOverrides ? 'warning' : 'success' },
       { label: 'Conflict exposure', value: conflicts, note: 'Requests currently colliding with resource locks or consistency pressure.', tone: conflicts ? 'warning' : 'success' },
+    ];
+  }
+  if (state.view === 'directory') {
+    return [
+      { label: 'People', value: summary.directory_people_total || 0, note: 'Named runtime actors and organization members visible to the Director.', tone: 'accent' },
+      { label: 'Assignments', value: summary.assignment_items_total || 0, note: 'Governed work items routed to real owners, seats, or fallback operators.', tone: (summary.assignment_human_required_total || 0) ? 'warning' : 'success' },
+      { label: 'Search index', value: summary.search_index_total || 0, note: 'Searchable continuity across people, cases, documents, actions, evidence, and sessions.', tone: 'success' },
     ];
   }
   if (state.view === 'conflicts') {
@@ -1991,6 +2024,52 @@ function buildWorkflowGuide(snapshot) {
   const validationIssueTotal = roles.reduce((sum, role) => sum + ((role.validation_issues || []).length), 0);
   const related = [];
   let primary = null;
+
+  if (state.view === 'directory') {
+    const directorySummary = snapshot.master_data?.summary || {};
+    const assignmentSummary = snapshot.assignment_queue?.summary || {};
+    const assignmentItems = Array.isArray(snapshot.assignment_queue?.items) ? snapshot.assignment_queue.items : [];
+    const leadAssignment = assignmentItems[0] || null;
+    if (leadAssignment) {
+      primary = {
+        view: leadAssignment.view || 'directory',
+        eyebrow: 'Next governed move',
+        title: 'Open the highest-pressure owned work item',
+        detail: 'Directory turns ownership into action. Start from the most urgent assigned item so the runtime keeps moving through real people and teams.',
+        badge: leadAssignment.status || leadAssignment.priority || 'attention_required',
+        actionLabel: leadAssignment.action_label || `Open ${VIEW_TITLES[leadAssignment.view] || leadAssignment.view || 'Directory & Search'}`,
+        details: [
+          ['Owner', leadAssignment.owner_label || 'Unassigned'],
+          ['Team', leadAssignment.team_label || 'Unassigned'],
+          ['SLA', leadAssignment.sla_status || 'in_target'],
+        ],
+      };
+      related.push(...['cases', leadAssignment.view || 'overview', 'requests', 'actions', 'documents']
+        .filter((value, index, array) => value && array.indexOf(value) === index && value !== (leadAssignment.view || 'directory'))
+        .slice(0, 3)
+        .map((view) => ({
+          view,
+          eyebrow: 'Related view',
+          note: 'Keep ownership, case continuity, and governed artifacts in one readable operating path.',
+          actionLabel: `Open ${VIEW_TITLES[view] || view}`,
+        })));
+    } else {
+      primary = {
+        view: 'cases',
+        eyebrow: 'Next governed move',
+        title: 'Open Cases to seed real routed work',
+        detail: 'Directory becomes most useful once governed work has owners, teams, and case-linked artifacts to route and search.',
+        badge: 'seed work',
+        actionLabel: 'Open Cases',
+        details: [
+          ['People', String(directorySummary.people_total || 0)],
+          ['Teams', String(directorySummary.teams_total || 0)],
+          ['Assignments', String(assignmentSummary.items_total || 0)],
+        ],
+      };
+      related.push({ view: 'overview', eyebrow: 'Related view', note: 'Overview is still the fastest place to read overall posture before drilling into ownership.', actionLabel: 'Open Overview' });
+    }
+  }
 
   if (state.view === 'cases') {
     const leadCase = caseItems[0] || null;
@@ -3120,6 +3199,215 @@ function renderNotificationCenter(alerts) {
   `;
 }
 
+
+
+function normalizedSearchQuery(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function directorySearchItems(snapshot) {
+  const query = normalizedSearchQuery(state.directorySearchQuery);
+  const caseId = getActionContextCaseId();
+  const items = Array.isArray(snapshot.global_search?.items) ? snapshot.global_search.items : [];
+  return items.filter((item) => {
+    const matchesCase = !caseId || String(item.case_id || '') === caseId || !String(item.case_id || '');
+    if (!query) return matchesCase;
+    const haystack = normalizedSearchQuery(item.search_text || `${item.label || ''} ${item.detail || ''}`);
+    return matchesCase && haystack.includes(query);
+  });
+}
+
+function renderDirectoryEntityCard(item, kind = 'person') {
+  if (!item) return '';
+  const title = item.display_name || item.label || item.seat_id || item.team_id || item.person_id || 'Entity';
+  const subtitle = kind === 'team'
+    ? `${Array.isArray(item.member_ids) ? item.member_ids.length : 0} members`
+    : kind === 'seat'
+      ? (item.role_name || 'Governed seat')
+      : (item.primary_role || item.permission_scope || 'Governed actor');
+  const rows = [];
+  if (kind === 'person') {
+    rows.push(['Person Id', item.person_id || '-']);
+    rows.push(['Primary role', item.primary_role || '-']);
+    rows.push(['Teams', Array.isArray(item.team_labels) && item.team_labels.length ? item.team_labels.join(', ') : '-']);
+  } else if (kind === 'seat') {
+    rows.push(['Seat Id', item.seat_id || '-']);
+    rows.push(['Occupant', item.occupant_label || item.occupant_id || '-']);
+    rows.push(['Team', item.team_label || item.team_id || '-']);
+  } else {
+    rows.push(['Team Id', item.team_id || '-']);
+    rows.push(['Domains', Array.isArray(item.domains) && item.domains.length ? item.domains.join(', ') : '-']);
+    rows.push(['Members', String(Array.isArray(item.member_ids) ? item.member_ids.length : 0)]);
+  }
+  return `
+    <article class="card stack directory-entity-card">
+      <div class="row between start gap-sm wrap">
+        <div class="stack gap-xs">
+          <div class="eyebrow muted">${escapeHtml(titleCase(kind))}</div>
+          <h3 class="card-title">${escapeHtml(title)}</h3>
+          <p class="card-subtitle">${escapeHtml(subtitle)}</p>
+        </div>
+        ${statusBadge(item.status || 'active')}
+      </div>
+      ${keyValue(rows)}
+    </article>
+  `;
+}
+
+function renderDirectoryAssignmentCard(item) {
+  if (!item) return '';
+  const jumpAttrs = buildViewJumpAttributes({
+    view: item.view || 'overview',
+    focusType: item.focus_type || '',
+    focusId: item.focus_id || '',
+    caseId: item.case_id || '',
+    title: item.title || 'Open governed assignment',
+    detail: item.next_action || item.detail || 'Continue the assigned governed work.',
+    actionLabel: item.action_label || `Open ${VIEW_TITLES[item.view] || titleCase(item.view || 'overview')}`,
+  });
+  return `
+    <article class="card stack directory-assignment-card">
+      <div class="row between start gap-sm wrap">
+        <div class="stack gap-xs">
+          <div class="eyebrow muted">${escapeHtml(titleCase(item.kind || 'assignment'))}</div>
+          <h3 class="card-title">${escapeHtml(item.title || 'Assignment')}</h3>
+          <p class="card-subtitle">${escapeHtml(item.detail || 'Governed work routed to a real owner.')}</p>
+        </div>
+        <div class="directory-meta">${statusBadge(item.status || 'monitoring')}${statusBadge(item.priority || 'normal')}</div>
+      </div>
+      ${keyValue([
+        ['Owner', item.owner_label || 'Unassigned'],
+        ['Team', item.team_label || 'Unassigned'],
+        ['SLA', item.sla_status || 'in_target'],
+        ['Age (hours)', formatMetricValue(item.age_hours || 0)],
+      ])}
+      ${item.case_id ? `<div class="case-reference-block">${renderCaseReferenceButton(item.case_id, item.status || '', { sourceView: 'directory', referenceId: item.reference_id || item.assignment_id || '', contextLabel: 'assignment' })}</div>` : ''}
+      <div class="card-actions"><button class="action-button" type="button" ${jumpAttrs}>${escapeHtml(item.action_label || 'Open lane')}</button></div>
+    </article>
+  `;
+}
+
+function renderDirectorySearchResultCard(item) {
+  if (!item) return '';
+  const jumpAttrs = buildViewJumpAttributes({
+    view: item.view || 'directory',
+    focusType: item.focus_type || '',
+    focusId: item.focus_id || item.id || '',
+    caseId: item.case_id || '',
+    title: item.label || 'Search result',
+    detail: item.detail || 'Open the linked governed record.',
+    actionLabel: `Open ${VIEW_TITLES[item.view] || titleCase(item.view || 'directory')}`,
+  });
+  return `
+    <article class="card stack directory-search-result">
+      <div class="row between start gap-sm wrap">
+        <div class="stack gap-xs">
+          <div class="eyebrow muted">${escapeHtml(item.kind_label || titleCase(item.kind || 'result'))}</div>
+          <h3 class="card-title">${escapeHtml(item.label || 'Result')}</h3>
+          <p class="card-subtitle">${escapeHtml(item.detail || 'Linked governed record')}</p>
+        </div>
+        ${item.status ? statusBadge(item.status) : ''}
+      </div>
+      ${keyValue([
+        ['View', VIEW_TITLES[item.view] || titleCase(item.view || 'directory')],
+        ['Owner', item.owner_label || item.owner_id || '-'],
+        ['Team', item.team_label || item.team_id || '-'],
+      ])}
+      ${item.case_id ? `<div class="case-reference-block">${renderCaseReferenceButton(item.case_id, item.status || '', { sourceView: 'directory', referenceId: item.id || '', contextLabel: item.kind || 'search result' })}</div>` : ''}
+      <div class="card-actions"><button class="action-button action-button-muted" type="button" ${jumpAttrs}>Open linked lane</button></div>
+    </article>
+  `;
+}
+
+function renderDirectory(snapshot) {
+  const masterData = snapshot.master_data || { summary: {}, people: [], seats: [], teams: [] };
+  const assignmentQueue = snapshot.assignment_queue || { summary: {}, items: [] };
+  const globalSearch = snapshot.global_search || { summary: {}, items: [] };
+  const summary = masterData.summary || {};
+  const assignmentSummary = assignmentQueue.summary || {};
+  const searchSummary = globalSearch.summary || {};
+  const people = Array.isArray(masterData.people) ? masterData.people : [];
+  const seats = Array.isArray(masterData.seats) ? masterData.seats : [];
+  const teams = Array.isArray(masterData.teams) ? masterData.teams : [];
+  const assignments = Array.isArray(assignmentQueue.items) ? assignmentQueue.items : [];
+  const results = directorySearchItems(snapshot);
+  const query = state.directorySearchQuery || '';
+  const caseId = getActionContextCaseId();
+  return `
+    <section class="stack gap-lg">
+      <section class="card stack">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Directory & Search</div>
+            <h3 class="card-title">Ownership, assignment, and search continuity in one surface</h3>
+            <p class="card-subtitle">Route governed work to real owners, inspect teams and seats, and search continuity across cases, documents, AI actions, and evidence without leaving the dashboard.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(summary.search_ready ? 'search ready' : 'warming')}</div>
+        </div>
+        <div class="card-grid directory-metric-grid">
+          ${metricCard('People', summary.people_total || 0, 'accent', 'Named runtime actors and organization members visible to the Director.')}
+          ${metricCard('Seats', summary.seats_total || 0, 'default', 'Role seats that can own or inherit governed work.')}
+          ${metricCard('Teams', summary.teams_total || 0, 'success', 'Organized team surfaces derived from roles, domains, and runtime activity.')}
+          ${metricCard('Assignments', assignmentSummary.items_total || 0, (assignmentSummary.human_required_total || 0) ? 'warning' : 'accent', 'Governed work items currently routed to real owners or fallback operators.')}
+        </div>
+      </section>
+      <section class="card stack directory-search-shell">
+        <div class="row between end gap-sm wrap">
+          <div class="stack gap-xs">
+            <div class="eyebrow muted">Search continuity</div>
+            <h3 class="card-title">Search people, teams, cases, documents, actions, and evidence</h3>
+            <p class="card-subtitle">Use one search box to jump into the governed lane that already owns the work.</p>
+          </div>
+          <div class="directory-meta">${statusBadge(`${searchSummary.indexed_total || 0} indexed`)}</div>
+        </div>
+        <div class="directory-search-input-row">
+          <input id="directory-search-input" class="text-input" type="search" value="${escapeHtml(query)}" placeholder="Search by name, team, role, case, document, action, evidence, or session" />
+          <button type="button" class="action-button action-button-muted" data-directory-search-clear>Clear</button>
+        </div>
+        <div class="row between start gap-sm wrap muted small">
+          <span>${caseId ? `Scoped to case ${escapeHtml(caseId)} when a case context is active.` : 'Showing all searchable governed entities across the runtime.'}</span>
+          <span>${escapeHtml(`${results.length} results`)}</span>
+        </div>
+      </section>
+      <section class="stack gap-md">
+        <div class="row between end gap-sm wrap">
+          <div>
+            <div class="eyebrow muted">Assignment queue</div>
+            <h3 class="card-title">Real owned work, ordered by urgency</h3>
+          </div>
+          <div class="directory-meta">${statusBadge(assignmentSummary.human_required_total ? 'human required' : assignmentSummary.items_total ? 'active queue' : 'clear')}</div>
+        </div>
+        <div class="directory-assignment-grid">${assignments.length ? assignments.slice(0, 6).map(renderDirectoryAssignmentCard).join('') : emptyState('No owned governed work is waiting right now.')}</div>
+      </section>
+      <section class="split-grid directory-entity-section">
+        <div class="stack gap-md">
+          <div>
+            <div class="eyebrow muted">People</div>
+            <h3 class="card-title">Who the runtime can route to</h3>
+          </div>
+          <div class="directory-entity-grid">${people.length ? people.slice(0, 6).map((item) => renderDirectoryEntityCard(item, 'person')).join('') : emptyState('No people are visible yet in the master data baseline.')}</div>
+        </div>
+        <div class="stack gap-md">
+          <div>
+            <div class="eyebrow muted">Teams & seats</div>
+            <h3 class="card-title">How ownership is grouped and seated</h3>
+          </div>
+          <div class="directory-entity-grid">${teams.slice(0, 3).map((item) => renderDirectoryEntityCard(item, 'team')).join('')}${seats.slice(0, 3).map((item) => renderDirectoryEntityCard(item, 'seat')).join('') || (!teams.length && !seats.length ? emptyState('No teams or seats are visible yet in the master data baseline.') : '')}</div>
+        </div>
+      </section>
+      <section class="stack gap-md">
+        <div class="row between end gap-sm wrap">
+          <div>
+            <div class="eyebrow muted">Search results</div>
+            <h3 class="card-title">Search once, continue in the right governed lane</h3>
+          </div>
+          <div class="directory-meta">${statusBadge(results.length ? 'results ready' : query ? 'no matches' : 'browse')}</div>
+        </div>
+        <div class="directory-result-grid">${results.length ? results.slice(0, 12).map(renderDirectorySearchResultCard).join('') : emptyState(query ? 'No searchable governed records matched that query.' : 'Type a search term to browse people, cases, documents, actions, evidence, and sessions from one place.')}</div>
+      </section>
+    </section>
+  `;
+}
 
 function renderCases(snapshot) {
   const casesSurface = snapshot.cases || { summary: {}, items: [] };

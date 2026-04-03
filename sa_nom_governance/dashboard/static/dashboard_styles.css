@@ -2811,3 +2811,54 @@ button:focus-visible {
 .human-ask-case-reference {
   margin: 2px 0 4px;
 }
+
+
+.directory-metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.directory-search-shell {
+  gap: 1rem;
+}
+
+.directory-search-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.directory-meta {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.directory-assignment-grid,
+.directory-result-grid,
+.directory-entity-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.directory-assignment-card,
+.directory-search-result,
+.directory-entity-card {
+  min-height: 100%;
+}
+
+.directory-entity-section {
+  align-items: start;
+}
+
+.case-reference-block {
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 900px) {
+  .directory-search-input-row {
+    grid-template-columns: 1fr;
+  }
+}

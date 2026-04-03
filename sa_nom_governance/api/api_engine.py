@@ -12,6 +12,7 @@ from sa_nom_governance.human_ask.human_ask_service import HumanAskService
 from sa_nom_governance.integrations.integration_registry import IntegrationRegistry
 from sa_nom_governance.integrations.model_provider_registry import ModelProviderRegistry
 from sa_nom_governance.integrations.webhook_dispatcher import WebhookDispatcher
+from sa_nom_governance.master_data.master_data_service import MasterDataService
 from sa_nom_governance.ptag.role_loader import RoleLoader
 from sa_nom_governance.studio.role_private_studio_service import RolePrivateStudioService
 from sa_nom_governance.utils.config import AppConfig
@@ -29,6 +30,7 @@ class EngineApplication:
         role_private_studio: RolePrivateStudioService,
         human_ask: HumanAskService,
         action_runtime: GovernedActionService,
+        master_data: MasterDataService,
         backup_manager: RuntimeBackupManager,
         compliance_registry: ComplianceFrameworkRegistry,
         evidence_builder: AuditorEvidencePackBuilder,
@@ -44,6 +46,7 @@ class EngineApplication:
         self.role_private_studio = role_private_studio
         self.human_ask = human_ask
         self.action_runtime = action_runtime
+        self.master_data = master_data
         self.backup_manager = backup_manager
         self.compliance_registry = compliance_registry
         self.evidence_builder = evidence_builder
@@ -87,6 +90,7 @@ class EngineApplication:
             'role_private_studio': self.role_private_studio.store.store.descriptor().to_dict(),
             'human_ask': self.human_ask.store.store.descriptor().to_dict(),
             'action_runtime': self.action_runtime.store.store.descriptor().to_dict(),
+            'master_data': self.master_data.store.store.descriptor().to_dict(),
             'workflow_state': self.engine.workflow_state_store.store.descriptor().to_dict(),
             'runtime_recovery': self.engine.runtime_recovery_store.store.descriptor().to_dict(),
             'runtime_dead_letters': self.engine.runtime_recovery_store.dead_letter_ledger.descriptor().to_dict(),
@@ -1126,11 +1130,12 @@ def build_engine_app(config: AppConfig) -> EngineApplication:
     role_private_studio = RolePrivateStudioService(config=config, registry=registry, audit_logger=engine.audit_logger)
     human_ask = HumanAskService(config=config, engine=engine, registry=registry, role_private_studio=role_private_studio, audit_logger=engine.audit_logger)
     action_runtime = GovernedActionService(config=config, human_ask=human_ask, audit_logger=engine.audit_logger)
+    master_data = MasterDataService(config=config, access_control=access_control)
     backup_manager = RuntimeBackupManager(config)
     compliance_registry = ComplianceFrameworkRegistry(config.compliance_frameworks_path)
     evidence_builder = AuditorEvidencePackBuilder(config)
     integration_registry = IntegrationRegistry(config.integration_targets_path)
     model_provider_registry = ModelProviderRegistry(config)
     integration_dispatcher = WebhookDispatcher(config, integration_registry)
-    return EngineApplication(engine, loader=loader, registry=registry, retention_manager=retention_manager, access_control=access_control, role_private_studio=role_private_studio, human_ask=human_ask, action_runtime=action_runtime, backup_manager=backup_manager, compliance_registry=compliance_registry, evidence_builder=evidence_builder, integration_registry=integration_registry, model_provider_registry=model_provider_registry, integration_dispatcher=integration_dispatcher)
+    return EngineApplication(engine, loader=loader, registry=registry, retention_manager=retention_manager, access_control=access_control, role_private_studio=role_private_studio, human_ask=human_ask, action_runtime=action_runtime, master_data=master_data, backup_manager=backup_manager, compliance_registry=compliance_registry, evidence_builder=evidence_builder, integration_registry=integration_registry, model_provider_registry=model_provider_registry, integration_dispatcher=integration_dispatcher)
 
