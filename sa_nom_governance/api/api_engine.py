@@ -1,5 +1,6 @@
 from dataclasses import asdict
 
+from sa_nom_governance.actions.action_service import GovernedActionService
 from sa_nom_governance.audit.auditor_evidence_pack import AuditorEvidencePackBuilder
 from sa_nom_governance.compliance.compliance_registry import ComplianceFrameworkRegistry
 from sa_nom_governance.compliance.retention_manager import RetentionManager
@@ -27,6 +28,7 @@ class EngineApplication:
         access_control: AccessControl,
         role_private_studio: RolePrivateStudioService,
         human_ask: HumanAskService,
+        action_runtime: GovernedActionService,
         backup_manager: RuntimeBackupManager,
         compliance_registry: ComplianceFrameworkRegistry,
         evidence_builder: AuditorEvidencePackBuilder,
@@ -41,6 +43,7 @@ class EngineApplication:
         self.access_control = access_control
         self.role_private_studio = role_private_studio
         self.human_ask = human_ask
+        self.action_runtime = action_runtime
         self.backup_manager = backup_manager
         self.compliance_registry = compliance_registry
         self.evidence_builder = evidence_builder
@@ -55,6 +58,7 @@ class EngineApplication:
         retention_summary = self.retention_manager.summary()
         studio_summary = self.role_private_studio.studio_snapshot(limit=20).get('summary', {})
         human_ask_summary = self.human_ask.human_ask_snapshot(limit=20).get('summary', {})
+        action_runtime_summary = self.action_runtime.action_runtime_snapshot(limit=20).get('summary', {})
         backup_summary = self.backup_manager.summary()
         dispatcher_health = self.integration_dispatcher.health()
         known_roles = roles if roles is not None else self.list_roles()
@@ -82,6 +86,7 @@ class EngineApplication:
             'sessions': self.access_control.session_manager.store.descriptor().to_dict(),
             'role_private_studio': self.role_private_studio.store.store.descriptor().to_dict(),
             'human_ask': self.human_ask.store.store.descriptor().to_dict(),
+            'action_runtime': self.action_runtime.store.store.descriptor().to_dict(),
             'workflow_state': self.engine.workflow_state_store.store.descriptor().to_dict(),
             'runtime_recovery': self.engine.runtime_recovery_store.store.descriptor().to_dict(),
             'runtime_dead_letters': self.engine.runtime_recovery_store.dead_letter_ledger.descriptor().to_dict(),
@@ -128,6 +133,7 @@ class EngineApplication:
             'retention': retention_summary,
             'role_private_studio': studio_summary,
             'human_ask': human_ask_summary,
+            'action_runtime': action_runtime_summary,
             'runtime_backups': backup_summary,
             'role_hierarchy': hierarchy_summary,
             'governance_materials': governance_materials,
@@ -743,6 +749,65 @@ class EngineApplication:
     def list_callable_directory(self, limit: int = 200) -> dict[str, object]:
         return self.human_ask.callable_directory(limit=limit)
 
+    def action_runtime_snapshot(
+        self,
+        *,
+        status: str | None = None,
+        action_type: str | None = None,
+        case_id: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, object]:
+        return self.action_runtime.action_runtime_snapshot(
+            status=status,
+            action_type=action_type,
+            case_id=case_id,
+            limit=limit,
+        )
+
+    def list_actions(
+        self,
+        *,
+        status: str | None = None,
+        action_type: str | None = None,
+        case_id: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, object]]:
+        return self.action_runtime.list_actions(
+            status=status,
+            action_type=action_type,
+            case_id=case_id,
+            limit=limit,
+        )
+
+    def get_action(self, action_id: str) -> dict[str, object]:
+        return self.action_runtime.get_action(action_id)
+
+    def create_action(
+        self,
+        payload: dict[str, object],
+        *,
+        requested_by: str,
+        case_snapshot: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return self.action_runtime.create_and_execute_action(
+            payload,
+            requested_by=requested_by,
+            case_snapshot=case_snapshot,
+        )
+
+    def execute_action(
+        self,
+        action_id: str,
+        *,
+        requested_by: str,
+        case_snapshot: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        return self.action_runtime.execute_action(
+            action_id,
+            requested_by=requested_by,
+            case_snapshot=case_snapshot,
+        )
+
     def create_human_ask_session(self, payload: dict[str, object], requested_by: str) -> dict[str, object]:
         result = self.human_ask.create_session(payload, requested_by=requested_by)
         self._dispatch_integration_event(
@@ -1060,11 +1125,12 @@ def build_engine_app(config: AppConfig) -> EngineApplication:
     access_control = AccessControl(config)
     role_private_studio = RolePrivateStudioService(config=config, registry=registry, audit_logger=engine.audit_logger)
     human_ask = HumanAskService(config=config, engine=engine, registry=registry, role_private_studio=role_private_studio, audit_logger=engine.audit_logger)
+    action_runtime = GovernedActionService(config=config, human_ask=human_ask, audit_logger=engine.audit_logger)
     backup_manager = RuntimeBackupManager(config)
     compliance_registry = ComplianceFrameworkRegistry(config.compliance_frameworks_path)
     evidence_builder = AuditorEvidencePackBuilder(config)
     integration_registry = IntegrationRegistry(config.integration_targets_path)
     model_provider_registry = ModelProviderRegistry(config)
     integration_dispatcher = WebhookDispatcher(config, integration_registry)
-    return EngineApplication(engine, loader=loader, registry=registry, retention_manager=retention_manager, access_control=access_control, role_private_studio=role_private_studio, human_ask=human_ask, backup_manager=backup_manager, compliance_registry=compliance_registry, evidence_builder=evidence_builder, integration_registry=integration_registry, model_provider_registry=model_provider_registry, integration_dispatcher=integration_dispatcher)
+    return EngineApplication(engine, loader=loader, registry=registry, retention_manager=retention_manager, access_control=access_control, role_private_studio=role_private_studio, human_ask=human_ask, action_runtime=action_runtime, backup_manager=backup_manager, compliance_registry=compliance_registry, evidence_builder=evidence_builder, integration_registry=integration_registry, model_provider_registry=model_provider_registry, integration_dispatcher=integration_dispatcher)
 

@@ -579,6 +579,52 @@ def test_dashboard_snapshot_surfaces_case_ids_on_studio_requests() -> None:
         assert (linked_case.get('continuity', {}) or {}).get('next_view') in {'studio', 'audit', 'requests'}
 
 
+def test_dashboard_snapshot_surfaces_ai_actions_in_cases_and_runtime_health() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        request_result = builder.app.request(
+            requester='operator@example.com',
+            role_id='GOV',
+            action='approve_policy',
+            payload={'resource': 'contract', 'resource_id': 'ACTION-CASE-001'},
+            metadata={
+                'execution_plan': {
+                    'plan_id': 'plan-action-case-001',
+                    'step_id': 'step-action-runtime',
+                }
+            },
+        )
+        request_id = request_result.metadata['request_id']
+
+        initial_snapshot = builder.build()
+        case_item = next(item for item in initial_snapshot.get('cases', {}).get('items', []) if request_id in item.get('linked_request_ids', []))
+        action = builder.app.create_action(
+            {
+                'action_type': 'summarize_case',
+                'case_id': case_item['case_id'],
+                'case_reference': case_item['case_reference'],
+            },
+            requested_by='EXEC_OWNER',
+            case_snapshot=case_item,
+        )
+
+        snapshot = builder.build()
+        actions_surface = snapshot.get('actions', {})
+        action_row = next(item for item in actions_surface.get('items', []) if item.get('action_id') == action['action_id'])
+        linked_case = next(item for item in snapshot.get('cases', {}).get('items', []) if action['action_id'] in item.get('linked_action_ids', []))
+        work_item_kinds = {entry.get('kind') for entry in linked_case.get('work_items', []) if int(entry.get('total', 0) or 0) > 0}
+        timeline_types = {entry.get('event_type') for entry in linked_case.get('timeline', [])}
+
+        assert actions_surface.get('summary', {}).get('actions_total', 0) >= 1
+        assert action_row.get('case_id') == linked_case.get('case_id')
+        assert linked_case.get('case_primary_view') == linked_case.get('primary_view') if 'case_primary_view' in linked_case else True
+        assert 'action' in work_item_kinds
+        assert 'action' in timeline_types
+        assert snapshot.get('runtime_health', {}).get('action_runtime_store', {}).get('status') == 'present'
+
+
 def test_dashboard_snapshot_surfaces_governed_documents_in_cases_and_runtime_health() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)

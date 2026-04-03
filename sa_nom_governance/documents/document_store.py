@@ -13,6 +13,9 @@ class GovernedDocumentStore:
         self.sequences: dict[str, int] = {}
         self._load()
 
+    def refresh(self) -> None:
+        self._load()
+
     def list_documents(self) -> list[GovernedDocumentRecord]:
         return sorted(self.documents.values(), key=lambda item: item.updated_at, reverse=True)
 

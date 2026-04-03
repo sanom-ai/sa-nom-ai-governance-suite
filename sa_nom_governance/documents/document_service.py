@@ -215,6 +215,9 @@ class GovernedDocumentService:
         self.store.save_document(document)
         return self._document_payload(document)
 
+    def refresh(self) -> None:
+        self.store.refresh()
+
     def list_documents(
         self,
         *,

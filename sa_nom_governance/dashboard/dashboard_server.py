@@ -44,6 +44,7 @@ class DashboardService:
         self.app = build_engine_app(config)
         self.snapshot_builder = DashboardSnapshotBuilder(config=config, app=self.app)
         self.document_center = GovernedDocumentService(config)
+        self.action_runtime = self.app.action_runtime
         self.access_control = self.app.access_control
         self.base_dir = Path(config.base_dir)
         self.static_dir = Path(__file__).resolve().parent / 'static'
@@ -77,6 +78,8 @@ class DashboardService:
             snapshot['human_ask'] = {'summary': {}, 'sessions': [], 'callable_directory': {'summary': {}, 'entries': []}}
         if not profile.can('documents.read'):
             snapshot['documents'] = {'summary': {}, 'items': [], 'document_classes': [], 'human_ask_report': {'summary': {}, 'items': [], 'narrative': ''}}
+        if not profile.can('actions.read'):
+            snapshot['actions'] = {'summary': {}, 'registry': [], 'items': [], 'store': {}}
         if not profile.can('compliance.read'):
             snapshot['compliance'] = {'summary': {}, 'frameworks': [], 'role_mappings': [], 'capabilities': {}}
         if not profile.can('evidence.read'):
@@ -106,6 +109,7 @@ class DashboardService:
             'integrations': self.app.integration_snapshot(limit=10),
             'model_providers': self.app.model_provider_snapshot(),
             'human_ask': self.app.human_ask_snapshot(limit=10),
+            'actions': self.app.action_runtime_snapshot(limit=10),
             'session': profile.to_public_dict(),
         }
 
@@ -374,9 +378,53 @@ class DashboardService:
             return snapshot
         return self.snapshot_builder.documents(limit=limit)
 
+    def actions(
+        self,
+        limit: int = 100,
+        *,
+        status: str | None = None,
+        action_type: str | None = None,
+        case_id: str | None = None,
+    ):
+        return self.app.action_runtime_snapshot(
+            status=status,
+            action_type=action_type,
+            case_id=case_id,
+            limit=limit,
+        )
+
+    def get_action(self, action_id: str):
+        return self.app.get_action(action_id)
+
     def _refresh_document_runtime(self) -> None:
         self.document_center = GovernedDocumentService(self.config)
         self.snapshot_builder = DashboardSnapshotBuilder(config=self.config, app=self.app)
+
+    def _resolve_case_item(self, case_id: str) -> dict[str, object]:
+        case_token = str(case_id or '').strip()
+        if not case_token:
+            raise ValueError('case_id is required for AI action runtime.')
+        cases = self.snapshot_builder.build().get('cases', {})
+        case_items = cases.get('items', []) if isinstance(cases.get('items', []), list) else []
+        for item in case_items:
+            if str(item.get('case_id', '') or '').strip() == case_token:
+                return item
+        raise KeyError(f'Case not found: {case_token}')
+
+    def create_action(self, payload: dict[str, object], profile: AccessProfile):
+        case_item = self._resolve_case_item(str(payload.get('case_id') or ''))
+        forwarded = dict(payload)
+        if case_item.get('case_reference') and not forwarded.get('case_reference'):
+            forwarded['case_reference'] = case_item.get('case_reference')
+        item = self.app.create_action(forwarded, requested_by=profile.display_name, case_snapshot=case_item)
+        self._refresh_document_runtime()
+        return item
+
+    def execute_action(self, action_id: str, payload: dict[str, object], profile: AccessProfile):
+        case_item = self._resolve_case_item(str(payload.get('case_id') or ''))
+        item = self.app.execute_action(action_id, requested_by=profile.display_name, case_snapshot=case_item)
+        self._refresh_document_runtime()
+        return item
 
     def create_document(self, payload: dict[str, object], profile: AccessProfile):
         item = self.document_center.create_document(payload, created_by=str(payload.get('created_by') or profile.display_name))
@@ -624,6 +672,22 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
                     },
                 ),
             )
+        if parsed.path == '/api/actions':
+            return self._require_and_run(
+                'actions.read',
+                lambda profile: self._respond_json(
+                    HTTPStatus.OK,
+                    {
+                        'item': self.service.actions(
+                            limit=limit,
+                            status=status,
+                            action_type=(query_params.get('action_type', [''])[0] or None),
+                            case_id=case_id,
+                        ),
+                        'session': profile.to_public_dict(),
+                    },
+                ),
+            )
         if parsed.path == '/api/overrides':
             return self._require_and_run('overrides.read', lambda profile: self._respond_json(HTTPStatus.OK, {'items': self.service.list_overrides(status=status, limit=limit), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/locks':
@@ -678,6 +742,9 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
         if len(parts) == 4 and parts[0] == 'api' and parts[1] == 'human-ask' and parts[2] == 'sessions':
             session_id = unquote(parts[3])
             return self._require_and_run('human_ask.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.get_human_ask_session(session_id), 'session': profile.to_public_dict()}))
+        if len(parts) == 3 and parts[0] == 'api' and parts[1] == 'actions':
+            action_id = unquote(parts[2])
+            return self._require_and_run('actions.read', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.get_action(action_id), 'session': profile.to_public_dict()}))
 
         self._respond_json(HTTPStatus.NOT_FOUND, {'error': 'Unknown API endpoint.'})
 
@@ -701,6 +768,8 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
             return self._require_and_run('request.create', lambda profile: self._respond_json(HTTPStatus.OK, self.service.create_request(payload, profile)))
         if parsed.path == '/api/documents':
             return self._require_and_run('documents.create', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.create_document(payload, profile), 'session': profile.to_public_dict()}))
+        if parsed.path == '/api/actions':
+            return self._require_and_run('actions.create', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.create_action(payload, profile), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/retention/enforce':
             return self._require_and_run('retention.manage', lambda profile: self._respond_json(HTTPStatus.OK, {'result': self.service.enforce_retention(payload), 'session': profile.to_public_dict()}))
         if parsed.path == '/api/audit/reseal':
@@ -751,6 +820,11 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
                 return self._require_and_run('documents.publish', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.publish_document(document_id, payload, profile), 'session': profile.to_public_dict()}))
             if action == 'archive':
                 return self._require_and_run('documents.archive', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.archive_document(document_id, payload, profile), 'session': profile.to_public_dict()}))
+        if len(parts) == 4 and parts[0] == 'api' and parts[1] == 'actions':
+            action_id = unquote(parts[2])
+            action = parts[3]
+            if action == 'execute':
+                return self._require_and_run('actions.execute', lambda profile: self._respond_json(HTTPStatus.OK, {'item': self.service.execute_action(action_id, payload, profile), 'session': profile.to_public_dict()}))
         if len(parts) == 5 and parts[0] == 'api' and parts[1] == 'role-private-studio' and parts[2] == 'requests':
             request_id = unquote(parts[3])
             action = parts[4]
