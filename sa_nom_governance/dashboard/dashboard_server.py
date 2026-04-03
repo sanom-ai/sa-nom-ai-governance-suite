@@ -74,6 +74,31 @@ class DashboardService:
             return True
         return profile.can('ops.manage')
 
+    def _tablet_focus_profile(self, persona: str) -> dict[str, object]:
+        if persona == 'founder':
+            return {
+                'tablet_focus_title': 'Organization command',
+                'tablet_focus_note': 'Stay above the whole operating picture while AI carries the daily workload and only true governance boundaries rise back to you.',
+                'tablet_primary_views': ['overview', 'requests', 'cases', 'actions', 'documents'],
+            }
+        if persona == 'admin':
+            return {
+                'tablet_focus_title': 'Runtime stability and governance pressure',
+                'tablet_focus_note': 'Watch active workload, escalations, and AI execution from Home first, then move into Control Room only when deeper runtime proof is required.',
+                'tablet_primary_views': ['overview', 'requests', 'actions', 'cases', 'documents'],
+            }
+        if persona == 'operator':
+            return {
+                'tablet_focus_title': 'Assignments and governed follow-through',
+                'tablet_focus_note': 'Work from the inbox first, then continue across linked cases, documents, and AI actions without losing the private runtime thread.',
+                'tablet_primary_views': ['requests', 'cases', 'actions', 'documents', 'directory'],
+            }
+        return {
+            'tablet_focus_title': 'Department direction',
+            'tablet_focus_note': 'Start from Home, then move through the inbox, linked cases, and documents that need executive direction while AI keeps the rest moving.',
+            'tablet_primary_views': ['overview', 'requests', 'cases', 'documents', 'actions'],
+        }
+
     def _session_public(self, profile: AccessProfile) -> dict[str, object]:
         payload = profile.to_public_dict()
         role_name = str(profile.role_name or '').strip().lower()
@@ -85,12 +110,33 @@ class DashboardService:
             persona = 'operator'
         else:
             persona = 'executive'
+        tablet_focus = self._tablet_focus_profile(persona)
+        profile_expires_at = payload.get('expires_at')
+        active_sessions = [
+            session
+            for session in self.access_control.list_sessions(status='active')
+            if str(session.get('profile_id', '')) == profile.profile_id
+        ]
+        active_sessions.sort(key=lambda item: str(item.get('last_seen_at') or item.get('created_at') or ''), reverse=True)
+        current_session = active_sessions[0] if active_sessions else {}
         payload.update({
             'control_room_access': self._control_room_access(profile),
             'setup_assistant_access': self._setup_assistant_access(profile),
             'persona': persona,
             'home_view': 'overview',
             'work_inbox_view': 'requests',
+            'private_runtime_mode': 'private_first',
+            'profile_expires_at': profile_expires_at,
+            'session_ttl_minutes': self.config.session_ttl_minutes,
+            'session_idle_timeout_minutes': self.config.session_idle_timeout_minutes,
+            'active_session_count': len(active_sessions),
+            'session_status': current_session.get('status', 'inactive'),
+            'session_created_at': current_session.get('created_at'),
+            'session_last_seen_at': current_session.get('last_seen_at'),
+            'session_expires_at': current_session.get('expires_at'),
+            'session_idle_expires_at': current_session.get('idle_expires_at'),
+            'session_auth_method': current_session.get('auth_method'),
+            **tablet_focus,
         })
         return payload
 

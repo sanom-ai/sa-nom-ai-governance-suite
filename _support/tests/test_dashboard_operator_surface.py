@@ -1241,6 +1241,35 @@ def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_ro
         assert auditor_payload['session']['control_room_access'] is False
         assert auditor_payload['session']['setup_assistant_access'] is False
         assert auditor_payload['session']['persona'] == 'executive'
+        assert owner_payload['session']['private_runtime_mode'] == 'private_first'
+        assert owner_payload['session']['tablet_focus_title'] == 'Organization command'
+        assert owner_payload['session']['tablet_primary_views'][0] == 'overview'
+        assert admin_payload['session']['tablet_focus_title'] == 'Runtime stability and governance pressure'
+        assert admin_payload['session']['tablet_primary_views'][0] == 'overview'
+        assert operator_payload['session']['tablet_focus_title'] == 'Assignments and governed follow-through'
+        assert operator_payload['session']['tablet_primary_views'][0] == 'requests'
+        assert auditor_payload['session']['tablet_focus_title'] == 'Department direction'
+        assert auditor_payload['session']['session_ttl_minutes'] == config.session_ttl_minutes
+        assert auditor_payload['session']['session_idle_timeout_minutes'] == config.session_idle_timeout_minutes
+
+
+def test_dashboard_service_surfaces_private_session_continuity_for_active_sessions() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        service = DashboardService(config=config)
+        profile = _build_profile('operator')
+        state, _token = service.access_control.session_manager.issue(profile, auth_method='access_token')
+
+        payload = service.dashboard(profile)
+        session = payload['session']
+
+        assert session['session_status'] == 'active'
+        assert session['active_session_count'] >= 1
+        assert session['session_created_at'] == state.created_at
+        assert session['session_last_seen_at'] == state.last_seen_at
+        assert session['session_expires_at'] == state.expires_at
+        assert session['session_idle_expires_at'] == state.idle_expires_at
+        assert session['session_auth_method'] == 'access_token'
 
 
 def test_dashboard_service_operations_include_runtime_performance_baseline() -> None:

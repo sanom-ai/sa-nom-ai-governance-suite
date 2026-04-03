@@ -4197,7 +4197,9 @@ function renderCommandHome(snapshot) {
   const nextActions = buildHomeNextActions(snapshot, surface).slice(0, 5);
   const aiFeed = Array.isArray(surface.ai_activity_feed) ? surface.ai_activity_feed.slice(0, 5) : [];
   const departments = Array.isArray(surface.department_quick_access) ? surface.department_quick_access.slice(0, 6) : [];
-  const quickLinks = Array.isArray(surface.quick_links) ? [...surface.quick_links] : [];
+  const session = state.session || {};
+  const primaryViews = getTabletPrimaryViews(session);
+  const quickLinks = orderCommandQuickLinksByPersona(Array.isArray(surface.quick_links) ? [...surface.quick_links] : [], primaryViews);
   if (canAccessSetupAssistant()) quickLinks.push({ view: 'setup', label: 'Setup Assistant' });
   const setupContinuation = renderHomeSetupContinuation(snapshot);
   const attentionTotal = Number(posture.attention_items_total || 0);
@@ -4219,7 +4221,7 @@ function renderCommandHome(snapshot) {
               <h3 class="hero-title">Your Next Actions</h3>
               <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
             </div>
-            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(state.session?.persona || state.session?.role_name || 'operator')}</div>
+            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(session.persona || session.role_name || 'operator')}</div>
           </div>
           <div class="inline-actions">
             ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button' })}
@@ -4235,6 +4237,10 @@ function renderCommandHome(snapshot) {
           </div>
           <div class="trace-box compact-trace"><strong>AI workforce</strong><p class="muted">${escapeHtml(`${aiRunning} running | ${aiTotal} total governed actions`)}</p></div>
         </article>
+      </section>
+      <section class="command-guidance-grid">
+        ${renderCommandTabletFocusCard(session, primaryViews)}
+        ${renderCommandSessionContinuityCard(session)}
       </section>
       <section class="card stack command-home-section">
         <div class="hero-heading">
@@ -4294,6 +4300,80 @@ function renderCommandHome(snapshot) {
         <div class="command-quick-links-row">${quickLinks.map((item) => renderHomeQuickLink(item)).join('')}${canAccessControlRoom() ? renderHomeQuickLink({ view: 'control_room', label: 'Control Room' }) : ''}</div>
       </section>
     </section>
+  `;
+}
+
+function getTabletPrimaryViews(session = state.session || {}) {
+  return (Array.isArray(session.tablet_primary_views) ? session.tablet_primary_views : [])
+    .map((item) => String(item || '').trim())
+    .filter((item) => item && VIEW_TITLES[item]);
+}
+
+function orderCommandQuickLinksByPersona(quickLinks, primaryViews = []) {
+  const order = new Map(primaryViews.map((view, index) => [view, index]));
+  return [...quickLinks].sort((left, right) => {
+    const leftRank = order.has(left.view) ? order.get(left.view) : 999;
+    const rightRank = order.has(right.view) ? order.get(right.view) : 999;
+    if (leftRank != rightRank) return leftRank - rightRank;
+    return String(left.label || left.view || '').localeCompare(String(right.label || right.view || ''));
+  });
+}
+
+function renderCommandTabletFocusCard(session, primaryViews) {
+  const focusTitle = session.tablet_focus_title || 'Department direction';
+  const focusNote = session.tablet_focus_note || 'Stay on Home for posture first, then move through the next governed lane without opening deeper runtime plumbing.';
+  const focusViews = primaryViews.slice(0, 4);
+  const focusActions = focusViews.length
+    ? focusViews.map((view) => renderViewJumpButton({
+      view,
+      label: VIEW_TITLES[view] || titleCase(view),
+      className: 'action-button action-button-muted',
+      title: `${VIEW_TITLES[view] || titleCase(view)} reopened from Home.`,
+      detail: `Continue from ${VIEW_TITLES[view] || titleCase(view)} while staying inside the private tablet lane.`,
+      actionLabel: VIEW_TITLES[view] || titleCase(view),
+    })).join('')
+    : renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button action-button-muted' });
+  return `
+    <article class="card command-home-section command-guidance-card">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Tablet focus</div>
+          <h3 class="card-title">${escapeHtml(focusTitle)}</h3>
+          <p class="card-subtitle">${escapeHtml(focusNote)}</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(session.private_runtime_mode || 'private first')}${statusBadge(session.persona || session.role_name || 'operator')}</div>
+      </div>
+      <div class="command-focus-actions">${focusActions}</div>
+      <p class="muted small">These are the lanes this persona should reach first on tablet before stepping into deeper governance tooling.</p>
+    </article>
+  `;
+}
+
+function renderCommandSessionContinuityCard(session) {
+  const sessionStatus = formatStatusLabel(session.session_status || 'inactive');
+  const lastSeen = session.session_last_seen_at ? shortTime(session.session_last_seen_at) : 'Waiting for the first active tablet session';
+  const idleUntil = session.session_idle_expires_at ? shortTime(session.session_idle_expires_at) : `${session.session_idle_timeout_minutes || '-'} minute idle window`;
+  const signedUntil = session.session_expires_at ? shortTime(session.session_expires_at) : `${session.session_ttl_minutes || '-'} minute signed session`;
+  const authMethod = session.session_auth_method ? titleCase(String(session.session_auth_method).replaceAll('_', ' ')) : 'Private access token';
+  return `
+    <article class="card command-home-section command-guidance-card">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Private session continuity</div>
+          <h3 class="card-title">${escapeHtml(session.session_status === 'active' ? 'This private session is live' : 'Session continuity is standing by')}</h3>
+          <p class="card-subtitle">Keep the tablet session alive inside the private runtime without exposing lower-level runtime stores on Home.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(sessionStatus)}</div>
+      </div>
+      ${keyValue([
+        ['Last seen', lastSeen],
+        ['Idle until', idleUntil],
+        ['Signed until', signedUntil],
+        ['Auth method', authMethod],
+        ['Active sessions', String(session.active_session_count || 0)],
+      ])}
+      <p class="muted small">Refresh updates live data, while the private session timers explain how long this command surface can stay warm before another sign-in is needed.</p>
+    </article>
   `;
 }
 
