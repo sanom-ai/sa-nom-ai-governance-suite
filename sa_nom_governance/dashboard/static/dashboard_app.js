@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.7-ui2';
+import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.7-ui3';
 
 const state = {
   view: getInitialDashboardView(),
@@ -27,6 +27,12 @@ const state = {
   },
   documentSearchResult: null,
   controlRoomTool: getInitialControlRoomTool(),
+  liveClock: {
+    timerId: null,
+    sourceIso: '',
+    sourceMs: 0,
+    clientStartedMs: 0,
+  },
 };
 
 const root = document.getElementById('dashboard-root');
@@ -48,6 +54,48 @@ const sidebarRuntimeLabel = document.getElementById('sidebar-runtime-label');
 const sidebarGeneratedLabel = document.getElementById('sidebar-generated-label');
 const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
+
+function setLiveTimestampLabel(text) {
+  generatedAt.textContent = text;
+  sidebarGeneratedLabel.textContent = text;
+}
+
+function stopLiveTimestampTicker() {
+  if (state.liveClock.timerId) {
+    window.clearInterval(state.liveClock.timerId);
+    state.liveClock.timerId = null;
+  }
+  state.liveClock.sourceIso = '';
+  state.liveClock.sourceMs = 0;
+  state.liveClock.clientStartedMs = 0;
+}
+
+function renderLiveTimestampTick() {
+  if (!state.liveClock.sourceMs) return;
+  const elapsedMs = Math.max(0, Date.now() - state.liveClock.clientStartedMs);
+  const liveTimestamp = new Date(state.liveClock.sourceMs + elapsedMs);
+  setLiveTimestampLabel(`Live data: ${formatDateTime(liveTimestamp)}`);
+}
+
+function startLiveTimestampTicker(value) {
+  const parsedMs = value ? new Date(value).getTime() : Number.NaN;
+  if (Number.isNaN(parsedMs)) {
+    stopLiveTimestampTicker();
+    setLiveTimestampLabel('Live data unavailable');
+    return;
+  }
+  const sourceIso = String(value);
+  if (state.liveClock.timerId && state.liveClock.sourceIso === sourceIso) {
+    renderLiveTimestampTick();
+    return;
+  }
+  stopLiveTimestampTicker();
+  state.liveClock.sourceIso = sourceIso;
+  state.liveClock.sourceMs = parsedMs;
+  state.liveClock.clientStartedMs = Date.now();
+  renderLiveTimestampTick();
+  state.liveClock.timerId = window.setInterval(renderLiveTimestampTick, 1000);
+}
 
 function getInitialDashboardView() {
   const path = window.location.pathname || '/';
@@ -1817,12 +1865,12 @@ function render() {
   topbarFocusLabel.textContent = VIEW_TITLES[state.view];
   document.body.dataset.view = state.view;
   if (state.authRequired || !state.snapshot) {
+    stopLiveTimestampTicker();
     sessionLabel.textContent = 'disconnected';
     environmentLabel.textContent = 'token required';
-    generatedAt.textContent = state.lastError ? `Last error: ${state.lastError}` : 'Enter API token to access live runtime data.';
+    setLiveTimestampLabel(state.lastError ? `Last error: ${state.lastError}` : 'Enter API token to access live runtime data.');
     sidebarOperatorLabel.textContent = 'Disconnected';
     sidebarRuntimeLabel.textContent = 'Token required';
-    sidebarGeneratedLabel.textContent = generatedAt.textContent;
     topbarRuntimeLabel.textContent = 'Awaiting session';
     root.innerHTML = renderAuthCard();
     updateNav();
@@ -1832,10 +1880,9 @@ function render() {
   const snapshot = state.snapshot;
   sessionLabel.textContent = state.session ? `${state.session.display_name} | ${state.session.role_name}` : 'connected';
   environmentLabel.textContent = `${snapshot.environment} environment`;
-  generatedAt.textContent = `Live data: ${formatDateTime(snapshot.generated_at)}`;
+  startLiveTimestampTicker(snapshot.generated_at);
   sidebarOperatorLabel.textContent = state.session ? state.session.display_name : 'Connected';
   sidebarRuntimeLabel.textContent = `${snapshot.environment} runtime`;
-  sidebarGeneratedLabel.textContent = generatedAt.textContent;
   topbarRuntimeLabel.textContent = state.session ? state.session.role_name : `${snapshot.environment} runtime`;
   syncCommandRoute();
   hydrateOrganizationSelector(snapshot);
@@ -4169,7 +4216,7 @@ function renderCommandHome(snapshot) {
           <div class="hero-heading">
             <div>
               <div class="eyebrow">Simple Home Dashboard</div>
-              <h3 class="hero-title">สิ่งที่คุณต้องทำวันนี้ / Your Next Actions</h3>
+              <h3 class="hero-title">Your Next Actions</h3>
               <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
             </div>
             <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(state.session?.persona || state.session?.role_name || 'operator')}</div>
@@ -4208,7 +4255,7 @@ function renderCommandHome(snapshot) {
       <section class="card command-next-actions-card stack command-home-section">
         <div class="hero-heading">
           <div>
-            <div class="eyebrow muted">สิ่งที่คุณต้องทำวันนี้</div>
+            <div class="eyebrow muted">What's Next For You</div>
             <h3 class="card-title">Your Next Actions</h3>
             <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
           </div>
