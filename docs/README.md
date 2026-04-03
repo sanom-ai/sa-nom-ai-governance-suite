@@ -34,6 +34,7 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Governed Runtime Orchestration](GOVERNED_RUNTIME_ORCHESTRATION.md)
 - [Governed Human-In-The-Loop Operations](GOVERNED_HITL_OPERATIONS.md)
 - [Minimal Human Approval Surface](MINIMAL_HUMAN_APPROVAL_SURFACE.md)
+- [Control Room Information Architecture](CONTROL_ROOM_INFORMATION_ARCHITECTURE.md)
 - [Governed HITL Human Ask Reporting](GOVERNED_HITL_HUMAN_ASK_REPORTING.md)
 - [Governed HITL Reliability And Observability](GOVERNED_HITL_RELIABILITY_AND_OBSERVABILITY.md)
 - [Governed HITL Integration And Compliance Continuity](GOVERNED_HITL_INTEGRATION_AND_COMPLIANCE_CONTINUITY.md)
