@@ -681,7 +681,7 @@ class DashboardRequestHandler(SimpleHTTPRequestHandler):
                         'item': self.service.actions(
                             limit=limit,
                             status=status,
-                            action_type=(query_params.get('action_type', [''])[0] or None),
+                            action_type=(params.get('action_type', [''])[0] or None),
                             case_id=case_id,
                         ),
                         'session': profile.to_public_dict(),
