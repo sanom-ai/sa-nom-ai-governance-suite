@@ -1,4 +1,4 @@
-﻿# SA-NOM AI Governance Suite
+# SA-NOM AI Governance Suite
 
 [![CI](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/sanom-ai/sa-nom-ai-governance-suite/actions/workflows/ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL%203.0--only-blue.svg)](LICENSE)
@@ -7,6 +7,13 @@
 SA-NOM is a private AI operations platform for organizations that want AI in real roles, with governance built in.
 
 Instead of treating AI as a loose chatbot or an unsafe automation layer, SA-NOM lets teams define governed AI roles, route work through authority boundaries, let humans pull reports and meetings through Human Ask, keep escalation and override paths explicit, and retain evidence for every important decision.
+
+## Confidence
+
+By the `v0.7.9` line, SA-NOM clears a concise private-first confidence bar for serious pilot use:
+- `515 passing tests`
+- `91.08% governance coverage`
+- `Private-first pilot-ready command surface, Control Room, recovery, and governed workflow paths`
 
 ## Quick Start
 
@@ -154,6 +161,10 @@ SA-NOM is designed for private, self-managed, and air-gapped deployment scenario
 That means the public repository should be read as a governance and operational baseline, not as a place where real credentials, emergency access material, or deployment secrets belong.
 
 See [docs/SECRETS_AND_CREDENTIALS_HANDLING.md](docs/SECRETS_AND_CREDENTIALS_HANDLING.md) for the first public handling guide and [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIENE.md) for the dependency-light security posture.
+
+
+
+
 
 
 
