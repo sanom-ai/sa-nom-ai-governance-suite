@@ -19,8 +19,8 @@ You bring your own credentials, endpoint policy, and model selection.
 ## Why is there a commercial license if the code is AGPL?
 
 The open-source repository is the community baseline.
-Commercial engagement is for organizations that want rollout support, quote-specific packaging, compliance tailoring, on-site enablement, dedicated support, or other non-community services and delivery scope.
-See [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md).
+Commercial engagement is for organizations that want founder-led rollout direction, PT-OSS-informed judgment, quote-specific packaging, recurring advisory, or other non-community delivery scope.
+See [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md), [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md), and [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md).
 
 ## Do I have to publish my whole company codebase if I use SA-NOM internally?
 
