@@ -5,6 +5,13 @@ The community baseline may be used at no cost for evaluation, development, testi
 
 For medium-to-large organizations, regulated programs, sovereign environments, or teams that need direct support, structured rollout services, quote-specific packaging, or dedicated delivery participation, a commercial agreement is the intended path.
 
+## Boundary First
+
+Before discussing pricing, read [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md).
+That document defines what stays in the real open-source baseline and what commercial work should cover on top of it.
+
+For the practical packaging shapes, see [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md).
+
 ## What Commercial Covers
 
 `Role Private Studio` is a core platform capability. Commercial scope should focus on tailoring, rollout, support, packaging, and organization-specific delivery, not on artificially shrinking the current open-source core.

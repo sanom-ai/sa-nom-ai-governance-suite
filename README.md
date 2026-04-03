@@ -15,6 +15,14 @@ By the `v0.7.9` line, SA-NOM clears a concise private-first confidence bar for s
 - `91.08% governance coverage`
 - `Private-first pilot-ready command surface, Control Room, recovery, and governed workflow paths`
 
+## Open Source And Commercial Boundary
+
+SA-NOM keeps the public baseline real. The open-source repository includes the private-first governed runtime, command surface, Control Room baseline, Role Private Studio baseline, cases, documents, AI actions, master data, search, assignment, audit, and runtime confidence tooling.
+
+Commercial engagement is for organizations that need rollout help, quote-specific packaging, dedicated support, regulated-environment hardening, or tailored delivery work beyond the self-managed baseline.
+
+See [docs/COMMERCIAL_BOUNDARY.md](docs/COMMERCIAL_BOUNDARY.md) for the boundary model and [docs/COMMERCIAL_OFFER_PACKS.md](docs/COMMERCIAL_OFFER_PACKS.md) for the practical offer shapes.
+
 ## Quick Start
 
 If you want the shortest real first run, start with the private local lane and let SA-NOM bootstrap the runtime artifacts for you:

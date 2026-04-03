@@ -58,6 +58,15 @@ Pick the path that matches what you need first:
 - [Ollama Demo Environment](OLLAMA_DEMO_ENVIRONMENT.md)
 - [Enterprise Function Map](ENTERPRISE_FUNCTION_MAP.md)
 
+## Commercial And Rollout
+
+- [Commercial Boundary](COMMERCIAL_BOUNDARY.md)
+- [Commercial License & Pricing](COMMERCIAL_LICENSE.md)
+- [Commercial Offer Packs](COMMERCIAL_OFFER_PACKS.md)
+- [Commercial Discovery Checklist](COMMERCIAL_DISCOVERY_CHECKLIST.md)
+- [Sales Intake Template](SALES_INTAKE_TEMPLATE.md)
+- [Pilot Proposal Template](PILOT_PROPOSAL_TEMPLATE.md)
+
 ## Planning And Releases
 
 - [Roadmap v0.7.9](ROADMAP_v0.7.9.md)

@@ -132,7 +132,7 @@ Clarify:
 - whether the pilot fee is separate from later rollout scope
 - whether pilot work can convert into broader rollout planning
 - which items would remain quote-specific after the pilot
-- which enterprise-only needs are intentionally deferred until rollout
+- which full-rollout or dedicated-support needs are intentionally deferred until rollout
 
 ## 10. Risks And Assumptions
 
