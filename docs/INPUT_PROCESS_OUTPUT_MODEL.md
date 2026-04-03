@@ -42,7 +42,7 @@ Examples:
 - authority rules
 - constraint sets
 - organization-specific position inputs
-- private rule positions
+- role-private-studio organization-defined hats
 
 These inputs shape what the system is allowed to do before action begins.
 

@@ -34,9 +34,9 @@ So the template stays structurally unified, while the operating behavior changes
 
 ## Why This Fits SA-NOM
 
-This is very similar to how `Private Rule Position` works.
+This is very similar to how `Role Private Studio` works.
 
-In `Private Rule Position`, the platform does not need a completely different engine for every organization-specific hat.
+In `Role Private Studio`, the platform does not need a completely different engine for every organization-specific hat.
 Instead, it keeps one governed model and lets rule logic define the boundaries, actions, and escalation behavior.
 
 The same approach is useful here:

@@ -349,8 +349,8 @@ def test_regulator_response_scenario_example_preserves_human_regulator_boundary(
 def test_private_rule_position_example_describes_core_studio_capability():
     payload = json.loads((EXAMPLES_DIR / "private_rule_position.example.json").read_text(encoding="utf-8"))
 
-    assert payload["studio_entrypoint"] == "Private Rule Studio"
-    assert payload["position_type"] == "private_rule_position"
+    assert payload["studio_entrypoint"] == "Role Private Studio"
+    assert payload["role_type"] == "organization_defined_governed_hat"
     assert "starter JD" in payload["starter_support_used"]
     assert "core platform capability" in payload["commercial_boundary"]
     serialized = json.dumps(payload)

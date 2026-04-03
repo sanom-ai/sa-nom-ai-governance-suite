@@ -21,6 +21,8 @@ Have these ready:
 - [ONE_PAGER_TH.md](ONE_PAGER_TH.md)
 - [FEATURE_MATRIX.md](FEATURE_MATRIX.md)
 - [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
+- [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md)
+- [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md)
 - [PRODUCT_TOUR.md](PRODUCT_TOUR.md)
 - [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md)
 - [LIVE_CUSTOMER_WALKTHROUGH.md](LIVE_CUSTOMER_WALKTHROUGH.md)
@@ -105,13 +107,13 @@ Qualify how the engagement should start:
 - Is procurement direct, partner-led, or government-led?
 - Is the customer trying to buy software only, or software plus rollout support?
 - Do they need on-site enablement, architecture review, or internal stakeholder workshops?
-- Do they expect enterprise-only features or a quote-specific rollout package?
+- Do they expect quote-specific packaging, dedicated support, or a rollout package beyond the community baseline?
 
 A simple decision rule:
 - community only: small internal evaluation, no special support, no regulated rollout pressure
 - guided evaluation: real interest, but still proving fit and deployment shape
 - paid pilot: real business workflow, real sponsor, real rollout pressure, but still scoping production
-- commercial rollout: production scope, procurement path, compliance requirements, or enterprise features/support needed
+- commercial rollout: production scope, procurement path, compliance requirements, or dedicated support / quote-specific packaging needed
 
 ## 6. ROI Framing And Economic Narrative
 

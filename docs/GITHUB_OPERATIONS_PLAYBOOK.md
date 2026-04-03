@@ -6,7 +6,7 @@ This document captures the next GitHub-facing setup steps after the first public
 
 ### Suggested repository description
 
-Open-core governance and orchestration toolkit for structured AI operations on private infrastructure.
+Private-first governed AI operating system for real roles, real work, and real oversight. AI works. Humans govern.
 
 ### Suggested website field
 

@@ -15,6 +15,14 @@ By the `v0.7.9` line, SA-NOM clears a concise private-first confidence bar for s
 - `91.08% governance coverage`
 - `Private-first pilot-ready command surface, Control Room, recovery, and governed workflow paths`
 
+## Open Source And Commercial Boundary
+
+SA-NOM keeps the public baseline real. The open-source repository includes the private-first governed runtime, command surface, Control Room baseline, Role Private Studio baseline, cases, documents, AI actions, master data, search, assignment, audit, and runtime confidence tooling.
+
+Commercial engagement is for organizations that need rollout help, quote-specific packaging, dedicated support, regulated-environment hardening, or tailored delivery work beyond the self-managed baseline.
+
+See [docs/COMMERCIAL_BOUNDARY.md](docs/COMMERCIAL_BOUNDARY.md) for the boundary model and [docs/COMMERCIAL_OFFER_PACKS.md](docs/COMMERCIAL_OFFER_PACKS.md) for the practical offer shapes.
+
 ## Quick Start
 
 If you want the shortest real first run, start with the private local lane and let SA-NOM bootstrap the runtime artifacts for you:
@@ -31,7 +39,7 @@ Choose the path that matches what you want to see first:
 
 ## Command Surface
 
-By the `v0.7.7` line, SA-NOM exposes a simple command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
+By the `v0.7.9` line, SA-NOM exposes a private-first command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
 
 ![SA-NOM Command Surface](docs/assets/command-surface-home-v0.7.7.png)
 
@@ -85,15 +93,15 @@ That means teams can study PTAG, use it, evaluate it, and contribute improvement
 
 See [docs/PTAG_FRAMEWORK.md](docs/PTAG_FRAMEWORK.md) for the public explanation of what PTAG is, [docs/PTAG_QUICK_START.md](docs/PTAG_QUICK_START.md) for the shortest onboarding path, [docs/PTAG_EXAMPLES.md](docs/PTAG_EXAMPLES.md) for the example map, [docs/PTAG_FAQ_AND_COMPARISON.md](docs/PTAG_FAQ_AND_COMPARISON.md) for common questions and positioning notes, and [docs/PTAG_FULL_SPEC.md](docs/PTAG_FULL_SPEC.md) for the current repository-level technical specification baseline.
 
-## Private Rule Studio And Private Rule Position
+## Role Private Studio
 
-`Private Rule Studio` is a core platform capability, not a paid unlock.
+`Role Private Studio` is a core platform capability, not a paid unlock.
 
-Organizations can upload their own JD inputs, start from JD and rule accelerators prepared by SA-NOM, and create a `Private Rule Position` for any organization-specific hat they need.
+Organizations can upload normal JD-style inputs, let SA-NOM transform them into PTAG-backed role packs behind the scenes, and create organization-specific AI hats without writing governance language by hand.
 
-That means SA-NOM is not limited to standard titles. Teams can define flexible positions such as a cross-functional recovery lead, a regulator liaison, or an exception coordinator, then govern that position through explicit authority, escalation, and evidence boundaries.
+That means SA-NOM is not limited to standard titles. Teams can define flexible governed roles such as a cross-functional recovery lead, a regulator liaison, or an exception coordinator, then manage that role through explicit authority, escalation, and evidence boundaries.
 
-See [docs/PRIVATE_RULE_POSITION.md](docs/PRIVATE_RULE_POSITION.md) for the concept and [examples/private_rule_position.example.json](examples/private_rule_position.example.json) for a public-safe example.
+See [docs/ROLE_PRIVATE_STUDIO.md](docs/ROLE_PRIVATE_STUDIO.md) for the current capability guide, [docs/PRIVATE_RULE_POSITION.md](docs/PRIVATE_RULE_POSITION.md) for the older historical note, and [examples/role_private_studio.example.json](examples/role_private_studio.example.json) for a public-safe example input.
 
 ## Compliance Knowledge Baseline
 
