@@ -2,6 +2,7 @@ import argparse
 import json
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from http.client import HTTPConnection
@@ -161,10 +162,14 @@ def _build_result(passed: bool, server: ThreadingHTTPServer, checks: list[SmokeC
     }
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Run a private-server smoke test against a local ephemeral SA-NOM runtime.')
     parser.add_argument('--token', default=None)
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = build_parser().parse_args(list(argv) if argv is not None else None)
     config = AppConfig()
     result = run_smoke(config=config, token=args.token)
     print(json.dumps(result, ensure_ascii=False, indent=2))

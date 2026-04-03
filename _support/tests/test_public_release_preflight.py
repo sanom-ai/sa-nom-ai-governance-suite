@@ -1,7 +1,12 @@
-﻿import json
+import io
+import json
+import sys
+from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+from sa_nom_governance.deployment import public_release_preflight as preflight
 from sa_nom_governance.deployment.public_release_preflight import run_preflight
 
 
@@ -32,7 +37,6 @@ def _seed_workspace(root: Path, *, version: str = '0.7.0') -> None:
     )
 
 
-
 def _write_performance_baseline(root: Path, *, status: str, slowest_metric: str = 'dashboard_snapshot') -> None:
     (root / '_review' / 'runtime_performance_baseline.json').write_text(
         json.dumps(
@@ -56,11 +60,9 @@ def _write_performance_baseline(root: Path, *, status: str, slowest_metric: str 
     )
 
 
-
 def _find_check(result: dict[str, object], label: str) -> dict[str, str]:
     checks = result.get('checks', []) if isinstance(result.get('checks', []), list) else []
     return next(check for check in checks if isinstance(check, dict) and check.get('label') == label)
-
 
 
 def test_public_release_preflight_blocks_on_critical_runtime_performance_posture() -> None:
@@ -77,7 +79,6 @@ def test_public_release_preflight_blocks_on_critical_runtime_performance_posture
         assert 'blocking' in check['detail']
 
 
-
 def test_public_release_preflight_warns_when_runtime_performance_is_monitoring() -> None:
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -92,7 +93,6 @@ def test_public_release_preflight_warns_when_runtime_performance_is_monitoring()
         assert 'warning budget' in check['detail']
 
 
-
 def test_public_release_preflight_blocks_when_target_release_notes_are_missing() -> None:
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -105,3 +105,74 @@ def test_public_release_preflight_blocks_when_target_release_notes_are_missing()
         check = _find_check(result, 'release_notes_target')
         assert check['status'] == 'error'
         assert 'v0.7.1' in check['detail']
+
+
+def test_preflight_helpers_cover_invalid_missing_and_warning_states() -> None:
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        assert preflight._project_version(root) is None
+
+        invalid_json_path = root / 'invalid.json'
+        invalid_json_path.write_text('{broken', encoding='utf-8')
+        assert preflight._load_json(invalid_json_path) is None
+
+        list_json_path = root / 'list.json'
+        list_json_path.write_text(json.dumps(['not', 'a', 'dict']), encoding='utf-8')
+        assert preflight._load_json(list_json_path) is None
+
+        review_dir = root / '_review'
+        review_dir.mkdir(parents=True, exist_ok=True)
+        (review_dir / 'quick_start_doctor.json').write_text('{broken', encoding='utf-8')
+        quick_start = preflight._load_quick_start_doctor(root)
+        assert quick_start['status'] == 'invalid'
+
+        baseline = preflight._load_runtime_performance_baseline(root)
+        assert baseline['status'] == 'missing'
+
+        assert preflight._evaluate_checks([{'status': 'warning'}]) == 'READY WITH WARNINGS'
+        assert preflight._evaluate_checks([{'status': 'ok'}]) == 'READY'
+
+
+def test_public_release_preflight_uses_release_catalog_and_surfaces_mixed_warnings() -> None:
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        _seed_workspace(root)
+        (root / 'pyproject.toml').unlink()
+        (root / '.env.local').write_text('TOKEN=secret\n', encoding='utf-8')
+        (root / '_review' / 'quick_start_doctor.json').write_text(
+            json.dumps({'status': 'warn', 'summary': {'advisory_failed_total': 2}}, indent=2),
+            encoding='utf-8',
+        )
+        (root / '_review' / 'runtime_performance_baseline.json').write_text('{broken', encoding='utf-8')
+
+        result = run_preflight(root=root, git_available=False, pytest_installed=False)
+
+        assert result['status'] == 'READY WITH WARNINGS'
+        assert _find_check(result, 'git_installed')['status'] == 'warning'
+        assert _find_check(result, 'pytest_installed')['status'] == 'warning'
+        assert _find_check(result, 'release_notes_catalog')['status'] == 'ok'
+        assert _find_check(result, 'private_env_files')['status'] == 'warning'
+        assert _find_check(result, 'quick_start_doctor_posture')['status'] == 'warning'
+        assert _find_check(result, 'runtime_performance_guardrail')['status'] == 'warning'
+
+
+def test_public_release_preflight_main_prints_json_and_text_modes() -> None:
+    ok_result = {'status': 'READY', 'checks': [], 'release_version': None}
+    with patch.object(preflight, 'run_preflight', return_value=ok_result), patch.object(sys, 'argv', ['preflight', '--json']):
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            assert preflight.main() == 0
+        assert '"status": "READY"' in stream.getvalue()
+
+    blocked_result = {
+        'status': 'BLOCKED',
+        'checks': [{'status': 'error', 'label': 'release_notes_target', 'detail': 'missing notes'}],
+        'release_version': '0.7.9',
+    }
+    with patch.object(preflight, 'run_preflight', return_value=blocked_result), patch.object(sys, 'argv', ['preflight', '--release-version', '0.7.9']):
+        stream = io.StringIO()
+        with redirect_stdout(stream):
+            assert preflight.main() == 1
+        text = stream.getvalue()
+        assert 'Target release version: v0.7.9' in text
+        assert 'Preflight result: BLOCKED' in text

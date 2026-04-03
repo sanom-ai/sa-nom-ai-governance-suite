@@ -1,10 +1,16 @@
-from sa_nom_governance.utils.config import AppConfig
+from pathlib import Path
+
 from sa_nom_governance.compliance.trusted_registry import write_trusted_registry_files
+from sa_nom_governance.utils.config import AppConfig
+
+
+def collect_role_ids(roles_dir: Path) -> list[str]:
+    return sorted(path.stem for path in roles_dir.glob('*.ptn') if path.stem.lower() != 'core_terms')
 
 
 def main() -> None:
     config = AppConfig()
-    role_ids = sorted(path.stem for path in config.roles_dir.glob('*.ptn') if path.stem.lower() != 'core_terms')
+    role_ids = collect_role_ids(config.roles_dir)
     manifest, cache = write_trusted_registry_files(
         roles_dir=config.roles_dir,
         manifest_path=config.trusted_registry_manifest_path,

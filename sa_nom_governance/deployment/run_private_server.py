@@ -1,13 +1,14 @@
 import argparse
 import json
+from collections.abc import Sequence
 
-from sa_nom_governance.utils.config import AppConfig
 from sa_nom_governance.dashboard.dashboard_server import run_server
 from sa_nom_governance.deployment.deployment_profile import validate_startup_or_raise
 from sa_nom_governance.deployment.private_server_smoke_test import run_smoke
+from sa_nom_governance.utils.config import AppConfig
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='Run the SA-NOM private server with optional startup smoke validation.')
     parser.add_argument('--host', default=None)
     parser.add_argument('--port', type=int, default=None)
@@ -15,7 +16,11 @@ def main() -> None:
     parser.add_argument('--check-only', action='store_true')
     parser.add_argument('--smoke-only', action='store_true')
     parser.add_argument('--smoke-before-serve', action='store_true')
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = build_parser().parse_args(list(argv) if argv is not None else None)
 
     config = AppConfig()
     if args.token is not None:

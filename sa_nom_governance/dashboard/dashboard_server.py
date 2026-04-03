@@ -1,5 +1,6 @@
 import json
 import os
+from collections.abc import Sequence
 from argparse import ArgumentParser
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
@@ -1121,13 +1122,17 @@ def run_server(config: AppConfig | None = None, host: str | None = None, port: i
     server.serve_forever()
 
 
-def main() -> None:
+def build_parser() -> ArgumentParser:
     parser = ArgumentParser(description='Serve the SA-NOM AI Governance Suite dashboard and private API.')
     parser.add_argument('--host', default=None)
     parser.add_argument('--port', type=int, default=None)
     parser.add_argument('--token', default=None)
     parser.add_argument('--check-only', action='store_true')
-    args = parser.parse_args()
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = build_parser().parse_args(list(argv) if argv is not None else None)
     config = AppConfig()
     if args.token is not None:
         config.api_token = args.token

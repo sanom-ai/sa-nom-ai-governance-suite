@@ -1,4 +1,4 @@
-﻿# Documentation
+# Documentation
 
 SA-NOM keeps product, deployment, evaluation, and release notes in this directory so the repository root stays focused on the codebase and top-level metadata.
 
@@ -68,6 +68,11 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 
 ## Planning And Release Notes
 
+- [Roadmap v0.7.9](ROADMAP_v0.7.9.md)
+- [Issue Drafts v0.7.9](ISSUE_DRAFTS_v0.7.9.md)
+- [Release Notes v0.7.9](releases/RELEASE_NOTES_v0.7.9.md)
+- [PR Description v0.7.9](releases/PR_DESCRIPTION_v0.7.9.md)
+- [v0.7.9 Handoff](V0_7_9_HANDOFF.md)
 - [Roadmap v0.7.8](ROADMAP_v0.7.8.md)
 - [Issue Drafts v0.7.8](ISSUE_DRAFTS_v0.7.8.md)
 - [Release Notes v0.7.8](releases/RELEASE_NOTES_v0.7.8.md)
@@ -172,4 +177,5 @@ SA-NOM keeps product, deployment, evaluation, and release notes in this director
 - [Release Notes v0.7.7](releases/RELEASE_NOTES_v0.7.7.md)
 - [PR Description v0.7.7](releases/PR_DESCRIPTION_v0.7.7.md)
 - [v0.7.7 Handoff](V0_7_7_HANDOFF.md)
+
 
