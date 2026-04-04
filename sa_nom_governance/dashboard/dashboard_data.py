@@ -2670,28 +2670,50 @@ class DashboardSnapshotBuilder:
             )
 
         ai_activity = []
-        for item in sorted(
-            action_items,
-            key=lambda payload: str(payload.get('updated_at', payload.get('created_at', '')) or ''),
-            reverse=True,
-        )[:5]:
+        for index, item in enumerate(
+            sorted(
+                action_items,
+                key=lambda payload: str(payload.get('updated_at', payload.get('created_at', '')) or ''),
+                reverse=True,
+            )[:5]
+        ):
             status = str(item.get('status', '') or '')
             if status == 'running':
                 activity_note = 'AI is actively moving this governed action forward inside its case boundary.'
                 tone = 'accent'
+                tempo_badge = 'live now'
+                route_phase = 'AI currently owns the move.'
             elif status == 'waiting_human':
                 activity_note = 'AI reached a human boundary and is waiting for explicit follow-through.'
                 tone = 'warning'
+                tempo_badge = 'human step now'
+                route_phase = 'A real person now owns the next safe move.'
             elif status == 'failed_closed':
                 activity_note = 'The runtime failed closed here, so a person must inspect the blocked path before retrying.'
                 tone = 'danger'
+                tempo_badge = 'recover now'
+                route_phase = 'Recovery work must clear this path before AI can continue.'
             elif status == 'completed':
                 activity_note = 'AI completed the governed action and kept the outcome inside the same proof trail.'
                 tone = 'success'
+                tempo_badge = 'follow-through'
+                route_phase = 'The result is ready for governed follow-through.'
             else:
                 activity_note = 'This governed action is visible so the Director can keep continuity without opening lower-level traces.'
                 tone = 'default'
-            ai_activity.append({**item, 'activity_note': activity_note, 'tone': tone})
+                tempo_badge = 'visible'
+                route_phase = 'Visible for continuity across the runtime.'
+            ai_activity.append(
+                {
+                    **item,
+                    'activity_note': activity_note,
+                    'tone': tone,
+                    'tempo_badge': tempo_badge,
+                    'route_phase': route_phase,
+                    'board_rank_label': 'Lead AI move' if index == 0 else 'Keep nearby' if index > 2 else 'Watch next',
+                    'featured': index == 0,
+                }
+            )
 
         team_counts: dict[str, int] = {}
         team_assignment_buckets: dict[str, list[dict[str, object]]] = {}
@@ -2819,21 +2841,25 @@ class DashboardSnapshotBuilder:
                 tone = 'warning'
                 operation_label = 'Human boundary operation'
                 quest_note = 'A real human decision is now gating this cross-lane operation.'
+                route_phase = 'Human sign-off is the only safe next move.'
             elif operation.get('blocked_total', 0):
                 pressure_badge = 'blocked path'
                 tone = 'danger'
                 operation_label = 'Recovery operation'
                 quest_note = 'This operation is fail-closed until someone clears the blocked path.'
+                route_phase = 'Recovery must reopen the path before the board can advance.'
             elif operation.get('attention_required_total', 0):
                 pressure_badge = 'active review'
                 tone = 'warning'
                 operation_label = 'Review operation'
                 quest_note = 'Review is still shaping the next safe move inside this operation.'
+                route_phase = 'Review is actively steering the next lane.'
             else:
                 pressure_badge = 'live queue'
                 tone = 'accent'
                 operation_label = 'Live governed operation'
                 quest_note = 'AI and routed teams are still moving this operation forward.'
+                route_phase = 'The board is moving through governed lanes without human interruption.'
             cast_teams = operation.get('teams', set())
             cast_views = operation.get('views', [])
             teams = sorted(cast_teams) if isinstance(cast_teams, set) else []
@@ -2846,6 +2872,7 @@ class DashboardSnapshotBuilder:
                     'pressure_badge': pressure_badge,
                     'tone': tone,
                     'quest_note': quest_note,
+                    'route_phase': route_phase,
                     'lead_move': str(lead_item.get('next_action', lead_item.get('detail', 'Continue from the lead governed lane.')) or 'Continue from the lead governed lane.'),
                     'lead_team': teams[0] if teams else 'Operations',
                     'team_total': len(teams),
@@ -2864,6 +2891,9 @@ class DashboardSnapshotBuilder:
                 str(item.get('case_id', '') or ''),
             )
         )
+        for index, item in enumerate(active_operations):
+            item['board_rank_label'] = 'Lead operation' if index == 0 else 'Watch next' if index == 1 else 'Keep nearby'
+            item['featured'] = index == 0
 
         human_required_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'human_required')
         blocked_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'blocked')

@@ -1171,9 +1171,13 @@ def test_dashboard_snapshot_exposes_command_surface_summary() -> None:
             assert isinstance(next_actions[0].get('why_now'), str)
         if ai_feed:
             assert isinstance(ai_feed[0].get('activity_note'), str)
+            assert isinstance(ai_feed[0].get('tempo_badge'), str)
+            assert isinstance(ai_feed[0].get('board_rank_label'), str)
         if active_operations:
             assert isinstance(active_operations[0].get('quest_note'), str)
             assert isinstance(active_operations[0].get('lead_move'), str)
+            assert isinstance(active_operations[0].get('board_rank_label'), str)
+            assert isinstance(active_operations[0].get('route_phase'), str)
         if quick_access:
             assert isinstance(quick_access[0].get('context_note'), str)
             assert isinstance(quick_access[0].get('pressure_label'), str)
@@ -1228,6 +1232,7 @@ def test_command_surface_prioritizes_active_department_quick_access_for_compact_
         assert operations_team.get('lead_case_id') == 'CASE-OPS-1'
         assert active_operations[0].get('case_id') == 'CASE-OPS-1'
         assert active_operations[0].get('pressure_badge') == 'human boundary'
+        assert active_operations[0].get('board_rank_label') == 'Lead operation'
         assert 'human decision' in str(active_operations[0].get('lead_move', '')).lower()
 
 
@@ -1354,6 +1359,8 @@ def test_command_surface_mission_control_prioritizes_human_boundaries_before_blo
         assert next_actions[0].get('why_now') == 'A real human decision is now the only safe next move.'
         assert next_actions[1].get('move_label') == 'Resolve Now'
         assert ai_feed[0].get('activity_note') == 'AI is actively moving this governed action forward inside its case boundary.'
+        assert ai_feed[0].get('tempo_badge') == 'live now'
+        assert ai_feed[0].get('board_rank_label') == 'Lead AI move'
         assert 'actively moving' in str(mission.get('ai_momentum_title', ''))
 
 

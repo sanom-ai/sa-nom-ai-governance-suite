@@ -5091,7 +5091,7 @@ function renderCommandHome(snapshot) {
             ])}
             <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(inboxSummary.primary_next_step || missionTopDetail)}</p></div>
             <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
-            ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}</div></div><div class="command-operation-grid">${activeOperations.map((item) => renderActiveOperationCard(item)).join('')}</div></div>` : ''}
+            ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}${statusBadge(activeOperations[0].board_rank_label || 'Lead operation')}</div></div>${renderActiveOperationCard(activeOperations[0], { featured: true })}${activeOperations.length > 1 ? `<div class="command-operation-grid">${activeOperations.slice(1).map((item) => renderActiveOperationCard(item)).join('')}</div>` : ''}</div>` : ''}
           </section>
           <section class="card command-next-actions-card stack command-home-section command-home-section-actions">
             <div class="hero-heading">
@@ -5421,19 +5421,21 @@ function buildHomeNextActions(snapshot, surface) {
   return [...assignments].sort((left, right) => fallbackScore(right) - fallbackScore(left)).slice(0, 6);
 }
 
-function renderActiveOperationCard(item) {
+function renderActiveOperationCard(item, options = {}) {
+  const featured = Boolean(options.featured || item.featured);
   const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const featuredClass = featured ? ' command-operation-card-featured' : '';
   const nextLaneLabel = item.next_view_label || VIEW_TITLES[item.next_view || 'cases'] || 'Cases';
   const openCaseButton = renderViewJumpButton({
     view: 'cases',
-    label: 'Open case',
+    label: featured ? 'Open lead case' : 'Open case',
     className: 'action-button',
     focusType: 'case',
     focusId: item.case_id || '',
     caseId: item.case_id || '',
     title: item.case_id ? `Case ${item.case_id} reopened from Home.` : 'Case reopened from Home.',
     detail: item.quest_note || 'Continue from the canonical case story.',
-    actionLabel: 'Open case',
+    actionLabel: featured ? 'Open lead case' : 'Open case',
   });
   const openLaneButton = renderViewJumpButton({
     view: item.next_view || 'cases',
@@ -5447,16 +5449,18 @@ function renderActiveOperationCard(item) {
     actionLabel: `Open ${nextLaneLabel}`,
   });
   return `
-      <article class="command-action-card command-operation-card${toneClass}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id || ''))}">
+      <article class="command-action-card command-operation-card${toneClass}${featuredClass}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id || ''))}">
         <div class="hero-heading">
           <div>
-            <div class="eyebrow muted">${escapeHtml(item.case_id || 'Operation')}</div>
+            <div class="eyebrow muted">${escapeHtml(item.board_rank_label || item.case_id || 'Operation')}</div>
             <strong>${escapeHtml(item.title || item.case_id || 'Governed operation')}</strong>
           </div>
           <div class="hero-chip-row">${statusBadge(item.pressure_badge || 'operation')}${statusBadge(`${escapeHtml(String(item.item_total || 0))} items`)}</div>
         </div>
+        <div class="transition-route command-feed-route command-operation-route"><span class="transition-node">${escapeHtml(item.lead_team || 'Operations')}</span><span class="transition-arrow">&rarr;</span><span class="transition-node transition-node-active">${escapeHtml(nextLaneLabel)}</span></div>
         <p class="muted">${escapeHtml(item.quest_note || item.operation_label || 'Keep the operation visible across lanes.')}</p>
         <div class="trace-box compact-trace"><strong>${escapeHtml(item.operation_label || 'Active operation')}</strong><p class="muted">${escapeHtml(item.lead_move || 'Continue from the lead governed lane.')}</p></div>
+        <p class="muted small command-momentum-note">${escapeHtml(item.route_phase || 'The next governed lane is already visible from this operation.')}</p>
         <div class="command-action-meta">${escapeHtml(item.lead_team || 'Operations')} | ${escapeHtml(String(item.item_total || 0))} routed items | ${escapeHtml(item.lane_summary || nextLaneLabel)}</div>
         <div class="inline-actions">${openCaseButton}${openLaneButton}</div>
       </article>
@@ -5490,7 +5494,9 @@ function renderHomeNextActionCard(item) {
 }
 
 function renderAiFeedCard(item) {
+  const featured = Boolean(item.featured);
   const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const featuredClass = featured ? ' command-feed-card-featured' : '';
   const normalizedStatus = String(item.status || 'planned').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const stateClass = normalizedStatus ? ` command-feed-card-state-${escapeHtml(normalizedStatus)}` : '';
   const actionView = item.status === 'waiting_human' ? 'cases' : item.status === 'failed_closed' ? 'cases' : 'actions';
@@ -5523,17 +5529,17 @@ function renderAiFeedCard(item) {
           ? 'Follow-through ready'
           : 'Continuity visible';
   return `
-      <article class="command-feed-card${toneClass}${stateClass}">
+      <article class="command-feed-card${toneClass}${stateClass}${featuredClass}">
         <div class="hero-heading">
           <div>
-            <div class="eyebrow muted">${escapeHtml(titleCase(item.action_type || 'ai action'))}</div>
+            <div class="eyebrow muted">${escapeHtml(item.board_rank_label || titleCase(item.action_type || 'ai action'))}</div>
             <strong>${escapeHtml(item.label || item.action_type || 'AI action')}</strong>
           </div>
-          <div class="hero-chip-row">${statusBadge(item.status || 'planned')}${statusBadge(momentumLabel)}</div>
+          <div class="hero-chip-row">${statusBadge(item.status || 'planned')}${statusBadge(item.tempo_badge || momentumLabel)}</div>
         </div>
         <div class="transition-route command-feed-route"><span class="transition-node">AI runtime</span><span class="transition-arrow">&rarr;</span><span class="transition-node transition-node-active">${escapeHtml(actionViewLabel)}</span></div>
         <p class="muted">${escapeHtml(item.activity_note || item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
-        <p class="muted small command-momentum-note">${escapeHtml(statusNote)}</p>
+        <p class="muted small command-momentum-note">${escapeHtml(item.route_phase || statusNote)}</p>
         <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
         <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: actionView, focusType: actionView === 'actions' ? 'action' : '', focusId: actionView === 'actions' ? (item.action_id || '') : '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel })}>${escapeHtml(actionLabel)}</button></div>
       </article>
