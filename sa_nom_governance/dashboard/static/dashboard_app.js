@@ -37,6 +37,8 @@ const state = {
   laneTransition: null,
 };
 
+const LANE_TRANSITION_WINDOW_MS = 2200;
+
 const root = document.getElementById('dashboard-root');
 const navList = document.getElementById('nav-list');
 const viewTitle = document.getElementById('view-title');
@@ -1649,6 +1651,14 @@ function buildFocusKey(entityType, entityId) {
   return type && id ? `${type}:${id}` : '';
 }
 
+function getActiveLaneTransition() {
+  const laneTransition = state.laneTransition;
+  if (!laneTransition || laneTransition.to !== state.view) return null;
+  const startedAt = Number(laneTransition.startedAt || 0);
+  if (startedAt && Date.now() - startedAt > LANE_TRANSITION_WINDOW_MS) return null;
+  return laneTransition;
+}
+
 function setActionContext({ entityType = '', entityId = '', caseId = '', view = '', controlRoomTool = '', title = '', detail = '', actionLabel = '' } = {}) {
   const normalizedEntityType = String(entityType || '').trim();
   const normalizedEntityId = String(entityId || '').trim();
@@ -2156,10 +2166,14 @@ function render() {
   document.body.dataset.view = state.view;
   const transitionFrom = state.lastRenderedView && state.lastRenderedView !== state.view ? state.lastRenderedView : '';
   if (transitionFrom) {
-    state.laneTransition = { from: transitionFrom, to: state.view };
+    state.laneTransition = { from: transitionFrom, to: state.view, startedAt: Date.now() };
   }
-  const activeLaneTransition = state.laneTransition && state.laneTransition.to === state.view ? state.laneTransition : null;
+  const activeLaneTransition = getActiveLaneTransition();
+  if (!activeLaneTransition && state.laneTransition && state.laneTransition.to === state.view) {
+    state.laneTransition = null;
+  }
   document.body.dataset.viewOrigin = activeLaneTransition ? activeLaneTransition.from : '';
+  document.body.dataset.viewTransition = activeLaneTransition ? 'active' : 'idle';
   if (state.authRequired || !state.snapshot) {
     stopLiveTimestampTicker();
     sessionLabel.textContent = 'disconnected';
@@ -2378,13 +2392,17 @@ function renderViewPrelude(snapshot) {
     narrative: VIEW_DESCRIPTIONS[state.view],
     emphasis: 'runtime posture',
   };
-  const laneTransition = state.laneTransition && state.laneTransition.to === state.view ? state.laneTransition : null;
+  const laneTransition = getActiveLaneTransition();
   const transitionFromLabel = laneTransition ? (VIEW_TITLES[laneTransition.from] || titleCase(laneTransition.from || 'overview')) : '';
+  const currentViewLabel = VIEW_TITLES[state.view] || titleCase(state.view || 'overview');
+  const continuationLabel = laneTransition
+    ? (state.actionContext?.actionLabel || `Continue in ${currentViewLabel}`)
+    : '';
   const entryTrace = laneTransition
-    ? `<div class="trace-box view-entry-trace"><strong>Entered from ${escapeHtml(transitionFromLabel)}</strong><p class="muted">This lane now carries the next governed move, so the highlighted work stays easier to continue without re-scanning the whole board.</p></div>`
+    ? `<div class="trace-box view-entry-trace"><strong>Entered from ${escapeHtml(transitionFromLabel)}</strong><p class="muted">This lane now carries the next governed move, so the highlighted work stays easier to continue without re-scanning the whole board.</p><div class="transition-route"><span class="transition-node">${escapeHtml(transitionFromLabel)}</span><span class="transition-arrow">-&gt;</span><span class="transition-node transition-node-active">${escapeHtml(currentViewLabel)}</span></div><div class="transition-chip-row">${statusBadge(continuationLabel)}${statusBadge('continuity preserved')}</div></div>`
     : '';
   return `
-    <section class="view-prelude card view-prelude-${escapeHtml(state.view)}">
+    <section class="view-prelude card view-prelude-${escapeHtml(state.view)}${laneTransition ? ' view-prelude-entering' : ''}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(profile.eyebrow)}</div>
@@ -2395,8 +2413,8 @@ function renderViewPrelude(snapshot) {
       </div>
       ${entryTrace}
       <div class="view-prelude-grid">
-        ${visibleCues.map((cue) => `
-          <article class="view-prelude-card${cue.tone ? ` view-prelude-card-${escapeHtml(cue.tone)}` : ''}">
+        ${visibleCues.map((cue, index) => `
+          <article class="view-prelude-card${cue.tone ? ` view-prelude-card-${escapeHtml(cue.tone)}` : ''}${laneTransition ? ' view-prelude-card-entering' : ''}"${laneTransition ? ` style="--lane-entry-index:${index}"` : ''}>
             <span class="view-prelude-label">${escapeHtml(cue.label)}</span>
             <strong>${escapeHtml(String(cue.value))}</strong>
             <p class="muted">${escapeHtml(cue.note)}</p>
@@ -9780,7 +9798,7 @@ function renderRoleFlowCell(row) {
   const changed = previousRole && previousRole !== newRole;
   const requestChip = requestedRole && requestedRole !== '-' ? `<span class="status-chip">Requested ${escapeHtml(requestedRole)}</span>` : '';
   const flow = changed
-    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(previousRole)}</span><span class="transition-arrow">?</span><span class="transition-node transition-node-active">${escapeHtml(newRole)}</span></div>`
+    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(previousRole)}</span><span class="transition-arrow">-&gt;</span><span class="transition-node transition-node-active">${escapeHtml(newRole)}</span></div>`
     : `<div class="transition-route"><span class="transition-node transition-node-active">${escapeHtml(newRole)}</span></div>`;
   const meta = transition.switch_reason || transition.business_domain || row.reason || '-';
   return `<div class="transition-stack">${flow}<div class="transition-chip-row">${requestChip}${changed ? statusBadge('switched') : statusBadge('steady')}</div><div class="transition-meta">${escapeHtml(meta)}</div></div>`;
@@ -9809,7 +9827,7 @@ function renderRoleHierarchyLane(role) {
     role.safety_owner ? statusBadge(`safety ${role.safety_owner}`) : '',
   ].filter(Boolean).join('');
   const route = role.reports_to
-    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(role.role_id)}</span><span class="transition-arrow">?</span><span class="transition-node">${escapeHtml(role.reports_to)}</span><span class="transition-arrow">?</span><span class="transition-node transition-node-active">${escapeHtml(role.escalation_to || role.reports_to)}</span></div>`
+    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(role.role_id)}</span><span class="transition-arrow">-&gt;</span><span class="transition-node">${escapeHtml(role.reports_to)}</span><span class="transition-arrow">-&gt;</span><span class="transition-node transition-node-active">${escapeHtml(role.escalation_to || role.reports_to)}</span></div>`
     : `<div class="transition-route"><span class="transition-node transition-node-active">${escapeHtml(role.role_id)}</span></div>`;
   return `<section class="transition-panel role-hierarchy-panel"><div class="transition-chip-row">${chips}</div>${route}<div class="transition-meta">Reports to ${escapeHtml(role.reports_to || '-')} | Escalates to ${escapeHtml(role.escalation_to || '-')} | Safety owner ${escapeHtml(role.safety_owner || '-')}</div></section>`;
 }
