@@ -1148,16 +1148,30 @@ def test_dashboard_snapshot_exposes_command_surface_summary() -> None:
 
         surface = snapshot.get('command_surface', {})
         posture = surface.get('posture_summary', {}) if isinstance(surface.get('posture_summary', {}), dict) else {}
+        mission = surface.get('mission_control', {}) if isinstance(surface.get('mission_control', {}), dict) else {}
         quick_links = surface.get('quick_links', []) if isinstance(surface.get('quick_links', []), list) else []
+        next_actions = surface.get('next_actions', []) if isinstance(surface.get('next_actions', []), list) else []
+        ai_feed = surface.get('ai_activity_feed', []) if isinstance(surface.get('ai_activity_feed', []), list) else []
+        quick_access = surface.get('department_quick_access', []) if isinstance(surface.get('department_quick_access', []), list) else []
 
         assert surface.get('organization_name')
         assert posture.get('operating_mode') == 'Governance-first'
         assert posture.get('operating_status') in {'stable', 'guarded'}
         assert isinstance(posture.get('ai_actions_running'), int)
         assert isinstance(posture.get('attention_items_total'), int)
-        assert isinstance(surface.get('next_actions', []), list)
-        assert isinstance(surface.get('ai_activity_feed', []), list)
-        assert isinstance(surface.get('department_quick_access', []), list)
+        assert mission.get('world_state_title')
+        assert mission.get('top_move_title')
+        assert mission.get('ai_momentum_title')
+        assert isinstance(next_actions, list)
+        assert isinstance(ai_feed, list)
+        assert isinstance(quick_access, list)
+        if next_actions:
+            assert isinstance(next_actions[0].get('move_label'), str)
+            assert isinstance(next_actions[0].get('why_now'), str)
+        if ai_feed:
+            assert isinstance(ai_feed[0].get('activity_note'), str)
+        if quick_access:
+            assert isinstance(quick_access[0].get('context_note'), str)
         assert [item.get('view') for item in quick_links] == ['requests', 'cases', 'documents', 'actions']
 
 
@@ -1203,6 +1217,232 @@ def test_command_surface_prioritizes_active_department_quick_access_for_compact_
         assert len(quick_access) == 6
         assert [item.get('label') for item in quick_access[:4]] == ['Operations', 'Vendor Risk', 'Finance', 'HR']
         assert next(item for item in quick_access if item.get('label') == 'Vendor Risk').get('assignment_total') == 1
+
+
+def test_command_surface_mission_control_prioritizes_human_boundaries_before_blocked_paths() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        surface = builder.command_surface(
+            assignment_queue={
+                'items': [
+                    {
+                        'assignment_id': 'override:OVR-1',
+                        'kind': 'override',
+                        'title': 'Review override OVR-1',
+                        'detail': 'A governed request crossed a human boundary.',
+                        'view': 'overrides',
+                        'focus_type': 'override',
+                        'focus_id': 'OVR-1',
+                        'status': 'human_required',
+                        'priority': 'critical',
+                        'owner_id': 'reviewer',
+                        'owner_label': 'Reviewer',
+                        'team_id': 'operations',
+                        'team_label': 'Operations',
+                        'case_id': 'CASE-1',
+                        'reference_id': 'REQ-1',
+                        'action_label': 'Open Overrides',
+                        'next_action': 'Record the human decision so governed flow can continue safely.',
+                        'age_hours': 3,
+                    },
+                    {
+                        'assignment_id': 'action:ACT-9',
+                        'kind': 'action',
+                        'title': 'Blocked summarization',
+                        'detail': 'The action failed closed and needs recovery.',
+                        'view': 'actions',
+                        'focus_type': 'action',
+                        'focus_id': 'ACT-9',
+                        'status': 'blocked',
+                        'priority': 'high',
+                        'owner_id': 'operator',
+                        'owner_label': 'Operator',
+                        'team_id': 'operations',
+                        'team_label': 'Operations',
+                        'case_id': 'CASE-2',
+                        'reference_id': 'ACT-9',
+                        'action_label': 'Open AI Actions',
+                        'next_action': 'Inspect the failed-closed action before retrying.',
+                        'age_hours': 6,
+                    },
+                    {
+                        'assignment_id': 'document:DOC-7',
+                        'kind': 'document',
+                        'title': 'Advance document GOV-7',
+                        'detail': 'A document is waiting in review.',
+                        'view': 'documents',
+                        'focus_type': 'document',
+                        'focus_id': 'DOC-7',
+                        'status': 'attention_required',
+                        'priority': 'high',
+                        'owner_id': 'operator',
+                        'owner_label': 'Operator',
+                        'team_id': 'finance',
+                        'team_label': 'Finance',
+                        'case_id': 'CASE-3',
+                        'reference_id': 'DOC-7',
+                        'action_label': 'Open Documents',
+                        'next_action': 'Continue the formal review lane for this document.',
+                        'age_hours': 2,
+                    },
+                ]
+            },
+            master_data={
+                'summary': {'organization_name': 'Tawan Company'},
+                'teams': [
+                    {'team_id': 'operations', 'label': 'Operations', 'member_ids': ['P1'], 'seat_ids': ['S1']},
+                    {'team_id': 'finance', 'label': 'Finance', 'member_ids': ['P2'], 'seat_ids': ['S2']},
+                ],
+            },
+            actions={
+                'items': [
+                    {
+                        'action_id': 'ACT-1',
+                        'action_type': 'summarize_case',
+                        'label': 'Summarize CASE-1',
+                        'status': 'running',
+                        'case_id': 'CASE-1',
+                        'updated_at': '2026-04-04T10:10:00+00:00',
+                        'created_at': '2026-04-04T10:00:00+00:00',
+                    },
+                    {
+                        'action_id': 'ACT-2',
+                        'action_type': 'document_draft',
+                        'label': 'Draft CASE-2 memo',
+                        'status': 'waiting_human',
+                        'case_id': 'CASE-2',
+                        'updated_at': '2026-04-04T10:05:00+00:00',
+                        'created_at': '2026-04-04T10:01:00+00:00',
+                    },
+                ],
+                'summary': {
+                    'running_total': 1,
+                    'waiting_human_total': 1,
+                    'completed_total': 0,
+                    'failed_closed_total': 0,
+                    'actions_total': 2,
+                },
+            },
+            evidence_exports={'summary': {'posture': 'verified'}},
+            runtime_health={'audit_integrity': {'status': 'verified', 'verified_at': '2026-04-04T10:00:00+00:00'}},
+            go_live_readiness={'status': 'ready'},
+            operator_queue_health={'items': [{'status': 'critical', 'total': 1}]},
+            owner_registration={'organization_name': 'Tawan Company'},
+        )
+
+        mission = surface.get('mission_control', {})
+        next_actions = surface.get('next_actions', [])
+        ai_feed = surface.get('ai_activity_feed', [])
+
+        assert 'human-boundary' in str(mission.get('world_state_title', ''))
+        assert mission.get('top_move_title') == 'Review override OVR-1'
+        assert next_actions[0].get('move_label') == 'Approve'
+        assert next_actions[0].get('why_now') == 'A real human decision is now the only safe next move.'
+        assert next_actions[1].get('move_label') == 'Resolve Now'
+        assert ai_feed[0].get('activity_note') == 'AI is actively moving this governed action forward inside its case boundary.'
+        assert 'actively moving' in str(mission.get('ai_momentum_title', ''))
+
+
+def test_command_surface_mission_control_describes_blocked_pressure_when_no_human_boundary_exists() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        surface = builder.command_surface(
+            assignment_queue={
+                'items': [
+                    {
+                        'assignment_id': 'action:ACT-3',
+                        'kind': 'action',
+                        'title': 'Resolve blocked action ACT-3',
+                        'detail': 'A blocked AI action needs recovery.',
+                        'view': 'actions',
+                        'focus_type': 'action',
+                        'focus_id': 'ACT-3',
+                        'status': 'blocked',
+                        'priority': 'high',
+                        'owner_id': 'operator',
+                        'owner_label': 'Operator',
+                        'team_id': 'operations',
+                        'team_label': 'Operations',
+                        'case_id': 'CASE-9',
+                        'reference_id': 'ACT-3',
+                        'action_label': 'Open AI Actions',
+                        'next_action': 'Inspect the blocked action and recover the case path.',
+                        'age_hours': 7,
+                    }
+                ]
+            },
+            master_data={'summary': {'organization_name': 'Tawan Company'}, 'teams': []},
+            actions={'items': [], 'summary': {'actions_total': 0}},
+            evidence_exports={'summary': {}},
+            runtime_health={'audit_integrity': {}},
+            go_live_readiness={'status': 'ready'},
+            operator_queue_health={'items': []},
+            owner_registration={'organization_name': 'Tawan Company'},
+        )
+
+        mission = surface.get('mission_control', {})
+
+        assert mission.get('world_state_badge') == 'blocked'
+        assert 'blocked paths need recovery' in str(mission.get('world_state_title', ''))
+        assert surface.get('next_actions', [])[0].get('move_label') == 'Resolve Now'
+
+
+def test_command_surface_mission_control_handles_quiet_completed_runtime_states() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        surface = builder.command_surface(
+            assignment_queue={'items': []},
+            master_data={'summary': {'organization_name': 'Tawan Company'}, 'teams': []},
+            actions={
+                'items': [
+                    {
+                        'action_id': 'ACT-11',
+                        'action_type': 'summarize_case',
+                        'label': 'Summarize CASE-11',
+                        'status': 'completed',
+                        'case_id': 'CASE-11',
+                        'updated_at': '2026-04-04T10:10:00+00:00',
+                        'created_at': '2026-04-04T10:00:00+00:00',
+                    },
+                    {
+                        'action_id': 'ACT-12',
+                        'action_type': 'follow_up',
+                        'label': 'Prepare CASE-12 follow-up',
+                        'status': 'planned',
+                        'case_id': 'CASE-12',
+                        'updated_at': '2026-04-04T10:08:00+00:00',
+                        'created_at': '2026-04-04T10:01:00+00:00',
+                    },
+                ],
+                'summary': {
+                    'running_total': 0,
+                    'waiting_human_total': 0,
+                    'completed_total': 1,
+                    'failed_closed_total': 0,
+                    'actions_total': 2,
+                },
+            },
+            evidence_exports={'summary': {}},
+            runtime_health={'audit_integrity': {}},
+            go_live_readiness={'status': 'ready'},
+            operator_queue_health={'items': []},
+            owner_registration={'organization_name': 'Tawan Company'},
+        )
+
+        mission = surface.get('mission_control', {})
+        ai_feed = surface.get('ai_activity_feed', [])
+
+        assert mission.get('world_state_badge') == 'stable'
+        assert mission.get('top_move_badge') == 'monitoring'
+        assert 'recently completed' in str(mission.get('ai_momentum_title', ''))
+        assert ai_feed[0].get('tone') == 'success'
+        assert ai_feed[1].get('tone') == 'default'
 
 
 def test_dashboard_service_marks_control_room_access_for_founder_admin_and_it_roles() -> None:

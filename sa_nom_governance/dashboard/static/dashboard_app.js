@@ -2515,9 +2515,19 @@ function buildViewCues(snapshot) {
   }
   if (state.view === 'requests') {
     return [
-      { label: 'Queue volume', value: summary.requests_total || requests.length, note: 'Visible governed submissions currently flowing through runtime intake.', tone: 'accent' },
-      { label: 'Pending overrides', value: pendingOverrides, note: 'Requests that crossed a human boundary and still need resolution.', tone: pendingOverrides ? 'warning' : 'success' },
-      { label: 'Conflict exposure', value: conflicts, note: 'Requests currently colliding with resource locks or consistency pressure.', tone: conflicts ? 'warning' : 'success' },
+      { label: 'Live demand', value: summary.requests_total || requests.length, note: 'How much governed work is currently entering or remaining visible in the intake lane.', tone: 'accent' },
+      { label: 'Human boundaries', value: pendingOverrides, note: pendingOverrides ? 'These requests already need a real human decision before flow can continue.' : 'No request is currently waiting on a new human boundary.', tone: pendingOverrides ? 'warning' : 'success' },
+      { label: 'Blocked by conflict', value: conflicts, note: conflicts ? 'Resolve contention here before asking the runtime to keep moving.' : 'The request lane is not currently stalled by lock or ordering pressure.', tone: conflicts ? 'danger' : 'success' },
+    ];
+  }
+  if (state.view === 'cases') {
+    const casesSummary = snapshot.cases?.summary || {};
+    const leadCase = Array.isArray(snapshot.cases?.items) ? snapshot.cases.items[0] || null : null;
+    const leadLane = VIEW_TITLES[leadCase?.primary_view || casesSummary.primary_view || 'requests'] || titleCase(leadCase?.primary_view || casesSummary.primary_view || 'requests');
+    return [
+      { label: 'Cases in motion', value: casesSummary.cases_total || 0, note: 'How many governed issues are currently stitched into one readable operating story.', tone: 'accent' },
+      { label: 'Next lane', value: leadLane, note: leadCase ? 'The lead case already points at the lane that owns the next real move.' : 'Once work lands here, Cases will point you to the right governed lane automatically.', tone: leadCase ? 'accent' : 'default' },
+      { label: 'Human boundaries', value: casesSummary.human_required_total || 0, note: 'Cases waiting for a real human decision rather than more clerical follow-through.', tone: (casesSummary.human_required_total || 0) ? 'warning' : 'success' },
     ];
   }
   if (state.view === 'directory') {
@@ -2572,9 +2582,9 @@ function buildViewCues(snapshot) {
   if (state.view === 'actions') {
     const actionsSummary = snapshot.actions?.summary || {};
     return [
-      { label: 'AI actions', value: actionsSummary.actions_total || 0, note: 'Governed AI executions currently visible in the runtime lane.', tone: 'accent' },
-      { label: 'Waiting human', value: actionsSummary.waiting_human_total || 0, note: 'AI actions paused because a real human decision is required before flow can continue.', tone: (actionsSummary.waiting_human_total || 0) ? 'warning' : 'success' },
-      { label: 'Document drafts', value: actionsSummary.document_artifact_total || 0, note: 'Governed documents created as side effects by the AI action runtime.', tone: (actionsSummary.document_artifact_total || 0) ? 'success' : 'default' },
+      { label: 'AI in flight', value: actionsSummary.running_total || 0, note: 'Governed actions actively moving right now inside case boundaries.', tone: (actionsSummary.running_total || 0) ? 'accent' : 'default' },
+      { label: 'Human follow-through', value: actionsSummary.waiting_human_total || 0, note: (actionsSummary.waiting_human_total || 0) ? 'AI already reached the handoff line. A person now owns the next move.' : 'No AI action is currently paused behind a new human boundary.', tone: (actionsSummary.waiting_human_total || 0) ? 'warning' : 'success' },
+      { label: 'Document side effects', value: actionsSummary.document_artifact_total || 0, note: 'Governed document artifacts created by the AI action runtime and kept inside the same story.', tone: (actionsSummary.document_artifact_total || 0) ? 'success' : 'default' },
     ];
   }
   if (state.view === 'health') {
@@ -3452,8 +3462,8 @@ function renderUnifiedWorkInbox(snapshot) {
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">Unified Work Inbox</div>
-          <h3 class="card-title">One work surface across approvals, blocked workflows, recovery, and studio promotion.</h3>
-          <p class="card-subtitle">Use this as the executive queue: what needs a human now, what is blocked, and which governed lane is the best next move.</p>
+          <h3 class="card-title">One queue for what must move next across the governed runtime.</h3>
+          <p class="card-subtitle">Use this as the executive work queue: it keeps human decisions, blocked paths, recovery pressure, and the best next lane visible without making you reconstruct the system by hand.</p>
         </div>
         <div class="hero-chip-row">${statusBadge(`${summary.open_total || 0} open`)}${statusBadge(summary.primary_title || 'Autonomy ready')}</div>
       </div>
@@ -3463,9 +3473,9 @@ function renderUnifiedWorkInbox(snapshot) {
         ['Blocked', String(summary.blocked_total || 0)],
         ['Monitoring', String(summary.monitoring_total || 0)],
         ['Ready lanes', String(summary.ready_total || 0)],
-        ['Primary move', titleCase(summary.primary_view || 'overview')],
+        ['Primary move', VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview')],
       ])}
-      <div class="trace-box"><strong>Primary next move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Continue governed execution.')}</p></div>
+      <div class="trace-box"><strong>Queue pressure</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Open the first visible lane and keep the next human boundary attached to the same governed work item.')}</p></div>
       <div class="view-prelude-grid">
         ${items.map((item) => renderUnifiedWorkInboxItem(item)).join('')}
       </div>
@@ -3483,8 +3493,8 @@ function renderFocusedWorkInbox(snapshot, currentView) {
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">Next Governed Work</div>
-          <h3 class="card-title">What matters most from this lane right now</h3>
-          <p class="card-subtitle">Stay inside the current workflow, but keep the next human boundary or blocked path visible without going back to Overview.</p>
+          <h3 class="card-title">What should happen next from this lane</h3>
+          <p class="card-subtitle">Stay inside the current workflow, but keep the next human boundary, blocked path, or case-continuity move visible without going back to Home.</p>
         </div>
         <div class="hero-chip-row">${statusBadge(titleCase(currentView || 'overview'))}${statusBadge(`${summary.open_total || 0} open`)}</div>
       </div>
@@ -4508,6 +4518,7 @@ function renderActionEmptyState(currentCase) {
 function renderCommandHome(snapshot) {
   const surface = snapshot.command_surface || {};
   const posture = surface.posture_summary || {};
+  const mission = surface.mission_control || {};
   const nextActions = buildHomeNextActions(snapshot, surface).slice(0, 5);
   const aiFeed = Array.isArray(surface.ai_activity_feed) ? surface.ai_activity_feed.slice(0, 5) : [];
   const departments = Array.isArray(surface.department_quick_access) ? surface.department_quick_access.slice(0, 6) : [];
@@ -4523,6 +4534,13 @@ function renderCommandHome(snapshot) {
   const evidenceDate = posture.evidence_verified_at ? shortTime(posture.evidence_verified_at) : 'No recent verification';
   const evidenceLabel = formatStatusLabel(posture.evidence_status || 'verified');
   const modeNote = posture.operating_status === 'stable' ? 'Stable - green' : 'Guarded - review';
+  const missionTopTitle = mission.top_move_title || nextActions[0]?.title || 'AI is operating without a new human boundary';
+  const missionTopDetail = mission.top_move_detail || nextActions[0]?.detail || 'No human approvals are waiting right now. The AI workforce is still moving inside the governed lanes.';
+  const missionWorldTitle = mission.world_state_title || 'Governed runtime posture';
+  const missionWorldNote = mission.world_state_note || 'Use the posture cards and next actions below to keep the Director oriented.';
+  const aiMomentumTitle = mission.ai_momentum_title || 'AI workforce';
+  const aiMomentumDetail = mission.ai_momentum_detail || `${aiRunning} running | ${aiTotal} total governed actions`;
+  const missionPressureLabel = mission.pressure_label || `${attentionTotal} attention`;
   const controlRoomAction = canAccessControlRoom()
     ? renderViewJumpButton({ view: 'control_room', label: 'Open Control Room', className: 'action-button action-button-muted' })
     : '<span class="pill pill-muted">Governance lead required</span>';
@@ -4536,7 +4554,7 @@ function renderCommandHome(snapshot) {
               <h3 class="hero-title">Your Next Actions</h3>
               <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
             </div>
-            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(session.persona || session.role_name || 'operator')}</div>
+            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(missionPressureLabel)}${statusBadge(session.persona || session.role_name || 'operator')}</div>
           </div>
           <div class="inline-actions">
             ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button' })}
@@ -4547,10 +4565,10 @@ function renderCommandHome(snapshot) {
         <article class="card hero-card hero-card-secondary command-home-hero-secondary">
           <div>
             <div class="eyebrow muted">What should happen next?</div>
-            <h3 class="card-title">${escapeHtml(nextActions[0]?.title || 'AI is operating without a new human boundary')}</h3>
-            <p class="card-subtitle">${escapeHtml(nextActions[0]?.detail || 'No human approvals are waiting right now. The AI workforce is still moving inside the governed lanes.')}</p>
+            <h3 class="card-title">${escapeHtml(missionTopTitle)}</h3>
+            <p class="card-subtitle">${escapeHtml(missionTopDetail)}</p>
           </div>
-          <div class="trace-box compact-trace"><strong>AI workforce</strong><p class="muted">${escapeHtml(`${aiRunning} running | ${aiTotal} total governed actions`)}</p></div>
+          <div class="trace-box compact-trace"><strong>${escapeHtml(missionWorldTitle)}</strong><p class="muted">${escapeHtml(`${missionWorldNote} ${aiMomentumTitle}: ${aiMomentumDetail}`.trim())}</p></div>
         </article>
       </section>
       <section class="command-guidance-grid">
@@ -4854,11 +4872,12 @@ function renderHomePostureCard(label, value, note, tone = 'default', detail = ''
 
 function buildHomeNextActions(snapshot, surface) {
   const assignments = Array.isArray(snapshot.assignment_queue?.items) ? snapshot.assignment_queue.items : [];
+  const surfaced = Array.isArray(surface.next_actions) ? surface.next_actions : [];
   const session = state.session || {};
   const profileId = String(session.profile_id || '').toLowerCase();
   const displayName = String(session.display_name || '').toLowerCase();
   const roleName = String(session.role_name || '').toLowerCase();
-  const score = (item) => {
+  const ownershipScore = (item) => {
     let base = 0;
     const ownerId = String(item.owner_id || '').toLowerCase();
     const ownerLabel = String(item.owner_label || '').toLowerCase();
@@ -4867,6 +4886,19 @@ function buildHomeNextActions(snapshot, surface) {
     if (displayName && ownerLabel === displayName) base += 8;
     if (roleName && (ownerId === roleName || ownerLabel.includes(roleName))) base += 6;
     if (teamLabel && roleName && teamLabel.includes(roleName)) base += 4;
+    return base;
+  };
+  if (surfaced.length) {
+    return [...surfaced]
+      .sort((left, right) => {
+        const delta = (Number(right.display_score || 0) + ownershipScore(right)) - (Number(left.display_score || 0) + ownershipScore(left));
+        if (delta !== 0) return delta;
+        return Number(right.age_hours || 0) - Number(left.age_hours || 0);
+      })
+      .slice(0, 6);
+  }
+  const fallbackScore = (item) => {
+    let base = ownershipScore(item);
     if (item.status === 'human_required') base += 6;
     if (item.status === 'blocked') base += 5;
     if (item.priority === 'critical') base += 4;
@@ -4874,24 +4906,28 @@ function buildHomeNextActions(snapshot, surface) {
     base += Math.min(Number(item.age_hours || 0), 72) / 24;
     return base;
   };
-  return [...assignments].sort((left, right) => score(right) - score(left)).slice(0, 6);
+  return [...assignments].sort((left, right) => fallbackScore(right) - fallbackScore(left)).slice(0, 6);
 }
 
 function renderHomeNextActionCard(item) {
   const focusType = item.focus_type || '';
   const focusId = item.focus_id || '';
   const caseId = item.case_id || '';
+  const primaryLabel = item.kind === 'override'
+    ? 'Approve'
+    : item.move_label || (item.status === 'blocked' ? 'Resolve Now' : 'Take Action');
   const primaryButton = item.kind === 'override'
-    ? `<button class="action-button" type="button" data-override-action="approve" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Approve</button>`
-    : `<button class="action-button" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: item.status === 'blocked' ? 'Resolve Now' : 'Take Action' })}>${escapeHtml(item.status === 'blocked' ? 'Resolve Now' : 'Take Action')}</button>`;
+    ? `<button class="action-button" type="button" data-override-action="approve" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">${escapeHtml(primaryLabel)}</button>`
+    : `<button class="action-button" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.detail || item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: primaryLabel })}>${escapeHtml(primaryLabel)}</button>`;
   const secondaryButton = item.kind === 'override'
     ? `<button class="action-button action-button-muted" type="button" data-override-action="veto" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Reject</button>`
-    : `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: 'Details' })}>Details</button>`;
+    : `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.detail || item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: 'Details' })}>Details</button>`;
   return `
     <article class="command-action-card" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
-      <div class="hero-chip-row">${statusBadge(item.status || 'monitoring')}${statusBadge(item.priority || 'normal')}</div>
+      <div class="hero-chip-row">${statusBadge(item.status_label || item.status || 'monitoring')}${statusBadge(item.priority_label || item.priority || 'normal')}</div>
       <strong>${escapeHtml(item.title || 'Governed work')}</strong>
       <p class="muted">${escapeHtml(item.detail || item.next_action || 'Continue the linked governed work.')}</p>
+      ${item.why_now ? `<p class="muted small">${escapeHtml(item.why_now)}</p>` : ''}
       <div class="command-action-meta">${escapeHtml(item.owner_label || 'Unassigned')} | ${escapeHtml(item.team_label || 'Operations')} | ${escapeHtml(item.case_id || 'No case')}</div>
       <div class="inline-actions">${primaryButton}${secondaryButton}</div>
     </article>
@@ -4908,9 +4944,21 @@ function renderAiFeedCard(item) {
         </div>
         <div class="hero-chip-row">${statusBadge(item.status || 'planned')}</div>
       </div>
-      <p class="muted">${escapeHtml(item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
+      <p class="muted">${escapeHtml(item.activity_note || item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
       <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
-      <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: 'actions', focusType: 'action', focusId: item.action_id || '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.next_action || 'Review the governed AI execution lane.', actionLabel: 'Details' })}>Details</button></div>
+      <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: 'actions', focusType: 'action', focusId: item.action_id || '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel: 'Details' })}>Details</button></div>
+    </article>
+  `;
+}
+
+function renderDepartmentQuickAccessCard(item) {
+  const filterValue = item.label || item.team_id || '';
+  return `
+    <article class="command-department-card">
+      <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
+      <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
+      <p class="muted">${escapeHtml(item.context_note || `${String(item.member_total || 0)} members | ${String(item.seat_total || 0)} seats`)}</p>
+      <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">Open team</button></div>
     </article>
   `;
 }
