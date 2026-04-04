@@ -4188,6 +4188,27 @@ function renderCaseWorkItems(item) {
   `;
 }
 
+function renderCaseProgressRoute(item) {
+  const continuity = item.continuity || {};
+  const primaryView = item.primary_view || 'requests';
+  const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView || 'requests');
+  const nextMoveLabel = continuity.next_label || 'Human boundary';
+  const proofLabel = continuity.evidence_posture || 'Proof posture';
+  return `
+    <div class="case-progress-panel">
+      <div class="eyebrow muted">Case route</div>
+      <div class="transition-route">
+        <span class="transition-node transition-node-active">${escapeHtml(primaryViewLabel)}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(nextMoveLabel)}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(proofLabel)}</span>
+      </div>
+      <p class="muted small command-momentum-note">${escapeHtml(continuity.next_detail || 'This case keeps the live route visible so the next governed move can be made without reopening the whole story.')}</p>
+    </div>
+  `;
+}
+
 function renderCaseContinuity(item) {
   const continuity = item.continuity || {};
   const nextView = continuity.next_view || item.primary_view || 'requests';
@@ -4279,6 +4300,7 @@ function renderCaseCard(item) {
         ['Audit events', String(item.audit_event_total || 0)],
         ['Timeline', String(item.timeline_total || 0)],
       ])}
+      ${renderCaseProgressRoute(item)}
       ${renderCaseContinuity(item)}
       ${renderCaseWorkItems(item)}
       ${linkedRefs.length ? `<div class="case-reference-list">${linkedRefs.map((value) => `<span class="pill pill-muted">${escapeHtml(value)}</span>`).join('')}</div>` : ''}
@@ -4862,6 +4884,7 @@ function renderCommandTouchLaneCard(item, compact = false) {
   if (!item) return '';
   const active = state.view === item.view;
   const emphasisClass = item.emphasis ? ` command-touch-card-emphasis-${item.emphasis}` : '';
+  const flowLabel = item.emphasis === 'primary' ? 'Start here' : item.emphasis === 'secondary' ? 'Keep in flow' : 'Keep nearby';
   const buttonLabel = active ? `Stay in ${item.title}` : item.actionLabel || `Open ${item.title}`;
   const button = renderViewJumpButton({
     view: item.view,
@@ -4876,8 +4899,15 @@ function renderCommandTouchLaneCard(item, compact = false) {
       <div class="hero-chip-row"><span class="pill">${escapeHtml(item.emphasisLabel || 'Lane')}</span>${statusBadge(item.badge || 'lane')}</div>
       <strong>${escapeHtml(item.title)}</strong>
       <p class="command-touch-count">${escapeHtml(item.countLabel || '0')}</p>
+      <div class="transition-route command-touch-route">
+        <span class="transition-node${active ? '' : ' transition-node-active'}">${escapeHtml(flowLabel)}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node${active ? ' transition-node-active' : ''}">${escapeHtml(item.title)}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.badge || 'lane')}</span>
+      </div>
       <p class="muted">${escapeHtml(item.note || 'Continue in the governed lane that currently owns the work.')}</p>
-      ${item.emphasisNote ? `<p class="muted small">${escapeHtml(item.emphasisNote)}</p>` : ''}
+      ${item.emphasisNote ? `<p class="muted small command-momentum-note">${escapeHtml(item.emphasisNote)}</p>` : ''}
       <div class="inline-actions">${button}</div>
     </article>
   `;
