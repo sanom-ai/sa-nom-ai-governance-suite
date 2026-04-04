@@ -2488,6 +2488,80 @@ class DashboardSnapshotBuilder:
             return 'chatops'
         return value or 'unknown'
 
+    @staticmethod
+    def _command_surface_human_label(value: str) -> str:
+        text = str(value or '').strip().replace('_', ' ')
+        return text.title() if text else 'Unknown'
+
+    @staticmethod
+    def _command_surface_status_rank(status: str) -> int:
+        ranking = {
+            'human_required': 0,
+            'blocked': 1,
+            'attention_required': 2,
+            'in_progress': 3,
+            'monitoring': 4,
+        }
+        return ranking.get(str(status or '').strip(), 5)
+
+    @staticmethod
+    def _command_surface_priority_rank(priority: str) -> int:
+        ranking = {
+            'critical': 0,
+            'high': 1,
+            'normal': 2,
+            'medium': 2,
+            'low': 3,
+        }
+        return ranking.get(str(priority or '').strip(), 4)
+
+    @staticmethod
+    def _command_surface_move_label(item: dict[str, object]) -> str:
+        kind = str(item.get('kind', '') or '')
+        status = str(item.get('status', '') or '')
+        if kind == 'override':
+            return 'Approve'
+        if status == 'blocked':
+            return 'Resolve Now'
+        if status == 'human_required':
+            return 'Take Action'
+        if status == 'attention_required':
+            return 'Review'
+        if status == 'in_progress':
+            return 'Keep Moving'
+        return 'Details'
+
+    @staticmethod
+    def _command_surface_item_tone(item: dict[str, object]) -> str:
+        status = str(item.get('status', '') or '')
+        priority = str(item.get('priority', '') or '')
+        if status == 'blocked' or priority == 'critical':
+            return 'danger'
+        if status in {'human_required', 'attention_required'} or priority == 'high':
+            return 'warning'
+        if status == 'in_progress':
+            return 'accent'
+        return 'default'
+
+    @staticmethod
+    def _command_surface_why_now(item: dict[str, object]) -> str:
+        status = str(item.get('status', '') or '')
+        priority = str(item.get('priority', '') or '')
+        age_hours = float(item.get('age_hours', 0.0) or 0.0)
+        if status == 'human_required':
+            return 'A real human decision is now the only safe next move.'
+        if status == 'blocked':
+            return 'The governed path is fail-closed until someone resolves the blocker.'
+        if priority == 'critical':
+            return 'This item carries the highest pressure in the current queue.'
+        if priority == 'high':
+            return 'This item should stay near the front of the operator attention stack.'
+        if age_hours >= 24:
+            return 'This item has been waiting long enough to deserve a fresh look.'
+        if status == 'in_progress':
+            return 'AI or the operator already advanced this path, so keep the momentum.'
+        return 'Keep this visible so the next governed move remains easy to see.'
+
     def command_surface(self, *, assignment_queue: dict[str, object], master_data: dict[str, object], actions: dict[str, object], evidence_exports: dict[str, object], runtime_health: dict[str, object], go_live_readiness: dict[str, object], operator_queue_health: dict[str, object], owner_registration: dict[str, object]) -> dict[str, object]:
         assignment_items = assignment_queue.get('items', []) if isinstance(assignment_queue.get('items', []), list) else []
         team_items = master_data.get('teams', []) if isinstance(master_data.get('teams', []), list) else []
@@ -2497,20 +2571,58 @@ class DashboardSnapshotBuilder:
         audit_integrity = runtime_health.get('audit_integrity', {}) if isinstance(runtime_health.get('audit_integrity', {}), dict) else {}
         queue_items = operator_queue_health.get('items', []) if isinstance(operator_queue_health.get('items', []), list) else []
 
-        next_actions = sorted(
+        ranked_assignment_items = sorted(
             assignment_items,
             key=lambda item: (
-                0 if str(item.get('status', '') or '') == 'human_required' else 1 if str(item.get('status', '') or '') == 'blocked' else 2,
-                0 if str(item.get('priority', '') or '') == 'critical' else 1 if str(item.get('priority', '') or '') == 'high' else 2,
+                self._command_surface_status_rank(str(item.get('status', '') or '')),
+                self._command_surface_priority_rank(str(item.get('priority', '') or '')),
                 -(float(item.get('age_hours', 0.0) or 0.0)),
             ),
-        )[:8]
+        )
+        next_actions = []
+        for item in ranked_assignment_items[:8]:
+            next_actions.append(
+                {
+                    **item,
+                    'detail': str(item.get('next_action', item.get('detail', 'Continue the governed work from the linked lane.')) or 'Continue the governed work from the linked lane.'),
+                    'move_label': self._command_surface_move_label(item),
+                    'tone': self._command_surface_item_tone(item),
+                    'why_now': self._command_surface_why_now(item),
+                    'status_label': self._command_surface_human_label(str(item.get('status', '') or 'monitoring')),
+                    'priority_label': self._command_surface_human_label(str(item.get('priority', '') or 'normal')),
+                    'display_score': round(
+                        100
+                        - (self._command_surface_status_rank(str(item.get('status', '') or '')) * 15)
+                        - (self._command_surface_priority_rank(str(item.get('priority', '') or '')) * 8)
+                        + min(float(item.get('age_hours', 0.0) or 0.0), 72.0) / 6,
+                        2,
+                    ),
+                }
+            )
 
-        ai_activity = sorted(
+        ai_activity = []
+        for item in sorted(
             action_items,
-            key=lambda item: str(item.get('updated_at', item.get('created_at', '')) or ''),
+            key=lambda payload: str(payload.get('updated_at', payload.get('created_at', '')) or ''),
             reverse=True,
-        )[:5]
+        )[:5]:
+            status = str(item.get('status', '') or '')
+            if status == 'running':
+                activity_note = 'AI is actively moving this governed action forward inside its case boundary.'
+                tone = 'accent'
+            elif status == 'waiting_human':
+                activity_note = 'AI reached a human boundary and is waiting for explicit follow-through.'
+                tone = 'warning'
+            elif status == 'failed_closed':
+                activity_note = 'The runtime failed closed here, so a person must inspect the blocked path before retrying.'
+                tone = 'danger'
+            elif status == 'completed':
+                activity_note = 'AI completed the governed action and kept the outcome inside the same proof trail.'
+                tone = 'success'
+            else:
+                activity_note = 'This governed action is visible so the Director can keep continuity without opening lower-level traces.'
+                tone = 'default'
+            ai_activity.append({**item, 'activity_note': activity_note, 'tone': tone})
 
         team_counts: dict[str, int] = {}
         for item in assignment_items:
@@ -2520,6 +2632,7 @@ class DashboardSnapshotBuilder:
         known_team_labels: set[str] = set()
         for team in team_items:
             label = str(team.get('label', team.get('team_id', 'Team')) or 'Team')
+            assignment_total = team_counts.get(label, 0)
             known_team_labels.add(label)
             quick_access_candidates.append(
                 {
@@ -2527,7 +2640,12 @@ class DashboardSnapshotBuilder:
                     'label': label,
                     'member_total': len(team.get('member_ids', [])) if isinstance(team.get('member_ids', []), list) else 0,
                     'seat_total': len(team.get('seat_ids', [])) if isinstance(team.get('seat_ids', []), list) else 0,
-                    'assignment_total': team_counts.get(label, 0),
+                    'assignment_total': assignment_total,
+                    'context_note': (
+                        f'{assignment_total} governed items currently route through this team.'
+                        if assignment_total
+                        else 'Ready as a routing destination once governed work lands here.'
+                    ),
                 }
             )
         for label, assignment_total in team_counts.items():
@@ -2540,6 +2658,7 @@ class DashboardSnapshotBuilder:
                     'member_total': 0,
                     'seat_total': 0,
                     'assignment_total': assignment_total,
+                    'context_note': f'{assignment_total} governed items currently route through this team.',
                 }
             )
         quick_access = sorted(
@@ -2552,16 +2671,89 @@ class DashboardSnapshotBuilder:
             ),
         )[:6]
 
+        human_required_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'human_required')
+        blocked_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'blocked')
+        attention_required_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'attention_required')
+        in_progress_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'in_progress')
+        actions_running_total = int(action_summary.get('running_total', 0) or 0)
+        actions_waiting_human_total = int(action_summary.get('waiting_human_total', 0) or sum(1 for item in action_items if str(item.get('status', '') or '') == 'waiting_human'))
+        actions_completed_total = int(action_summary.get('completed_total', 0) or sum(1 for item in action_items if str(item.get('status', '') or '') == 'completed'))
+        actions_failed_closed_total = int(action_summary.get('failed_closed_total', 0) or sum(1 for item in action_items if str(item.get('status', '') or '') == 'failed_closed'))
+
+        if human_required_total:
+            world_state_title = f'{human_required_total} human-boundary items need direction'
+            world_state_note = 'AI carried the rest of the workload forward and stopped only where a real person must decide next.'
+            pressure_label = f'{human_required_total} human-required'
+            world_state_badge = 'human boundary'
+        elif blocked_total:
+            world_state_title = f'{blocked_total} blocked paths need recovery'
+            world_state_note = 'The governed runtime is still working, but some paths are fail-closed until someone resolves the blockage.'
+            pressure_label = f'{blocked_total} blocked'
+            world_state_badge = 'blocked'
+        elif actions_running_total:
+            world_state_title = f'AI is advancing {actions_running_total} governed actions right now'
+            world_state_note = 'No new human boundary is stopping the next move right now. Stay on posture and only step in when the queue changes.'
+            pressure_label = 'ai moving'
+            world_state_badge = 'ai active'
+        elif assignment_items:
+            world_state_title = f'{len(assignment_items)} governed work items are in motion'
+            world_state_note = 'The workload is visible, linked, and still inside governed lanes even when no single item is shouting for immediate intervention.'
+            pressure_label = 'work in motion'
+            world_state_badge = 'monitoring'
+        else:
+            world_state_title = 'The governed runtime is calm and ready'
+            world_state_note = 'No immediate human move is required. The system is ready for the next governed case, request, or document flow.'
+            pressure_label = 'ready'
+            world_state_badge = 'stable'
+
+        top_move = next_actions[0] if next_actions else None
+        if top_move:
+            top_move_title = str(top_move.get('title', 'Open the next governed lane') or 'Open the next governed lane')
+            top_move_detail = str(top_move.get('detail', top_move.get('why_now', 'Continue from the linked governed lane.')) or 'Continue from the linked governed lane.')
+            top_move_badge = str(top_move.get('status', top_move.get('priority', 'attention_required')) or 'attention_required')
+        elif human_required_total or blocked_total:
+            top_move_title = 'Open Work Inbox and resolve the highest-pressure path'
+            top_move_detail = 'The next move should come from the one queue that already groups human decisions, blocked work, and routed follow-through.'
+            top_move_badge = 'attention_required'
+        else:
+            top_move_title = 'AI is operating without a new human boundary'
+            top_move_detail = 'No immediate approval is waiting right now. Keep the Director on posture and let AI continue the governed workload.'
+            top_move_badge = 'monitoring'
+
+        if actions_running_total:
+            ai_momentum_title = f'{actions_running_total} actions are actively moving'
+            ai_momentum_detail = f'{actions_waiting_human_total} waiting human | {actions_completed_total} completed | {actions_failed_closed_total} failed closed'
+        elif actions_waiting_human_total:
+            ai_momentum_title = f'{actions_waiting_human_total} actions are waiting on people'
+            ai_momentum_detail = 'AI already did its part and paused exactly where a real human must pick up the governed flow.'
+        elif actions_completed_total:
+            ai_momentum_title = f'{actions_completed_total} actions recently completed'
+            ai_momentum_detail = 'The workforce is still generating finished governed results even when nothing new is running at this instant.'
+        else:
+            ai_momentum_title = 'AI workforce is ready for the next governed move'
+            ai_momentum_detail = 'Open a case, request, or document lane when you want the runtime to start moving again.'
+
         return {
             'organization_name': str(owner_registration.get('organization_name', master_data.get('summary', {}).get('organization_name', 'Organization')) or 'Organization'),
             'posture_summary': {
                 'operating_mode': 'Governance-first',
                 'operating_status': 'stable' if str(go_live_readiness.get('status', 'blocked')) == 'ready' else 'guarded',
-                'ai_actions_running': int(action_summary.get('running_total', 0) or 0),
+                'ai_actions_running': actions_running_total,
                 'ai_actions_total': int(action_summary.get('actions_total', len(action_items)) or len(action_items)),
                 'attention_items_total': sum(int(item.get('total', 0) or 0) for item in queue_items if str(item.get('status', '') or '') in {'warning', 'critical', 'stale'}),
                 'evidence_status': str(evidence_summary.get('posture', audit_integrity.get('status', 'unknown')) or 'unknown'),
                 'evidence_verified_at': str(audit_integrity.get('verified_at', evidence_summary.get('latest_exported_at', '')) or ''),
+            },
+            'mission_control': {
+                'world_state_title': world_state_title,
+                'world_state_note': world_state_note,
+                'world_state_badge': world_state_badge,
+                'pressure_label': pressure_label,
+                'top_move_title': top_move_title,
+                'top_move_detail': top_move_detail,
+                'top_move_badge': top_move_badge,
+                'ai_momentum_title': ai_momentum_title,
+                'ai_momentum_detail': ai_momentum_detail,
             },
             'next_actions': next_actions,
             'ai_activity_feed': ai_activity,
