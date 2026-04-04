@@ -3340,6 +3340,7 @@ function updateNav() {
     governanceLauncher.classList.toggle('is-active', isGovernanceActive);
     governanceLauncher.classList.toggle('is-guided', isGovernanceGuided);
     governanceLauncher.dataset.navState = isGovernanceActive ? 'current' : isGovernanceGuided ? 'next' : 'idle';
+    governanceLauncher.dataset.navLabel = isGovernanceActive ? 'current lane' : isGovernanceGuided ? 'next move' : '';
     governanceLauncher.setAttribute('aria-expanded', governanceSheet && !governanceSheet.hidden ? 'true' : 'false');
   }
   if (!controlRoomAllowed) {
@@ -3361,6 +3362,7 @@ function updateNav() {
     item.classList.toggle('is-active', isActive);
     item.classList.toggle('is-guided', isGuided);
     item.dataset.navState = isActive ? 'current' : isGuided ? 'next' : 'idle';
+    item.dataset.navLabel = isActive ? 'current lane' : isGuided ? 'next move' : '';
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   }
   if (governanceSheet) {
