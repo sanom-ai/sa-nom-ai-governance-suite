@@ -4446,3 +4446,42 @@ button:focus-visible {
     letter-spacing: 0.08em;
   }
 }
+
+
+/* v0.7.10 ai consequence clarity */
+.action-consequence-section {
+  display: grid;
+  gap: 16px;
+}
+
+.action-consequence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.action-consequence-card {
+  align-content: start;
+}
+
+.action-consequence-card-featured {
+  border-color: rgba(185, 146, 79, 0.26);
+  box-shadow: 0 22px 42px rgba(11, 16, 28, 0.15);
+}
+
+.action-runtime-consequence-box {
+  border-color: rgba(185, 146, 79, 0.16);
+  background:
+    radial-gradient(circle at top right, rgba(222, 192, 135, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 252, 247, 0.9), rgba(248, 242, 231, 0.78));
+}
+
+.action-runtime-consequence-box strong {
+  color: var(--text);
+}
+
+@media (max-width: 860px) {
+  .action-consequence-grid {
+    grid-template-columns: 1fr;
+  }
+}

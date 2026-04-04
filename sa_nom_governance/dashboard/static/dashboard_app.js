@@ -4974,10 +4974,12 @@ function renderActionCard(item) {
         ['Case', String(item.case_id || '-')],
         ['Authority', String(item.authority_boundary || '-')],
         ['Side effects', String(item.side_effect_policy || '-')],
-        ['Next view', primaryViewLabel],
+        ['Next lane', primaryViewLabel],
+        ['Next owner', String(meta.nextOwner || '-')],
         ['Artifacts', String(item.artifacts_total || artifacts.length || 0)],
       ])}
-      <div class="trace-box compact-trace"><strong>${escapeHtml(meta.eyebrow)}</strong><p class="muted">${escapeHtml(item.next_action || item.output_summary || meta.routePhase)}</p></div>
+      <div class="trace-box compact-trace action-runtime-consequence-box"><strong>${escapeHtml(meta.consequenceTitle || meta.eyebrow)}</strong><p class="muted">${escapeHtml(item.waiting_reason || item.latest_error || meta.consequenceDetail || meta.routePhase)}</p></div>
+      <div class="trace-box compact-trace"><strong>Recommended move</strong><p class="muted">${escapeHtml(item.next_action || item.output_summary || `Open ${primaryViewLabel} to continue from the right governed lane.`)}</p></div>
       ${item.waiting_reason ? `<div class="trace-box"><strong>Waiting reason</strong><p class="muted">${escapeHtml(item.waiting_reason)}</p></div>` : ''}
       ${item.latest_error ? `<div class="trace-box trace-box-danger"><strong>Failure detail</strong><p class="muted">${escapeHtml(item.latest_error)}</p></div>` : ''}
       ${artifacts.length ? `<div class="card-grid">${artifacts.map((artifact) => renderActionArtifactCard(artifact, item)).join('')}</div>` : ''}
@@ -4989,7 +4991,7 @@ function renderActionCard(item) {
           focusId: primary.entityId,
           caseId: primary.caseId || item.case_id || '',
           title: `${item.label || item.action_id} opened in ${primaryViewLabel}.`,
-          detail: item.next_action || 'Continue the governed flow from the linked runtime lane.',
+          detail: item.next_action || meta.consequenceDetail || 'Continue the governed flow from the linked runtime lane.',
           actionLabel: `Open ${primaryViewLabel}`,
         })}>${escapeHtml(`Open ${primaryViewLabel}`)}</button>
         <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
@@ -6927,6 +6929,9 @@ function getActionBoardMeta(item = {}) {
       eyebrow: 'AI moving now',
       tempoBadge: 'live now',
       routePhase: 'AI currently owns the move inside this case. Stay nearby, but intervene only if the runtime crosses a new boundary.',
+      consequenceTitle: 'Keep the move in flight',
+      consequenceDetail: 'No new human step is needed yet. Monitor the route and keep the case attached until the runtime surfaces a boundary or a proof-ready result.',
+      nextOwner: 'AI runtime',
       tone: 'accent',
     };
   }
@@ -6935,6 +6940,9 @@ function getActionBoardMeta(item = {}) {
       eyebrow: 'Human boundary now',
       tempoBadge: 'human step now',
       routePhase: 'A real person now owns the next safe move. Keep the case and handoff record attached before sending AI forward again.',
+      consequenceTitle: 'Human decision is now required',
+      consequenceDetail: 'AI cannot safely continue until a person approves, redirects, or closes this path. The case should remain the anchor for that decision.',
+      nextOwner: 'Human director',
       tone: 'warning',
     };
   }
@@ -6943,6 +6951,9 @@ function getActionBoardMeta(item = {}) {
       eyebrow: 'Recovery lane',
       tempoBadge: 'recover now',
       routePhase: 'This path failed closed. Review the blocked boundary, then reopen AI only when the route is safe again.',
+      consequenceTitle: 'Recover before relaunch',
+      consequenceDetail: 'The governed path is closed until the failure is reviewed. Fix the route first, then decide whether AI should retry from the same case.',
+      nextOwner: 'Recovery review',
       tone: 'danger',
     };
   }
@@ -6951,6 +6962,9 @@ function getActionBoardMeta(item = {}) {
       eyebrow: 'Outcome ready',
       tempoBadge: 'proof ready',
       routePhase: 'The governed result is ready for follow-through, document review, or proof confirmation from the next lane.',
+      consequenceTitle: 'Carry proof forward',
+      consequenceDetail: 'The runtime already has a result. Review the linked document, case, or proof lane instead of launching another move blindly.',
+      nextOwner: 'Follow-through lane',
       tone: 'success',
     };
   }
@@ -6958,8 +6972,42 @@ function getActionBoardMeta(item = {}) {
     eyebrow: 'Queued move',
     tempoBadge: 'queued',
     routePhase: 'This action is visible on the board so the Director can decide when to launch or revisit it.',
+    consequenceTitle: 'Launch only when the case is ready',
+    consequenceDetail: 'Queued moves stay visible so the Director can launch them deliberately from the right case and side-effect posture.',
+    nextOwner: 'Director launch decision',
     tone: 'accent',
   };
+}
+
+function renderActionConsequenceCard(config = {}) {
+  const toneClass = config.tone ? ` tone-${escapeHtml(config.tone)}` : '';
+  const featuredClass = config.featured ? ' action-consequence-card-featured' : '';
+  const chips = [config.badge, config.secondaryBadge].filter(Boolean).map((badge) => statusBadge(badge)).join('');
+  const buttonClassName = config.buttonClassName || (config.featured ? 'action-button' : 'action-button action-button-muted');
+  return `
+    <article class="command-action-card action-consequence-card${featuredClass}${toneClass}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(config.eyebrow || 'Consequence')}</div>
+          <strong>${escapeHtml(config.title || 'Executive consequence')}</strong>
+        </div>
+        ${chips ? `<div class="hero-chip-row">${chips}</div>` : ''}
+      </div>
+      <p class="muted">${escapeHtml(config.detail || 'Review the next governed consequence from the right lane.')}</p>
+      ${config.traceTitle || config.traceDetail ? `<div class="trace-box compact-trace"><strong>${escapeHtml(config.traceTitle || 'Next consequence')}</strong><p class="muted">${escapeHtml(config.traceDetail || config.detail || '')}</p></div>` : ''}
+      ${renderViewJumpButton({
+        view: config.view || 'actions',
+        label: config.actionLabel || 'Open details',
+        className: buttonClassName,
+        focusType: config.focusType || '',
+        focusId: config.focusId || '',
+        caseId: config.caseId || '',
+        title: config.title || 'Executive consequence',
+        detail: config.detail || config.traceDetail || 'Continue from the right governed lane.',
+        actionLabel: config.actionLabel || 'Open details',
+      })}
+    </article>
+  `;
 }
 
 function renderActionMissionCard(item, options = {}) {
@@ -7047,6 +7095,13 @@ function renderActions(snapshot) {
   const waitingAction = items.find((item) => String(item.status || '') === 'waiting_human') || null;
   const failedAction = items.find((item) => String(item.status || '') === 'failed_closed') || null;
   const completedAction = items.find((item) => String(item.status || '') === 'completed') || null;
+  const featuredConsequenceKey = waitingAction
+    ? 'human'
+    : failedAction
+      ? 'recovery'
+      : (completedAction || Number(summary.document_artifact_total || 0))
+        ? 'proof'
+        : 'launch';
   return `
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
@@ -7128,6 +7183,94 @@ function renderActions(snapshot) {
           toneOverride: failedAction ? 'danger' : completedAction ? 'success' : 'success',
           viewOverride: failedAction ? 'actions' : (summary.document_artifact_total ? 'documents' : undefined),
           actionLabel: failedAction ? 'Recover in AI Actions' : (summary.document_artifact_total ? 'Open Documents' : 'Open AI Actions'),
+        })}
+      </div>
+    </section>
+    <section class="action-runtime-section action-consequence-section">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Executive consequences</div>
+          <h3 class="card-title">What these AI moves mean right now</h3>
+          <p class="card-subtitle">Use this row to read launch posture, human ownership, recovery pressure, and proof follow-through without decoding the full mission log first.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(featuredConsequenceKey === 'human' ? 'human step leads' : featuredConsequenceKey === 'recovery' ? 'recovery leads' : featuredConsequenceKey === 'proof' ? 'proof leads' : 'launch leads')}</div>
+      </div>
+      <div class="action-consequence-grid">
+        ${renderActionConsequenceCard({
+          eyebrow: 'Launch window',
+          title: currentCase ? 'Launch only the move this case can justify' : 'Select a case before any launch',
+          detail: currentCase
+            ? (registry.length
+                ? 'Only launch the next governed move that matches the current authority boundary and side-effect posture.'
+                : 'This case is visible, but no launch-ready move is currently registered from this lane.')
+            : 'AI launches stay case-bound so proof, handoff, and recovery never drift into separate stories.',
+          badge: currentCase ? `${registry.length} launchable` : 'pick case',
+          secondaryBadge: currentCase ? caseLabel : 'case required',
+          tone: currentCase ? (registry.length ? 'accent' : 'warning') : 'warning',
+          featured: featuredConsequenceKey === 'launch',
+          view: currentCase ? 'actions' : 'cases',
+          caseId: currentCase?.case_id || '',
+          actionLabel: currentCase ? 'Open Action Launch Board' : 'Open Cases',
+          traceTitle: currentCase ? 'Launch discipline' : 'Case anchor required',
+          traceDetail: currentCase
+            ? 'Launch from this lane only when the selected case can justify the AI move and its side effects.'
+            : 'Pick the canonical case first, then come back here to launch AI safely.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Human step',
+          title: waitingAction ? 'A person now owns the safe next move' : 'No human step is holding AI right now',
+          detail: waitingAction
+            ? (waitingAction.waiting_reason || waitingAction.next_action || getActionBoardMeta(waitingAction).consequenceDetail)
+            : 'The runtime is not currently paused at a human-only boundary.',
+          badge: waitingAction ? getActionBoardMeta(waitingAction).tempoBadge : 'clear',
+          secondaryBadge: waitingAction ? `Case ${waitingAction.case_id || '-'}` : 'ai can continue',
+          tone: waitingAction ? 'warning' : 'success',
+          featured: featuredConsequenceKey === 'human',
+          view: 'cases',
+          focusType: waitingAction ? 'case' : '',
+          focusId: waitingAction?.case_id || '',
+          caseId: waitingAction?.case_id || currentCase?.case_id || '',
+          actionLabel: waitingAction ? (currentCase ? 'Open selected case' : 'Open Cases') : 'Open Cases',
+          traceTitle: 'Decision owner',
+          traceDetail: waitingAction ? (getActionBoardMeta(waitingAction).nextOwner || 'Human director') : 'AI currently owns the live move until a new governed boundary appears.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Recovery path',
+          title: failedAction ? 'Recovery must happen before AI can relaunch' : 'No fail-closed recovery is active',
+          detail: failedAction
+            ? (failedAction.latest_error || failedAction.next_action || getActionBoardMeta(failedAction).consequenceDetail)
+            : 'There is no blocked or fail-closed action demanding recovery right now.',
+          badge: failedAction ? getActionBoardMeta(failedAction).tempoBadge : 'clear',
+          secondaryBadge: failedAction ? `Case ${failedAction.case_id || '-'}` : 'route open',
+          tone: failedAction ? 'danger' : 'success',
+          featured: featuredConsequenceKey === 'recovery',
+          view: 'actions',
+          focusType: failedAction ? 'action' : '',
+          focusId: failedAction?.action_id || '',
+          caseId: failedAction?.case_id || currentCase?.case_id || '',
+          actionLabel: failedAction ? 'Recover in AI Actions' : 'Open AI Actions',
+          traceTitle: 'Recovery rule',
+          traceDetail: failedAction ? 'Review the blocked boundary first, then decide whether the same case should relaunch AI.' : 'Fail-closed paths will surface here the moment recovery becomes a real executive move.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Proof carry-through',
+          title: (completedAction || Number(summary.document_artifact_total || 0)) ? 'A governed result is ready for follow-through' : 'No proof-ready outcome is waiting yet',
+          detail: (completedAction || Number(summary.document_artifact_total || 0))
+            ? (completedAction?.output_summary || completedAction?.next_action || 'Open the document or case lane to confirm the result, review artifacts, and keep the proof chain intact.')
+            : 'Once AI finishes with a meaningful outcome, this slot will point to the proof or document lane that should carry it forward.',
+          badge: (completedAction || Number(summary.document_artifact_total || 0)) ? 'proof ready' : 'pending',
+          secondaryBadge: Number(summary.document_artifact_total || 0) ? `${summary.document_artifact_total || 0} artifacts` : ((completedAction?.case_id) ? `Case ${completedAction.case_id}` : 'no output'),
+          tone: Number(summary.document_artifact_total || 0) ? 'accent' : ((completedAction || Number(summary.document_artifact_total || 0)) ? 'success' : 'default'),
+          featured: featuredConsequenceKey === 'proof',
+          view: Number(summary.document_artifact_total || 0) ? 'documents' : 'actions',
+          caseId: completedAction?.case_id || currentCase?.case_id || '',
+          actionLabel: Number(summary.document_artifact_total || 0) ? 'Open Documents' : 'Open AI Actions',
+          traceTitle: 'Next proof lane',
+          traceDetail: Number(summary.document_artifact_total || 0)
+            ? 'The result already created governed side effects. Review them in Documents without breaking case continuity.'
+            : ((completedAction || Number(summary.document_artifact_total || 0))
+                ? 'Confirm the outcome before launching another move so proof, case, and follow-through stay aligned.'
+                : 'Proof-ready results will surface here as soon as the runtime finishes with a governed outcome.'),
         })}
       </div>
     </section>
