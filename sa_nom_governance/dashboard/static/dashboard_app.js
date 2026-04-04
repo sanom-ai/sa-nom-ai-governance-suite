@@ -4074,6 +4074,18 @@ function renderCases(snapshot) {
   const leadCaseView = leadCase?.primary_view || summary.primary_view || 'requests';
   const leadCaseViewLabel = VIEW_TITLES[leadCaseView] || titleCase(leadCaseView || 'requests');
   const leadCaseFocus = leadCase ? resolveCasePrimaryFocus(leadCase, leadCaseView) : { entityType: '', entityId: '' };
+  const humanBoundaryCase = items.find((item) => String(item.status || '').trim() === 'human_required') || null;
+  const blockedCase = items.find((item) => String(item.status || '').trim() === 'blocked') || null;
+  const attentionCase = items.find((item) => String(item.status || '').trim() === 'attention_required') || null;
+  const proofCase = items.find((item) => Number(item.workflow_proof_total || 0) > 0 || Number(item.evidence_export_total || 0) > 0) || null;
+  const followThroughCase = blockedCase || attentionCase || proofCase || items[1] || leadCase;
+  const missionPressure = summary.human_required_total
+    ? 'Human boundary decisions are shaping the board right now.'
+    : summary.blocked_total
+      ? 'Recovery pressure is shaping the board right now.'
+      : summary.attention_total
+        ? 'Operator follow-through is shaping the board right now.'
+        : 'The board is stable; keep the lead case moving and its proof attached.';
   return `
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
@@ -4121,14 +4133,51 @@ function renderCases(snapshot) {
         </div>
       </article>
     </section>
-    <section class="metrics-grid metrics-grid-luxury">
-      ${metricCard('Cases', summary.cases_total || 0, 'accent', 'Linked governed issues currently visible in the dashboard work surface.')}
-      ${metricCard('Human required', summary.human_required_total || 0, (summary.human_required_total || 0) ? 'warning' : 'success', 'Cases currently waiting on a real human decision or boundary confirmation.')}
-      ${metricCard('Blocked', summary.blocked_total || 0, (summary.blocked_total || 0) ? 'danger' : 'success', 'Cases currently held behind a blocked outcome or vetoed path.')}
-      ${metricCard('Attention', summary.attention_total || 0, (summary.attention_total || 0) ? 'warning' : 'success', 'Cases that still need extra operator follow-through even if they are not hard blocked.')}
+    <section class="case-mission-board">
+      <div class="case-mission-board-head">
+        <div>
+          <div class="eyebrow muted">Mission board</div>
+          <h3 class="card-title">Which governed stories need direction now</h3>
+          <p class="card-subtitle">${escapeHtml(missionPressure)}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(summary.human_required_total ? 'human boundary live' : (summary.blocked_total ? 'recovery in flight' : 'stable board'))}
+        </div>
+      </div>
+      <div class="case-mission-priority-grid">
+        ${renderCaseMissionPriorityCard(leadCase, {
+          eyebrow: 'Lead mission',
+          fallbackTitle: 'No lead case is visible yet',
+          fallbackDetail: 'Open Requests and let the runtime stitch the first governed issue into a canonical case.',
+          fallbackView: 'requests',
+          fallbackActionLabel: 'Open Requests',
+          titleOverride: leadCase ? (leadCase.title || leadCase.case_id || 'Lead governed case') : '',
+          detailOverride: leadCase?.continuity?.next_detail || 'Keep the primary case moving so the rest of the board stays readable.',
+        })}
+        ${renderCaseMissionPriorityCard(humanBoundaryCase, {
+          eyebrow: 'Human boundary now',
+          fallbackTitle: 'No human boundary is waiting right now',
+          fallbackDetail: 'When AI or workflow pressure crosses a real approval line, the case will surface here first.',
+          fallbackView: leadCaseView,
+          fallbackActionLabel: `Open ${leadCaseViewLabel}`,
+          detailOverride: humanBoundaryCase?.continuity?.next_detail || 'A real human decision is now the only safe next move for this case.',
+          badgeOverride: 'human boundary',
+          toneOverride: humanBoundaryCase ? 'warning' : 'success',
+        })}
+        ${renderCaseMissionPriorityCard(followThroughCase, {
+          eyebrow: blockedCase ? 'Recovery mission' : 'Follow-through queue',
+          fallbackTitle: 'No stalled or proof-led mission is visible',
+          fallbackDetail: 'Use this slot to keep recovery, proof follow-through, or operator pressure visible without reopening every case card.',
+          fallbackView: 'audit',
+          fallbackActionLabel: 'Open Audit',
+          detailOverride: followThroughCase?.continuity?.next_detail || (blockedCase ? 'Recover the blocked path and reopen safe governed flow.' : 'Keep proof, audit, and operator follow-through attached to the same case story.'),
+          badgeOverride: blockedCase ? 'recovery' : undefined,
+          toneOverride: blockedCase ? 'danger' : undefined,
+        })}
+      </div>
     </section>
     <section class="split-grid">
-      <article class="card stack">
+      <article class="card stack case-lane-doctrine-card">
         <div><div class="eyebrow muted">Case mission</div><h3 class="card-title">What this lane should make easy</h3><p class="card-subtitle">Cases should answer what the issue is, what changed last, and which lane owns the next move.</p></div>
         ${keyValue([
           ['Trace model', 'Request to override to record to audit'],
@@ -4137,7 +4186,7 @@ function renderCases(snapshot) {
           ['Escalation discipline', 'Use the case to keep boundary changes visible'],
         ])}
       </article>
-      <article class="card stack">
+      <article class="card stack case-lane-doctrine-card">
         <div><div class="eyebrow muted">Use the right follow-through</div><h3 class="card-title">Keep the story moving from one lane to the next</h3><p class="card-subtitle">The case is the safest place to pivot between requests, human decisions, AI work, documents, and proof without losing continuity.</p></div>
         <div class="inline-actions">
           ${renderViewJumpButton({ view: leadCaseView, label: `Open ${leadCaseViewLabel}`, className: 'action-button', focusType: leadCaseFocus.entityType, focusId: leadCaseFocus.entityId, caseId: leadCase?.case_id || '', title: leadCase?.case_id ? `Case ${leadCase.case_id} reopened in ${leadCaseViewLabel}.` : `${leadCaseViewLabel} reopened from Cases.`, detail: 'Continue the lead lane that currently owns the issue.', actionLabel: `Open ${leadCaseViewLabel}` })}
@@ -4148,6 +4197,89 @@ function renderCases(snapshot) {
     <section class="case-grid">
       ${items.length ? items.map((item) => renderCaseCard(item)).join('') : renderCaseEmptyState()}
     </section>
+  `;
+}
+
+function getCaseMissionTone(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'blocked') return 'danger';
+  if (status === 'human_required' || status === 'attention_required') return 'warning';
+  if (status === 'resolved' || status === 'completed') return 'success';
+  return 'accent';
+}
+
+function getCaseMissionBadge(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'human_required') return 'human boundary';
+  if (status === 'blocked') return 'recovery';
+  if (status === 'attention_required') return 'follow-through';
+  if (status === 'active') return 'in motion';
+  if (status) return status.replace(/_/g, ' ');
+  return 'stable';
+}
+
+function renderCaseMissionPriorityCard(item, options = {}) {
+  const fallbackView = options.fallbackView || 'requests';
+  if (!item) {
+    const fallbackViewLabel = VIEW_TITLES[fallbackView] || titleCase(fallbackView || 'requests');
+    return `
+      <article class="card stack case-mission-priority tone-success">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+            <h3 class="card-title">${escapeHtml(options.fallbackTitle || 'No mission is active here')}</h3>
+            <p class="card-subtitle">${escapeHtml(options.fallbackDetail || 'This slot will surface the next governed case when pressure appears.')}</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge('stable')}</div>
+        </div>
+        <div class="trace-box compact-trace">
+          <strong>${escapeHtml(options.fallbackActionLabel || `Open ${fallbackViewLabel}`)}</strong>
+          <p>${escapeHtml(`Use ${fallbackViewLabel} to seed or review the next governed story.`)}</p>
+        </div>
+        ${renderViewJumpButton({ view: fallbackView, label: options.fallbackActionLabel || `Open ${fallbackViewLabel}`, className: 'action-button action-button-muted', title: `${fallbackViewLabel} reopened from Cases.`, detail: options.fallbackDetail || `Use ${fallbackViewLabel} to surface the next governed issue.`, actionLabel: options.fallbackActionLabel || `Open ${fallbackViewLabel}` })}
+      </article>
+    `;
+  }
+  const continuity = item.continuity || {};
+  const nextView = continuity.next_view || item.primary_view || fallbackView;
+  const nextViewLabel = VIEW_TITLES[nextView] || titleCase(nextView || 'requests');
+  const focus = resolveCasePrimaryFocus(item, nextView);
+  const linkedWorkTotal = [
+    (item.linked_request_ids || []).length,
+    (item.linked_override_ids || []).length,
+    (item.linked_session_ids || []).length,
+    (item.linked_action_ids || []).length,
+    (item.linked_document_ids || []).length,
+    (item.linked_workflow_ids || []).length,
+    (item.linked_studio_request_ids || []).length,
+  ].reduce((total, value) => total + Number(value || 0), 0);
+  const tone = options.toneOverride || getCaseMissionTone(item);
+  const badge = options.badgeOverride || getCaseMissionBadge(item);
+  const questLabel = continuity.next_label || `Open ${nextViewLabel}`;
+  return `
+    <article class="card stack case-mission-priority tone-${escapeHtml(tone)}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+          <h3 class="card-title">${escapeHtml(options.titleOverride || item.title || item.case_id || 'Governed case')}</h3>
+          <p class="card-subtitle">${escapeHtml(options.detailOverride || continuity.next_detail || 'Continue the governed issue from its owning lane.')}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(badge)}
+          ${statusBadge(nextViewLabel)}
+        </div>
+      </div>
+      <div class="trace-box compact-trace">
+        <strong>${escapeHtml(questLabel)}</strong>
+        <p>${escapeHtml(`${item.case_id || 'Case'} | ${continuity.evidence_posture || 'proof starting'} | ${linkedWorkTotal} linked signals`)}</p>
+      </div>
+      ${keyValue([
+        ['Updated', shortTime(item.updated_at)],
+        ['Timeline', String(item.timeline_total || 0)],
+        ['Work linked', String(linkedWorkTotal)],
+      ])}
+      ${renderViewJumpButton({ view: nextView, label: `Open ${nextViewLabel}`, className: 'action-button', focusType: focus.entityType, focusId: focus.entityId, caseId: item.case_id, title: item.case_id ? `Case ${item.case_id} reopened in ${nextViewLabel}.` : `Opened ${nextViewLabel}.`, detail: continuity.next_detail || 'Continue the governed issue from its next owning lane.', actionLabel: `Open ${nextViewLabel}` })}
+    </article>
   `;
 }
 
@@ -4289,20 +4421,24 @@ function renderCaseCard(item) {
     ...(item.linked_studio_request_ids || []).slice(0, 2),
   ].filter(Boolean);
   const primaryView = item.primary_view || 'requests';
+  const continuity = item.continuity || {};
   const primaryFocus = resolveCasePrimaryFocus(item, primaryView);
   const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView);
   const secondaryView = primaryView !== 'audit' ? 'audit' : 'requests';
   const secondaryViewLabel = VIEW_TITLES[secondaryView] || titleCase(secondaryView);
+  const tone = getCaseMissionTone(item);
+  const pressureBadge = getCaseMissionBadge(item);
   return `
-    <article class="card stack case-card${isFocusedEntity('case', item.case_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id))}">
+    <article class="card stack case-card case-card-tone-${escapeHtml(tone)}${isFocusedEntity('case', item.case_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(item.case_id || 'CASE')}</div>
           <h3 class="card-title">${escapeHtml(item.title || item.case_id || 'Governed case')}</h3>
-          <p class="card-subtitle">${escapeHtml(`Updated ${shortTime(item.updated_at)} | Opened ${shortTime(item.opened_at)}`)}</p>
+          <p class="card-subtitle">${escapeHtml(`Updated ${shortTime(item.updated_at)} | Opened ${shortTime(item.opened_at)} | ${continuity.next_label || `Continue in ${primaryViewLabel}`}`)}</p>
         </div>
         <div class="hero-chip-row">
           ${statusBadge(item.status || 'monitoring')}
+          ${statusBadge(pressureBadge)}
           ${statusBadge(primaryViewLabel)}
         </div>
       </div>
@@ -4320,8 +4456,17 @@ function renderCaseCard(item) {
       ${renderCaseContinuity(item)}
       ${renderCaseWorkItems(item)}
       ${linkedRefs.length ? `<div class="case-reference-list">${linkedRefs.map((value) => `<span class="pill pill-muted">${escapeHtml(value)}</span>`).join('')}</div>` : ''}
-      <div class="case-timeline">
-        ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry, item.case_id)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
+      <div class="case-timeline-shell">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Mission log</div>
+            <h4 class="card-title">What changed across this governed story</h4>
+          </div>
+          <div class="hero-chip-row">${statusBadge(`${timeline.length} events`)}</div>
+        </div>
+        <div class="case-timeline">
+          ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry, item.case_id)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
+        </div>
       </div>
       <div class="inline-actions">
         <button class="action-button" type="button" ${buildViewJumpAttributes({
@@ -4330,7 +4475,7 @@ function renderCaseCard(item) {
           focusId: primaryFocus.entityId,
           caseId: item.case_id,
           title: item.case_id ? `Case ${item.case_id} opened in ${primaryViewLabel}.` : `Opened ${primaryViewLabel}.`,
-          detail: 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
+          detail: continuity.next_detail || 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
           actionLabel: `Open ${primaryViewLabel}`,
         })}>${escapeHtml(`Open ${primaryViewLabel}`)}</button>
         <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
@@ -4370,8 +4515,14 @@ function renderCaseTimelineEntry(entry, caseId = '') {
   const view = entry.view || 'overview';
   const viewLabel = VIEW_TITLES[view] || titleCase(view || 'overview');
   const focus = resolveCaseTimelineFocus(entry);
+  const tone = getCaseMissionTone({ status: entry.status });
+  const actionVerb = entry.status === 'human_required'
+    ? 'Review in'
+    : entry.status === 'blocked'
+      ? 'Recover in'
+      : 'Continue in';
   return `
-    <article class="mini-card stack case-timeline-item">
+    <article class="mini-card stack case-timeline-item tone-${escapeHtml(tone)}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(shortTime(entry.timestamp))}</div>
@@ -4382,8 +4533,13 @@ function renderCaseTimelineEntry(entry, caseId = '') {
           ${statusBadge(viewLabel)}
         </div>
       </div>
+      <div class="transition-route case-timeline-route">
+        <span class="transition-node transition-node-active">${escapeHtml(titleCase(String(entry.status || 'recorded').replace(/_/g, ' ')))}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(viewLabel)}</span>
+      </div>
       <p class="muted">${escapeHtml(entry.detail || 'Governed case event recorded.')}</p>
-      <span class="permission-note">Ref ${escapeHtml(entry.reference || '-')}</span>
+      <span class="permission-note">Ref ${escapeHtml(entry.reference || '-')} | Next lane ${escapeHtml(viewLabel)}</span>
       <div class="inline-actions">
         <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
           view,
@@ -4392,8 +4548,8 @@ function renderCaseTimelineEntry(entry, caseId = '') {
           caseId,
           title: caseId ? `Case ${caseId} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
           detail: `Continue this case from the ${viewLabel} lane using the linked event reference.`,
-          actionLabel: `Open ${viewLabel}`,
-        })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+          actionLabel: `${actionVerb} ${viewLabel}`,
+        })}>${escapeHtml(`${actionVerb} ${viewLabel}`)}</button>
       </div>
     </article>
   `;

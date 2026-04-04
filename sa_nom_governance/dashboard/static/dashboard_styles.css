@@ -2769,6 +2769,68 @@ button:focus-visible {
   gap: 1.25rem;
 }
 
+.case-mission-board {
+  display: grid;
+  gap: 18px;
+}
+
+.case-mission-board-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.case-mission-priority-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.case-mission-priority {
+  align-content: start;
+  border-radius: 24px;
+}
+
+.case-mission-priority .trace-box {
+  margin: 0;
+}
+
+.case-mission-priority.tone-accent {
+  border-color: rgba(185, 146, 79, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(222, 192, 135, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(248, 242, 231, 0.9));
+}
+
+.case-mission-priority.tone-warning,
+.case-card-tone-warning {
+  border-color: rgba(184, 121, 38, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(184, 121, 38, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(248, 242, 231, 0.91));
+}
+
+.case-mission-priority.tone-danger,
+.case-card-tone-danger {
+  border-color: rgba(183, 64, 52, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(183, 64, 52, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 252, 250, 0.96), rgba(250, 241, 237, 0.92));
+}
+
+.case-mission-priority.tone-success,
+.case-card-tone-success {
+  border-color: rgba(31, 122, 89, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(31, 122, 89, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(244, 250, 245, 0.92));
+}
+
+.case-card-tone-accent {
+  border-color: rgba(185, 146, 79, 0.2);
+}
+
 .case-card {
   min-height: 100%;
 }
@@ -2777,10 +2839,25 @@ button:focus-visible {
   grid-column: 1 / -1;
 }
 
+.case-lane-doctrine-card {
+  align-content: start;
+}
+
 .case-reference-list {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.case-timeline-shell {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(185, 146, 79, 0.14);
+  background:
+    radial-gradient(circle at top right, rgba(222, 192, 135, 0.1), transparent 36%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(248, 242, 231, 0.86));
 }
 
 .case-timeline {
@@ -2803,10 +2880,32 @@ button:focus-visible {
   background: linear-gradient(180deg, rgba(185, 146, 79, 0.72), rgba(222, 192, 135, 0.18));
 }
 
+.case-timeline-item.tone-warning::before {
+  background: linear-gradient(180deg, rgba(184, 121, 38, 0.86), rgba(230, 197, 139, 0.18));
+}
+
+.case-timeline-item.tone-danger::before {
+  background: linear-gradient(180deg, rgba(183, 64, 52, 0.88), rgba(243, 204, 198, 0.2));
+}
+
+.case-timeline-item.tone-success::before {
+  background: linear-gradient(180deg, rgba(31, 122, 89, 0.86), rgba(193, 232, 212, 0.18));
+}
+
 .case-timeline-item:hover {
   transform: translateY(-2px);
   border-color: rgba(185, 146, 79, 0.24);
   box-shadow: 0 16px 28px rgba(17, 24, 39, 0.08);
+}
+
+.case-timeline-route {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.case-timeline-route .transition-node {
+  white-space: nowrap;
 }
 
 .case-progress-panel {
