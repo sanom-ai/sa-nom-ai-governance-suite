@@ -4499,6 +4499,8 @@ function renderCaseMissionPriorityCard(item, options = {}) {
   const tone = options.toneOverride || getCaseMissionTone(item);
   const badge = options.badgeOverride || getCaseMissionBadge(item);
   const questLabel = continuity.next_label || `Open ${nextViewLabel}`;
+  const questPhaseLabel = continuity.quest_phase_label || 'Live motion';
+  const questPhaseDetail = continuity.quest_phase_detail || 'Keep the governed story moving from the owning lane.';
   return `
     <article class="card stack case-mission-priority tone-${escapeHtml(tone)}">
       <div class="hero-heading">
@@ -4514,15 +4516,36 @@ function renderCaseMissionPriorityCard(item, options = {}) {
       </div>
       <div class="trace-box compact-trace">
         <strong>${escapeHtml(questLabel)}</strong>
-        <p>${escapeHtml(`${item.case_id || 'Case'} | ${continuity.evidence_posture || 'proof starting'} | ${linkedWorkTotal} linked signals`)}</p>
+        <p>${escapeHtml(`${questPhaseLabel} | ${item.case_id || 'Case'} | ${continuity.evidence_posture || 'proof starting'} | ${linkedWorkTotal} linked signals`)}</p>
       </div>
+      <p class="muted small command-momentum-note">${escapeHtml(questPhaseDetail)}</p>
       ${keyValue([
         ['Updated', shortTime(item.updated_at)],
+        ['Quest phase', questPhaseLabel],
         ['Timeline', String(item.timeline_total || 0)],
         ['Work linked', String(linkedWorkTotal)],
       ])}
       ${renderViewJumpButton({ view: nextView, label: `Open ${nextViewLabel}`, className: 'action-button', focusType: focus.entityType, focusId: focus.entityId, caseId: item.case_id, title: item.case_id ? `Case ${item.case_id} reopened in ${nextViewLabel}.` : `Opened ${nextViewLabel}.`, detail: continuity.next_detail || 'Continue the governed issue from its next owning lane.', actionLabel: `Open ${nextViewLabel}` })}
     </article>
+  `;
+}
+
+function renderCaseQuestStep(item) {
+  const continuity = item.continuity || {};
+  const questPhaseLabel = continuity.quest_phase_label || item.quest_phase_label || 'Live motion';
+  const questPhaseDetail = continuity.quest_phase_detail || item.quest_phase_detail || 'Keep the governed story moving from its owning lane.';
+  const proofLabel = continuity.evidence_posture || 'proof starting';
+  return `
+    <div class="trace-box case-quest-step">
+      <div class="case-quest-step-head">
+        <div>
+          <div class="eyebrow muted">Quest step</div>
+          <strong>${escapeHtml(questPhaseLabel)}</strong>
+        </div>
+        <div class="hero-chip-row">${statusBadge(proofLabel)}</div>
+      </div>
+      <p class="muted">${escapeHtml(questPhaseDetail)}</p>
+    </div>
   `;
 }
 
@@ -4671,17 +4694,18 @@ function renderCaseCard(item) {
   const secondaryViewLabel = VIEW_TITLES[secondaryView] || titleCase(secondaryView);
   const tone = getCaseMissionTone(item);
   const pressureBadge = getCaseMissionBadge(item);
+  const questPhaseLabel = continuity.quest_phase_label || item.quest_phase_label || pressureBadge;
   return `
     <article class="card stack case-card case-card-tone-${escapeHtml(tone)}${isFocusedEntity('case', item.case_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(item.case_id || 'CASE')}</div>
           <h3 class="card-title">${escapeHtml(item.title || item.case_id || 'Governed case')}</h3>
-          <p class="card-subtitle">${escapeHtml(`Updated ${shortTime(item.updated_at)} | Opened ${shortTime(item.opened_at)} | ${continuity.next_label || `Continue in ${primaryViewLabel}`}`)}</p>
+          <p class="card-subtitle">${escapeHtml(`Updated ${shortTime(item.updated_at)} | Opened ${shortTime(item.opened_at)} | ${questPhaseLabel} | ${continuity.next_label || `Continue in ${primaryViewLabel}`}`)}</p>
         </div>
         <div class="hero-chip-row">
           ${statusBadge(item.status || 'monitoring')}
-          ${statusBadge(pressureBadge)}
+          ${statusBadge(questPhaseLabel)}
           ${statusBadge(primaryViewLabel)}
         </div>
       </div>
@@ -4695,6 +4719,7 @@ function renderCaseCard(item) {
         ['Audit events', String(item.audit_event_total || 0)],
         ['Timeline', String(item.timeline_total || 0)],
       ])}
+      ${renderCaseQuestStep(item)}
       ${renderCaseProgressRoute(item)}
       ${renderCaseContinuity(item)}
       ${renderCaseWorkItems(item)}
@@ -5091,7 +5116,7 @@ function renderCommandHome(snapshot) {
             ])}
             <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(inboxSummary.primary_next_step || missionTopDetail)}</p></div>
             <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
-            ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}${statusBadge(activeOperations[0].board_rank_label || 'Lead operation')}</div></div>${renderActiveOperationCard(activeOperations[0], { featured: true })}${activeOperations.length > 1 ? `<div class="command-operation-grid">${activeOperations.slice(1).map((item) => renderActiveOperationCard(item)).join('')}</div>` : ''}</div>` : ''}
+            ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}${statusBadge(activeOperations[0].cluster_label || 'Lead cluster')}</div></div>${renderActiveOperationCard(activeOperations[0], { featured: true })}${activeOperations.length > 1 ? `<div class="command-operation-cluster-head"><div class="eyebrow muted">${escapeHtml(activeOperations[1].cluster_label || 'Supporting cluster')}</div><p class="muted">Keep nearby operations visible so the lead move stays supported across teams and lanes.</p></div><div class="command-operation-grid">${activeOperations.slice(1).map((item) => renderActiveOperationCard(item)).join('')}</div>` : ''}</div>` : ''}
           </section>
           <section class="card command-next-actions-card stack command-home-section command-home-section-actions">
             <div class="hero-heading">
@@ -5425,6 +5450,10 @@ function renderActiveOperationCard(item, options = {}) {
   const featured = Boolean(options.featured || item.featured);
   const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
   const featuredClass = featured ? ' command-operation-card-featured' : '';
+  const clusterLabel = item.cluster_label || (featured ? 'Lead cluster' : 'Supporting cluster');
+  const clusterDetail = item.cluster_detail || (featured
+    ? 'This operation is shaping the board right now.'
+    : 'Keep this operation nearby so the lead move stays readable across lanes.');
   const nextLaneLabel = item.next_view_label || VIEW_TITLES[item.next_view || 'cases'] || 'Cases';
   const openCaseButton = renderViewJumpButton({
     view: 'cases',
@@ -5452,13 +5481,14 @@ function renderActiveOperationCard(item, options = {}) {
       <article class="command-action-card command-operation-card${toneClass}${featuredClass}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id || ''))}">
         <div class="hero-heading">
           <div>
-            <div class="eyebrow muted">${escapeHtml(item.board_rank_label || item.case_id || 'Operation')}</div>
+            <div class="eyebrow muted">${escapeHtml(`${clusterLabel} | ${item.board_rank_label || item.case_id || 'Operation'}`)}</div>
             <strong>${escapeHtml(item.title || item.case_id || 'Governed operation')}</strong>
           </div>
           <div class="hero-chip-row">${statusBadge(item.pressure_badge || 'operation')}${statusBadge(`${escapeHtml(String(item.item_total || 0))} items`)}</div>
         </div>
         <div class="transition-route command-feed-route command-operation-route"><span class="transition-node">${escapeHtml(item.lead_team || 'Operations')}</span><span class="transition-arrow">&rarr;</span><span class="transition-node transition-node-active">${escapeHtml(nextLaneLabel)}</span></div>
         <p class="muted">${escapeHtml(item.quest_note || item.operation_label || 'Keep the operation visible across lanes.')}</p>
+        <p class="muted small command-operation-cluster-note">${escapeHtml(clusterDetail)}</p>
         <div class="trace-box compact-trace"><strong>${escapeHtml(item.operation_label || 'Active operation')}</strong><p class="muted">${escapeHtml(item.lead_move || 'Continue from the lead governed lane.')}</p></div>
         <p class="muted small command-momentum-note">${escapeHtml(item.route_phase || 'The next governed lane is already visible from this operation.')}</p>
         <div class="command-action-meta">${escapeHtml(item.lead_team || 'Operations')} | ${escapeHtml(String(item.item_total || 0))} routed items | ${escapeHtml(item.lane_summary || nextLaneLabel)}</div>

@@ -516,6 +516,8 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(timeline_types)
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(work_item_kinds)
         assert continuity.get('next_view') in {'overrides', 'human_ask', 'requests', 'audit', 'conflicts'}
+        assert continuity.get('quest_phase_label') in {'Recovery phase', 'Human boundary phase', 'Guided review phase', 'Proof carry-through', 'Proof building', 'Live motion'}
+        assert isinstance(continuity.get('quest_phase_detail'), str)
         assert continuity.get('evidence_posture') in {'proof attached', 'partial proof', 'proof starting'}
 
 
@@ -1177,6 +1179,8 @@ def test_dashboard_snapshot_exposes_command_surface_summary() -> None:
             assert isinstance(active_operations[0].get('quest_note'), str)
             assert isinstance(active_operations[0].get('lead_move'), str)
             assert isinstance(active_operations[0].get('board_rank_label'), str)
+            assert isinstance(active_operations[0].get('cluster_label'), str)
+            assert isinstance(active_operations[0].get('cluster_detail'), str)
             assert isinstance(active_operations[0].get('route_phase'), str)
         if quick_access:
             assert isinstance(quick_access[0].get('context_note'), str)
@@ -1233,6 +1237,7 @@ def test_command_surface_prioritizes_active_department_quick_access_for_compact_
         assert active_operations[0].get('case_id') == 'CASE-OPS-1'
         assert active_operations[0].get('pressure_badge') == 'human boundary'
         assert active_operations[0].get('board_rank_label') == 'Lead operation'
+        assert active_operations[0].get('cluster_label') == 'Lead cluster'
         assert 'human decision' in str(active_operations[0].get('lead_move', '')).lower()
 
 

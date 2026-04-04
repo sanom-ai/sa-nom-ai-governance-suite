@@ -1174,6 +1174,25 @@ class DashboardSnapshotBuilder:
                 evidence_posture = 'proof starting'
                 evidence_detail = 'This case is only lightly documented so far. Keep the next move tied to evidence as it grows.'
 
+            if status == 'blocked':
+                quest_phase_label = 'Recovery phase'
+                quest_phase_detail = 'A blocked or vetoed path must be reopened before this mission can safely advance again.'
+            elif status == 'human_required':
+                quest_phase_label = 'Human boundary phase'
+                quest_phase_detail = 'A real person now owns the next safe move for this case.'
+            elif status == 'attention_required':
+                quest_phase_label = 'Guided review phase'
+                quest_phase_detail = 'Operator follow-through is still steering the next move before the board settles.'
+            elif workflow_proof_total > 0:
+                quest_phase_label = 'Proof carry-through'
+                quest_phase_detail = 'The governed story is still moving, but it already has exportable proof attached.'
+            elif evidence_export_total > 0 or audit_event_total > 0:
+                quest_phase_label = 'Proof building'
+                quest_phase_detail = 'Evidence is accumulating while the case continues through its next governed lane.'
+            else:
+                quest_phase_label = 'Live motion'
+                quest_phase_detail = 'The case is still moving through its lead lane without a hard stop yet.'
+
             follow_up_actions: list[dict[str, str]] = []
             follow_up_actions.append({
                 'label': next_label,
@@ -1254,10 +1273,14 @@ class DashboardSnapshotBuilder:
                     'latest_proof_event': latest_proof_event,
                     'timeline_total': timeline_total,
                     'timeline': timeline[:6],
+                    'quest_phase_label': quest_phase_label,
+                    'quest_phase_detail': quest_phase_detail,
                     'continuity': {
                         'next_view': next_view,
                         'next_label': next_label,
                         'next_detail': next_detail,
+                        'quest_phase_label': quest_phase_label,
+                        'quest_phase_detail': quest_phase_detail,
                         'evidence_posture': evidence_posture,
                         'evidence_detail': evidence_detail,
                         'follow_up_actions': deduped_follow_ups[:3],
@@ -2893,6 +2916,12 @@ class DashboardSnapshotBuilder:
         )
         for index, item in enumerate(active_operations):
             item['board_rank_label'] = 'Lead operation' if index == 0 else 'Watch next' if index == 1 else 'Keep nearby'
+            item['cluster_label'] = 'Lead cluster' if index == 0 else 'Supporting cluster'
+            item['cluster_detail'] = (
+                'This operation is shaping the board right now.'
+                if index == 0
+                else 'Keep this operation nearby so the lead move stays supported across teams and lanes.'
+            )
             item['featured'] = index == 0
 
         human_required_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'human_required')

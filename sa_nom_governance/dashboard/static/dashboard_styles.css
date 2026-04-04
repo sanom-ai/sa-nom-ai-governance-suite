@@ -2940,6 +2940,18 @@ button:focus-visible {
   margin: 0;
 }
 
+.case-quest-step {
+  margin: 0;
+  gap: 10px;
+}
+
+.case-quest-step-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
 .case-mission-priority.tone-accent {
   border-color: rgba(185, 146, 79, 0.22);
   background:
@@ -3789,6 +3801,17 @@ button:focus-visible {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 16px;
+}
+
+.command-operation-cluster-head {
+  display: grid;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.command-operation-cluster-head p,
+.command-operation-cluster-note {
+  margin: 0;
 }
 
 .command-operation-card {
