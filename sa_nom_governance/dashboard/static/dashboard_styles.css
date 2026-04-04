@@ -3571,8 +3571,13 @@ button:focus-visible {
 }
 
 .command-operation-card .trace-box,
-.command-department-card .trace-box {
+.command-department-card .trace-box,
+.command-workforce-card .trace-box {
   margin: 0;
+}
+
+.command-inbox-route-note {
+  max-width: 36ch;
 }
 
 .command-quick-links-row {

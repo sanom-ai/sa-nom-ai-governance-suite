@@ -2195,6 +2195,61 @@ class DashboardSnapshotBuilder:
                     break
             return refs
 
+        def view_label_for(view: str) -> str:
+            return str(view).replace('_', ' ').title()
+
+        def action_label_for(view: str, disposition: str) -> str:
+            view_label = view_label_for(view)
+            if disposition == 'human_required':
+                return f'Resolve in {view_label}'
+            if disposition == 'blocked':
+                return f'Recover in {view_label}'
+            if disposition == 'ready':
+                return f'Advance in {view_label}'
+            return f'Review in {view_label}'
+
+        def focus_for_lane(lane_id: str, row: dict[str, object]) -> tuple[str, str, str]:
+            if not isinstance(row, dict):
+                return '', '', ''
+            case_id = str(row.get('case_id', row.get('case_reference', '')) or '').strip()
+            if lane_id == 'pending_overrides':
+                focus_id = str(row.get('request_id', '') or '').strip()
+                return ('override' if focus_id else '', focus_id, case_id)
+            if lane_id == 'human_decision_inbox':
+                focus_id = str(row.get('session_id', '') or '').strip()
+                return ('human_ask_session' if focus_id else '', focus_id, case_id)
+            if lane_id in {'blocked_workflows', 'recovery_backlog', 'dead_letters'}:
+                focus_id = str(row.get('request_id', row.get('resumed_request_id', '')) or '').strip()
+                return ('request' if focus_id else '', focus_id, case_id)
+            if lane_id.startswith('studio_'):
+                focus_id = str(row.get('request_id', '') or '').strip()
+                return ('studio_request' if focus_id else '', focus_id, case_id)
+            if lane_id.startswith('document_'):
+                focus_id = str(row.get('document_id', '') or '').strip()
+                return ('document' if focus_id else '', focus_id, case_id)
+            if lane_id.startswith('action_'):
+                focus_id = str(row.get('action_id', '') or '').strip()
+                return ('action' if focus_id else '', focus_id, case_id)
+            return '', '', case_id
+
+        def route_note_for_lane(case_id: str, disposition: str, view: str) -> str:
+            view_label = view_label_for(view)
+            if case_id:
+                if disposition == 'human_required':
+                    return f'Case {case_id} is waiting at a real human boundary in {view_label}.'
+                if disposition == 'blocked':
+                    return f'Case {case_id} is fail-closed in {view_label} until recovery happens.'
+                if disposition == 'ready':
+                    return f'Case {case_id} is clear to advance inside {view_label}.'
+                return f'Case {case_id} is still moving through {view_label}.'
+            if disposition == 'human_required':
+                return f'The next explicit human move is waiting in {view_label}.'
+            if disposition == 'blocked':
+                return f'Recovery pressure is building inside {view_label}.'
+            if disposition == 'ready':
+                return f'{view_label} is ready for the next governed move.'
+            return f'{view_label} is the best lane to review next.'
+
         lane_rows: dict[str, list[dict[str, object]]] = {
             'pending_overrides': pending_overrides,
             'human_decision_inbox': inbox_items,
@@ -2223,21 +2278,29 @@ class DashboardSnapshotBuilder:
                 oldest_record = self._oldest_record(rows, ['updated_at', 'created_at', 'captured_at', 'timestamp'])
                 oldest_hours = self._age_hours(oldest_record, ['updated_at', 'created_at', 'captured_at', 'timestamp'])
             refs = sample_refs(rows, config['reference_fields'])
+            lead_row = rows[0] if isinstance(rows[0], dict) else {}
+            view = str(config['view'])
+            disposition = str(config['disposition'])
+            focus_type, focus_id, case_id = focus_for_lane(lane_id, lead_row)
             items.append(
                 {
                     'lane_id': lane_id,
                     'title': str(config['title']),
-                    'view': str(config['view']),
-                    'disposition': str(config['disposition']),
+                    'view': view,
+                    'disposition': disposition,
                     'status': status,
-                    'tone': tone_for(status, str(config['disposition'])),
+                    'tone': tone_for(status, disposition),
                     'total': len(rows),
                     'oldest_age_hours': oldest_hours,
                     'oldest_reference': queue_item.get('oldest_reference') or (refs[0] if refs else '-'),
                     'next_step': str(config['next_step']),
                     'operator_note': str(config['operator_note']),
                     'sample_references': refs,
-                    'action_label': f"Open {str(config['view']).replace('_', ' ').title()}",
+                    'action_label': action_label_for(view, disposition),
+                    'focus_type': focus_type,
+                    'focus_id': focus_id,
+                    'case_id': case_id,
+                    'route_note': route_note_for_lane(case_id, disposition, view),
                 }
             )
 
@@ -2302,6 +2365,12 @@ class DashboardSnapshotBuilder:
                 'primary_title': primary.get('title', 'Autonomy ready'),
                 'primary_view': primary.get('view', 'overview'),
                 'primary_next_step': primary.get('next_step', 'Continue governed execution.'),
+                'primary_pressure_label': ('human boundary' if str(primary.get('disposition', 'monitoring') or 'monitoring') == 'human_required' else 'blocked path' if str(primary.get('disposition', 'monitoring') or 'monitoring') == 'blocked' else 'autonomy ready' if str(primary.get('disposition', 'monitoring') or 'monitoring') == 'ready' else self._command_surface_human_label(str(primary.get('disposition', 'monitoring') or 'monitoring')).lower()),
+                'primary_action_label': primary.get('action_label', f"Review in {view_label_for(str(primary.get('view', 'overview') or 'overview'))}"),
+                'primary_case_id': primary.get('case_id', ''),
+                'primary_route_note': primary.get('route_note', primary.get('operator_note', 'Continue from the lead governed lane.')),
+                'primary_focus_type': primary.get('focus_type', ''),
+                'primary_focus_id': primary.get('focus_id', ''),
             },
             'items': items[:8],
         }

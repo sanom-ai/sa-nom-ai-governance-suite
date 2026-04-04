@@ -1403,6 +1403,66 @@ def test_command_surface_mission_control_describes_blocked_pressure_when_no_huma
         assert surface.get('next_actions', [])[0].get('move_label') == 'Resolve Now'
 
 
+def test_unified_work_inbox_exposes_case_continuity_and_move_labels() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        inbox = builder.unified_work_inbox(
+            overrides=[
+                {
+                    'request_id': 'OVR-1',
+                    'status': 'pending',
+                    'case_id': 'CASE-OVR-1',
+                }
+            ],
+            human_ask={'sessions': []},
+            role_private_studio={'requests': []},
+            documents={'items': []},
+            actions={'items': [], 'summary': {'actions_total': 0}},
+            operational_readiness={
+                'operator_visibility': {
+                    'human_decision_inbox': [],
+                    'workflow_backlog': [
+                        {
+                            'workflow_id': 'WF-1',
+                            'request_id': 'REQ-1',
+                            'current_state': 'blocked',
+                            'case_id': 'CASE-REQ-1',
+                        }
+                    ],
+                    'runtime_recovery_backlog': [],
+                    'runtime_dead_letters': [],
+                }
+            },
+            operator_queue_health={
+                'items': [
+                    {
+                        'lane_id': 'pending_overrides',
+                        'status': 'warning',
+                        'oldest_age_hours': 6,
+                    }
+                ]
+            },
+            operator_decision_lanes=[],
+        )
+
+        summary = inbox.get('summary', {})
+        items = inbox.get('items', [])
+        lead = items[0]
+
+        assert lead.get('focus_type') == 'override'
+        assert lead.get('focus_id') == 'OVR-1'
+        assert lead.get('case_id') == 'CASE-OVR-1'
+        assert lead.get('action_label') == 'Resolve in Overrides'
+        assert 'CASE-OVR-1' in str(lead.get('route_note', ''))
+        assert summary.get('primary_action_label') == 'Resolve in Overrides'
+        assert summary.get('primary_case_id') == 'CASE-OVR-1'
+        assert summary.get('primary_pressure_label') == 'human boundary'
+        assert summary.get('primary_focus_type') == 'override'
+        assert summary.get('primary_focus_id') == 'OVR-1'
+
+
 def test_command_surface_mission_control_handles_quiet_completed_runtime_states() -> None:
     with TemporaryDirectory() as temp_dir:
         config = _base_config(temp_dir)

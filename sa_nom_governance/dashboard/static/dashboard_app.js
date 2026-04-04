@@ -3474,6 +3474,11 @@ function renderUnifiedWorkInbox(snapshot) {
   const items = Array.isArray(inbox.items) ? inbox.items.slice(0, 6) : [];
   if (!items.length) return '';
   const primaryViewLabel = VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview');
+  const primaryActionLabel = summary.primary_action_label || `Review in ${primaryViewLabel}`;
+  const primaryRouteNote = summary.primary_route_note || summary.primary_next_step || 'Open the lead governed lane and keep the next human boundary attached to the same work item.';
+  const humanBoundaryLane = items.find((item) => item.disposition === 'human_required') || null;
+  const blockedLane = items.find((item) => item.disposition === 'blocked') || null;
+  const readyLane = items.find((item) => item.disposition === 'ready' || item.disposition === 'autonomy_ready') || items.find((item) => item.status === 'ready') || items[0] || null;
   return `
       <section class="card stack">
         <div class="hero-heading">
@@ -3492,6 +3497,45 @@ function renderUnifiedWorkInbox(snapshot) {
           ['Lead lane', primaryViewLabel],
         ])}
         <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Open the lead governed lane and keep the next human boundary attached to the same work item.')}</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: summary.primary_view || 'overview', label: primaryActionLabel, className: 'action-button', focusType: summary.primary_focus_type || '', focusId: summary.primary_focus_id || '', caseId: summary.primary_case_id || '', title: `${summary.primary_title || primaryViewLabel} reopened from Work Inbox.`, detail: primaryRouteNote, actionLabel: primaryActionLabel })}
+        </div>
+        <div class="command-operation-shell">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Lane priorities</div>
+              <h4 class="card-title">Which queue should move first</h4>
+              <p class="card-subtitle">Keep the next human boundary, recovery path, and autonomy-ready lane visible without scanning every card in the inbox.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(summary.human_required_total ? 'human boundary live' : (summary.blocked_total ? 'recovery live' : 'lanes stable'))}</div>
+          </div>
+          <div class="command-operation-grid">
+            ${renderWorkInboxMissionCard(humanBoundaryLane, {
+              eyebrow: 'Human boundary now',
+              fallbackTitle: 'No human boundary is waiting right now',
+              fallbackDetail: 'When a real person must approve, veto, or confirm direction, that lane will surface here first.',
+              fallbackView: summary.primary_view || 'overview',
+              fallbackActionLabel: `Open ${primaryViewLabel}`,
+              toneOverride: humanBoundaryLane ? 'warning' : 'success',
+            })}
+            ${renderWorkInboxMissionCard(blockedLane, {
+              eyebrow: 'Recovery lane',
+              fallbackTitle: 'No blocked lane is visible right now',
+              fallbackDetail: 'If a governed path fails closed or collides with contention, this slot becomes the first recovery move.',
+              fallbackView: 'conflicts',
+              fallbackActionLabel: 'Open Conflicts',
+              toneOverride: blockedLane ? 'danger' : 'success',
+            })}
+            ${renderWorkInboxMissionCard(readyLane, {
+              eyebrow: 'Ready lane',
+              fallbackTitle: 'No ready lane is visible yet',
+              fallbackDetail: 'As soon as a lane can safely keep moving without a new human gate, it will surface here.',
+              fallbackView: summary.primary_view || 'overview',
+              fallbackActionLabel: `Open ${primaryViewLabel}`,
+              toneOverride: readyLane ? (readyLane.disposition === 'human_required' ? 'warning' : readyLane.disposition === 'blocked' ? 'danger' : 'accent') : 'success',
+            })}
+          </div>
+        </div>
         <div class="view-prelude-grid">
           ${items.map((item) => renderUnifiedWorkInboxItem(item)).join('')}
         </div>
@@ -3517,6 +3561,9 @@ function renderFocusedWorkInbox(snapshot, currentView) {
           <div class="hero-chip-row">${statusBadge(currentViewLabel)}${statusBadge(`${summary.open_total || 0} open`)}</div>
         </div>
         <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(leadItem.next_step || summary.primary_next_step || 'Keep the next move visible from the same lane.')}</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: leadItem.view || currentView || 'overview', label: leadItem.action_label || `Review in ${currentViewLabel}`, className: 'action-button', focusType: leadItem.focus_type || '', focusId: leadItem.focus_id || '', caseId: leadItem.case_id || '', title: `${leadItem.title || currentViewLabel} reopened from ${currentViewLabel}.`, detail: leadItem.route_note || leadItem.next_step || 'Continue from this governed lane without losing the case story.', actionLabel: leadItem.action_label || `Review in ${currentViewLabel}` })}
+        </div>
         <div class="view-prelude-grid">
           ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
         </div>
@@ -3546,27 +3593,96 @@ function renderUnifiedWorkInboxItem(item, { compact = false } = {}) {
     ? 'human boundary'
     : item.disposition === 'blocked'
       ? 'blocked path'
-      : item.disposition === 'ready'
+      : item.disposition === 'ready' || item.disposition === 'autonomy_ready'
         ? 'autonomy ready'
         : item.disposition || 'monitoring';
+  const viewLabel = VIEW_TITLES[item.view] || titleCase(item.view || 'overview');
   const queueSummary = `${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h`;
   const operatorNote = item.operator_note || item.next_step || 'Review the next governed move.';
+  const caseLabel = item.case_id ? `Case ${item.case_id}` : 'No case anchor';
+  const routeNote = item.route_note || (item.case_id ? `Case ${item.case_id} stays attached to this lane.` : `Use ${viewLabel} to inspect the next governed route.`);
+  const actionLabel = item.action_label || `Review in ${viewLabel}`;
+  const focusType = item.focus_type || '';
+  const focusId = item.focus_id || '';
+  const focusClass = focusType && focusId && isFocusedEntity(focusType, focusId) ? ' focused-record' : '';
+  const focusAttrs = focusType && focusId ? ` data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}"` : '';
   return `
-      <article class="view-prelude-card${toneClass}">
+      <article class="view-prelude-card${toneClass}${focusClass}"${focusAttrs}>
         <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
         <strong>${escapeHtml(item.title || 'Governed work lane')}</strong>
-        <div class="hero-chip-row">${statusBadge(pressureLabel)}${statusBadge(item.status || 'ready')}</div>
-        <p class="muted">${escapeHtml(queueSummary)}</p>
+        <div class="hero-chip-row">${statusBadge(pressureLabel)}${statusBadge(item.status || 'ready')}${statusBadge(viewLabel)}</div>
+        <div class="transition-route command-inbox-route">
+          <span class="transition-node transition-node-active">${escapeHtml(caseLabel)}</span>
+          <span class="transition-arrow">&rarr;</span>
+          <span class="transition-node">${escapeHtml(pressureLabel)}</span>
+          <span class="transition-arrow">&rarr;</span>
+          <span class="transition-node">${escapeHtml(viewLabel)}</span>
+        </div>
         <p class="muted">${escapeHtml(item.next_step || 'Review the next governed move.')}</p>
+        <p class="command-inbox-card-meta">${escapeHtml(queueSummary)}</p>
+        <p class="muted small command-inbox-route-note">${escapeHtml(routeNote)}</p>
         ${compact ? '' : `<p class="muted small">${escapeHtml(operatorNote)}</p>`}
         ${refs.length ? `<div class="hero-chip-row">${refs.map((ref) => `<span class="pill">${escapeHtml(ref)}</span>`).join('')}</div>` : ''}
         <div class="inline-actions">
-          <button class="action-button${compact ? ' action-button-muted' : ''}" type="button" data-view-jump="${escapeHtml(item.view || 'overview')}">${escapeHtml(item.action_label || `Open ${titleCase(item.view || 'overview')}`)}</button>
+          <button class="action-button${compact ? ' action-button-muted' : ''}" type="button" ${buildViewJumpAttributes({
+            view: item.view || 'overview',
+            focusType,
+            focusId,
+            caseId: item.case_id || '',
+            title: `${item.title || 'Governed work lane'} opened in ${viewLabel}.`,
+            detail: item.next_step || operatorNote,
+            actionLabel,
+          })}>${escapeHtml(actionLabel)}</button>
         </div>
       </article>
     `;
 }
 
+
+
+
+function renderWorkInboxMissionCard(item, options = {}) {
+  const fallbackView = options.fallbackView || 'overview';
+  if (!item) {
+    const fallbackViewLabel = VIEW_TITLES[fallbackView] || titleCase(fallbackView || 'overview');
+    return `
+      <article class="command-action-card tone-success command-workforce-card">
+        <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+        <strong>${escapeHtml(options.fallbackTitle || 'No active mission')}</strong>
+        <p class="muted">${escapeHtml(options.fallbackDetail || 'This slot will light up when a queue truly needs direction.')}</p>
+        <div class="trace-box compact-trace"><strong>${escapeHtml(options.fallbackActionLabel || `Open ${fallbackViewLabel}`)}</strong><p class="muted">${escapeHtml(`Use ${fallbackViewLabel} when you want to inspect the broader queue instead of a single mission lane.`)}</p></div>
+        ${renderViewJumpButton({ view: fallbackView, label: options.fallbackActionLabel || `Open ${fallbackViewLabel}`, className: 'action-button action-button-muted', title: `${fallbackViewLabel} reopened from Work Inbox.`, detail: options.fallbackDetail || `Use ${fallbackViewLabel} to inspect the next governed lane.`, actionLabel: options.fallbackActionLabel || `Open ${fallbackViewLabel}` })}
+      </article>
+    `;
+  }
+  const view = item.view || options.fallbackView || 'overview';
+  const viewLabel = VIEW_TITLES[view] || titleCase(view || 'overview');
+  const tone = options.toneOverride || (item.tone === 'danger' ? 'danger' : item.tone === 'warning' ? 'warning' : item.tone === 'success' ? 'success' : 'accent');
+  const refs = Array.isArray(item.sample_references) ? item.sample_references.slice(0, 2).filter(Boolean).join(' | ') : '';
+  const actionLabel = item.action_label || `Review in ${viewLabel}`;
+  const routeNote = item.route_note || (item.case_id ? `Case ${item.case_id} stays attached to this lane.` : `Use ${viewLabel} to inspect the next governed route.`);
+  const focusType = item.focus_type || '';
+  const focusId = item.focus_id || '';
+  const focusClass = focusType && focusId && isFocusedEntity(focusType, focusId) ? ' focused-record' : '';
+  const focusAttrs = focusType && focusId ? ` data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}"` : '';
+  return `
+    <article class="command-action-card tone-${escapeHtml(tone)} command-workforce-card${focusClass}"${focusAttrs}>
+      <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+      <strong>${escapeHtml(item.title || 'Governed lane')}</strong>
+      <div class="transition-route command-inbox-route">
+        <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'Lead lane')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.disposition || 'monitoring')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(viewLabel)}</span>
+      </div>
+      <p class="muted">${escapeHtml(item.next_step || item.operator_note || 'Review the next governed move.')}</p>
+      <p class="muted small command-inbox-route-note">${escapeHtml(routeNote)}</p>
+      <div class="trace-box compact-trace"><strong>${escapeHtml(actionLabel)}</strong><p class="muted">${escapeHtml(`${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h${refs ? ` | refs ${refs}` : ''}`)}</p></div>
+      ${renderViewJumpButton({ view, label: actionLabel, className: 'action-button', focusType, focusId, caseId: item.case_id || '', title: `${item.title || 'Governed lane'} opened in ${viewLabel}.`, detail: item.next_step || item.operator_note || 'Continue from the lane that owns the next move.', actionLabel })}
+    </article>
+  `;
+}
 
 function renderFirstRunReadinessCard(firstRunReadiness) {
   if (!firstRunReadiness || typeof firstRunReadiness !== 'object') return '';
@@ -6602,6 +6718,57 @@ function renderAdminSettingsTool(snapshot) {
   `;
 }
 
+function getActionMissionTone(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'failed_closed' || status === 'blocked') return 'danger';
+  if (status === 'waiting_human' || status === 'human_required') return 'warning';
+  if (status === 'completed') return 'success';
+  return 'accent';
+}
+
+function renderActionMissionCard(item, options = {}) {
+  const fallbackView = options.fallbackView || 'actions';
+  if (!item) {
+    const fallbackViewLabel = VIEW_TITLES[fallbackView] || titleCase(fallbackView || 'actions');
+    return `
+      <article class="command-action-card tone-success command-workforce-card">
+        <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+        <strong>${escapeHtml(options.fallbackTitle || 'No active action is visible')}</strong>
+        <p class="muted">${escapeHtml(options.fallbackDetail || 'This slot will surface the next governed AI mission when it matters.')}</p>
+        <div class="trace-box compact-trace"><strong>${escapeHtml(options.fallbackActionLabel || `Open ${fallbackViewLabel}`)}</strong><p class="muted">${escapeHtml(`Use ${fallbackViewLabel} to inspect the broader AI runtime or related case continuity.`)}</p></div>
+        ${renderViewJumpButton({ view: fallbackView, label: options.fallbackActionLabel || `Open ${fallbackViewLabel}`, className: 'action-button action-button-muted', title: `${fallbackViewLabel} reopened from AI Actions.`, detail: options.fallbackDetail || `Use ${fallbackViewLabel} to inspect the next AI mission.`, actionLabel: options.fallbackActionLabel || `Open ${fallbackViewLabel}` })}
+      </article>
+    `;
+  }
+  const primary = resolveActionPrimaryFocus(item);
+  const view = options.viewOverride || primary.view || 'actions';
+  const viewLabel = VIEW_TITLES[view] || titleCase(view || 'actions');
+  const tone = options.toneOverride || getActionMissionTone(item);
+  const summaryLine = item.output_summary || item.next_action || item.waiting_reason || item.latest_error || 'Governed AI runtime item.';
+  const traceLine = item.latest_error || item.waiting_reason || `Case ${item.case_id || '-'} | ${item.action_type || 'action'} | ${item.artifacts_total || 0} artifacts`;
+  const actionLabel = options.actionLabel || `Open ${viewLabel}`;
+  const focusType = primary.entityType || '';
+  const focusId = primary.entityId || '';
+  const focusClass = focusType && focusId && isFocusedEntity(focusType, focusId) ? ' focused-record' : '';
+  const focusAttrs = focusType && focusId ? ` data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}"` : '';
+  return `
+    <article class="command-action-card tone-${escapeHtml(tone)} command-workforce-card${focusClass}"${focusAttrs}>
+      <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+      <strong>${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</strong>
+      <div class="transition-route command-inbox-route">
+        <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'AI runtime')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.status || 'planned')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(viewLabel)}</span>
+      </div>
+      <p class="muted">${escapeHtml(summaryLine)}</p>
+      <div class="trace-box compact-trace"><strong>${escapeHtml(actionLabel)}</strong><p class="muted">${escapeHtml(traceLine)}</p></div>
+      ${renderViewJumpButton({ view, label: actionLabel, className: 'action-button', focusType, focusId, caseId: primary.caseId || item.case_id || '', title: `${item.label || item.action_id || 'AI action'} opened in ${viewLabel}.`, detail: summaryLine, actionLabel })}
+    </article>
+  `;
+}
+
 function renderActions(snapshot) {
   const surface = snapshot.actions || { summary: {}, registry: [], items: [] };
   const summary = surface.summary || {};
@@ -6633,6 +6800,10 @@ function renderActions(snapshot) {
           : items.length
             ? 'The runtime already has visible action history. Inspect the result before deciding whether to launch another governed move.'
             : 'This case is ready for its first governed AI action.';
+  const runningAction = items.find((item) => String(item.status || '') === 'running') || null;
+  const waitingAction = items.find((item) => String(item.status || '') === 'waiting_human') || null;
+  const failedAction = items.find((item) => String(item.status || '') === 'failed_closed') || null;
+  const completedAction = items.find((item) => String(item.status || '') === 'completed') || null;
   return `
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
@@ -6675,6 +6846,47 @@ function renderActions(snapshot) {
           ${renderViewJumpButton({ view: 'cases', label: currentCase ? 'Open selected case' : 'Open Cases', className: 'action-button action-button-muted', focusType: currentCase ? 'case' : '', focusId: currentCase?.case_id || '', caseId: currentCase?.case_id || '', title: currentCase ? `Case ${currentCase.case_id} reopened from AI Actions.` : 'Cases reopened from AI Actions.', detail: 'Return to the canonical case to review linked work, proof, and next moves.', actionLabel: currentCase ? 'Open selected case' : 'Open Cases' })}
         </div>
       </article>
+    </section>
+    <section class="command-workforce-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">AI workforce board</div>
+          <h3 class="card-title">Which AI mission is moving, waiting, or blocked</h3>
+          <p class="card-subtitle">Read this lane like a workforce board: what AI is advancing now, where a human must step in, and which fail-closed path needs recovery.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge((summary.running_total || 0) ? 'ai moving' : 'monitoring')}${statusBadge((summary.waiting_human_total || 0) ? 'human handoff live' : 'no active handoff')}</div>
+      </div>
+      <div class="command-workforce-grid">
+        ${renderActionMissionCard(runningAction, {
+          eyebrow: 'AI moving now',
+          fallbackTitle: 'No action is actively running right now',
+          fallbackDetail: 'The workforce board will highlight live governed execution here as soon as AI starts moving inside a case.',
+          fallbackView: currentCase ? 'cases' : 'actions',
+          fallbackActionLabel: currentCase ? 'Open selected case' : 'Open AI Actions',
+          toneOverride: runningAction ? 'accent' : 'success',
+          actionLabel: runningAction ? 'Monitor in AI Actions' : undefined,
+        })}
+        ${renderActionMissionCard(waitingAction, {
+          eyebrow: 'Human handoff',
+          fallbackTitle: 'No AI action is waiting on a person right now',
+          fallbackDetail: 'When AI reaches a real approval or reserved human-only boundary, this slot becomes the next explicit move.',
+          fallbackView: 'cases',
+          fallbackActionLabel: currentCase ? 'Open selected case' : 'Open Cases',
+          toneOverride: waitingAction ? 'warning' : 'success',
+          viewOverride: 'cases',
+          actionLabel: currentCase ? 'Open selected case' : 'Open Cases',
+        })}
+        ${renderActionMissionCard(failedAction || completedAction, {
+          eyebrow: failedAction ? 'Recovery lane' : 'Latest outcome',
+          fallbackTitle: 'No failed or completed action is shaping the board',
+          fallbackDetail: 'As soon as an action fails closed or finishes with a meaningful side effect, the board will surface it here.',
+          fallbackView: summary.document_artifact_total ? 'documents' : 'actions',
+          fallbackActionLabel: summary.document_artifact_total ? 'Open Documents' : 'Open AI Actions',
+          toneOverride: failedAction ? 'danger' : completedAction ? 'success' : 'success',
+          viewOverride: failedAction ? 'actions' : (summary.document_artifact_total ? 'documents' : undefined),
+          actionLabel: failedAction ? 'Recover in AI Actions' : (summary.document_artifact_total ? 'Open Documents' : 'Open AI Actions'),
+        })}
+      </div>
     </section>
     <section class="metrics-grid metrics-grid-luxury">
       ${metricCard('Running', summary.running_total || 0, (summary.running_total || 0) ? 'accent' : 'default', 'Governed AI actions actively moving right now.')}
