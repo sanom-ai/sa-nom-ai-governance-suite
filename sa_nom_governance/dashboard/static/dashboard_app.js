@@ -3457,30 +3457,30 @@ function renderUnifiedWorkInbox(snapshot) {
   const summary = inbox.summary || {};
   const items = Array.isArray(inbox.items) ? inbox.items.slice(0, 6) : [];
   if (!items.length) return '';
+  const primaryViewLabel = VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview');
   return `
-    <section class="card stack">
-      <div class="hero-heading">
-        <div>
-          <div class="eyebrow muted">Unified Work Inbox</div>
-          <h3 class="card-title">One queue for what must move next across the governed runtime.</h3>
-          <p class="card-subtitle">Use this as the executive work queue: it keeps human decisions, blocked paths, recovery pressure, and the best next lane visible without making you reconstruct the system by hand.</p>
+      <section class="card stack">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Operations Map</div>
+            <h3 class="card-title">See where governed pressure is building before it becomes clerical chaos.</h3>
+            <p class="card-subtitle">Use this as the live board for human boundaries, blocked paths, and recovery pressure across the runtime. Each lane should tell you what the next move is, not just what exists.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(`${summary.open_total || 0} open`)}${statusBadge(`${summary.human_required_total || 0} human`)}</div>
         </div>
-        <div class="hero-chip-row">${statusBadge(`${summary.open_total || 0} open`)}${statusBadge(summary.primary_title || 'Autonomy ready')}</div>
-      </div>
-      ${keyValue([
-        ['Open work', String(summary.open_total || 0)],
-        ['Human required', String(summary.human_required_total || 0)],
-        ['Blocked', String(summary.blocked_total || 0)],
-        ['Monitoring', String(summary.monitoring_total || 0)],
-        ['Ready lanes', String(summary.ready_total || 0)],
-        ['Primary move', VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview')],
-      ])}
-      <div class="trace-box"><strong>Queue pressure</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Open the first visible lane and keep the next human boundary attached to the same governed work item.')}</p></div>
-      <div class="view-prelude-grid">
-        ${items.map((item) => renderUnifiedWorkInboxItem(item)).join('')}
-      </div>
-    </section>
-  `;
+        ${keyValue([
+          ['Open work', String(summary.open_total || 0)],
+          ['Human required', String(summary.human_required_total || 0)],
+          ['Blocked paths', String(summary.blocked_total || 0)],
+          ['Ready lanes', String(summary.ready_total || 0)],
+          ['Lead lane', primaryViewLabel],
+        ])}
+        <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Open the lead governed lane and keep the next human boundary attached to the same work item.')}</p></div>
+        <div class="view-prelude-grid">
+          ${items.map((item) => renderUnifiedWorkInboxItem(item)).join('')}
+        </div>
+      </section>
+    `;
 }
 
 function renderFocusedWorkInbox(snapshot, currentView) {
@@ -3488,21 +3488,24 @@ function renderFocusedWorkInbox(snapshot, currentView) {
   const summary = inbox.summary || {};
   const items = selectFocusedInboxItems(Array.isArray(inbox.items) ? inbox.items : [], currentView);
   if (!items.length) return '';
+  const currentViewLabel = VIEW_TITLES[currentView] || titleCase(currentView || 'overview');
+  const leadItem = items[0] || {};
   return `
-    <section class="card stack">
-      <div class="hero-heading">
-        <div>
-          <div class="eyebrow muted">Next Governed Work</div>
-          <h3 class="card-title">What should happen next from this lane</h3>
-          <p class="card-subtitle">Stay inside the current workflow, but keep the next human boundary, blocked path, or case-continuity move visible without going back to Home.</p>
+      <section class="card stack">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Next Governed Work</div>
+            <h3 class="card-title">What should happen next from ${escapeHtml(currentViewLabel)}</h3>
+            <p class="card-subtitle">Stay inside this workflow, but keep the next human boundary, blocked path, or case-continuity move visible without going back to Home.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(currentViewLabel)}${statusBadge(`${summary.open_total || 0} open`)}</div>
         </div>
-        <div class="hero-chip-row">${statusBadge(titleCase(currentView || 'overview'))}${statusBadge(`${summary.open_total || 0} open`)}</div>
-      </div>
-      <div class="view-prelude-grid">
-        ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
-      </div>
-    </section>
-  `;
+        <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(leadItem.next_step || summary.primary_next_step || 'Keep the next move visible from the same lane.')}</p></div>
+        <div class="view-prelude-grid">
+          ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
+        </div>
+      </section>
+    `;
 }
 
 function selectFocusedInboxItems(items, currentView) {
@@ -3520,21 +3523,32 @@ function renderUnifiedWorkInboxItem(item, { compact = false } = {}) {
     ? ' view-prelude-card-danger'
     : item.tone === 'warning'
       ? ' view-prelude-card-warning'
-      : '';
-  const queueSummary = `${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h | ref ${item.oldest_reference || '-'}`;
+      : item.tone === 'success'
+        ? ' view-prelude-card-success'
+        : ' view-prelude-card-accent';
+  const pressureLabel = item.disposition === 'human_required'
+    ? 'human boundary'
+    : item.disposition === 'blocked'
+      ? 'blocked path'
+      : item.disposition === 'ready'
+        ? 'autonomy ready'
+        : item.disposition || 'monitoring';
+  const queueSummary = `${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h`;
+  const operatorNote = item.operator_note || item.next_step || 'Review the next governed move.';
   return `
-    <article class="view-prelude-card${toneClass}">
-      <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
-      <strong>${escapeHtml(item.title || 'Governed work lane')}</strong>
-      <p class="muted">${escapeHtml(queueSummary)}</p>
-      <div class="hero-chip-row">${statusBadge(item.disposition || 'monitoring')}${statusBadge(item.status || 'ready')}</div>
-      <p class="muted">${escapeHtml(item.next_step || 'Review the next governed move.')}</p>
-      ${refs.length ? `<div class="hero-chip-row">${refs.map((ref) => `<span class="pill">${escapeHtml(ref)}</span>`).join('')}</div>` : ''}
-      <div class="inline-actions">
-        <button class="action-button${compact ? ' action-button-muted' : ''}" type="button" data-view-jump="${escapeHtml(item.view || 'overview')}">${escapeHtml(item.action_label || `Open ${titleCase(item.view || 'overview')}`)}</button>
-      </div>
-    </article>
-  `;
+      <article class="view-prelude-card${toneClass}">
+        <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
+        <strong>${escapeHtml(item.title || 'Governed work lane')}</strong>
+        <div class="hero-chip-row">${statusBadge(pressureLabel)}${statusBadge(item.status || 'ready')}</div>
+        <p class="muted">${escapeHtml(queueSummary)}</p>
+        <p class="muted">${escapeHtml(item.next_step || 'Review the next governed move.')}</p>
+        ${compact ? '' : `<p class="muted small">${escapeHtml(operatorNote)}</p>`}
+        ${refs.length ? `<div class="hero-chip-row">${refs.map((ref) => `<span class="pill">${escapeHtml(ref)}</span>`).join('')}</div>` : ''}
+        <div class="inline-actions">
+          <button class="action-button${compact ? ' action-button-muted' : ''}" type="button" data-view-jump="${escapeHtml(item.view || 'overview')}">${escapeHtml(item.action_label || `Open ${titleCase(item.view || 'overview')}`)}</button>
+        </div>
+      </article>
+    `;
 }
 
 
@@ -4544,6 +4558,9 @@ function renderCommandHome(snapshot) {
   const surface = snapshot.command_surface || {};
   const posture = surface.posture_summary || {};
   const mission = surface.mission_control || {};
+  const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
+  const inboxSummary = inbox.summary || {};
+  const operationsMapItems = Array.isArray(inbox.items) ? inbox.items.slice(0, 4) : [];
   const nextActions = buildHomeNextActions(snapshot, surface).slice(0, 5);
   const aiFeed = Array.isArray(surface.ai_activity_feed) ? surface.ai_activity_feed.slice(0, 5) : [];
   const departments = Array.isArray(surface.department_quick_access) ? surface.department_quick_access.slice(0, 6) : [];
@@ -4566,100 +4583,120 @@ function renderCommandHome(snapshot) {
   const aiMomentumTitle = mission.ai_momentum_title || 'AI workforce';
   const aiMomentumDetail = mission.ai_momentum_detail || `${aiRunning} running | ${aiTotal} total governed actions`;
   const missionPressureLabel = mission.pressure_label || `${attentionTotal} attention`;
+  const inboxLeadLane = VIEW_TITLES[inboxSummary.primary_view] || titleCase(inboxSummary.primary_view || 'overview');
   const controlRoomAction = canAccessControlRoom()
     ? renderViewJumpButton({ view: 'control_room', label: 'Open Control Room', className: 'action-button action-button-muted' })
     : '<span class="pill pill-muted">Governance lead required</span>';
   return `
-    <section class="command-home-stack stack gap-lg">
-      <section class="command-home-hero">
-        <article class="card hero-card hero-card-primary command-home-hero-primary">
+      <section class="command-home-stack stack gap-lg">
+        <section class="command-home-hero">
+          <article class="card hero-card hero-card-primary command-home-hero-primary">
+            <div class="hero-heading">
+              <div>
+                <div class="eyebrow">Simple Home Dashboard</div>
+                <h3 class="hero-title">Your Next Actions</h3>
+                <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
+              </div>
+              <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(missionPressureLabel)}${statusBadge(session.persona || session.role_name || 'operator')}</div>
+            </div>
+            <div class="inline-actions">
+              ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button' })}
+              ${renderViewJumpButton({ view: 'actions', label: 'See AI Activity', className: 'action-button action-button-muted' })}
+              ${controlRoomAction}
+            </div>
+          </article>
+          <article class="card hero-card hero-card-secondary command-home-hero-secondary">
+            <div>
+              <div class="eyebrow muted">What should happen next?</div>
+              <h3 class="card-title">${escapeHtml(missionTopTitle)}</h3>
+              <p class="card-subtitle">${escapeHtml(missionTopDetail)}</p>
+            </div>
+            <div class="trace-box compact-trace"><strong>${escapeHtml(missionWorldTitle)}</strong><p class="muted">${escapeHtml(`${missionWorldNote} ${aiMomentumTitle}: ${aiMomentumDetail}`.trim())}</p></div>
+          </article>
+        </section>
+        <section class="command-guidance-grid">
+          ${renderCommandTabletFocusCard(session, primaryViews)}
+          ${renderCommandSessionContinuityCard(session)}
+        </section>
+        <section class="card stack command-home-section">
           <div class="hero-heading">
             <div>
-              <div class="eyebrow">Simple Home Dashboard</div>
-              <h3 class="hero-title">Your Next Actions</h3>
-              <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
+              <div class="eyebrow muted">System Posture Summary</div>
+              <h3 class="card-title">Five-second posture check</h3>
+              <p class="card-subtitle">Only the signals a normal user needs right now. Technical evidence, signatures, and runtime internals stay behind the Control Room boundary.</p>
             </div>
-            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(missionPressureLabel)}${statusBadge(session.persona || session.role_name || 'operator')}</div>
           </div>
-          <div class="inline-actions">
-            ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button' })}
-            ${renderViewJumpButton({ view: 'actions', label: 'See AI Activity', className: 'action-button action-button-muted' })}
-            ${controlRoomAction}
+          <div class="command-summary-grid">
+            ${renderHomePostureCard('Operating Mode', 'Governance-first', modeNote, posture.operating_status === 'stable' ? 'success' : 'warning', 'One governed operating model stays active across the Director.')}
+            ${renderHomePostureCard('AI Workforce', `${aiRunning} actions running`, 'One core, many hats', aiRunning ? 'accent' : 'default', 'AI remains the primary workforce across active governed cases.')}
+            ${renderHomePostureCard('Conflicts & Locks', `${attentionTotal} items need attention`, canAccessControlRoom() ? 'Open Control Room' : 'Escalate to governance lead', attentionTotal ? 'warning' : 'success', 'Only show pressure that could change the next human move.', canAccessControlRoom() ? 'control_room' : '')}
+            ${renderHomePostureCard('Evidence Integrity', evidenceLabel, evidenceDate, posture.evidence_status === 'verified' ? 'success' : 'warning', 'Evidence remains verified while identifiers stay hidden by default.')}
           </div>
-        </article>
-        <article class="card hero-card hero-card-secondary command-home-hero-secondary">
-          <div>
-            <div class="eyebrow muted">What should happen next?</div>
-            <h3 class="card-title">${escapeHtml(missionTopTitle)}</h3>
-            <p class="card-subtitle">${escapeHtml(missionTopDetail)}</p>
+        </section>
+        <section class="card stack command-home-section">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Operations Map</div>
+              <h3 class="card-title">Where pressure is building across the runtime</h3>
+              <p class="card-subtitle">Read the live lanes like a command board: which queue is gating AI, which lane is blocked, and where the Director should step in next.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(`${inboxSummary.human_required_total || 0} human`)}${statusBadge(`${inboxSummary.blocked_total || 0} blocked`)}</div>
           </div>
-          <div class="trace-box compact-trace"><strong>${escapeHtml(missionWorldTitle)}</strong><p class="muted">${escapeHtml(`${missionWorldNote} ${aiMomentumTitle}: ${aiMomentumDetail}`.trim())}</p></div>
-        </article>
+          ${keyValue([
+            ['Open work', String(inboxSummary.open_total || 0)],
+            ['Lead lane', inboxLeadLane],
+            ['Human required', String(inboxSummary.human_required_total || 0)],
+            ['Blocked paths', String(inboxSummary.blocked_total || 0)],
+            ['Ready lanes', String(inboxSummary.ready_total || 0)],
+          ])}
+          <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(inboxSummary.primary_next_step || missionTopDetail)}</p></div>
+          <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
+        </section>
+        ${setupContinuation}
+        <section class="card command-next-actions-card stack command-home-section">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">What's Next For You</div>
+              <h3 class="card-title">Your Next Actions</h3>
+              <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
+          </div>
+          <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
+        </section>
+        ${touchLaneSection}
+        <section class="card stack command-home-section">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">AI Activity Feed</div>
+              <h3 class="card-title">What AI is doing now</h3>
+              <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}</div>
+          </div>
+          <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item) => renderAiFeedCard(item)).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
+        </section>
+        <section class="card stack command-home-section">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Quick Access by Department / Team</div>
+              <h3 class="card-title">Jump into the team context that owns the work</h3>
+              <p class="card-subtitle">These cards reuse master data and search continuity so you can route into the right business context without opening technical screens.</p>
+            </div>
+          </div>
+          <div class="command-department-grid">${departments.length ? departments.map((item) => renderDepartmentQuickAccessCard(item)).join('') : renderCommandEmptyState('No department baseline is visible yet.', 'Master data will surface functional teams here once the runtime sees more real work.')}</div>
+        </section>
+        <section class="card stack command-home-section command-quick-links-card">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Quick Links</div>
+              <h3 class="card-title">Continue in the right governed lane</h3>
+            </div>
+          </div>
+          <div class="command-quick-links-row">${quickLinks.map((item) => renderHomeQuickLink(item)).join('')}${canAccessControlRoom() ? renderHomeQuickLink({ view: 'control_room', label: 'Control Room' }) : ''}</div>
+        </section>
       </section>
-      <section class="command-guidance-grid">
-        ${renderCommandTabletFocusCard(session, primaryViews)}
-        ${renderCommandSessionContinuityCard(session)}
-      </section>
-      <section class="card stack command-home-section">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">System Posture Summary</div>
-            <h3 class="card-title">Five-second posture check</h3>
-            <p class="card-subtitle">Only the signals a normal user needs right now. Technical evidence, signatures, and runtime internals stay behind the Control Room boundary.</p>
-          </div>
-        </div>
-        <div class="command-summary-grid">
-          ${renderHomePostureCard('Operating Mode', 'Governance-first', modeNote, posture.operating_status === 'stable' ? 'success' : 'warning', 'One governed operating model stays active across the Director.')}
-          ${renderHomePostureCard('AI Workforce', `${aiRunning} actions running`, 'One core, many hats', aiRunning ? 'accent' : 'default', 'AI remains the primary workforce across active governed cases.')}
-          ${renderHomePostureCard('Conflicts & Locks', `${attentionTotal} items need attention`, canAccessControlRoom() ? 'Open Control Room' : 'Escalate to governance lead', attentionTotal ? 'warning' : 'success', 'Only show pressure that could change the next human move.', canAccessControlRoom() ? 'control_room' : '')}
-          ${renderHomePostureCard('Evidence Integrity', evidenceLabel, evidenceDate, posture.evidence_status === 'verified' ? 'success' : 'warning', 'Evidence remains verified while identifiers stay hidden by default.')}
-        </div>
-      </section>
-      ${setupContinuation}
-      <section class="card command-next-actions-card stack command-home-section">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">What's Next For You</div>
-            <h3 class="card-title">Your Next Actions</h3>
-            <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
-          </div>
-          <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
-        </div>
-        <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
-      </section>
-      ${touchLaneSection}
-      <section class="card stack command-home-section">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">AI Activity Feed</div>
-            <h3 class="card-title">What AI is doing now</h3>
-            <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
-          </div>
-          <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}</div>
-        </div>
-        <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item) => renderAiFeedCard(item)).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
-      </section>
-      <section class="card stack command-home-section">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">Quick Access by Department / Team</div>
-            <h3 class="card-title">Jump into the team context that owns the work</h3>
-            <p class="card-subtitle">These cards reuse master data and search continuity so you can route into the right business context without opening technical screens.</p>
-          </div>
-        </div>
-        <div class="command-department-grid">${departments.length ? departments.map((item) => renderDepartmentQuickAccessCard(item)).join('') : renderCommandEmptyState('No department baseline is visible yet.', 'Master data will surface functional teams here once the runtime sees more real work.')}</div>
-      </section>
-      <section class="card stack command-home-section command-quick-links-card">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">Quick Links</div>
-            <h3 class="card-title">Continue in the right governed lane</h3>
-          </div>
-        </div>
-        <div class="command-quick-links-row">${quickLinks.map((item) => renderHomeQuickLink(item)).join('')}${canAccessControlRoom() ? renderHomeQuickLink({ view: 'control_room', label: 'Control Room' }) : ''}</div>
-      </section>
-    </section>
-  `;
+    `;
 }
 
 function getTabletPrimaryViews(session = state.session || {}) {
@@ -4978,26 +5015,16 @@ function renderAiFeedCard(item) {
 
 function renderDepartmentQuickAccessCard(item) {
   const filterValue = item.label || item.team_id || '';
+  const contextNote = item.context_note || `${String(item.member_total || 0)} members | ${String(item.seat_total || 0)} seats`;
   return `
-    <article class="command-department-card">
-      <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
-      <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
-      <p class="muted">${escapeHtml(item.context_note || `${String(item.member_total || 0)} members | ${String(item.seat_total || 0)} seats`)}</p>
-      <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">Open team</button></div>
-    </article>
-  `;
-}
-
-function renderDepartmentQuickAccessCard(item) {
-  const filterValue = item.label || item.team_id || '';
-  return `
-    <article class="command-department-card">
-      <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
-      <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
-      <p class="muted">${escapeHtml(String(item.member_total || 0))} members ? ${escapeHtml(String(item.seat_total || 0))} seats</p>
-      <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">Open team</button></div>
-    </article>
-  `;
+      <article class="command-department-card">
+        <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
+        <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
+        <p class="muted">${escapeHtml(contextNote)}</p>
+        <div class="hero-chip-row">${statusBadge(`${String(item.member_total || 0)} members`)}${statusBadge(`${String(item.seat_total || 0)} seats`)}</div>
+        <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">Open team context</button></div>
+      </article>
+    `;
 }
 
 function renderHomeQuickLink(item) {
