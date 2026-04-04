@@ -4677,3 +4677,18 @@ button:focus-visible {
     letter-spacing: 0.09em;
   }
 }
+
+
+/* v0.7.10 tempo consequences */
+.command-feed-consequence-box,
+.command-inbox-consequence-box {
+  border-color: rgba(185, 146, 79, 0.16);
+  background:
+    radial-gradient(circle at top right, rgba(222, 192, 135, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 252, 247, 0.88), rgba(247, 241, 231, 0.78));
+}
+
+.command-feed-consequence-box strong,
+.command-inbox-consequence-box strong {
+  color: var(--text);
+}

@@ -3626,6 +3626,7 @@ function renderUnifiedWorkInbox(snapshot) {
           ['Lead lane', primaryViewLabel],
         ])}
         <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Open the lead governed lane and keep the next human boundary attached to the same work item.')}</p></div>
+        <div class="trace-box compact-trace command-inbox-consequence-box"><strong>If the lead lane pauses</strong><p class="muted">${escapeHtml(summary.primary_consequence_note || 'Keep the same governed story visible while the next move is still live.')}</p></div>
         <div class="inline-actions">
           ${renderViewJumpButton({ view: summary.primary_view || 'overview', label: primaryActionLabel, className: 'action-button', focusType: summary.primary_focus_type || '', focusId: summary.primary_focus_id || '', caseId: summary.primary_case_id || '', title: `${summary.primary_title || primaryViewLabel} reopened from Work Inbox.`, detail: primaryRouteNote, actionLabel: primaryActionLabel })}
         </div>
@@ -3917,6 +3918,7 @@ function renderWorkInboxMissionCard(item, options = {}) {
       </div>
       <p class="muted">${escapeHtml(item.next_step || item.operator_note || 'Review the next governed move.')}</p>
       <p class="muted small command-inbox-route-note">${escapeHtml(routeNote)}</p>
+      <div class="trace-box compact-trace command-inbox-consequence-box"><strong>${escapeHtml(item.disposition === 'human_required' ? 'If this waits here' : item.disposition === 'blocked' ? 'If this stays blocked' : 'If this keeps moving')}</strong><p class="muted">${escapeHtml(item.disposition === 'human_required' ? 'A real human still owns the safe next move for this case.' : item.disposition === 'blocked' ? 'Recovery must reopen the path before the wider operation can advance.' : 'Keep the same case visible so the next lane does not lose continuity.')}</p></div>
       <div class="trace-box compact-trace"><strong>${escapeHtml(actionLabel)}</strong><p class="muted">${escapeHtml(`${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h${refs ? ` | refs ${refs}` : ''}`)}</p></div>
       ${renderViewJumpButton({ view, label: actionLabel, className: 'action-button', focusType, focusId, caseId: item.case_id || '', title: `${item.title || 'Governed lane'} opened in ${viewLabel}.`, detail: item.next_step || item.operator_note || 'Continue from the lane that owns the next move.', actionLabel })}
     </article>
@@ -5658,7 +5660,7 @@ function renderAiFeedCard(item) {
   const featuredClass = featured ? ' command-feed-card-featured' : '';
   const normalizedStatus = String(item.status || 'planned').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const stateClass = normalizedStatus ? ` command-feed-card-state-${escapeHtml(normalizedStatus)}` : '';
-  const actionView = item.status === 'waiting_human' ? 'cases' : item.status === 'failed_closed' ? 'cases' : 'actions';
+  const actionView = item.status === 'waiting_human' ? 'cases' : item.status === 'failed_closed' ? 'actions' : item.status === 'completed' ? 'documents' : 'actions';
   const actionViewLabel = VIEW_TITLES[actionView] || titleCase(actionView || 'actions');
   const actionLabel = item.status === 'waiting_human'
     ? 'Review handoff'
@@ -5687,6 +5689,16 @@ function renderAiFeedCard(item) {
         : item.status === 'completed'
           ? 'Follow-through ready'
           : 'Continuity visible';
+  const ownerLabel = item.owner_label || (item.status === 'running'
+    ? 'AI runtime'
+    : item.status === 'waiting_human'
+      ? 'Human director'
+      : item.status === 'failed_closed'
+        ? 'Recovery review'
+        : item.status === 'completed'
+          ? 'Follow-through lane'
+          : 'Director watch');
+  const consequenceNote = item.consequence_note || item.route_phase || statusNote;
   return `
       <article class="command-feed-card${toneClass}${stateClass}${featuredClass}">
         <div class="hero-heading">
@@ -5699,8 +5711,9 @@ function renderAiFeedCard(item) {
         <div class="transition-route command-feed-route"><span class="transition-node">AI runtime</span><span class="transition-arrow">&rarr;</span><span class="transition-node transition-node-active">${escapeHtml(actionViewLabel)}</span></div>
         <p class="muted">${escapeHtml(item.activity_note || item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
         <p class="muted small command-momentum-note">${escapeHtml(item.route_phase || statusNote)}</p>
-        <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
-        <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: actionView, focusType: actionView === 'actions' ? 'action' : '', focusId: actionView === 'actions' ? (item.action_id || '') : '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel })}>${escapeHtml(actionLabel)}</button></div>
+        <div class="trace-box compact-trace command-feed-consequence-box"><strong>${escapeHtml(`If this pauses: ${ownerLabel}`)}</strong><p class="muted">${escapeHtml(consequenceNote)}</p></div>
+        <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(ownerLabel)} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
+        <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: actionView, focusType: actionView === 'actions' ? 'action' : '', focusId: actionView === 'actions' ? (item.action_id || '') : '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.consequence_note || item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel })}>${escapeHtml(actionLabel)}</button></div>
       </article>
     `;
 }

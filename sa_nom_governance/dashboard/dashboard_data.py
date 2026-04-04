@@ -2715,26 +2715,36 @@ class DashboardSnapshotBuilder:
                 tone = 'accent'
                 tempo_badge = 'live now'
                 route_phase = 'AI currently owns the move.'
+                consequence_note = 'If this is interrupted too early, the case loses momentum before a new governed boundary actually appears.'
+                owner_label = 'AI runtime'
             elif status == 'waiting_human':
                 activity_note = 'AI reached a human boundary and is waiting for explicit follow-through.'
                 tone = 'warning'
                 tempo_badge = 'human step now'
                 route_phase = 'A real person now owns the next safe move.'
+                consequence_note = 'If this waits here, the whole case stays paused at a real approval boundary.'
+                owner_label = 'Human director'
             elif status == 'failed_closed':
                 activity_note = 'The runtime failed closed here, so a person must inspect the blocked path before retrying.'
                 tone = 'danger'
                 tempo_badge = 'recover now'
                 route_phase = 'Recovery work must clear this path before AI can continue.'
+                consequence_note = 'If this remains unresolved, the governed route stays closed and AI should not relaunch.'
+                owner_label = 'Recovery review'
             elif status == 'completed':
                 activity_note = 'AI completed the governed action and kept the outcome inside the same proof trail.'
                 tone = 'success'
                 tempo_badge = 'follow-through'
                 route_phase = 'The result is ready for governed follow-through.'
+                consequence_note = 'If nobody carries this forward, proof exists but the real-world follow-through may stall in the next lane.'
+                owner_label = 'Follow-through lane'
             else:
                 activity_note = 'This governed action is visible so the Director can keep continuity without opening lower-level traces.'
                 tone = 'default'
                 tempo_badge = 'visible'
                 route_phase = 'Visible for continuity across the runtime.'
+                consequence_note = 'Keep it nearby until the case is ready for the next governed move.'
+                owner_label = 'Director watch'
             ai_activity.append(
                 {
                     **item,
@@ -2742,6 +2752,8 @@ class DashboardSnapshotBuilder:
                     'tone': tone,
                     'tempo_badge': tempo_badge,
                     'route_phase': route_phase,
+                    'consequence_note': consequence_note,
+                    'owner_label': owner_label,
                     'board_rank_label': 'Lead AI move' if index == 0 else 'Keep nearby' if index > 2 else 'Watch next',
                     'featured': index == 0,
                 }
