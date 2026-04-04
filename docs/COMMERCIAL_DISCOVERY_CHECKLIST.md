@@ -1,9 +1,9 @@
 # Commercial Discovery Checklist
 
-Use this checklist for the first real commercial conversation after a prospect has seen the repo, one-pager, or product demo.
+Use this checklist for the first real commercial conversation after a prospect has seen the repo, [COMMERCIAL_ONE_PAGER.md](COMMERCIAL_ONE_PAGER.md), or a product demo.
 
 The goal is not to pitch every feature.
-The goal is to qualify whether SA-NOM should stay on the community path, move into a guided evaluation, enter a paid pilot, or become a commercial rollout conversation.
+The goal is to qualify whether SA-NOM should stay on the community path, move into a guided evaluation, enter a paid pilot, move into recurring strategic rollout advisory, or become a selective enterprise / sovereign quote conversation.
 
 ## Best Use Cases For This Checklist
 
@@ -17,11 +17,14 @@ Use this during:
 ## Before The Call
 
 Have these ready:
+- [COMMERCIAL_ONE_PAGER.md](COMMERCIAL_ONE_PAGER.md)
+- [DISCOVERY_CALL_SCRIPT.md](DISCOVERY_CALL_SCRIPT.md)
+- [PRICING_REQUEST_REPLY_TEMPLATES.md](PRICING_REQUEST_REPLY_TEMPLATES.md)
 - [ONE_PAGER.md](ONE_PAGER.md)
 - [ONE_PAGER_TH.md](ONE_PAGER_TH.md)
 - [FEATURE_MATRIX.md](FEATURE_MATRIX.md)
-- [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
 - [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md)
+- [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
 - [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md)
 - [PRODUCT_TOUR.md](PRODUCT_TOUR.md)
 - [DISCOVERY_DEMO.md](DISCOVERY_DEMO.md)
@@ -75,11 +78,11 @@ Check the environment before discussing price:
 - Is the first lane a demo, a pilot, or a production-track environment?
 
 Signals that the commercial path is likely:
-- enterprise identity requirements
 - regulated deployment hardening
 - custom provider or integration requirements
 - rollout across multiple teams or environments
-- expectation of direct vendor participation during rollout
+- expectation of founder-level judgment during rollout
+- expectation of broader delivery participation that may require a partner path
 
 ## 4. Governance And Compliance Fit
 
@@ -102,18 +105,22 @@ Escalate faster toward commercial scope when the answer is yes to:
 ## 5. Commercial Fit
 
 Qualify how the engagement should start:
-- Are they best served by community self-management, a guided evaluation, a paid pilot, or a full commercial rollout?
+- Are they best served by community self-management, a guided evaluation, a paid pilot, recurring strategic advisory, or a selective enterprise / sovereign quote?
+- Which commercial offer pack best matches the next step: guided evaluation, paid pilot, strategic rollout advisory, or enterprise / sovereign?
 - Is budget already known?
 - Is procurement direct, partner-led, or government-led?
 - Is the customer trying to buy software only, or software plus rollout support?
 - Do they need on-site enablement, architecture review, or internal stakeholder workshops?
-- Do they expect quote-specific packaging, dedicated support, or a rollout package beyond the community baseline?
+- Do they expect quote-specific packaging, dedicated support posture, or delivery help beyond the community baseline?
 
 A simple decision rule:
 - community only: small internal evaluation, no special support, no regulated rollout pressure
 - guided evaluation: real interest, but still proving fit and deployment shape
 - paid pilot: real business workflow, real sponsor, real rollout pressure, but still scoping production
-- commercial rollout: production scope, procurement path, compliance requirements, or dedicated support / quote-specific packaging needed
+- strategic advisory: pilot success already exists and the customer wants recurring founder-level direction without broad implementation ownership
+- enterprise / sovereign quote: production scope, procurement path, regulated requirements, or broader quote-specific packaging and partner-supported execution are needed
+
+Use [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md) when the customer needs a concrete engagement shape before a quote is prepared.
 
 ## 6. ROI Framing And Economic Narrative
 
@@ -138,23 +145,16 @@ A practical ROI framing usually comes from one or more of these:
 ### Example ROI Framing
 
 Use language like this, not guaranteed promises:
-- If a team currently spends 8 to 12 staff-hours per week coordinating one governed workflow, and SA-NOM reduces that coordination load while improving evidence posture, the economic case may be clearer than the license cost alone.
+- If a team currently spends 8 to 12 staff-hours per week coordinating one governed workflow, and SA-NOM reduces that coordination load while improving evidence posture, the economic case may be clearer than the engagement cost alone.
 - If audit preparation currently creates repeated manual evidence-gathering work, SA-NOM may reduce the cost of each review cycle even before a broader rollout.
 - If leadership requires a private AI lane from day one, the value is not only time saved. It is also the ability to move forward at all without failing internal review.
-
-### ROI Questions To Ask
-
-- What is the cost of the current manual process each month?
-- What is the cost of delay if this workflow cannot move forward safely with AI?
-- Which part is more painful today: time, risk, evidence, or rollout coordination?
-- If the first deployment worked, what measurable improvement would matter most to leadership in 60 to 90 days?
 
 ## 7. Pilot Program Fit And Structure
 
 Recommend a paid pilot when:
 - the prospect has a real workflow and sponsor
 - they need proof in their own environment before committing to rollout
-- they want more than a self-managed evaluation but are not ready for full production scope
+- they want more than a self-managed evaluation but are not ready for a broader ongoing advisory or rollout scope
 - procurement needs a structured first phase with a defined success window
 
 A good pilot usually has:
@@ -191,7 +191,7 @@ Avoid pilots that sound like this:
 - no sponsor, only curiosity
 - no workflow, only general AI interest
 - private or regulated requirements with no willingness to scope rollout properly
-- expectation of enterprise support on a community-only path
+- expectation of broad enterprise support on a community-only path
 
 ## 8. Provider Strategy
 
@@ -214,7 +214,7 @@ If they need a private-first story, keep the demo and discovery recommendation c
 3. Clarify deployment shape and provider expectations.
 4. Surface governance, audit, and compliance requirements.
 5. Frame the likely economic case in simple workflow terms.
-6. Decide whether the next step is community, guided evaluation, pilot, or commercial rollout.
+6. Decide whether the next step is community, guided evaluation, paid pilot, strategic advisory, or a selective enterprise / sovereign quote.
 7. Record the follow-up owner, timeline, and next meeting.
 
 ## 10. Red Flags To Capture Early
@@ -222,11 +222,12 @@ If they need a private-first story, keep the demo and discovery recommendation c
 Do not ignore these:
 - no owner or sponsor for the initiative
 - no clear workflow beyond "we want AI"
-- expectation of enterprise support on a community-only path
+- expectation of heavy support on a community-only path
 - procurement pressure without technical fit
 - requirement for private or air-gapped deployment without willingness to scope rollout properly
 - expectation that governance can be skipped during production rollout
 - desire for a pilot without success criteria or decision owner
+- expectation that SA-NOM will provide unlimited implementation labor without a partner-supported plan
 
 These do not always mean no.
 They usually mean the next step should be structured more carefully.
@@ -234,8 +235,9 @@ They usually mean the next step should be structured more carefully.
 ## 11. Recommended Next-Step Output
 
 By the end of the call, record:
-- recommended path: community / guided evaluation / paid pilot / commercial rollout
-- target tier if known
+- recommended path: community / guided evaluation / paid pilot / strategic rollout advisory / enterprise or sovereign quote
+- target commercial band if known
+- recommended offer pack
 - deployment posture
 - provider lane recommendation
 - first workflow candidate
@@ -254,8 +256,6 @@ A good follow-up should include:
 - recommended next step
 - deployment and provider recommendation
 - draft ROI framing in plain business language
-- pilot recommendation or rollout recommendation
+- pilot recommendation or advisory recommendation
 - any prerequisites before the next demo or quote
 - contact point: `sanomaiarch@gmail.com`
-
-

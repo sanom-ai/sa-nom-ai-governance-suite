@@ -60,9 +60,13 @@ Pick the path that matches what you need first:
 
 ## Commercial And Rollout
 
+- [Commercial One-Pager](COMMERCIAL_ONE_PAGER.md)
 - [Commercial Boundary](COMMERCIAL_BOUNDARY.md)
-- [Commercial License & Pricing](COMMERCIAL_LICENSE.md)
+- [Commercial License And Pricing](COMMERCIAL_LICENSE.md)
 - [Commercial Offer Packs](COMMERCIAL_OFFER_PACKS.md)
+- [Discovery Call Script](DISCOVERY_CALL_SCRIPT.md)
+- [Pricing Request Reply Templates](PRICING_REQUEST_REPLY_TEMPLATES.md)
+- [Founder Outreach Short](FOUNDER_OUTREACH_SHORT.md)
 - [Commercial Discovery Checklist](COMMERCIAL_DISCOVERY_CHECKLIST.md)
 - [Sales Intake Template](SALES_INTAKE_TEMPLATE.md)
 - [Pilot Proposal Template](PILOT_PROPOSAL_TEMPLATE.md)

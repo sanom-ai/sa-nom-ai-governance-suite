@@ -37,6 +37,14 @@ Choose the path that matches what you want to see first:
 - stay on the quick-start lane above when you want the fastest local bootstrap into a working private runtime
 - use [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) when you want the longer deployment path and infrastructure posture details
 
+## Open Source And Commercial Path
+
+SA-NOM keeps the public baseline real.
+The open-source repository should be enough to evaluate, learn, prototype, and run self-managed private deployments without waiting for a paid unlock.
+
+Commercial engagement is for organizations that need structured rollout help, founder-led governance direction, PT-OSS-informed judgment, regulated delivery support, recurring strategic review, quote-shaped packaging, or broader operating confidence around the same product baseline.
+
+See [docs/COMMERCIAL_BOUNDARY.md](docs/COMMERCIAL_BOUNDARY.md), [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md), and [docs/COMMERCIAL_OFFER_PACKS.md](docs/COMMERCIAL_OFFER_PACKS.md) for the current commercial model.
 ## Command Surface
 
 By the `v0.7.9` line, SA-NOM exposes a private-first command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
@@ -169,6 +177,9 @@ SA-NOM is designed for private, self-managed, and air-gapped deployment scenario
 That means the public repository should be read as a governance and operational baseline, not as a place where real credentials, emergency access material, or deployment secrets belong.
 
 See [docs/SECRETS_AND_CREDENTIALS_HANDLING.md](docs/SECRETS_AND_CREDENTIALS_HANDLING.md) for the first public handling guide and [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIENE.md) for the dependency-light security posture.
+
+
+
 
 
 

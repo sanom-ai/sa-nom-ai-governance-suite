@@ -1,117 +1,160 @@
 # Commercial Offer Packs
 
-This document turns SA-NOM's commercial boundary into concrete offer shapes.
+This document translates SA-NOM commercial bands into practical engagement shapes.
 
-These are not strict legal products yet.
-They are operating templates for how to package commercial work without confusing it with the open-source baseline.
+Use it together with:
+- [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md) to understand what stays open source
+- [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md) for pricing bands
+- [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md) to qualify the right next step
 
-## 1. Guided Evaluation
+## 1. Community Path
 
-### Best for
+Best when:
+- the organization is still evaluating
+- the workflow is small and self-managed
+- rollout help is not required yet
 
-- teams that are serious but still early
-- organizations that want help getting the first private runtime working
-- evaluators who need a short structured path before deciding on a pilot
+Typical shape:
+- self-serve installation
+- documentation-first support path
+- internal sandbox or small internal use
 
-### Typical Scope
+Good next documents:
+- [GUIDED_EVALUATION.md](GUIDED_EVALUATION.md)
+- [DEPLOYMENT.md](DEPLOYMENT.md)
+- [FEATURE_MATRIX.md](FEATURE_MATRIX.md)
 
-- evaluator kickoff
-- environment review
-- quick-start and doctor guidance
-- provider-lane guidance
-- command surface and Control Room walkthrough
-- short written summary with recommended next step
+## 2. Guided Evaluation
 
-### Outcome
+Best when:
+- the organization likes the product but wants a structured first path
+- there is still uncertainty about deployment shape, provider lane, or workflow fit
+- the customer wants clarity before committing to a full paid pilot
 
-The customer can decide whether to stay on the community path, move into a paid pilot, or stop.
+Typical scope:
+- 2-4 structured remote sessions
+- first workflow framing
+- deployment recommendation
+- private-first fit review
+- written recommendation and next-step guidance
 
-## 2. Paid Pilot
+Typical outputs:
+- recommended deployment posture
+- recommended first workflow
+- community vs paid-pilot decision
+- initial risks and blockers
 
-### Best for
+Scope discipline:
+- no heavy implementation
+- no unlimited support
+- no open-ended custom work
 
-- a real workflow with a real sponsor
-- organizations that need proof in their own environment
-- teams not ready for a full rollout yet but already past casual evaluation
+Usually aligns closest with:
+- `Guided Evaluation`
 
-### Typical Scope
+## 3. Paid Pilot
 
+Best when:
+- there is a real workflow owner and sponsor
+- the customer wants proof in their own environment
+- procurement or leadership needs a structured first phase
+
+Typical scope:
 - one workflow
+- one target environment
 - one provider lane
-- one runtime environment
-- one operator group
-- one review cadence
-- one closeout decision point
+- one primary role or scenario baseline
+- one success decision window
+- one closeout recommendation
 
-### Typical Deliverables
+Typical outputs:
+- runtime deployed in the target environment
+- governed workflow executed end to end
+- evidence and readiness review
+- closeout recommendation: stop, extend, or move to rollout
 
-- scoped kickoff
-- workflow and role calibration
-- runtime and provider validation
-- governed workflow demonstration
-- evidence or audit review output
-- closeout recommendation
+Scope posture:
+- founder-led review and direction
+- partner-supported execution where needed
+- still tightly scoped and quote-defined
 
-### Outcome
+Usually aligns closest with:
+- `Paid Pilot`
 
-A real go / no-go decision for broader rollout.
+Use with:
+- [PILOT_PROPOSAL_TEMPLATE.md](PILOT_PROPOSAL_TEMPLATE.md)
 
-## 3. Production Rollout
+## 4. Strategic Rollout Advisory
 
-### Best for
+Best when:
+- the customer has passed a pilot and wants to move carefully into live operations
+- the customer needs continuing founder-level direction without turning SA-NOM into a daily dependency
+- rollout, escalation, or release confidence still needs a high-trust review layer
 
-- organizations moving from pilot to real operational use
-- teams that need rollout structure across people, workflow, and governance
-- environments where internal review, support, and delivery coordination matter
+Typical scope:
+- monthly or quarterly review cadence
+- PT-OSS review and recalibration discussion
+- rollout sign-off and escalation review
+- release and readiness review
+- governance board or leadership review support
 
-### Typical Scope
+Typical outputs:
+- recurring operating review
+- updated rollout guidance
+- priority risks and structural concerns
+- sign-off recommendations for the next phase
 
-- rollout planning
-- operator onboarding
-- role and workflow tailoring
-- integration packaging
-- support model definition
-- review cadence and go-live posture
+Scope posture:
+- bounded sessions
+- no always-on support desk
+- no hidden implementation ownership
 
-### Outcome
+Usually aligns closest with:
+- `Strategic Rollout Advisory`
 
-SA-NOM moves from proof to operating lane with clearer ownership, support, and governance discipline.
+## 5. Enterprise / Sovereign / Gov Program
 
-## 4. Sovereign Or Regulated Delivery
+Best when:
+- the environment is sovereign, public-sector, or highly regulated
+- the deployment must be air-gapped or tightly controlled
+- the review path includes legal, security, audit, procurement, or policy authorities
+- there is already a clear partner or customer-side execution path
 
-### Best for
+Typical scope:
+- sovereign deployment shaping
+- regulated hardening and documentation
+- PT-OSS calibration for the target environment
+- compliance and review readiness support
+- quote-defined delivery assurance
 
-- government and public-sector environments
-- air-gapped or sovereign hosting
-- deployments with strong audit, legal, security, or procurement constraints
+Typical outputs:
+- deployment posture package
+- regulated readiness path
+- sovereign delivery scope
+- decision-ready rollout recommendation
 
-### Typical Scope
+Scope posture:
+- accepted selectively
+- quote-only
+- not a default path
+- should not depend on pretending there is a large in-house services organization
 
-- air-gapped packaging
-- regulated deployment review
-- on-site enablement
-- sovereign or public-sector tailoring
-- evidence and control review participation
-- custom delivery and support posture
+Usually aligns closest with:
+- `Enterprise / Sovereign / Gov`
 
-### Outcome
+## Choosing The Right Pack
 
-A deployment path shaped for high-trust and high-scrutiny operating environments.
-
-## Offer-Pack Decision Rule
-
-Use this sequence:
-
-1. community path when the team can self-serve
-2. guided evaluation when they need structured help before a commitment
-3. paid pilot when there is a real workflow and sponsor
-4. production rollout when the workflow is already validated
-5. sovereign or regulated delivery when the environment itself changes the delivery model
+Use this simple rule:
+- if they only need the product, start with `Community`
+- if they need help understanding the first move, start with `Guided Evaluation`
+- if they need proof in their own environment, start with `Paid Pilot`
+- if they already trust the product and now need continuing high-level direction, use `Strategic Rollout Advisory`
+- if the environment is sovereign or heavily regulated, use `Enterprise / Sovereign / Gov` only when scope, partner posture, and ownership are clear
 
 ## Related Documents
 
-- [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md)
 - [COMMERCIAL_LICENSE.md](COMMERCIAL_LICENSE.md)
+- [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md)
 - [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md)
 - [SALES_INTAKE_TEMPLATE.md](SALES_INTAKE_TEMPLATE.md)
 - [PILOT_PROPOSAL_TEMPLATE.md](PILOT_PROPOSAL_TEMPLATE.md)
