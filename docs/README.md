@@ -24,6 +24,7 @@ Pick the path that matches what you need first:
 - [Private Rule Position (Historical Note)](PRIVATE_RULE_POSITION.md)
 - [Governed Runtime Orchestration](GOVERNED_RUNTIME_ORCHESTRATION.md)
 - [Governed Human-In-The-Loop Operations](GOVERNED_HITL_OPERATIONS.md)
+- [SA-NOM Command Surface Doctrine](SA_NOM_COMMAND_SURFACE_DOCTRINE.md)
 - [Control Room Information Architecture](CONTROL_ROOM_INFORMATION_ARCHITECTURE.md)
 - [SA-NOM Global Harmony Protocol](SA_NOM_GLOBAL_HARMONY_PROTOCOL.md)
 - [Global Harmony Constitution Templates](GLOBAL_HARMONY_CONSTITUTION_TEMPLATES.md)
