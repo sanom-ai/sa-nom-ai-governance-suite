@@ -1,6 +1,6 @@
 # Commercial Discovery Checklist
 
-Use this checklist for the first real commercial conversation after a prospect has seen the repo, one-pager, or product demo.
+Use this checklist for the first real commercial conversation after a prospect has seen the repo, [COMMERCIAL_ONE_PAGER.md](COMMERCIAL_ONE_PAGER.md), or a product demo.
 
 The goal is not to pitch every feature.
 The goal is to qualify whether SA-NOM should stay on the community path, move into a guided evaluation, enter a paid pilot, move into recurring strategic rollout advisory, or become a selective enterprise / sovereign quote conversation.
@@ -17,6 +17,9 @@ Use this during:
 ## Before The Call
 
 Have these ready:
+- [COMMERCIAL_ONE_PAGER.md](COMMERCIAL_ONE_PAGER.md)
+- [DISCOVERY_CALL_SCRIPT.md](DISCOVERY_CALL_SCRIPT.md)
+- [PRICING_REQUEST_REPLY_TEMPLATES.md](PRICING_REQUEST_REPLY_TEMPLATES.md)
 - [ONE_PAGER.md](ONE_PAGER.md)
 - [ONE_PAGER_TH.md](ONE_PAGER_TH.md)
 - [FEATURE_MATRIX.md](FEATURE_MATRIX.md)

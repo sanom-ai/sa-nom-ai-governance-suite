@@ -6,9 +6,11 @@ The community baseline may be used at no cost for evaluation, development, testi
 Commercial engagement is meant for organizations that need more than the public baseline alone. The commercial layer should be read as rollout, support, hardening, packaging, and quote-shaped delivery scope around the product, not as a way to hide core platform capability behind a paywall.
 
 Start with these companion documents:
+- [COMMERCIAL_ONE_PAGER.md](COMMERCIAL_ONE_PAGER.md) for the shortest external-facing summary
 - [COMMERCIAL_BOUNDARY.md](COMMERCIAL_BOUNDARY.md) for the clean open-source vs commercial boundary
 - [COMMERCIAL_OFFER_PACKS.md](COMMERCIAL_OFFER_PACKS.md) for the recommended engagement shapes
 - [COMMERCIAL_DISCOVERY_CHECKLIST.md](COMMERCIAL_DISCOVERY_CHECKLIST.md) for qualification before quoting
+- [DISCOVERY_CALL_SCRIPT.md](DISCOVERY_CALL_SCRIPT.md) for structured first commercial conversations
 
 ## Commercial Positioning
 
