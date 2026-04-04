@@ -1174,6 +1174,25 @@ class DashboardSnapshotBuilder:
                 evidence_posture = 'proof starting'
                 evidence_detail = 'This case is only lightly documented so far. Keep the next move tied to evidence as it grows.'
 
+            if status == 'blocked':
+                quest_phase_label = 'Recovery phase'
+                quest_phase_detail = 'A blocked or vetoed path must be reopened before this mission can safely advance again.'
+            elif status == 'human_required':
+                quest_phase_label = 'Human boundary phase'
+                quest_phase_detail = 'A real person now owns the next safe move for this case.'
+            elif status == 'attention_required':
+                quest_phase_label = 'Guided review phase'
+                quest_phase_detail = 'Operator follow-through is still steering the next move before the board settles.'
+            elif workflow_proof_total > 0:
+                quest_phase_label = 'Proof carry-through'
+                quest_phase_detail = 'The governed story is still moving, but it already has exportable proof attached.'
+            elif evidence_export_total > 0 or audit_event_total > 0:
+                quest_phase_label = 'Proof building'
+                quest_phase_detail = 'Evidence is accumulating while the case continues through its next governed lane.'
+            else:
+                quest_phase_label = 'Live motion'
+                quest_phase_detail = 'The case is still moving through its lead lane without a hard stop yet.'
+
             follow_up_actions: list[dict[str, str]] = []
             follow_up_actions.append({
                 'label': next_label,
@@ -1254,10 +1273,14 @@ class DashboardSnapshotBuilder:
                     'latest_proof_event': latest_proof_event,
                     'timeline_total': timeline_total,
                     'timeline': timeline[:6],
+                    'quest_phase_label': quest_phase_label,
+                    'quest_phase_detail': quest_phase_detail,
                     'continuity': {
                         'next_view': next_view,
                         'next_label': next_label,
                         'next_detail': next_detail,
+                        'quest_phase_label': quest_phase_label,
+                        'quest_phase_detail': quest_phase_detail,
                         'evidence_posture': evidence_posture,
                         'evidence_detail': evidence_detail,
                         'follow_up_actions': deduped_follow_ups[:3],
@@ -2195,6 +2218,61 @@ class DashboardSnapshotBuilder:
                     break
             return refs
 
+        def view_label_for(view: str) -> str:
+            return str(view).replace('_', ' ').title()
+
+        def action_label_for(view: str, disposition: str) -> str:
+            view_label = view_label_for(view)
+            if disposition == 'human_required':
+                return f'Resolve in {view_label}'
+            if disposition == 'blocked':
+                return f'Recover in {view_label}'
+            if disposition == 'ready':
+                return f'Advance in {view_label}'
+            return f'Review in {view_label}'
+
+        def focus_for_lane(lane_id: str, row: dict[str, object]) -> tuple[str, str, str]:
+            if not isinstance(row, dict):
+                return '', '', ''
+            case_id = str(row.get('case_id', row.get('case_reference', '')) or '').strip()
+            if lane_id == 'pending_overrides':
+                focus_id = str(row.get('request_id', '') or '').strip()
+                return ('override' if focus_id else '', focus_id, case_id)
+            if lane_id == 'human_decision_inbox':
+                focus_id = str(row.get('session_id', '') or '').strip()
+                return ('human_ask_session' if focus_id else '', focus_id, case_id)
+            if lane_id in {'blocked_workflows', 'recovery_backlog', 'dead_letters'}:
+                focus_id = str(row.get('request_id', row.get('resumed_request_id', '')) or '').strip()
+                return ('request' if focus_id else '', focus_id, case_id)
+            if lane_id.startswith('studio_'):
+                focus_id = str(row.get('request_id', '') or '').strip()
+                return ('studio_request' if focus_id else '', focus_id, case_id)
+            if lane_id.startswith('document_'):
+                focus_id = str(row.get('document_id', '') or '').strip()
+                return ('document' if focus_id else '', focus_id, case_id)
+            if lane_id.startswith('action_'):
+                focus_id = str(row.get('action_id', '') or '').strip()
+                return ('action' if focus_id else '', focus_id, case_id)
+            return '', '', case_id
+
+        def route_note_for_lane(case_id: str, disposition: str, view: str) -> str:
+            view_label = view_label_for(view)
+            if case_id:
+                if disposition == 'human_required':
+                    return f'Case {case_id} is waiting at a real human boundary in {view_label}.'
+                if disposition == 'blocked':
+                    return f'Case {case_id} is fail-closed in {view_label} until recovery happens.'
+                if disposition == 'ready':
+                    return f'Case {case_id} is clear to advance inside {view_label}.'
+                return f'Case {case_id} is still moving through {view_label}.'
+            if disposition == 'human_required':
+                return f'The next explicit human move is waiting in {view_label}.'
+            if disposition == 'blocked':
+                return f'Recovery pressure is building inside {view_label}.'
+            if disposition == 'ready':
+                return f'{view_label} is ready for the next governed move.'
+            return f'{view_label} is the best lane to review next.'
+
         lane_rows: dict[str, list[dict[str, object]]] = {
             'pending_overrides': pending_overrides,
             'human_decision_inbox': inbox_items,
@@ -2223,21 +2301,29 @@ class DashboardSnapshotBuilder:
                 oldest_record = self._oldest_record(rows, ['updated_at', 'created_at', 'captured_at', 'timestamp'])
                 oldest_hours = self._age_hours(oldest_record, ['updated_at', 'created_at', 'captured_at', 'timestamp'])
             refs = sample_refs(rows, config['reference_fields'])
+            lead_row = rows[0] if isinstance(rows[0], dict) else {}
+            view = str(config['view'])
+            disposition = str(config['disposition'])
+            focus_type, focus_id, case_id = focus_for_lane(lane_id, lead_row)
             items.append(
                 {
                     'lane_id': lane_id,
                     'title': str(config['title']),
-                    'view': str(config['view']),
-                    'disposition': str(config['disposition']),
+                    'view': view,
+                    'disposition': disposition,
                     'status': status,
-                    'tone': tone_for(status, str(config['disposition'])),
+                    'tone': tone_for(status, disposition),
                     'total': len(rows),
                     'oldest_age_hours': oldest_hours,
                     'oldest_reference': queue_item.get('oldest_reference') or (refs[0] if refs else '-'),
                     'next_step': str(config['next_step']),
                     'operator_note': str(config['operator_note']),
                     'sample_references': refs,
-                    'action_label': f"Open {str(config['view']).replace('_', ' ').title()}",
+                    'action_label': action_label_for(view, disposition),
+                    'focus_type': focus_type,
+                    'focus_id': focus_id,
+                    'case_id': case_id,
+                    'route_note': route_note_for_lane(case_id, disposition, view),
                 }
             )
 
@@ -2302,6 +2388,12 @@ class DashboardSnapshotBuilder:
                 'primary_title': primary.get('title', 'Autonomy ready'),
                 'primary_view': primary.get('view', 'overview'),
                 'primary_next_step': primary.get('next_step', 'Continue governed execution.'),
+                'primary_pressure_label': ('human boundary' if str(primary.get('disposition', 'monitoring') or 'monitoring') == 'human_required' else 'blocked path' if str(primary.get('disposition', 'monitoring') or 'monitoring') == 'blocked' else 'autonomy ready' if str(primary.get('disposition', 'monitoring') or 'monitoring') == 'ready' else self._command_surface_human_label(str(primary.get('disposition', 'monitoring') or 'monitoring')).lower()),
+                'primary_action_label': primary.get('action_label', f"Review in {view_label_for(str(primary.get('view', 'overview') or 'overview'))}"),
+                'primary_case_id': primary.get('case_id', ''),
+                'primary_route_note': primary.get('route_note', primary.get('operator_note', 'Continue from the lead governed lane.')),
+                'primary_focus_type': primary.get('focus_type', ''),
+                'primary_focus_id': primary.get('focus_id', ''),
             },
             'items': items[:8],
         }
@@ -2601,66 +2693,119 @@ class DashboardSnapshotBuilder:
             )
 
         ai_activity = []
-        for item in sorted(
-            action_items,
-            key=lambda payload: str(payload.get('updated_at', payload.get('created_at', '')) or ''),
-            reverse=True,
-        )[:5]:
+        for index, item in enumerate(
+            sorted(
+                action_items,
+                key=lambda payload: str(payload.get('updated_at', payload.get('created_at', '')) or ''),
+                reverse=True,
+            )[:5]
+        ):
             status = str(item.get('status', '') or '')
             if status == 'running':
                 activity_note = 'AI is actively moving this governed action forward inside its case boundary.'
                 tone = 'accent'
+                tempo_badge = 'live now'
+                route_phase = 'AI currently owns the move.'
             elif status == 'waiting_human':
                 activity_note = 'AI reached a human boundary and is waiting for explicit follow-through.'
                 tone = 'warning'
+                tempo_badge = 'human step now'
+                route_phase = 'A real person now owns the next safe move.'
             elif status == 'failed_closed':
                 activity_note = 'The runtime failed closed here, so a person must inspect the blocked path before retrying.'
                 tone = 'danger'
+                tempo_badge = 'recover now'
+                route_phase = 'Recovery work must clear this path before AI can continue.'
             elif status == 'completed':
                 activity_note = 'AI completed the governed action and kept the outcome inside the same proof trail.'
                 tone = 'success'
+                tempo_badge = 'follow-through'
+                route_phase = 'The result is ready for governed follow-through.'
             else:
                 activity_note = 'This governed action is visible so the Director can keep continuity without opening lower-level traces.'
                 tone = 'default'
-            ai_activity.append({**item, 'activity_note': activity_note, 'tone': tone})
+                tempo_badge = 'visible'
+                route_phase = 'Visible for continuity across the runtime.'
+            ai_activity.append(
+                {
+                    **item,
+                    'activity_note': activity_note,
+                    'tone': tone,
+                    'tempo_badge': tempo_badge,
+                    'route_phase': route_phase,
+                    'board_rank_label': 'Lead AI move' if index == 0 else 'Keep nearby' if index > 2 else 'Watch next',
+                    'featured': index == 0,
+                }
+            )
 
         team_counts: dict[str, int] = {}
-        for item in assignment_items:
+        team_assignment_buckets: dict[str, list[dict[str, object]]] = {}
+        for item in ranked_assignment_items:
             label = str(item.get('team_label', '') or 'Operations').strip() or 'Operations'
             team_counts[label] = team_counts.get(label, 0) + 1
+            team_assignment_buckets.setdefault(label, []).append(item)
+
+        def build_quick_access_item(label: str, *, team_id: str = '', member_total: int = 0, seat_total: int = 0) -> dict[str, object]:
+            assignment_total = team_counts.get(label, 0)
+            team_assignments = team_assignment_buckets.get(label, [])
+            lead_assignment = team_assignments[0] if team_assignments else {}
+            human_required_team_total = sum(1 for payload in team_assignments if str(payload.get('status', '') or '') == 'human_required')
+            blocked_team_total = sum(1 for payload in team_assignments if str(payload.get('status', '') or '') == 'blocked')
+            attention_team_total = sum(1 for payload in team_assignments if str(payload.get('status', '') or '') == 'attention_required')
+            active_case_ids = sorted({str(payload.get('case_id', '') or '').strip() for payload in team_assignments if str(payload.get('case_id', '') or '').strip()})
+            lead_case_id = active_case_ids[0] if active_case_ids else ''
+            lead_move = str(lead_assignment.get('next_action', lead_assignment.get('detail', lead_assignment.get('title', ''))) or '').strip()
+            lead_view = str(lead_assignment.get('view', 'requests') or 'requests').strip() or 'requests'
+            lead_title = str(lead_assignment.get('title', '') or '').strip()
+            if human_required_team_total:
+                pressure_label = 'human boundary'
+                context_note = f'{human_required_team_total} human-boundary items are waiting in this team queue.'
+            elif blocked_team_total:
+                pressure_label = 'blocked path'
+                context_note = f'{blocked_team_total} blocked items are holding this team queue.'
+            elif attention_team_total:
+                pressure_label = 'active review'
+                context_note = f'{attention_team_total} items are still in active review inside this team lane.'
+            elif assignment_total:
+                pressure_label = 'active queue'
+                context_note = f'{assignment_total} governed items currently route through this team.'
+            else:
+                pressure_label = 'ready lane'
+                context_note = 'Ready as a routing destination once governed work lands here.'
+            quest_label = f'Lead operation {lead_case_id}' if lead_case_id else ('Governed queue in motion' if assignment_total else 'Ready for the next governed route')
+            return {
+                'team_id': team_id,
+                'label': label,
+                'member_total': member_total,
+                'seat_total': seat_total,
+                'assignment_total': assignment_total,
+                'case_total': len(active_case_ids),
+                'lead_case_id': lead_case_id,
+                'lead_move': lead_move,
+                'lead_view': lead_view,
+                'lead_title': lead_title,
+                'pressure_label': pressure_label,
+                'quest_label': quest_label,
+                'context_note': context_note,
+            }
+
         quick_access_candidates: list[dict[str, object]] = []
         known_team_labels: set[str] = set()
         for team in team_items:
             label = str(team.get('label', team.get('team_id', 'Team')) or 'Team')
-            assignment_total = team_counts.get(label, 0)
             known_team_labels.add(label)
             quick_access_candidates.append(
-                {
-                    'team_id': str(team.get('team_id', '') or ''),
-                    'label': label,
-                    'member_total': len(team.get('member_ids', [])) if isinstance(team.get('member_ids', []), list) else 0,
-                    'seat_total': len(team.get('seat_ids', [])) if isinstance(team.get('seat_ids', []), list) else 0,
-                    'assignment_total': assignment_total,
-                    'context_note': (
-                        f'{assignment_total} governed items currently route through this team.'
-                        if assignment_total
-                        else 'Ready as a routing destination once governed work lands here.'
-                    ),
-                }
+                build_quick_access_item(
+                    label,
+                    team_id=str(team.get('team_id', '') or ''),
+                    member_total=len(team.get('member_ids', [])) if isinstance(team.get('member_ids', []), list) else 0,
+                    seat_total=len(team.get('seat_ids', [])) if isinstance(team.get('seat_ids', []), list) else 0,
+                )
             )
-        for label, assignment_total in team_counts.items():
+        for label in team_counts:
             if label in known_team_labels:
                 continue
-            quick_access_candidates.append(
-                {
-                    'team_id': '',
-                    'label': label,
-                    'member_total': 0,
-                    'seat_total': 0,
-                    'assignment_total': assignment_total,
-                    'context_note': f'{assignment_total} governed items currently route through this team.',
-                }
-            )
+            quick_access_candidates.append(build_quick_access_item(label))
         quick_access = sorted(
             quick_access_candidates,
             key=lambda item: (
@@ -2670,6 +2815,114 @@ class DashboardSnapshotBuilder:
                 str(item.get('label', '') or ''),
             ),
         )[:6]
+
+        active_operation_buckets: dict[str, dict[str, object]] = {}
+        for item in ranked_assignment_items:
+            case_id = str(item.get('case_id', '') or '').strip()
+            if not case_id:
+                continue
+            bucket = active_operation_buckets.setdefault(
+                case_id,
+                {
+                    'case_id': case_id,
+                    'lead_item': item,
+                    'item_total': 0,
+                    'human_required_total': 0,
+                    'blocked_total': 0,
+                    'attention_required_total': 0,
+                    'in_progress_total': 0,
+                    'teams': set(),
+                    'views': [],
+                },
+            )
+            bucket['item_total'] = int(bucket.get('item_total', 0) or 0) + 1
+            status = str(item.get('status', '') or '')
+            if status == 'human_required':
+                bucket['human_required_total'] = int(bucket.get('human_required_total', 0) or 0) + 1
+            elif status == 'blocked':
+                bucket['blocked_total'] = int(bucket.get('blocked_total', 0) or 0) + 1
+            elif status == 'attention_required':
+                bucket['attention_required_total'] = int(bucket.get('attention_required_total', 0) or 0) + 1
+            elif status == 'in_progress':
+                bucket['in_progress_total'] = int(bucket.get('in_progress_total', 0) or 0) + 1
+            team_label = str(item.get('team_label', '') or 'Operations').strip() or 'Operations'
+            cast_teams = bucket.get('teams', set())
+            if isinstance(cast_teams, set):
+                cast_teams.add(team_label)
+            view = str(item.get('view', 'requests') or 'requests').strip() or 'requests'
+            cast_views = bucket.get('views', [])
+            if isinstance(cast_views, list) and view not in cast_views:
+                cast_views.append(view)
+
+        active_operations: list[dict[str, object]] = []
+        for operation in active_operation_buckets.values():
+            lead_item = operation.get('lead_item', {}) if isinstance(operation.get('lead_item', {}), dict) else {}
+            next_view = str(lead_item.get('view', 'cases') or 'cases').strip() or 'cases'
+            next_view_label = next_view.replace('_', ' ').title()
+            if operation.get('human_required_total', 0):
+                pressure_badge = 'human boundary'
+                tone = 'warning'
+                operation_label = 'Human boundary operation'
+                quest_note = 'A real human decision is now gating this cross-lane operation.'
+                route_phase = 'Human sign-off is the only safe next move.'
+            elif operation.get('blocked_total', 0):
+                pressure_badge = 'blocked path'
+                tone = 'danger'
+                operation_label = 'Recovery operation'
+                quest_note = 'This operation is fail-closed until someone clears the blocked path.'
+                route_phase = 'Recovery must reopen the path before the board can advance.'
+            elif operation.get('attention_required_total', 0):
+                pressure_badge = 'active review'
+                tone = 'warning'
+                operation_label = 'Review operation'
+                quest_note = 'Review is still shaping the next safe move inside this operation.'
+                route_phase = 'Review is actively steering the next lane.'
+            else:
+                pressure_badge = 'live queue'
+                tone = 'accent'
+                operation_label = 'Live governed operation'
+                quest_note = 'AI and routed teams are still moving this operation forward.'
+                route_phase = 'The board is moving through governed lanes without human interruption.'
+            cast_teams = operation.get('teams', set())
+            cast_views = operation.get('views', [])
+            teams = sorted(cast_teams) if isinstance(cast_teams, set) else []
+            views = [str(view).replace('_', ' ').title() for view in cast_views[:3]] if isinstance(cast_views, list) else []
+            active_operations.append(
+                {
+                    'case_id': str(operation.get('case_id', '') or ''),
+                    'title': str(lead_item.get('title', lead_item.get('detail', operation.get('case_id', 'Governed operation'))) or operation.get('case_id', 'Governed operation')),
+                    'operation_label': operation_label,
+                    'pressure_badge': pressure_badge,
+                    'tone': tone,
+                    'quest_note': quest_note,
+                    'route_phase': route_phase,
+                    'lead_move': str(lead_item.get('next_action', lead_item.get('detail', 'Continue from the lead governed lane.')) or 'Continue from the lead governed lane.'),
+                    'lead_team': teams[0] if teams else 'Operations',
+                    'team_total': len(teams),
+                    'lane_summary': ', '.join(views) if views else next_view_label,
+                    'item_total': int(operation.get('item_total', 0) or 0),
+                    'next_view': next_view,
+                    'next_view_label': next_view_label,
+                    'next_focus_type': str(lead_item.get('focus_type', '') or ''),
+                    'next_focus_id': str(lead_item.get('focus_id', '') or ''),
+                }
+            )
+        active_operations.sort(
+            key=lambda item: (
+                0 if item.get('pressure_badge') == 'human boundary' else 1 if item.get('pressure_badge') == 'blocked path' else 2 if item.get('pressure_badge') == 'active review' else 3,
+                -int(item.get('item_total', 0) or 0),
+                str(item.get('case_id', '') or ''),
+            )
+        )
+        for index, item in enumerate(active_operations):
+            item['board_rank_label'] = 'Lead operation' if index == 0 else 'Watch next' if index == 1 else 'Keep nearby'
+            item['cluster_label'] = 'Lead cluster' if index == 0 else 'Supporting cluster'
+            item['cluster_detail'] = (
+                'This operation is shaping the board right now.'
+                if index == 0
+                else 'Keep this operation nearby so the lead move stays supported across teams and lanes.'
+            )
+            item['featured'] = index == 0
 
         human_required_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'human_required')
         blocked_total = sum(1 for item in assignment_items if str(item.get('status', '') or '') == 'blocked')
@@ -2757,6 +3010,7 @@ class DashboardSnapshotBuilder:
             },
             'next_actions': next_actions,
             'ai_activity_feed': ai_activity,
+            'active_operations': active_operations[:3],
             'department_quick_access': quick_access,
             'quick_links': [
                 {'view': 'requests', 'label': 'Work Inbox'},

@@ -516,6 +516,8 @@ def test_dashboard_snapshot_groups_requests_overrides_and_human_ask_into_cases()
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(timeline_types)
         assert {'request', 'override', 'human_ask', 'audit'}.issubset(work_item_kinds)
         assert continuity.get('next_view') in {'overrides', 'human_ask', 'requests', 'audit', 'conflicts'}
+        assert continuity.get('quest_phase_label') in {'Recovery phase', 'Human boundary phase', 'Guided review phase', 'Proof carry-through', 'Proof building', 'Live motion'}
+        assert isinstance(continuity.get('quest_phase_detail'), str)
         assert continuity.get('evidence_posture') in {'proof attached', 'partial proof', 'proof starting'}
 
 
@@ -1152,6 +1154,7 @@ def test_dashboard_snapshot_exposes_command_surface_summary() -> None:
         quick_links = surface.get('quick_links', []) if isinstance(surface.get('quick_links', []), list) else []
         next_actions = surface.get('next_actions', []) if isinstance(surface.get('next_actions', []), list) else []
         ai_feed = surface.get('ai_activity_feed', []) if isinstance(surface.get('ai_activity_feed', []), list) else []
+        active_operations = surface.get('active_operations', []) if isinstance(surface.get('active_operations', []), list) else []
         quick_access = surface.get('department_quick_access', []) if isinstance(surface.get('department_quick_access', []), list) else []
 
         assert surface.get('organization_name')
@@ -1170,8 +1173,18 @@ def test_dashboard_snapshot_exposes_command_surface_summary() -> None:
             assert isinstance(next_actions[0].get('why_now'), str)
         if ai_feed:
             assert isinstance(ai_feed[0].get('activity_note'), str)
+            assert isinstance(ai_feed[0].get('tempo_badge'), str)
+            assert isinstance(ai_feed[0].get('board_rank_label'), str)
+        if active_operations:
+            assert isinstance(active_operations[0].get('quest_note'), str)
+            assert isinstance(active_operations[0].get('lead_move'), str)
+            assert isinstance(active_operations[0].get('board_rank_label'), str)
+            assert isinstance(active_operations[0].get('cluster_label'), str)
+            assert isinstance(active_operations[0].get('cluster_detail'), str)
+            assert isinstance(active_operations[0].get('route_phase'), str)
         if quick_access:
             assert isinstance(quick_access[0].get('context_note'), str)
+            assert isinstance(quick_access[0].get('pressure_label'), str)
         assert [item.get('view') for item in quick_links] == ['requests', 'cases', 'documents', 'actions']
 
 
@@ -1184,10 +1197,10 @@ def test_command_surface_prioritizes_active_department_quick_access_for_compact_
         surface = builder.command_surface(
             assignment_queue={
                 'items': [
-                    {'team_label': 'Operations', 'status': 'human_required', 'priority': 'critical', 'age_hours': 12},
-                    {'team_label': 'Operations', 'status': 'blocked', 'priority': 'high', 'age_hours': 4},
-                    {'team_label': 'Finance', 'status': 'in_progress', 'priority': 'high', 'age_hours': 8},
-                    {'team_label': 'Vendor Risk', 'status': 'human_required', 'priority': 'critical', 'age_hours': 6},
+                    {'team_label': 'Operations', 'status': 'human_required', 'priority': 'critical', 'age_hours': 12, 'case_id': 'CASE-OPS-1', 'title': 'Approve operations exception', 'view': 'overrides', 'focus_type': 'override', 'focus_id': 'OVR-OPS-1', 'next_action': 'Record the human decision so operations can continue.'},
+                    {'team_label': 'Operations', 'status': 'blocked', 'priority': 'high', 'age_hours': 4, 'case_id': 'CASE-OPS-1', 'title': 'Recover operations action', 'view': 'actions', 'focus_type': 'action', 'focus_id': 'ACT-OPS-1', 'next_action': 'Inspect the blocked action before retrying.'},
+                    {'team_label': 'Finance', 'status': 'in_progress', 'priority': 'high', 'age_hours': 8, 'case_id': 'CASE-FIN-1', 'title': 'Advance finance review', 'view': 'documents', 'focus_type': 'document', 'focus_id': 'DOC-FIN-1', 'next_action': 'Continue the formal finance review lane.'},
+                    {'team_label': 'Vendor Risk', 'status': 'human_required', 'priority': 'critical', 'age_hours': 6, 'case_id': 'CASE-VEN-1', 'title': 'Review vendor exception', 'view': 'requests', 'focus_type': 'request', 'focus_id': 'REQ-VEN-1', 'next_action': 'Confirm the vendor exception boundary.'},
                     {'team_label': 'HR', 'status': 'queued', 'priority': 'medium', 'age_hours': 1},
                 ],
                 'summary': {},
@@ -1213,10 +1226,19 @@ def test_command_surface_prioritizes_active_department_quick_access_for_compact_
         )
 
         quick_access = surface.get('department_quick_access', [])
+        active_operations = surface.get('active_operations', [])
 
         assert len(quick_access) == 6
         assert [item.get('label') for item in quick_access[:4]] == ['Operations', 'Vendor Risk', 'Finance', 'HR']
-        assert next(item for item in quick_access if item.get('label') == 'Vendor Risk').get('assignment_total') == 1
+        operations_team = next(item for item in quick_access if item.get('label') == 'Operations')
+        assert operations_team.get('assignment_total') == 2
+        assert operations_team.get('pressure_label') == 'human boundary'
+        assert operations_team.get('lead_case_id') == 'CASE-OPS-1'
+        assert active_operations[0].get('case_id') == 'CASE-OPS-1'
+        assert active_operations[0].get('pressure_badge') == 'human boundary'
+        assert active_operations[0].get('board_rank_label') == 'Lead operation'
+        assert active_operations[0].get('cluster_label') == 'Lead cluster'
+        assert 'human decision' in str(active_operations[0].get('lead_move', '')).lower()
 
 
 def test_command_surface_mission_control_prioritizes_human_boundaries_before_blocked_paths() -> None:
@@ -1342,6 +1364,8 @@ def test_command_surface_mission_control_prioritizes_human_boundaries_before_blo
         assert next_actions[0].get('why_now') == 'A real human decision is now the only safe next move.'
         assert next_actions[1].get('move_label') == 'Resolve Now'
         assert ai_feed[0].get('activity_note') == 'AI is actively moving this governed action forward inside its case boundary.'
+        assert ai_feed[0].get('tempo_badge') == 'live now'
+        assert ai_feed[0].get('board_rank_label') == 'Lead AI move'
         assert 'actively moving' in str(mission.get('ai_momentum_title', ''))
 
 
@@ -1389,6 +1413,66 @@ def test_command_surface_mission_control_describes_blocked_pressure_when_no_huma
         assert mission.get('world_state_badge') == 'blocked'
         assert 'blocked paths need recovery' in str(mission.get('world_state_title', ''))
         assert surface.get('next_actions', [])[0].get('move_label') == 'Resolve Now'
+
+
+def test_unified_work_inbox_exposes_case_continuity_and_move_labels() -> None:
+    with TemporaryDirectory() as temp_dir:
+        config = _base_config(temp_dir)
+        builder = DashboardSnapshotBuilder(config=config)
+
+        inbox = builder.unified_work_inbox(
+            overrides=[
+                {
+                    'request_id': 'OVR-1',
+                    'status': 'pending',
+                    'case_id': 'CASE-OVR-1',
+                }
+            ],
+            human_ask={'sessions': []},
+            role_private_studio={'requests': []},
+            documents={'items': []},
+            actions={'items': [], 'summary': {'actions_total': 0}},
+            operational_readiness={
+                'operator_visibility': {
+                    'human_decision_inbox': [],
+                    'workflow_backlog': [
+                        {
+                            'workflow_id': 'WF-1',
+                            'request_id': 'REQ-1',
+                            'current_state': 'blocked',
+                            'case_id': 'CASE-REQ-1',
+                        }
+                    ],
+                    'runtime_recovery_backlog': [],
+                    'runtime_dead_letters': [],
+                }
+            },
+            operator_queue_health={
+                'items': [
+                    {
+                        'lane_id': 'pending_overrides',
+                        'status': 'warning',
+                        'oldest_age_hours': 6,
+                    }
+                ]
+            },
+            operator_decision_lanes=[],
+        )
+
+        summary = inbox.get('summary', {})
+        items = inbox.get('items', [])
+        lead = items[0]
+
+        assert lead.get('focus_type') == 'override'
+        assert lead.get('focus_id') == 'OVR-1'
+        assert lead.get('case_id') == 'CASE-OVR-1'
+        assert lead.get('action_label') == 'Resolve in Overrides'
+        assert 'CASE-OVR-1' in str(lead.get('route_note', ''))
+        assert summary.get('primary_action_label') == 'Resolve in Overrides'
+        assert summary.get('primary_case_id') == 'CASE-OVR-1'
+        assert summary.get('primary_pressure_label') == 'human boundary'
+        assert summary.get('primary_focus_type') == 'override'
+        assert summary.get('primary_focus_id') == 'OVR-1'
 
 
 def test_command_surface_mission_control_handles_quiet_completed_runtime_states() -> None:
