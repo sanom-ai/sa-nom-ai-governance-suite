@@ -4041,14 +4041,17 @@ function renderCases(snapshot) {
   const latestCaseLabel = leadCase
     ? `${leadCase.case_id} | ${shortTime(leadCase.updated_at)}`
     : 'No linked governed issue has been grouped into a case yet.';
+  const leadCaseView = leadCase?.primary_view || summary.primary_view || 'requests';
+  const leadCaseViewLabel = VIEW_TITLES[leadCaseView] || titleCase(leadCaseView || 'requests');
+  const leadCaseFocus = leadCase ? resolveCasePrimaryFocus(leadCase, leadCaseView) : { entityType: '', entityId: '' };
   return `
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
         <div class="hero-heading">
           <div>
             <div class="eyebrow muted">Canonical Case Backbone</div>
-            <h2 class="hero-title">Track one governed issue across requests, approvals, records, and proof.</h2>
-            <p class="hero-subtitle">Cases keep the working lane, human boundary, Human Ask record, and audit history tied to the same operating story so the next move is easier to see.</p>
+            <h2 class="hero-title">Follow one governed issue across every lane without rebuilding the story by hand.</h2>
+            <p class="hero-subtitle">Cases keep the working lane, human boundary, Human Ask record, AI actions, documents, and audit history tied to the same operating story so the next move is easier to see.</p>
           </div>
           <div class="hero-chip-row">
             ${statusBadge(summary.human_required_total ? 'human required' : (summary.blocked_total ? 'blocked paths present' : 'linked cases stable'))}
@@ -4061,27 +4064,31 @@ function renderCases(snapshot) {
             ['Human required', String(summary.human_required_total || 0)],
             ['Blocked', String(summary.blocked_total || 0)],
             ['Attention', String(summary.attention_total || 0)],
-            ['Primary lane', VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview')],
+            ['Primary lane', leadCaseViewLabel],
           ])}
           <div class="hero-note">
             <strong>Operator standard</strong>
-            <p>Stay with the case until the issue is either resolved, handed to the correct human boundary, or fully documented with enough proof for later review.</p>
+            <p>Stay with the case until the issue is either resolved, handed to the correct human boundary, or fully documented with enough proof for later review. The case should feel like the mission, not just another record.</p>
           </div>
         </div>
       </article>
       <article class="card hero-card hero-card-secondary">
         <div>
-          <div class="eyebrow muted">Case reading guide</div>
-          <h3 class="card-title">What this lane answers quickly</h3>
-          <p class="card-subtitle">Use Cases when the same business issue now spans more than one runtime surface and you do not want to reconstruct the story by hand.</p>
+          <div class="eyebrow muted">Lead case in view</div>
+          <h3 class="card-title">${escapeHtml(leadCase ? (leadCase.title || leadCase.case_id || 'Lead governed case') : 'Open Requests to seed the first linked case')}</h3>
+          <p class="card-subtitle">${escapeHtml(leadCase ? (leadCase.continuity?.next_detail || 'This case already points at the lane that owns the next governed move.') : 'Cases becomes powerful once a governed request, Human Ask record, or document flow has enough continuity to stitch into one operating story.')}</p>
         </div>
         ${keyValue([
           ['Latest case', latestCaseLabel],
-          ['Trace model', 'Request to override to record to audit'],
-          ['Primary job', 'Follow the issue, not just the individual event'],
-          ['Proof stance', 'Keep the human and AI narrative attached'],
+          ['Next lane', leadCaseViewLabel],
+          ['Proof stance', leadCase?.continuity?.evidence_posture || 'proof starting'],
+          ['Timeline', String(leadCase?.timeline_total || 0)],
+          ['Documents linked', String((leadCase?.linked_document_ids || []).length)],
         ])}
-        <div class="trace-box"><strong>Case note</strong><p class="muted">A case is not a new source of truth. It is the stitched operating view built from the governed records the runtime already captured.</p></div>
+        <div class="inline-actions">
+          ${leadCase ? renderViewJumpButton({ view: leadCaseView, label: `Open ${leadCaseViewLabel}`, className: 'action-button', focusType: leadCaseFocus.entityType, focusId: leadCaseFocus.entityId, caseId: leadCase.case_id, title: `Case ${leadCase.case_id} reopened in ${leadCaseViewLabel}.`, detail: leadCase.continuity?.next_detail || 'Continue the same governed issue from its lead lane.', actionLabel: `Open ${leadCaseViewLabel}` }) : renderViewJumpButton({ view: 'requests', label: 'Open Requests', className: 'action-button', title: 'Requests reopened from Cases.', detail: 'Start the first governed request so Cases has a linked issue to track.', actionLabel: 'Open Requests' })}
+          ${renderViewJumpButton({ view: 'actions', label: 'Open AI Actions', className: 'action-button action-button-muted', caseId: leadCase?.case_id || '', title: leadCase?.case_id ? `Case ${leadCase.case_id} reopened in AI Actions.` : 'AI Actions reopened from Cases.', detail: 'Use AI Actions when the case is ready for governed execution inside the same story.', actionLabel: 'Open AI Actions' })}
+        </div>
       </article>
     </section>
     <section class="metrics-grid metrics-grid-luxury">
@@ -4089,6 +4096,24 @@ function renderCases(snapshot) {
       ${metricCard('Human required', summary.human_required_total || 0, (summary.human_required_total || 0) ? 'warning' : 'success', 'Cases currently waiting on a real human decision or boundary confirmation.')}
       ${metricCard('Blocked', summary.blocked_total || 0, (summary.blocked_total || 0) ? 'danger' : 'success', 'Cases currently held behind a blocked outcome or vetoed path.')}
       ${metricCard('Attention', summary.attention_total || 0, (summary.attention_total || 0) ? 'warning' : 'success', 'Cases that still need extra operator follow-through even if they are not hard blocked.')}
+    </section>
+    <section class="split-grid">
+      <article class="card stack">
+        <div><div class="eyebrow muted">Case mission</div><h3 class="card-title">What this lane should make easy</h3><p class="card-subtitle">Cases should answer what the issue is, what changed last, and which lane owns the next move.</p></div>
+        ${keyValue([
+          ['Trace model', 'Request to override to record to audit'],
+          ['Primary job', 'Follow the issue, not just the individual event'],
+          ['Proof stance', 'Keep the human and AI narrative attached'],
+          ['Escalation discipline', 'Use the case to keep boundary changes visible'],
+        ])}
+      </article>
+      <article class="card stack">
+        <div><div class="eyebrow muted">Use the right follow-through</div><h3 class="card-title">Keep the story moving from one lane to the next</h3><p class="card-subtitle">The case is the safest place to pivot between requests, human decisions, AI work, documents, and proof without losing continuity.</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: leadCaseView, label: `Open ${leadCaseViewLabel}`, className: 'action-button', focusType: leadCaseFocus.entityType, focusId: leadCaseFocus.entityId, caseId: leadCase?.case_id || '', title: leadCase?.case_id ? `Case ${leadCase.case_id} reopened in ${leadCaseViewLabel}.` : `${leadCaseViewLabel} reopened from Cases.`, detail: 'Continue the lead lane that currently owns the issue.', actionLabel: `Open ${leadCaseViewLabel}` })}
+          ${renderViewJumpButton({ view: 'audit', label: 'Open Audit', className: 'action-button action-button-muted', caseId: leadCase?.case_id || '', title: leadCase?.case_id ? `Case ${leadCase.case_id} reopened in Audit.` : 'Audit reopened from Cases.', detail: 'Use Audit when the next question is about proof, rationale, or what happened before.', actionLabel: 'Open Audit' })}
+        </div>
+      </article>
     </section>
     <section class="case-grid">
       ${items.length ? items.map((item) => renderCaseCard(item)).join('') : renderCaseEmptyState()}
@@ -6265,20 +6290,43 @@ function renderAdminSettingsTool(snapshot) {
 }
 
 function renderActions(snapshot) {
-
   const surface = snapshot.actions || { summary: {}, registry: [], items: [] };
   const summary = surface.summary || {};
   const registry = Array.isArray(surface.registry) ? surface.registry : [];
   const items = Array.isArray(surface.items) ? surface.items : [];
   const currentCase = getScopedActionCase(snapshot);
   const caseLabel = currentCase?.case_id || 'No case selected';
+  const nextMoveView = !currentCase ? 'cases' : (summary.waiting_human_total || 0) ? 'cases' : (summary.document_artifact_total || 0) ? 'documents' : 'actions';
+  const nextMoveLabel = VIEW_TITLES[nextMoveView] || titleCase(nextMoveView);
+  const nextMoveTitle = !currentCase
+    ? 'Open a case before launching more AI work'
+    : (summary.waiting_human_total || 0)
+      ? 'Finish the human handoff for this case'
+      : (summary.document_artifact_total || 0)
+        ? 'Review the document side effects AI already produced'
+        : (summary.running_total || 0)
+          ? 'Watch the running actions and keep the case attached'
+          : items.length
+            ? 'Inspect the latest governed action result'
+            : 'Launch the first governed action for this case';
+  const nextMoveDetail = !currentCase
+    ? 'The AI action runtime is safest when launch, side effects, proof, and follow-up all stay attached to one canonical case.'
+    : (summary.waiting_human_total || 0)
+      ? 'AI already reached a human boundary. The next move belongs to a real person, but the case should remain the anchor for that follow-through.'
+      : (summary.document_artifact_total || 0)
+        ? 'AI already created governed artifacts. Review them in the document lane without breaking case continuity.'
+        : (summary.running_total || 0)
+          ? 'AI is moving right now. Keep the case and action lane close so you can step in only if the runtime hits a new boundary.'
+          : items.length
+            ? 'The runtime already has visible action history. Inspect the result before deciding whether to launch another governed move.'
+            : 'This case is ready for its first governed AI action.';
   return `
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
         <div class="hero-heading">
           <div>
             <div class="eyebrow muted">AI Action Runtime</div>
-            <h2 class="hero-title">Governed AI work now executes as explicit actions, not hidden side effects.</h2>
+            <h2 class="hero-title">Let AI work inside explicit case, authority, side-effect, and proof boundaries.</h2>
             <p class="hero-subtitle">Each action stays attached to one case, one authority boundary, one side-effect policy, and one proof trail.</p>
           </div>
           <div class="hero-chip-row">${statusBadge(currentCase ? 'case scoped' : 'pick case')}${statusBadge(summary.waiting_human_total ? 'human follow-up active' : 'runtime ready')}</div>
@@ -6287,6 +6335,7 @@ function renderActions(snapshot) {
           ${keyValue([
             ['Selected case', caseLabel],
             ['AI actions', String(summary.actions_total || items.length)],
+            ['Running', String(summary.running_total || 0)],
             ['Waiting human', String(summary.waiting_human_total || 0)],
             ['Completed', String(summary.completed_total || 0)],
             ['Failed closed', String(summary.failed_closed_total || 0)],
@@ -6297,13 +6346,45 @@ function renderActions(snapshot) {
       </article>
       <article class="card hero-card hero-card-secondary">
         <div>
-          <div class="eyebrow muted">Current case</div>
-          <h3 class="card-title">${escapeHtml(caseLabel)}</h3>
-          <p class="card-subtitle">${escapeHtml(currentCase ? (currentCase.continuity?.next_detail || 'This case is ready for governed AI execution.') : 'Open Cases first, then jump back here to let AI act inside the selected governed issue.')}</p>
+          <div class="eyebrow muted">What should happen next?</div>
+          <h3 class="card-title">${escapeHtml(nextMoveTitle)}</h3>
+          <p class="card-subtitle">${escapeHtml(nextMoveDetail)}</p>
         </div>
+        ${keyValue([
+          ['Current case', caseLabel],
+          ['Recommended lane', nextMoveLabel],
+          ['Running now', String(summary.running_total || 0)],
+          ['Waiting human', String(summary.waiting_human_total || 0)],
+          ['Document side effects', String(summary.document_artifact_total || 0)],
+        ])}
         <div class="inline-actions">
-          <button class="action-button" type="button" data-view-jump="cases">Open Cases</button>
-          ${currentCase ? `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: 'cases', focusType: 'case', focusId: currentCase.case_id, caseId: currentCase.case_id, title: `Case ${currentCase.case_id} reopened from AI Actions.`, detail: 'Return to the canonical case to review linked work, proof, and next moves.', actionLabel: 'Open Cases' })}>Open selected case</button>` : ''}
+          ${renderViewJumpButton({ view: nextMoveView, label: `Open ${nextMoveLabel}`, className: 'action-button', caseId: currentCase?.case_id || '', title: `${nextMoveLabel} reopened from AI Actions.`, detail: nextMoveDetail, actionLabel: `Open ${nextMoveLabel}` })}
+          ${renderViewJumpButton({ view: 'cases', label: currentCase ? 'Open selected case' : 'Open Cases', className: 'action-button action-button-muted', focusType: currentCase ? 'case' : '', focusId: currentCase?.case_id || '', caseId: currentCase?.case_id || '', title: currentCase ? `Case ${currentCase.case_id} reopened from AI Actions.` : 'Cases reopened from AI Actions.', detail: 'Return to the canonical case to review linked work, proof, and next moves.', actionLabel: currentCase ? 'Open selected case' : 'Open Cases' })}
+        </div>
+      </article>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Running', summary.running_total || 0, (summary.running_total || 0) ? 'accent' : 'default', 'Governed AI actions actively moving right now.')}
+      ${metricCard('Waiting human', summary.waiting_human_total || 0, (summary.waiting_human_total || 0) ? 'warning' : 'success', 'AI actions paused at a real human boundary.')}
+      ${metricCard('Completed', summary.completed_total || 0, (summary.completed_total || 0) ? 'success' : 'default', 'Governed AI actions that already finished cleanly.')}
+      ${metricCard('Failed closed', summary.failed_closed_total || 0, (summary.failed_closed_total || 0) ? 'danger' : 'success', 'Actions that stopped behind a fail-closed boundary.')}
+      ${metricCard('Document artifacts', summary.document_artifact_total || 0, (summary.document_artifact_total || 0) ? 'accent' : 'default', 'Governed document side effects created by AI actions.')}
+    </section>
+    <section class="split-grid">
+      <article class="card stack">
+        <div><div class="eyebrow muted">AI workload posture</div><h3 class="card-title">What the workforce is doing from this lane</h3><p class="card-subtitle">AI should feel active here, with human intervention reserved for explicit handoff or fail-closed situations.</p></div>
+        ${keyValue([
+          ['Running now', String(summary.running_total || 0)],
+          ['Waiting human', String(summary.waiting_human_total || 0)],
+          ['Completed', String(summary.completed_total || 0)],
+          ['Failed closed', String(summary.failed_closed_total || 0)],
+        ])}
+      </article>
+      <article class="card stack">
+        <div><div class="eyebrow muted">Keep continuity intact</div><h3 class="card-title">Move through the case, not around it</h3><p class="card-subtitle">When AI drafts a document, triggers a handoff, or fails closed, the safest next move is still the one that preserves the same case story.</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: 'cases', label: 'Open Cases', className: 'action-button', focusType: currentCase ? 'case' : '', focusId: currentCase?.case_id || '', caseId: currentCase?.case_id || '', title: currentCase ? `Case ${currentCase.case_id} reopened from AI Actions.` : 'Cases reopened from AI Actions.', detail: 'Keep the action, documents, handoffs, and proof trail attached to one governed issue.', actionLabel: 'Open Cases' })}
+          ${renderViewJumpButton({ view: 'documents', label: 'Open Documents', className: 'action-button action-button-muted', caseId: currentCase?.case_id || '', title: currentCase?.case_id ? `Case ${currentCase.case_id} reopened in Documents.` : 'Documents reopened from AI Actions.', detail: 'Review governed document drafts or publication follow-through created by the AI action runtime.', actionLabel: 'Open Documents' })}
         </div>
       </article>
     </section>
@@ -6794,6 +6875,22 @@ function renderRequests(snapshot) {
   const latestRequestLabel = requests.length
     ? `${requests[0].request_id} | ${shortTime(requests[0].timestamp)}`
     : 'No governed request has been recorded yet.';
+  const nextMoveView = pendingOverrides.length ? 'overrides' : conflicts.length ? 'conflicts' : requests.length ? 'audit' : 'requests';
+  const nextMoveLabel = VIEW_TITLES[nextMoveView] || titleCase(nextMoveView);
+  const nextMoveTitle = pendingOverrides.length
+    ? 'Resolve the human boundary before adding more demand'
+    : conflicts.length
+      ? 'Unblock the conflicted request path'
+      : requests.length
+        ? 'Confirm the latest request finished cleanly'
+        : 'Submit the first governed request';
+  const nextMoveDetail = pendingOverrides.length
+    ? 'The queue already contains requests that need a real human approval or veto before governed execution may continue.'
+    : conflicts.length
+      ? 'The queue is still alive, but conflicted requests should be cleared before the operator adds pressure to the same runtime corridor.'
+      : requests.length
+        ? 'No new human boundary is stopping the queue right now. The best move is to confirm the latest governed request outcome and keep intake disciplined.'
+        : 'Requests becomes useful the moment one real governed action enters the runtime with role, payload, and boundary context.';
   const composer = can('request.create')
     ? renderRequestComposer(snapshot.roles || [])
     : `<article class="card notice-card stack"><strong>Request composer</strong><p class="permission-note">This profile does not have request.create permission.</p></article>`;
@@ -6803,7 +6900,7 @@ function renderRequests(snapshot) {
         <div class="hero-heading">
           <div>
             <div class="eyebrow muted">Runtime Intake Command</div>
-            <h2 class="hero-title">Governed requests enter a disciplined execution corridor.</h2>
+            <h2 class="hero-title">See demand clearly, stop at the right human boundary, and keep governed intake moving.</h2>
             <p class="hero-subtitle">Every submission is checked for role authority, policy coverage, consistency posture, role flow, and audit trace before any privileged work is allowed to continue.</p>
           </div>
           <div class="hero-chip-row">
@@ -6822,24 +6919,27 @@ function renderRequests(snapshot) {
           ])}
           <div class="hero-note">
             <strong>Operator standard</strong>
-            <p>Use runtime intake for actions that belong inside the governed server boundary. Context-aware routing, switch reasoning, and escalation lanes are now visible directly in the request ledger.</p>
+            <p>Use Requests when new governed work is entering the runtime. The goal is not to inspect plumbing. The goal is to see whether demand can keep flowing, must stop for a human, or is colliding with contention.</p>
           </div>
         </div>
       </article>
       <article class="card hero-card hero-card-secondary">
         <div>
-          <div class="eyebrow muted">Submission posture</div>
-          <h3 class="card-title">Queue discipline</h3>
-          <p class="card-subtitle">The request surface is tuned for live operations, approval routing, and post-decision traceability.</p>
+          <div class="eyebrow muted">What changes the queue right now?</div>
+          <h3 class="card-title">${escapeHtml(nextMoveTitle)}</h3>
+          <p class="card-subtitle">${escapeHtml(nextMoveDetail)}</p>
         </div>
         ${keyValue([
           ['Latest request', latestRequestLabel],
-          ['Override queue', pendingOverrides.length ? 'active' : 'clear'],
-          ['Conflict exposure', conflicts.length ? 'present' : 'none'],
+          ['Recommended lane', nextMoveLabel],
+          ['Pending overrides', String(pendingOverrides.length)],
+          ['Conflicts', String(conflicts.length)],
           ['Execution model', 'Governed private runtime'],
-          ['Activation surface', routedRequests ? 'context-aware live' : 'explicit or stable'],
         ])}
-        <div class="trace-box"><strong>Submission note</strong><p class="muted">When metadata includes idempotency keys and event ordering, replay and out-of-order protection remain explicit in the runtime ledger alongside role transitions and escalation evidence.</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: nextMoveView, label: `Open ${nextMoveLabel}`, className: 'action-button', title: `${nextMoveLabel} reopened from Requests.`, detail: nextMoveDetail, actionLabel: `Open ${nextMoveLabel}` })}
+          ${renderViewJumpButton({ view: 'audit', label: 'Open Audit', className: 'action-button action-button-muted', title: 'Audit reopened from Requests.', detail: 'Use Audit to confirm what happened after a governed request crossed the intake lane.', actionLabel: 'Open Audit' })}
+        </div>
       </article>
     </section>
     <section class="metrics-grid metrics-grid-luxury">
@@ -6871,26 +6971,26 @@ function renderRequests(snapshot) {
     </section>
     <section class="split-grid">
       <article class="card stack">
-        <div><div class="eyebrow muted">Submission protocol</div><h3 class="card-title">What strong requests look like</h3><p class="card-subtitle">Use this surface as the premium operator lane for runtime work that must remain reviewable after execution.</p></div>
+        <div><div class="eyebrow muted">Before you submit</div><h3 class="card-title">What strong requests include</h3><p class="card-subtitle">Good intake keeps the runtime readable after execution, not just before it.</p></div>
         ${keyValue([
           ['Payload quality', 'Structured JSON with explicit resource context'],
           ['Consistency discipline', 'Idempotency key plus event ordering metadata'],
           ['Role targeting', 'Choose a trusted role or leave it blank for context-aware routing'],
-          ['Review posture', pendingOverrides.length ? 'Monitor the human override queue after submit' : 'No active review bottleneck detected'],
+          ['Review posture', pendingOverrides.length ? 'Expect a human boundary when the risk is already visible' : 'No active review bottleneck is visible now'],
         ])}
         <div class="trace-box"><strong>Recommended metadata</strong><p class="muted">Pair each governed request with an idempotency key, event stream, and event sequence whenever the action touches mutable records or recurring workflows.</p></div>
       </article>
       <article class="card stack">
-        <div><div class="eyebrow muted">Onboarding checkpoint</div><h3 class="card-title">What to do after your first request</h3><p class="card-subtitle">Use the next view based on what happened to the request instead of guessing where the system stored the decision.</p></div>
+        <div><div class="eyebrow muted">After you submit</div><h3 class="card-title">Move to the right lane instead of guessing</h3><p class="card-subtitle">Requests should tell you where to go next when the runtime changes state.</p></div>
         ${keyValue([
           ['If the request stayed autonomous', 'Open Audit to confirm outcome and policy basis'],
           ['If the request escalated', 'Open Overrides to see who must approve or veto'],
           ['If the request conflicted', 'Open Conflicts to inspect locks before retrying'],
-          ['If the role changed', 'Stay in Runtime Requests to review activation source and switch reason'],
+          ['If the role changed', 'Stay in Requests to review activation source and switch reason'],
         ])}
         <div class="inline-actions">
-          <button class="action-button" type="button" data-view-jump="audit">Open Audit</button>
-          <button class="action-button action-button-muted" type="button" data-view-jump="conflicts">Open Conflicts</button>
+          ${renderViewJumpButton({ view: 'overrides', label: 'Open Overrides', className: 'action-button', title: 'Overrides reopened from Requests.', detail: 'Use Overrides when the queue already crossed a human boundary.', actionLabel: 'Open Overrides' })}
+          ${renderViewJumpButton({ view: 'conflicts', label: 'Open Conflicts', className: 'action-button action-button-muted', title: 'Conflicts reopened from Requests.', detail: 'Use Conflicts when contention, locks, or ordering pressure stopped the path.', actionLabel: 'Open Conflicts' })}
         </div>
       </article>
     </section>
