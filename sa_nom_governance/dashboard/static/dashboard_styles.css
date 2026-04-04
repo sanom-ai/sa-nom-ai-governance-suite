@@ -1924,6 +1924,17 @@ button:focus-visible {
   border-color: rgba(12, 17, 26, 0.08);
 }
 
+.view-entry-trace {
+  border-color: rgba(185, 146, 79, 0.2);
+  background:
+    radial-gradient(circle at top right, rgba(222, 192, 135, 0.16), transparent 36%),
+    linear-gradient(180deg, rgba(255, 252, 245, 0.92), rgba(250, 244, 234, 0.84));
+}
+
+.view-entry-trace strong {
+  color: var(--text-strong);
+}
+
 .view-prelude-grid {
   display: grid;
   gap: 14px;

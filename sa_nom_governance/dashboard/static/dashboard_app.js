@@ -33,6 +33,8 @@ const state = {
     sourceMs: 0,
     clientStartedMs: 0,
   },
+  lastRenderedView: '',
+  laneTransition: null,
 };
 
 const root = document.getElementById('dashboard-root');
@@ -2152,6 +2154,12 @@ function render() {
   sidebarViewDescription.textContent = VIEW_DESCRIPTIONS[state.view];
   topbarFocusLabel.textContent = VIEW_TITLES[state.view];
   document.body.dataset.view = state.view;
+  const transitionFrom = state.lastRenderedView && state.lastRenderedView !== state.view ? state.lastRenderedView : '';
+  if (transitionFrom) {
+    state.laneTransition = { from: transitionFrom, to: state.view };
+  }
+  const activeLaneTransition = state.laneTransition && state.laneTransition.to === state.view ? state.laneTransition : null;
+  document.body.dataset.viewOrigin = activeLaneTransition ? activeLaneTransition.from : '';
   if (state.authRequired || !state.snapshot) {
     stopLiveTimestampTicker();
     sessionLabel.textContent = 'disconnected';
@@ -2162,6 +2170,7 @@ function render() {
     topbarRuntimeLabel.textContent = 'Awaiting session';
     root.innerHTML = renderAuthCard();
     updateNav();
+    state.lastRenderedView = state.view;
     return;
   }
 
@@ -2229,6 +2238,7 @@ function render() {
   const workflowGuide = compactCommandView ? '' : renderWorkflowGuide(snapshot);
   root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${alertRail}${viewPrelude}${tabletLaneRail}${workflowGuide}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
+  state.lastRenderedView = state.view;
   focusActionContextTarget();
 }
 
@@ -2368,6 +2378,11 @@ function renderViewPrelude(snapshot) {
     narrative: VIEW_DESCRIPTIONS[state.view],
     emphasis: 'runtime posture',
   };
+  const laneTransition = state.laneTransition && state.laneTransition.to === state.view ? state.laneTransition : null;
+  const transitionFromLabel = laneTransition ? (VIEW_TITLES[laneTransition.from] || titleCase(laneTransition.from || 'overview')) : '';
+  const entryTrace = laneTransition
+    ? `<div class="trace-box view-entry-trace"><strong>Entered from ${escapeHtml(transitionFromLabel)}</strong><p class="muted">This lane now carries the next governed move, so the highlighted work stays easier to continue without re-scanning the whole board.</p></div>`
+    : '';
   return `
     <section class="view-prelude card view-prelude-${escapeHtml(state.view)}">
       <div class="hero-heading">
@@ -2376,8 +2391,9 @@ function renderViewPrelude(snapshot) {
           <h3 class="card-title">${escapeHtml(profile.title)}</h3>
           <p class="card-subtitle">${escapeHtml(profile.narrative)}</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(profile.emphasis)}${statusBadge(snapshot.environment || 'runtime')}</div>
+        <div class="hero-chip-row">${statusBadge(profile.emphasis)}${laneTransition ? statusBadge(`from ${transitionFromLabel}`) : ''}${statusBadge(snapshot.environment || 'runtime')}</div>
       </div>
+      ${entryTrace}
       <div class="view-prelude-grid">
         ${visibleCues.map((cue) => `
           <article class="view-prelude-card${cue.tone ? ` view-prelude-card-${escapeHtml(cue.tone)}` : ''}">
