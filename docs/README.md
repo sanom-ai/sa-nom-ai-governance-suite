@@ -64,6 +64,7 @@ Pick the path that matches what you need first:
 - [Commercial Boundary](COMMERCIAL_BOUNDARY.md)
 - [Commercial License And Pricing](COMMERCIAL_LICENSE.md)
 - [Commercial Offer Packs](COMMERCIAL_OFFER_PACKS.md)
+- [ROI One-Pager](ROI_ONE_PAGER.md)
 - [Discovery Call Script](DISCOVERY_CALL_SCRIPT.md)
 - [Pricing Request Reply Templates](PRICING_REQUEST_REPLY_TEMPLATES.md)
 - [Founder Outreach Short](FOUNDER_OUTREACH_SHORT.md)
