@@ -5068,7 +5068,7 @@ function renderCommandHome(snapshot) {
           <article class="card hero-card hero-card-primary command-home-hero-primary">
             <div class="hero-heading">
               <div>
-                <div class="eyebrow">Simple Home Dashboard</div>
+                <div class="eyebrow">Director Home</div>
                 <h3 class="hero-title">Your Next Actions</h3>
                 <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
               </div>
@@ -5082,7 +5082,7 @@ function renderCommandHome(snapshot) {
           </article>
           <article class="card hero-card hero-card-secondary command-home-hero-secondary">
             <div>
-              <div class="eyebrow muted">What should happen next?</div>
+              <div class="eyebrow muted">Lead governed move</div>
               <h3 class="card-title">${escapeHtml(missionTopTitle)}</h3>
               <p class="card-subtitle">${escapeHtml(missionTopDetail)}</p>
             </div>
@@ -5109,7 +5109,7 @@ function renderCommandHome(snapshot) {
           </div>
         </section>
         <section class="command-board-grid">
-          <section class="card stack command-home-section command-home-section-operations">
+          <section class="card stack command-home-section command-home-section-operations command-home-section-lead">
             <div class="hero-heading">
               <div>
                 <div class="eyebrow muted">Operations Map</div>
@@ -5129,28 +5129,30 @@ function renderCommandHome(snapshot) {
             <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
             ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}${statusBadge(activeOperations[0].cluster_label || 'Lead cluster')}</div></div>${renderActiveOperationCard(activeOperations[0], { featured: true })}${activeOperations.length > 1 ? `<div class="command-operation-cluster-head"><div class="eyebrow muted">${escapeHtml(activeOperations[1].cluster_label || 'Supporting cluster')}</div><p class="muted">Keep nearby operations visible so the lead move stays supported across teams and lanes.</p></div><div class="command-operation-grid">${activeOperations.slice(1).map((item) => renderActiveOperationCard(item)).join('')}</div>` : ''}</div>` : ''}
           </section>
-          <section class="card command-next-actions-card stack command-home-section command-home-section-actions">
-            <div class="hero-heading">
-              <div>
-                <div class="eyebrow muted">What's Next For You</div>
-                <h3 class="card-title">Your Next Actions</h3>
-                <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
+          <div class="command-support-stack">
+            <section class="card command-next-actions-card stack command-home-section command-home-section-support command-home-section-actions">
+              <div class="hero-heading">
+                <div>
+                  <div class="eyebrow muted">Director moves</div>
+                  <h3 class="card-title">Your Next Actions</h3>
+                  <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
+                </div>
+                <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
               </div>
-              <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
-            </div>
-            <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
-          </section>
-          <section class="card stack command-home-section command-home-section-feed">
-            <div class="hero-heading">
-              <div>
-                <div class="eyebrow muted">AI Activity Feed</div>
-                <h3 class="card-title">What AI is doing now</h3>
-                <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
+              <div class="command-next-grid">${nextActions.length ? nextActions.map((item, index) => renderHomeNextActionCard(item, { featured: index === 0 })).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
+            </section>
+            <section class="card stack command-home-section command-home-section-support command-home-section-feed">
+              <div class="hero-heading">
+                <div>
+                  <div class="eyebrow muted">Runtime tempo</div>
+                  <h3 class="card-title">What AI is doing now</h3>
+                  <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
+                </div>
+                <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}${statusBadge(aiMomentumBadge)}</div>
               </div>
-              <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}${statusBadge(aiMomentumBadge)}</div>
-            </div>
-            <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item) => renderAiFeedCard(item)).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
-          </section>
+              <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item, index) => renderAiFeedCard({ ...item, featured: index === 0 || item.featured })).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
+            </section>
+          </div>
         </section>
         ${setupContinuation}
         ${touchLaneSection}
@@ -5460,6 +5462,7 @@ function buildHomeNextActions(snapshot, surface) {
 function renderActiveOperationCard(item, options = {}) {
   const featured = Boolean(options.featured || item.featured);
   const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const featuredClass = featured ? ' command-action-card-featured' : '';
   const featuredClass = featured ? ' command-operation-card-featured' : '';
   const clusterLabel = item.cluster_label || (featured ? 'Lead cluster' : 'Supporting cluster');
   const clusterDetail = item.cluster_detail || (featured
@@ -5508,7 +5511,8 @@ function renderActiveOperationCard(item, options = {}) {
     `;
 }
 
-function renderHomeNextActionCard(item) {
+function renderHomeNextActionCard(item, options = {}) {
+  const featured = Boolean(options.featured);
   const focusType = item.focus_type || '';
   const focusId = item.focus_id || '';
   const caseId = item.case_id || '';
@@ -5523,7 +5527,7 @@ function renderHomeNextActionCard(item) {
     ? `<button class="action-button action-button-muted" type="button" data-override-action="veto" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Reject</button>`
     : `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.detail || item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: 'Details' })}>Details</button>`;
   return `
-      <article class="command-action-card${toneClass}" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
+      <article class="command-action-card${featuredClass}${toneClass}" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
         <div class="hero-chip-row">${statusBadge(item.status_label || item.status || 'monitoring')}${statusBadge(item.priority_label || item.priority || 'normal')}</div>
         <strong>${escapeHtml(item.title || 'Governed work')}</strong>
         <p class="muted">${escapeHtml(item.detail || item.next_action || 'Continue the linked governed work.')}</p>

@@ -4234,3 +4234,215 @@ button:focus-visible {
 .command-momentum-note {
   max-width: 34ch;
 }
+
+
+/* v0.7.10 director hierarchy polish */
+.command-brand-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.command-brand-note {
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.command-nav-row {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 22px;
+  background:
+    radial-gradient(circle at top right, rgba(239, 213, 159, 0.2), transparent 24%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.94), rgba(247, 241, 230, 0.88));
+  border-color: rgba(185, 146, 79, 0.18);
+  box-shadow: 0 20px 42px rgba(11, 16, 28, 0.12);
+}
+
+.command-nav-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0));
+  opacity: 0.9;
+}
+
+.command-nav-row > * {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.command-nav-scroll {
+  padding: 4px 2px 8px;
+}
+
+.command-utility-row {
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.command-session-row,
+.command-action-row {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.46);
+  border: 1px solid rgba(118, 83, 28, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.command-action-row {
+  justify-content: flex-end;
+}
+
+.command-action-row .action-button,
+.command-org-selector {
+  min-height: 44px;
+}
+
+.topbar {
+  grid-template-columns: minmax(0, 1.42fr) minmax(300px, 0.78fr);
+  gap: 22px;
+  padding: 26px 28px;
+}
+
+.topbar-ribbon-item {
+  min-width: 148px;
+  padding: 11px 14px;
+}
+
+.topbar-glance-card {
+  min-width: 0;
+  padding: 14px 15px;
+}
+
+.topbar-glance {
+  gap: 10px;
+}
+
+.command-board-grid {
+  grid-template-columns: minmax(0, 1.56fr) minmax(300px, 0.82fr);
+  gap: 20px;
+}
+
+.command-support-stack {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.command-support-stack > .command-home-section {
+  min-height: 0;
+}
+
+.command-home-section-lead {
+  border-color: rgba(185, 146, 79, 0.2);
+  box-shadow: 0 26px 52px rgba(11, 16, 28, 0.16);
+}
+
+.command-home-section-support {
+  background:
+    radial-gradient(circle at top right, rgba(222, 192, 135, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.94), rgba(247, 241, 231, 0.86));
+}
+
+.command-home-section-support .hero-heading {
+  gap: 14px;
+}
+
+.command-home-section-support .card-title {
+  font-size: 1.08rem;
+}
+
+.command-home-section-support .card-subtitle {
+  max-width: 34ch;
+  font-size: 0.94rem;
+}
+
+.command-home-section-support .command-next-grid,
+.command-home-section-support .command-feed-list {
+  grid-template-columns: 1fr;
+}
+
+.command-home-section-support .command-action-card,
+.command-home-section-support .command-feed-card {
+  padding: 18px 20px;
+  gap: 10px;
+}
+
+.command-action-card-featured,
+.command-feed-card-featured {
+  border-color: rgba(185, 146, 79, 0.24);
+  box-shadow: 0 22px 44px rgba(11, 16, 28, 0.14);
+}
+
+.command-action-card-featured {
+  background:
+    radial-gradient(circle at top right, rgba(239, 213, 159, 0.22), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(247, 241, 230, 0.92));
+}
+
+.command-feed-card-featured {
+  background:
+    radial-gradient(circle at top right, rgba(239, 213, 159, 0.2), transparent 30%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.97), rgba(247, 241, 230, 0.91));
+}
+
+.command-action-card-featured::before,
+.command-feed-card-featured::before {
+  opacity: 1;
+}
+
+@media (max-width: 1320px) {
+  .command-nav-row {
+    grid-template-columns: 1fr;
+  }
+
+  .command-utility-row {
+    justify-content: space-between;
+  }
+
+  .command-action-row {
+    justify-content: flex-start;
+  }
+
+  .command-board-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .command-support-stack > .command-home-section {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .command-home-section-support .command-next-grid,
+  .command-home-section-support .command-feed-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .command-session-row,
+  .command-action-row {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .command-home-section-support .command-next-grid,
+  .command-home-section-support .command-feed-list {
+    grid-template-columns: 1fr;
+  }
+
+  .command-brand-note {
+    letter-spacing: 0.08em;
+  }
+}
