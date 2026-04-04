@@ -3238,9 +3238,16 @@ function studioReadinessTone(readiness) {
 function updateNav() {
   const controlRoomAllowed = canAccessControlRoom();
   const activeView = (isControlRoomTool(state.view) || GOVERNANCE_EMBEDDED_VIEWS.has(state.view)) ? 'control_room' : state.view;
+  const guidedRawView = String(state.actionContext?.view || '').trim();
+  const guidedView = (isControlRoomTool(guidedRawView) || GOVERNANCE_EMBEDDED_VIEWS.has(guidedRawView)) ? 'control_room' : guidedRawView;
+  const guidedControlRoomTool = String(state.actionContext?.controlRoomTool || '').trim();
   if (governanceLauncher) {
     governanceLauncher.hidden = !controlRoomAllowed;
-    governanceLauncher.classList.toggle('is-active', activeView === 'control_room');
+    const isGovernanceActive = activeView === 'control_room';
+    const isGovernanceGuided = !isGovernanceActive && controlRoomAllowed && guidedView === 'control_room';
+    governanceLauncher.classList.toggle('is-active', isGovernanceActive);
+    governanceLauncher.classList.toggle('is-guided', isGovernanceGuided);
+    governanceLauncher.dataset.navState = isGovernanceActive ? 'current' : isGovernanceGuided ? 'next' : 'idle';
     governanceLauncher.setAttribute('aria-expanded', governanceSheet && !governanceSheet.hidden ? 'true' : 'false');
   }
   if (!controlRoomAllowed) {
@@ -3251,12 +3258,17 @@ function updateNav() {
     const itemView = item.dataset.view || '';
     const itemTool = String(item.dataset.controlRoomTool || '').trim();
     let isActive = itemView === activeView;
+    let isGuided = !isActive && itemView === guidedView;
     if (itemView === 'control_room' && itemTool) {
       isActive = activeView === 'control_room' && itemTool === activeControlRoomTool;
+      isGuided = !isActive && guidedView === 'control_room' && itemTool === (guidedControlRoomTool || getInitialControlRoomTool());
     } else if (itemView === 'control_room' && !itemTool) {
       isActive = activeView === 'control_room' && activeControlRoomTool === getInitialControlRoomTool();
+      isGuided = !isActive && guidedView === 'control_room' && (guidedControlRoomTool || getInitialControlRoomTool()) === getInitialControlRoomTool();
     }
     item.classList.toggle('is-active', isActive);
+    item.classList.toggle('is-guided', isGuided);
+    item.dataset.navState = isActive ? 'current' : isGuided ? 'next' : 'idle';
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   }
   if (governanceSheet) {
@@ -3264,12 +3276,17 @@ function updateNav() {
       const itemView = item.dataset.view || '';
       const itemTool = String(item.dataset.controlRoomTool || '').trim();
       let isActive = itemView === activeView;
+      let isGuided = !isActive && itemView === guidedView;
       if (itemView === 'control_room' && itemTool) {
         isActive = activeView === 'control_room' && itemTool === activeControlRoomTool;
+        isGuided = !isActive && guidedView === 'control_room' && itemTool === (guidedControlRoomTool || getInitialControlRoomTool());
       } else if (itemView === 'control_room' && !itemTool) {
         isActive = activeView === 'control_room' && activeControlRoomTool === getInitialControlRoomTool();
+        isGuided = !isActive && guidedView === 'control_room' && (guidedControlRoomTool || getInitialControlRoomTool()) === getInitialControlRoomTool();
       }
       item.classList.toggle('is-active', isActive);
+      item.classList.toggle('is-guided', isGuided);
+      item.dataset.navState = isActive ? 'current' : isGuided ? 'next' : 'idle';
       item.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
   }
@@ -4911,6 +4928,7 @@ function renderCommandHome(snapshot) {
   const missionWorldNote = mission.world_state_note || 'Use the posture cards and next actions below to keep the Director oriented.';
   const aiMomentumTitle = mission.ai_momentum_title || 'AI workforce';
   const aiMomentumDetail = mission.ai_momentum_detail || `${aiRunning} running | ${aiTotal} total governed actions`;
+  const aiMomentumBadge = mission.ai_momentum_badge || (aiRunning ? 'AI moving' : aiFeed.length ? 'AI recent' : 'AI quiet');
   const missionPressureLabel = mission.pressure_label || `${attentionTotal} attention`;
   const inboxLeadLane = VIEW_TITLES[inboxSummary.primary_view] || titleCase(inboxSummary.primary_view || 'overview');
   const controlRoomAction = canAccessControlRoom()
@@ -4962,50 +4980,52 @@ function renderCommandHome(snapshot) {
             ${renderHomePostureCard('Evidence Integrity', evidenceLabel, evidenceDate, posture.evidence_status === 'verified' ? 'success' : 'warning', 'Evidence remains verified while identifiers stay hidden by default.')}
           </div>
         </section>
-        <section class="card stack command-home-section">
-          <div class="hero-heading">
-            <div>
-              <div class="eyebrow muted">Operations Map</div>
-              <h3 class="card-title">Where pressure is building across the runtime</h3>
-              <p class="card-subtitle">Read the live lanes like a command board: which queue is gating AI, which lane is blocked, and where the Director should step in next.</p>
+        <section class="command-board-grid">
+          <section class="card stack command-home-section command-home-section-operations">
+            <div class="hero-heading">
+              <div>
+                <div class="eyebrow muted">Operations Map</div>
+                <h3 class="card-title">Where pressure is building across the runtime</h3>
+                <p class="card-subtitle">Read the live lanes like a command board: which queue is gating AI, which lane is blocked, and where the Director should step in next.</p>
+              </div>
+              <div class="hero-chip-row">${statusBadge(`${inboxSummary.human_required_total || 0} human`)}${statusBadge(`${inboxSummary.blocked_total || 0} blocked`)}</div>
             </div>
-            <div class="hero-chip-row">${statusBadge(`${inboxSummary.human_required_total || 0} human`)}${statusBadge(`${inboxSummary.blocked_total || 0} blocked`)}</div>
-          </div>
-          ${keyValue([
-            ['Open work', String(inboxSummary.open_total || 0)],
-            ['Lead lane', inboxLeadLane],
-            ['Human required', String(inboxSummary.human_required_total || 0)],
-            ['Blocked paths', String(inboxSummary.blocked_total || 0)],
-            ['Ready lanes', String(inboxSummary.ready_total || 0)],
-          ])}
-          <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(inboxSummary.primary_next_step || missionTopDetail)}</p></div>
-          <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
-          ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}</div></div><div class="command-operation-grid">${activeOperations.map((item) => renderActiveOperationCard(item)).join('')}</div></div>` : ''}
+            ${keyValue([
+              ['Open work', String(inboxSummary.open_total || 0)],
+              ['Lead lane', inboxLeadLane],
+              ['Human required', String(inboxSummary.human_required_total || 0)],
+              ['Blocked paths', String(inboxSummary.blocked_total || 0)],
+              ['Ready lanes', String(inboxSummary.ready_total || 0)],
+            ])}
+            <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(inboxSummary.primary_next_step || missionTopDetail)}</p></div>
+            <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
+            ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}</div></div><div class="command-operation-grid">${activeOperations.map((item) => renderActiveOperationCard(item)).join('')}</div></div>` : ''}
+          </section>
+          <section class="card command-next-actions-card stack command-home-section command-home-section-actions">
+            <div class="hero-heading">
+              <div>
+                <div class="eyebrow muted">What's Next For You</div>
+                <h3 class="card-title">Your Next Actions</h3>
+                <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
+              </div>
+              <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
+            </div>
+            <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
+          </section>
+          <section class="card stack command-home-section command-home-section-feed">
+            <div class="hero-heading">
+              <div>
+                <div class="eyebrow muted">AI Activity Feed</div>
+                <h3 class="card-title">What AI is doing now</h3>
+                <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
+              </div>
+              <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}${statusBadge(aiMomentumBadge)}</div>
+            </div>
+            <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item) => renderAiFeedCard(item)).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
+          </section>
         </section>
         ${setupContinuation}
-        <section class="card command-next-actions-card stack command-home-section">
-          <div class="hero-heading">
-            <div>
-              <div class="eyebrow muted">What's Next For You</div>
-              <h3 class="card-title">Your Next Actions</h3>
-              <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
-            </div>
-            <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
-          </div>
-          <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
-        </section>
         ${touchLaneSection}
-        <section class="card stack command-home-section">
-          <div class="hero-heading">
-            <div>
-              <div class="eyebrow muted">AI Activity Feed</div>
-              <h3 class="card-title">What AI is doing now</h3>
-              <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
-            </div>
-            <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}</div>
-          </div>
-          <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item) => renderAiFeedCard(item)).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
-        </section>
         <section class="card stack command-home-section">
           <div class="hero-heading">
             <div>
@@ -5379,7 +5399,10 @@ function renderHomeNextActionCard(item) {
 
 function renderAiFeedCard(item) {
   const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const normalizedStatus = String(item.status || 'planned').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const stateClass = normalizedStatus ? ` command-feed-card-state-${escapeHtml(normalizedStatus)}` : '';
   const actionView = item.status === 'waiting_human' ? 'cases' : item.status === 'failed_closed' ? 'cases' : 'actions';
+  const actionViewLabel = VIEW_TITLES[actionView] || titleCase(actionView || 'actions');
   const actionLabel = item.status === 'waiting_human'
     ? 'Review handoff'
     : item.status === 'failed_closed'
@@ -5398,15 +5421,25 @@ function renderAiFeedCard(item) {
         : item.status === 'running'
           ? 'AI is actively pushing this case forward.'
           : 'Visible for continuity across the governed runtime.';
+  const momentumLabel = item.status === 'running'
+    ? 'Momentum live'
+    : item.status === 'waiting_human'
+      ? 'Human boundary now'
+      : item.status === 'failed_closed'
+        ? 'Recovery needed'
+        : item.status === 'completed'
+          ? 'Follow-through ready'
+          : 'Continuity visible';
   return `
-      <article class="command-feed-card${toneClass}">
+      <article class="command-feed-card${toneClass}${stateClass}">
         <div class="hero-heading">
           <div>
             <div class="eyebrow muted">${escapeHtml(titleCase(item.action_type || 'ai action'))}</div>
             <strong>${escapeHtml(item.label || item.action_type || 'AI action')}</strong>
           </div>
-          <div class="hero-chip-row">${statusBadge(item.status || 'planned')}</div>
+          <div class="hero-chip-row">${statusBadge(item.status || 'planned')}${statusBadge(momentumLabel)}</div>
         </div>
+        <div class="transition-route command-feed-route"><span class="transition-node">AI runtime</span><span class="transition-arrow">&rarr;</span><span class="transition-node transition-node-active">${escapeHtml(actionViewLabel)}</span></div>
         <p class="muted">${escapeHtml(item.activity_note || item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
         <p class="muted small command-momentum-note">${escapeHtml(statusNote)}</p>
         <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
