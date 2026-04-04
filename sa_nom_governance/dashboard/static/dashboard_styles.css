@@ -3455,6 +3455,27 @@ button:focus-visible {
   gap: 16px;
 }
 
+.command-operation-shell {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.command-operation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.command-operation-card {
+  align-content: start;
+}
+
+.command-operation-card .trace-box,
+.command-department-card .trace-box {
+  margin: 0;
+}
+
 .command-quick-links-row {
   display: flex;
   flex-wrap: wrap;

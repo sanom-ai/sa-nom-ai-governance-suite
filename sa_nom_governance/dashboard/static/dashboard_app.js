@@ -4599,6 +4599,7 @@ function renderCommandHome(snapshot) {
   const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
   const inboxSummary = inbox.summary || {};
   const operationsMapItems = Array.isArray(inbox.items) ? inbox.items.slice(0, 4) : [];
+  const activeOperations = Array.isArray(surface.active_operations) ? surface.active_operations.slice(0, 3) : [];
   const nextActions = buildHomeNextActions(snapshot, surface).slice(0, 5);
   const aiFeed = Array.isArray(surface.ai_activity_feed) ? surface.ai_activity_feed.slice(0, 5) : [];
   const departments = Array.isArray(surface.department_quick_access) ? surface.department_quick_access.slice(0, 6) : [];
@@ -4689,6 +4690,7 @@ function renderCommandHome(snapshot) {
           ])}
           <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(inboxSummary.primary_next_step || missionTopDetail)}</p></div>
           <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
+          ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}</div></div><div class="command-operation-grid">${activeOperations.map((item) => renderActiveOperationCard(item)).join('')}</div></div>` : ''}
         </section>
         ${setupContinuation}
         <section class="card command-next-actions-card stack command-home-section">
@@ -5017,6 +5019,48 @@ function buildHomeNextActions(snapshot, surface) {
   return [...assignments].sort((left, right) => fallbackScore(right) - fallbackScore(left)).slice(0, 6);
 }
 
+function renderActiveOperationCard(item) {
+  const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const nextLaneLabel = item.next_view_label || VIEW_TITLES[item.next_view || 'cases'] || 'Cases';
+  const openCaseButton = renderViewJumpButton({
+    view: 'cases',
+    label: 'Open case',
+    className: 'action-button',
+    focusType: 'case',
+    focusId: item.case_id || '',
+    caseId: item.case_id || '',
+    title: item.case_id ? `Case ${item.case_id} reopened from Home.` : 'Case reopened from Home.',
+    detail: item.quest_note || 'Continue from the canonical case story.',
+    actionLabel: 'Open case',
+  });
+  const openLaneButton = renderViewJumpButton({
+    view: item.next_view || 'cases',
+    label: `Open ${nextLaneLabel}`,
+    className: 'action-button action-button-muted',
+    focusType: item.next_focus_type || '',
+    focusId: item.next_focus_id || '',
+    caseId: item.case_id || '',
+    title: `${item.title || item.case_id || 'Operation'} reopened in ${nextLaneLabel}.`,
+    detail: item.lead_move || item.quest_note || 'Continue the next governed move from the lead lane.',
+    actionLabel: `Open ${nextLaneLabel}`,
+  });
+  return `
+      <article class="command-action-card command-operation-card${toneClass}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id || ''))}">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">${escapeHtml(item.case_id || 'Operation')}</div>
+            <strong>${escapeHtml(item.title || item.case_id || 'Governed operation')}</strong>
+          </div>
+          <div class="hero-chip-row">${statusBadge(item.pressure_badge || 'operation')}${statusBadge(`${escapeHtml(String(item.item_total || 0))} items`)}</div>
+        </div>
+        <p class="muted">${escapeHtml(item.quest_note || item.operation_label || 'Keep the operation visible across lanes.')}</p>
+        <div class="trace-box compact-trace"><strong>${escapeHtml(item.operation_label || 'Active operation')}</strong><p class="muted">${escapeHtml(item.lead_move || 'Continue from the lead governed lane.')}</p></div>
+        <div class="command-action-meta">${escapeHtml(item.lead_team || 'Operations')} | ${escapeHtml(String(item.item_total || 0))} routed items | ${escapeHtml(item.lane_summary || nextLaneLabel)}</div>
+        <div class="inline-actions">${openCaseButton}${openLaneButton}</div>
+      </article>
+    `;
+}
+
 function renderHomeNextActionCard(item) {
   const focusType = item.focus_type || '';
   const focusId = item.focus_id || '';
@@ -5084,16 +5128,29 @@ function renderAiFeedCard(item) {
 function renderDepartmentQuickAccessCard(item) {
   const filterValue = item.label || item.team_id || '';
   const contextNote = item.context_note || `${String(item.member_total || 0)} members | ${String(item.seat_total || 0)} seats`;
-  const pressureTone = Number(item.assignment_total || 0) > 0 ? 'warning' : 'success';
-  const pressureLabel = Number(item.assignment_total || 0) > 0 ? 'active queue' : 'ready lane';
+  const pressureLabel = item.pressure_label || (Number(item.assignment_total || 0) > 0 ? 'active queue' : 'ready lane');
+  const pressureTone = pressureLabel === 'blocked path' ? 'danger' : pressureLabel === 'human boundary' || pressureLabel === 'active review' || Number(item.assignment_total || 0) > 0 ? 'warning' : 'success';
   const actionLabel = Number(item.assignment_total || 0) > 0 ? 'Open team queue' : 'Open team context';
+  const leadLaneLabel = VIEW_TITLES[item.lead_view || 'requests'] || titleCase(item.lead_view || 'requests');
+  const leadLaneButton = Number(item.assignment_total || 0) > 0 && item.lead_view
+    ? renderViewJumpButton({
+      view: item.lead_view || 'requests',
+      label: 'Open lead lane',
+      className: 'action-button action-button-muted',
+      caseId: item.lead_case_id || '',
+      title: `${item.label || item.team_id || 'Team'} reopened in ${leadLaneLabel}.`,
+      detail: item.lead_move || contextNote,
+      actionLabel: 'Open lead lane',
+    })
+    : '';
   return `
       <article class="command-department-card tone-${pressureTone}">
         <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
         <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
         <p class="muted">${escapeHtml(contextNote)}</p>
-        <div class="hero-chip-row">${statusBadge(pressureLabel)}${statusBadge(`${String(item.member_total || 0)} members`)}${statusBadge(`${String(item.seat_total || 0)} seats`)}</div>
-        <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">${escapeHtml(actionLabel)}</button></div>
+        ${item.lead_move ? `<div class="trace-box compact-trace"><strong>${escapeHtml(item.quest_label || 'Lead operation')}</strong><p class="muted">${escapeHtml(item.lead_move)}</p></div>` : ''}
+        <div class="hero-chip-row">${statusBadge(pressureLabel)}${statusBadge(`${String(item.case_total || 0)} operations`)}${statusBadge(`${String(item.member_total || 0)} members`)}</div>
+        <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">${escapeHtml(actionLabel)}</button>${leadLaneButton}</div>
       </article>
     `;
 }
