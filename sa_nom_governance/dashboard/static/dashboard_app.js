@@ -4950,16 +4950,26 @@ function renderActionCard(item) {
   const canExecute = can('actions.execute') && ['planned', 'failed_closed'].includes(String(item.status || ''));
   const artifacts = Array.isArray(item.artifacts) ? item.artifacts : [];
   const executionLog = Array.isArray(item.execution_log) ? item.execution_log.slice(0, 3) : [];
+  const meta = getActionBoardMeta(item);
+  const tone = meta.tone || getActionMissionTone(item);
   return `
-    <article class="card stack${isFocusedEntity('action', item.action_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('action', item.action_id))}">
+    <article class="card stack action-runtime-card action-runtime-card-tone-${escapeHtml(tone)}${isFocusedEntity('action', item.action_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('action', item.action_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(item.action_id || 'action')}</div>
           <h3 class="card-title">${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</h3>
           <p class="card-subtitle">${escapeHtml(item.output_summary || item.next_action || 'Governed AI runtime item.')}</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(item.status || 'planned')}${statusBadge(item.action_type || 'action')}</div>
+        <div class="hero-chip-row">${statusBadge(meta.tempoBadge || item.status || 'planned')}${statusBadge(item.action_type || 'action')}</div>
       </div>
+      <div class="transition-route command-inbox-route">
+        <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'AI runtime')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.status || 'planned')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(primaryViewLabel)}</span>
+      </div>
+      <p class="muted small action-runtime-route-note">${escapeHtml(meta.routePhase)}</p>
       ${keyValue([
         ['Case', String(item.case_id || '-')],
         ['Authority', String(item.authority_boundary || '-')],
@@ -4967,6 +4977,7 @@ function renderActionCard(item) {
         ['Next view', primaryViewLabel],
         ['Artifacts', String(item.artifacts_total || artifacts.length || 0)],
       ])}
+      <div class="trace-box compact-trace"><strong>${escapeHtml(meta.eyebrow)}</strong><p class="muted">${escapeHtml(item.next_action || item.output_summary || meta.routePhase)}</p></div>
       ${item.waiting_reason ? `<div class="trace-box"><strong>Waiting reason</strong><p class="muted">${escapeHtml(item.waiting_reason)}</p></div>` : ''}
       ${item.latest_error ? `<div class="trace-box trace-box-danger"><strong>Failure detail</strong><p class="muted">${escapeHtml(item.latest_error)}</p></div>` : ''}
       ${artifacts.length ? `<div class="card-grid">${artifacts.map((artifact) => renderActionArtifactCard(artifact, item)).join('')}</div>` : ''}
@@ -6905,6 +6916,48 @@ function getActionMissionTone(item = {}) {
   return 'accent';
 }
 
+function getActionBoardMeta(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'running') {
+    return {
+      eyebrow: 'AI moving now',
+      tempoBadge: 'live now',
+      routePhase: 'AI currently owns the move inside this case. Stay nearby, but intervene only if the runtime crosses a new boundary.',
+      tone: 'accent',
+    };
+  }
+  if (status === 'waiting_human') {
+    return {
+      eyebrow: 'Human boundary now',
+      tempoBadge: 'human step now',
+      routePhase: 'A real person now owns the next safe move. Keep the case and handoff record attached before sending AI forward again.',
+      tone: 'warning',
+    };
+  }
+  if (status === 'failed_closed') {
+    return {
+      eyebrow: 'Recovery lane',
+      tempoBadge: 'recover now',
+      routePhase: 'This path failed closed. Review the blocked boundary, then reopen AI only when the route is safe again.',
+      tone: 'danger',
+    };
+  }
+  if (status === 'completed') {
+    return {
+      eyebrow: 'Outcome ready',
+      tempoBadge: 'proof ready',
+      routePhase: 'The governed result is ready for follow-through, document review, or proof confirmation from the next lane.',
+      tone: 'success',
+    };
+  }
+  return {
+    eyebrow: 'Queued move',
+    tempoBadge: 'queued',
+    routePhase: 'This action is visible on the board so the Director can decide when to launch or revisit it.',
+    tone: 'accent',
+  };
+}
+
 function renderActionMissionCard(item, options = {}) {
   const fallbackView = options.fallbackView || 'actions';
   if (!item) {
@@ -6919,10 +6972,11 @@ function renderActionMissionCard(item, options = {}) {
       </article>
     `;
   }
+  const meta = getActionBoardMeta(item);
   const primary = resolveActionPrimaryFocus(item);
   const view = options.viewOverride || primary.view || 'actions';
   const viewLabel = VIEW_TITLES[view] || titleCase(view || 'actions');
-  const tone = options.toneOverride || getActionMissionTone(item);
+  const tone = options.toneOverride || meta.tone || getActionMissionTone(item);
   const summaryLine = item.output_summary || item.next_action || item.waiting_reason || item.latest_error || 'Governed AI runtime item.';
   const traceLine = item.latest_error || item.waiting_reason || `Case ${item.case_id || '-'} | ${item.action_type || 'action'} | ${item.artifacts_total || 0} artifacts`;
   const actionLabel = options.actionLabel || `Open ${viewLabel}`;
@@ -6932,8 +6986,13 @@ function renderActionMissionCard(item, options = {}) {
   const focusAttrs = focusType && focusId ? ` data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}"` : '';
   return `
     <article class="command-action-card tone-${escapeHtml(tone)} command-workforce-card${focusClass}"${focusAttrs}>
-      <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
-      <strong>${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</strong>
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(options.eyebrow || meta.eyebrow || 'Mission slot')}</div>
+          <strong>${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</strong>
+        </div>
+        <div class="hero-chip-row">${statusBadge(meta.tempoBadge || item.status || 'visible')}${statusBadge(viewLabel)}</div>
+      </div>
       <div class="transition-route command-inbox-route">
         <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'AI runtime')}</span>
         <span class="transition-arrow">&rarr;</span>
@@ -6942,6 +7001,7 @@ function renderActionMissionCard(item, options = {}) {
         <span class="transition-node">${escapeHtml(viewLabel)}</span>
       </div>
       <p class="muted">${escapeHtml(summaryLine)}</p>
+      <p class="muted small action-runtime-route-note">${escapeHtml(meta.routePhase || traceLine)}</p>
       <div class="trace-box compact-trace"><strong>${escapeHtml(actionLabel)}</strong><p class="muted">${escapeHtml(traceLine)}</p></div>
       ${renderViewJumpButton({ view, label: actionLabel, className: 'action-button', focusType, focusId, caseId: primary.caseId || item.case_id || '', title: `${item.label || item.action_id || 'AI action'} opened in ${viewLabel}.`, detail: summaryLine, actionLabel })}
     </article>
@@ -7026,14 +7086,14 @@ function renderActions(snapshot) {
         </div>
       </article>
     </section>
-    <section class="command-workforce-shell">
+    <section class="command-workforce-shell action-runtime-board">
       <div class="hero-heading">
         <div>
-          <div class="eyebrow muted">AI workforce board</div>
+          <div class="eyebrow muted">Executive action board</div>
           <h3 class="card-title">Which AI mission is moving, waiting, or blocked</h3>
-          <p class="card-subtitle">Read this lane like a workforce board: what AI is advancing now, where a human must step in, and which fail-closed path needs recovery.</p>
+          <p class="card-subtitle">Read this lane like an executive move board: what AI is advancing now, where a real person owns the next move, and which runtime lane needs recovery before AI continues.</p>
         </div>
-        <div class="hero-chip-row">${statusBadge((summary.running_total || 0) ? 'ai moving' : 'monitoring')}${statusBadge((summary.waiting_human_total || 0) ? 'human handoff live' : 'no active handoff')}</div>
+        <div class="hero-chip-row">${statusBadge((summary.running_total || 0) ? 'ai moving' : 'monitoring')}${statusBadge((summary.failed_closed_total || 0) ? 'recovery visible' : ((summary.waiting_human_total || 0) ? 'human handoff live' : 'board stable'))}</div>
       </div>
       <div class="command-workforce-grid">
         ${renderActionMissionCard(runningAction, {
@@ -7092,11 +7152,31 @@ function renderActions(snapshot) {
         </div>
       </article>
     </section>
-    <section class="card-grid">
-      ${registry.map((entry) => renderActionRegistryCard(entry, currentCase)).join('')}
+    <section class="action-runtime-section stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Action launch board</div>
+          <h3 class="card-title">What AI can be told to do from this case</h3>
+          <p class="card-subtitle">Launch only the governed moves that match the current case, authority boundary, and side-effect posture.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${registry.length} actions available`)}</div>
+      </div>
+      <div class="card-grid">
+        ${registry.map((entry) => renderActionRegistryCard(entry, currentCase)).join('')}
+      </div>
     </section>
-    <section class="card-grid">
-      ${items.length ? items.map((item) => renderActionCard(item)).join('') : renderActionEmptyState(currentCase)}
+    <section class="action-runtime-section stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Runtime mission log</div>
+          <h3 class="card-title">What the workforce already attempted or produced</h3>
+          <p class="card-subtitle">Each action should read like a governed move with a clear pace, route, and next consequence.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${summary.actions_total || items.length} visible`)}</div>
+      </div>
+      <div class="card-grid">
+        ${items.length ? items.map((item) => renderActionCard(item)).join('') : renderActionEmptyState(currentCase)}
+      </div>
     </section>
   `;
 }

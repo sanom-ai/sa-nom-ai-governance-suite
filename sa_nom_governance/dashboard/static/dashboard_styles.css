@@ -3824,6 +3824,59 @@ button:focus-visible {
   margin: 0;
 }
 
+.command-workforce-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.action-runtime-board,
+.action-runtime-section {
+  display: grid;
+  gap: 16px;
+}
+
+.action-runtime-route-note {
+  margin: -2px 0 0;
+  max-width: 52ch;
+}
+
+.action-runtime-card {
+  align-content: start;
+}
+
+.action-runtime-card .trace-box {
+  margin: 0;
+}
+
+.action-runtime-card-tone-warning {
+  border-color: rgba(184, 121, 38, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(184, 121, 38, 0.13), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(248, 242, 231, 0.91));
+}
+
+.action-runtime-card-tone-danger {
+  border-color: rgba(183, 64, 52, 0.24);
+  background:
+    radial-gradient(circle at top right, rgba(183, 64, 52, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 252, 250, 0.96), rgba(250, 241, 237, 0.92));
+}
+
+.action-runtime-card-tone-success {
+  border-color: rgba(31, 122, 89, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(31, 122, 89, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(244, 250, 245, 0.92));
+}
+
+.action-runtime-card-tone-accent {
+  border-color: rgba(185, 146, 79, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(222, 192, 135, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(248, 242, 231, 0.9));
+}
+
 .command-inbox-route-note {
   max-width: 36ch;
 }
