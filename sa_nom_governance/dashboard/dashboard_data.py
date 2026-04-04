@@ -2394,6 +2394,15 @@ class DashboardSnapshotBuilder:
                 'primary_route_note': primary.get('route_note', primary.get('operator_note', 'Continue from the lead governed lane.')),
                 'primary_focus_type': primary.get('focus_type', ''),
                 'primary_focus_id': primary.get('focus_id', ''),
+                'primary_consequence_note': (
+                    'A real human owns the safe next move for this lane right now.'
+                    if str(primary.get('disposition', 'monitoring') or 'monitoring') == 'human_required'
+                    else 'This lane must recover before the wider operation can safely advance.'
+                    if str(primary.get('disposition', 'monitoring') or 'monitoring') == 'blocked'
+                    else 'This lane can keep moving, but it should stay attached to the same case story.'
+                    if str(primary.get('disposition', 'monitoring') or 'monitoring') in {'ready', 'autonomy_ready'}
+                    else 'Keep the same governed story visible while this lane remains under observation.'
+                ),
             },
             'items': items[:8],
         }

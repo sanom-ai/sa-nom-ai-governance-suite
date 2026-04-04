@@ -3670,6 +3670,113 @@ function renderUnifiedWorkInbox(snapshot) {
     `;
 }
 
+
+function buildLaneContinuityState(snapshot, currentView, leadItem = {}) {
+  const summary = snapshot.unified_work_inbox?.summary || {};
+  const currentViewLabel = VIEW_TITLES[currentView] || titleCase(currentView || 'overview');
+  const caseId = getActionContextCaseId() || leadItem.case_id || summary.primary_case_id || '';
+  const caseItem = getCaseById(snapshot, caseId) || (Array.isArray(snapshot?.cases?.items) ? snapshot.cases.items[0] || null : null);
+  const continuity = caseItem?.continuity || {};
+  const nextView = continuity.next_view || leadItem.view || summary.primary_view || currentView || 'overview';
+  const nextViewLabel = VIEW_TITLES[nextView] || titleCase(nextView || 'overview');
+  const nextFocus = caseItem
+    ? resolveCasePrimaryFocus(caseItem, nextView)
+    : { entityType: leadItem.focus_type || '', entityId: leadItem.focus_id || '' };
+  const caseTitle = caseItem?.title || (caseId ? `Case ${caseId}` : (leadItem.title || 'No case anchor yet'));
+  const questLabel = continuity.next_label || leadItem.action_label || `Open ${nextViewLabel}`;
+  const questDetail = continuity.next_detail || leadItem.next_step || summary.primary_next_step || `Keep ${currentViewLabel} tied to the next governed move.`;
+  const proofLabel = continuity.evidence_posture || ((caseItem?.workflow_proof_total || 0) > 0 ? 'proof attached' : 'proof starting');
+  const pressureLabel = caseItem
+    ? getCaseMissionBadge(caseItem)
+    : (leadItem.disposition === 'human_required'
+      ? 'human boundary'
+      : leadItem.disposition === 'blocked'
+        ? 'recovery'
+        : leadItem.disposition === 'ready' || leadItem.disposition === 'autonomy_ready'
+          ? 'move in flight'
+          : 'continuity');
+  const consequenceDetail = caseItem
+    ? (String(caseItem.status || '').trim() === 'human_required'
+      ? 'A real person owns the next safe move. Leaving the case here keeps the runtime at the approval boundary.'
+      : String(caseItem.status || '').trim() === 'blocked'
+        ? 'This story cannot safely advance until recovery clears the blocked path and reopens the case route.'
+        : ((Number(caseItem.workflow_proof_total || 0) > 0 || Number(caseItem.evidence_export_total || 0) > 0)
+          ? 'Proof and follow-through are already part of the mission. Carry them forward before opening fresh work.'
+          : 'This lane can keep moving, but it should stay attached to the same governed story so context does not scatter.'))
+    : (summary.primary_consequence_note || 'Keep the same governed story visible while the next move is still live.');
+  return {
+    currentViewLabel,
+    caseId,
+    caseItem,
+    caseTitle,
+    nextView,
+    nextViewLabel,
+    nextFocus,
+    questLabel,
+    questDetail,
+    proofLabel,
+    pressureLabel,
+    consequenceDetail,
+  };
+}
+
+function renderLaneContinuityBoard(continuityState) {
+  if (!continuityState) return '';
+  const hasCaseAnchor = Boolean(continuityState.caseId);
+  return `
+      <div class="lane-continuity-board">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Operation continuity</div>
+            <h4 class="card-title">Keep the same governed story visible while moving through ${escapeHtml(continuityState.currentViewLabel)}</h4>
+            <p class="card-subtitle">${escapeHtml(continuityState.questDetail)}</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(hasCaseAnchor ? `case ${continuityState.caseId}` : 'case anchor pending')}${statusBadge(continuityState.pressureLabel)}</div>
+        </div>
+        <div class="lane-continuity-grid">
+          <article class="mini-card lane-continuity-card">
+            <div class="eyebrow muted">Case anchor</div>
+            <strong>${escapeHtml(continuityState.caseTitle)}</strong>
+            <p class="muted">${escapeHtml(hasCaseAnchor ? `Use ${continuityState.caseId} as the canonical mission anchor while you move across lanes.` : 'Pick or generate a canonical case so the next move, proof, and follow-through stay attached.')}</p>
+            ${renderViewJumpButton({
+              view: 'cases',
+              label: hasCaseAnchor ? 'Open anchor case' : 'Open Cases',
+              className: 'action-button action-button-muted',
+              focusType: hasCaseAnchor ? 'case' : '',
+              focusId: continuityState.caseId || '',
+              caseId: continuityState.caseId || '',
+              title: hasCaseAnchor ? `Case ${continuityState.caseId} reopened in Cases.` : 'Cases reopened.',
+              detail: 'Use Cases when you need the full linked story again before switching lanes.',
+              actionLabel: hasCaseAnchor ? 'Open anchor case' : 'Open Cases',
+            })}
+          </article>
+          <article class="mini-card lane-continuity-card lane-continuity-card-featured">
+            <div class="eyebrow muted">Next governed move</div>
+            <strong>${escapeHtml(continuityState.questLabel)}</strong>
+            <p class="muted">${escapeHtml(continuityState.questDetail)}</p>
+            ${renderViewJumpButton({
+              view: continuityState.nextView,
+              label: `Open ${continuityState.nextViewLabel}`,
+              className: 'action-button',
+              focusType: continuityState.nextFocus.entityType,
+              focusId: continuityState.nextFocus.entityId,
+              caseId: continuityState.caseId || '',
+              title: continuityState.caseId ? `Case ${continuityState.caseId} reopened in ${continuityState.nextViewLabel}.` : `${continuityState.nextViewLabel} reopened.`,
+              detail: continuityState.questDetail,
+              actionLabel: `Open ${continuityState.nextViewLabel}`,
+            })}
+          </article>
+          <article class="mini-card lane-continuity-card">
+            <div class="eyebrow muted">If you pause here</div>
+            <strong>${escapeHtml(continuityState.proofLabel)}</strong>
+            <p class="muted">${escapeHtml(continuityState.consequenceDetail)}</p>
+            <span class="permission-note">${escapeHtml(`Pressure: ${continuityState.pressureLabel} | Next lane: ${continuityState.nextViewLabel}`)}</span>
+          </article>
+        </div>
+      </div>
+    `;
+}
+
 function renderFocusedWorkInbox(snapshot, currentView) {
   const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
   const summary = inbox.summary || {};
@@ -3677,6 +3784,7 @@ function renderFocusedWorkInbox(snapshot, currentView) {
   if (!items.length) return '';
   const currentViewLabel = VIEW_TITLES[currentView] || titleCase(currentView || 'overview');
   const leadItem = items[0] || {};
+  const continuityState = buildLaneContinuityState(snapshot, currentView, leadItem);
   return `
       <section class="card stack">
         <div class="hero-heading">
@@ -3685,12 +3793,14 @@ function renderFocusedWorkInbox(snapshot, currentView) {
             <h3 class="card-title">What should happen next from ${escapeHtml(currentViewLabel)}</h3>
             <p class="card-subtitle">Stay inside this workflow, but keep the next human boundary, blocked path, or case-continuity move visible without going back to Home.</p>
           </div>
-          <div class="hero-chip-row">${statusBadge(currentViewLabel)}${statusBadge(`${summary.open_total || 0} open`)}</div>
+          <div class="hero-chip-row">${statusBadge(currentViewLabel)}${statusBadge(`${summary.open_total || 0} open`)}${continuityState.caseId ? statusBadge(`case ${continuityState.caseId}`) : ''}</div>
         </div>
         <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(leadItem.next_step || summary.primary_next_step || 'Keep the next move visible from the same lane.')}</p></div>
         <div class="inline-actions">
           ${renderViewJumpButton({ view: leadItem.view || currentView || 'overview', label: leadItem.action_label || `Review in ${currentViewLabel}`, className: 'action-button', focusType: leadItem.focus_type || '', focusId: leadItem.focus_id || '', caseId: leadItem.case_id || '', title: `${leadItem.title || currentViewLabel} reopened from ${currentViewLabel}.`, detail: leadItem.route_note || leadItem.next_step || 'Continue from this governed lane without losing the case story.', actionLabel: leadItem.action_label || `Review in ${currentViewLabel}` })}
+          ${continuityState.caseId ? renderViewJumpButton({ view: 'cases', label: 'Open anchor case', className: 'action-button action-button-muted', focusType: 'case', focusId: continuityState.caseId, caseId: continuityState.caseId, title: `Case ${continuityState.caseId} reopened in Cases.`, detail: 'Return to the canonical case when you need the full linked story, proof, and follow-through again.', actionLabel: 'Open anchor case' }) : ''}
         </div>
+        ${renderLaneContinuityBoard(continuityState)}
         <div class="view-prelude-grid">
           ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
         </div>

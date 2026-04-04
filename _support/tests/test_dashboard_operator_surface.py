@@ -1473,6 +1473,7 @@ def test_unified_work_inbox_exposes_case_continuity_and_move_labels() -> None:
         assert summary.get('primary_pressure_label') == 'human boundary'
         assert summary.get('primary_focus_type') == 'override'
         assert summary.get('primary_focus_id') == 'OVR-1'
+        assert summary.get('primary_consequence_note') == 'A real human owns the safe next move for this lane right now.'
 
 
 def test_command_surface_mission_control_handles_quiet_completed_runtime_states() -> None:
