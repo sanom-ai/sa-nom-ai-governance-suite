@@ -55,9 +55,19 @@ const logoutButton = document.getElementById('logout-button');
 const sessionLabel = document.getElementById('session-label');
 const sidebarViewTitle = document.getElementById('sidebar-view-title');
 const sidebarViewDescription = document.getElementById('sidebar-view-description');
+const sidebarDirectorCard = document.getElementById('sidebar-director-card');
+const sidebarDirectorMode = document.getElementById('sidebar-director-mode');
+const sidebarDirectorCopy = document.getElementById('sidebar-director-copy');
+const sidebarDirectorBadgePrimary = document.getElementById('sidebar-director-badge-primary');
+const sidebarDirectorBadgeSecondary = document.getElementById('sidebar-director-badge-secondary');
+const sidebarNextMoveTitle = document.getElementById('sidebar-next-move-title');
+const sidebarNextMoveDetail = document.getElementById('sidebar-next-move-detail');
 const sidebarOperatorLabel = document.getElementById('sidebar-operator-label');
 const sidebarRuntimeLabel = document.getElementById('sidebar-runtime-label');
 const sidebarGeneratedLabel = document.getElementById('sidebar-generated-label');
+const sidebarPressureCard = document.getElementById('sidebar-pressure-card');
+const sidebarPressureLabel = document.getElementById('sidebar-pressure-label');
+const sidebarPressureDetail = document.getElementById('sidebar-pressure-detail');
 const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
 
@@ -1659,6 +1669,67 @@ function getActiveLaneTransition() {
   return laneTransition;
 }
 
+function humanizeCompassText(value, fallback = '-') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  return raw.replace(/[_-]+/g, ' ');
+}
+
+function normalizeCompassTone(rawTone = '') {
+  const value = String(rawTone || '').trim().toLowerCase();
+  if (!value) return 'accent';
+  if (value.includes('block') || value.includes('human') || value.includes('attention') || value.includes('warning')) return 'warning';
+  if (value.includes('stable') || value.includes('ready') || value.includes('clear') || value.includes('calm') || value.includes('success')) return 'success';
+  if (value.includes('idle') || value.includes('offline') || value.includes('paused')) return 'idle';
+  return 'accent';
+}
+
+function getSidebarDirectorConsole(snapshot) {
+  const intelligence = VIEW_INTELLIGENCE[state.view] || {};
+  const useHint = VIEW_USE_HINTS[state.view] || {};
+  const mission = snapshot?.command_surface?.mission_control || {};
+  const transition = getActiveLaneTransition();
+  const transitionFromLabel = transition?.from ? (VIEW_TITLES[transition.from] || titleCase(transition.from)) : '';
+  const actionContext = state.actionContext || null;
+  const nextMoveTitle = actionContext?.actionLabel
+    || (state.view === 'overview'
+      ? String(mission.top_move_title || 'Open the next governed lane')
+      : String(useHint.value || `Open ${VIEW_TITLES[state.view] || titleCase(state.view)}`));
+  const nextMoveDetail = actionContext?.detail
+    || (state.view === 'overview'
+      ? String(mission.top_move_detail || 'Open the linked governed lane and continue from the highest-pressure move.')
+      : String(useHint.note || intelligence.narrative || 'Keep the next lane visible before moving deeper into the board.'));
+  const worldPressure = String(mission.pressure_label || mission.world_state_title || 'Balanced world state').trim() || 'Balanced world state';
+  const pressureDetailParts = [];
+  if (mission.world_state_title && mission.world_state_title !== worldPressure) pressureDetailParts.push(String(mission.world_state_title));
+  if (mission.ai_momentum_title) pressureDetailParts.push(String(mission.ai_momentum_title));
+  pressureDetailParts.push(
+    state.view === 'overview'
+      ? String(mission.world_state_note || mission.ai_momentum_detail || 'Home keeps the whole operating picture readable.')
+      : String(mission.ai_momentum_detail || mission.world_state_note || 'The broader world state stays visible while you work the current lane.')
+  );
+  const modeCopy = [
+    transitionFromLabel ? `Entered from ${transitionFromLabel}.` : '',
+    String(intelligence.narrative || useHint.note || 'Stay on the current lane until the next governed move is clear.'),
+  ].filter(Boolean).join(' ');
+  const modePrimaryBadge = humanizeCompassText(mission.world_state_badge || useHint.tone || 'guarded', 'guarded');
+  const modeSecondaryBadge = transitionFromLabel ? `from ${transitionFromLabel}` : humanizeCompassText(intelligence.emphasis || 'director view', 'director view');
+  const modeTone = normalizeCompassTone(actionContext ? 'accent' : String(mission.world_state_badge || useHint.tone || 'accent'));
+  const pressureTone = normalizeCompassTone(worldPressure);
+  return {
+    modeTitle: state.view === 'overview' ? 'Mission control' : String(intelligence.eyebrow || 'Guided lane'),
+    modeCopy,
+    modePrimaryBadge,
+    modeSecondaryBadge,
+    modeTone,
+    nextMoveTitle,
+    nextMoveDetail,
+    pressureLabel: worldPressure,
+    pressureDetail: pressureDetailParts.filter(Boolean).join(' '),
+    pressureTone,
+  };
+}
+
 function setActionContext({ entityType = '', entityId = '', caseId = '', view = '', controlRoomTool = '', title = '', detail = '', actionLabel = '' } = {}) {
   const normalizedEntityType = String(entityType || '').trim();
   const normalizedEntityId = String(entityId || '').trim();
@@ -2179,8 +2250,18 @@ function render() {
     sessionLabel.textContent = 'disconnected';
     environmentLabel.textContent = 'token required';
     setLiveTimestampLabel(state.lastError ? `Last error: ${state.lastError}` : 'Enter API token to access live runtime data.');
+    sidebarDirectorMode.textContent = 'Awaiting session';
+    sidebarDirectorCopy.textContent = 'Enter an API token to reconnect the Director and restore the governed command board.';
+    sidebarDirectorBadgePrimary.textContent = 'offline';
+    sidebarDirectorBadgeSecondary.textContent = 'token required';
+    sidebarNextMoveTitle.textContent = 'Connect live runtime';
+    sidebarNextMoveDetail.textContent = 'Authenticate first to reveal the next governed move, current lane pressure, and live director cues.';
     sidebarOperatorLabel.textContent = 'Disconnected';
     sidebarRuntimeLabel.textContent = 'Token required';
+    sidebarPressureLabel.textContent = 'World state paused';
+    sidebarPressureDetail.textContent = 'Live posture returns as soon as the private runtime reconnects.';
+    sidebarDirectorCard.dataset.tone = 'idle';
+    sidebarPressureCard.dataset.tone = 'idle';
     topbarRuntimeLabel.textContent = 'Awaiting session';
     root.innerHTML = renderAuthCard();
     updateNav();
@@ -2189,11 +2270,22 @@ function render() {
   }
 
   const snapshot = state.snapshot;
+  const sidebarConsole = getSidebarDirectorConsole(snapshot);
   sessionLabel.textContent = state.session ? `${state.session.display_name} | ${state.session.role_name}` : 'connected';
   environmentLabel.textContent = `${snapshot.environment} environment`;
   startLiveTimestampTicker(snapshot.generated_at);
+  sidebarDirectorMode.textContent = sidebarConsole.modeTitle;
+  sidebarDirectorCopy.textContent = sidebarConsole.modeCopy;
+  sidebarDirectorBadgePrimary.textContent = sidebarConsole.modePrimaryBadge;
+  sidebarDirectorBadgeSecondary.textContent = sidebarConsole.modeSecondaryBadge;
+  sidebarNextMoveTitle.textContent = sidebarConsole.nextMoveTitle;
+  sidebarNextMoveDetail.textContent = sidebarConsole.nextMoveDetail;
   sidebarOperatorLabel.textContent = state.session ? state.session.display_name : 'Connected';
   sidebarRuntimeLabel.textContent = `${snapshot.environment} runtime`;
+  sidebarPressureLabel.textContent = sidebarConsole.pressureLabel;
+  sidebarPressureDetail.textContent = sidebarConsole.pressureDetail;
+  sidebarDirectorCard.dataset.tone = sidebarConsole.modeTone;
+  sidebarPressureCard.dataset.tone = sidebarConsole.pressureTone;
   topbarRuntimeLabel.textContent = state.session ? state.session.role_name : `${snapshot.environment} runtime`;
   syncCommandRoute();
   hydrateOrganizationSelector(snapshot);

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SA-NOM AI Governance Suite</title>
-    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.9-ui4" />
+    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.9-ui5" />
   </head>
   <body>
     <div class="page-atmosphere" aria-hidden="true">
@@ -25,11 +25,32 @@
         </div>
         <section class="sidebar-intel">
           <div class="eyebrow">Command Compass</div>
+          <article id="sidebar-director-card" class="sidebar-director-card" data-tone="accent">
+            <div class="sidebar-director-heading">
+              <span class="sidebar-intel-label">Director Mode</span>
+              <div class="hero-chip-row sidebar-director-chip-row">
+                <span id="sidebar-director-badge-primary" class="pill">guarded</span>
+                <span id="sidebar-director-badge-secondary" class="pill pill-muted">director view</span>
+              </div>
+            </div>
+            <strong id="sidebar-director-mode">Mission control</strong>
+            <span id="sidebar-director-copy" class="sidebar-intel-copy">Stay on Home when you need the fastest read on posture, pressure, and the next governed move.</span>
+          </article>
           <div class="sidebar-intel-grid">
             <article class="sidebar-intel-card">
               <span class="sidebar-intel-label">Current View</span>
               <strong id="sidebar-view-title">Home</strong>
               <span id="sidebar-view-description" class="sidebar-intel-copy">Executive command surface</span>
+            </article>
+            <article class="sidebar-intel-card">
+              <span class="sidebar-intel-label">Next Governed Move</span>
+              <strong id="sidebar-next-move-title">Open Work Inbox</strong>
+              <span id="sidebar-next-move-detail" class="sidebar-intel-copy">The next lane should stay readable before you move deeper into the board.</span>
+            </article>
+            <article id="sidebar-pressure-card" class="sidebar-intel-card" data-tone="accent">
+              <span class="sidebar-intel-label">World Pressure</span>
+              <strong id="sidebar-pressure-label">Guarded</strong>
+              <span id="sidebar-pressure-detail" class="sidebar-intel-copy">Home keeps the broader world state visible while each lane handles the next move.</span>
             </article>
             <article class="sidebar-intel-card">
               <span class="sidebar-intel-label">Operator Session</span>
@@ -164,7 +185,7 @@
         </div>
       </section>
     </div>
-      <script type="module" src="dashboard_app.js?v=0.7.9-ui4"></script>
+      <script type="module" src="dashboard_app.js?v=0.7.9-ui5"></script>
 
       </body>
 </html>
