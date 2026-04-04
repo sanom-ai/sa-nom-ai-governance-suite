@@ -3671,3 +3671,31 @@ button:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+
+.command-action-card.tone-warning,
+.command-feed-card.tone-warning,
+.command-department-card.tone-warning {
+  background:
+    radial-gradient(circle at top right, rgba(184, 121, 38, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.95), rgba(248, 242, 231, 0.9));
+}
+
+.command-action-card.tone-danger,
+.command-feed-card.tone-danger {
+  background:
+    radial-gradient(circle at top right, rgba(178, 72, 54, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.95), rgba(248, 242, 231, 0.9));
+}
+
+.command-action-card.tone-accent,
+.command-feed-card.tone-accent,
+.command-department-card.tone-success {
+  background:
+    radial-gradient(circle at top right, rgba(185, 146, 79, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.95), rgba(248, 242, 231, 0.9));
+}
+
+.command-momentum-note {
+  max-width: 34ch;
+}

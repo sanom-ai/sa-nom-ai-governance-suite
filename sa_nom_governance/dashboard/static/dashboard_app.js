@@ -4975,6 +4975,7 @@ function renderHomeNextActionCard(item) {
   const focusType = item.focus_type || '';
   const focusId = item.focus_id || '';
   const caseId = item.case_id || '';
+  const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
   const primaryLabel = item.kind === 'override'
     ? 'Approve'
     : item.move_label || (item.status === 'blocked' ? 'Resolve Now' : 'Take Action');
@@ -4985,55 +4986,81 @@ function renderHomeNextActionCard(item) {
     ? `<button class="action-button action-button-muted" type="button" data-override-action="veto" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Reject</button>`
     : `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.detail || item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: 'Details' })}>Details</button>`;
   return `
-    <article class="command-action-card" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
-      <div class="hero-chip-row">${statusBadge(item.status_label || item.status || 'monitoring')}${statusBadge(item.priority_label || item.priority || 'normal')}</div>
-      <strong>${escapeHtml(item.title || 'Governed work')}</strong>
-      <p class="muted">${escapeHtml(item.detail || item.next_action || 'Continue the linked governed work.')}</p>
-      ${item.why_now ? `<p class="muted small">${escapeHtml(item.why_now)}</p>` : ''}
-      <div class="command-action-meta">${escapeHtml(item.owner_label || 'Unassigned')} | ${escapeHtml(item.team_label || 'Operations')} | ${escapeHtml(item.case_id || 'No case')}</div>
-      <div class="inline-actions">${primaryButton}${secondaryButton}</div>
-    </article>
-  `;
+      <article class="command-action-card${toneClass}" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
+        <div class="hero-chip-row">${statusBadge(item.status_label || item.status || 'monitoring')}${statusBadge(item.priority_label || item.priority || 'normal')}</div>
+        <strong>${escapeHtml(item.title || 'Governed work')}</strong>
+        <p class="muted">${escapeHtml(item.detail || item.next_action || 'Continue the linked governed work.')}</p>
+        ${item.why_now ? `<p class="muted small command-momentum-note">${escapeHtml(item.why_now)}</p>` : ''}
+        <div class="command-action-meta">${escapeHtml(item.owner_label || 'Unassigned')} | ${escapeHtml(item.team_label || 'Operations')} | ${escapeHtml(item.case_id || 'No case')}</div>
+        <div class="inline-actions">${primaryButton}${secondaryButton}</div>
+      </article>
+    `;
 }
 
 function renderAiFeedCard(item) {
+  const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const actionView = item.status === 'waiting_human' ? 'cases' : item.status === 'failed_closed' ? 'cases' : 'actions';
+  const actionLabel = item.status === 'waiting_human'
+    ? 'Review handoff'
+    : item.status === 'failed_closed'
+      ? 'Inspect failure'
+      : item.status === 'completed'
+        ? 'Review result'
+        : item.status === 'running'
+          ? 'Watch action'
+          : 'Details';
+  const statusNote = item.status === 'waiting_human'
+    ? 'A person now owns the next safe move.'
+    : item.status === 'failed_closed'
+      ? 'This path stopped behind a fail-closed boundary.'
+      : item.status === 'completed'
+        ? 'Outcome is recorded and ready for follow-through.'
+        : item.status === 'running'
+          ? 'AI is actively pushing this case forward.'
+          : 'Visible for continuity across the governed runtime.';
   return `
-    <article class="command-feed-card">
-      <div class="hero-heading">
-        <div>
-          <div class="eyebrow muted">${escapeHtml(titleCase(item.action_type || 'ai action'))}</div>
-          <strong>${escapeHtml(item.label || item.action_type || 'AI action')}</strong>
+      <article class="command-feed-card${toneClass}">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">${escapeHtml(titleCase(item.action_type || 'ai action'))}</div>
+            <strong>${escapeHtml(item.label || item.action_type || 'AI action')}</strong>
+          </div>
+          <div class="hero-chip-row">${statusBadge(item.status || 'planned')}</div>
         </div>
-        <div class="hero-chip-row">${statusBadge(item.status || 'planned')}</div>
-      </div>
-      <p class="muted">${escapeHtml(item.activity_note || item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
-      <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
-      <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: 'actions', focusType: 'action', focusId: item.action_id || '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel: 'Details' })}>Details</button></div>
-    </article>
-  `;
+        <p class="muted">${escapeHtml(item.activity_note || item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
+        <p class="muted small command-momentum-note">${escapeHtml(statusNote)}</p>
+        <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
+        <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: actionView, focusType: actionView === 'actions' ? 'action' : '', focusId: actionView === 'actions' ? (item.action_id || '') : '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel })}>${escapeHtml(actionLabel)}</button></div>
+      </article>
+    `;
 }
 
 function renderDepartmentQuickAccessCard(item) {
   const filterValue = item.label || item.team_id || '';
   const contextNote = item.context_note || `${String(item.member_total || 0)} members | ${String(item.seat_total || 0)} seats`;
+  const pressureTone = Number(item.assignment_total || 0) > 0 ? 'warning' : 'success';
+  const pressureLabel = Number(item.assignment_total || 0) > 0 ? 'active queue' : 'ready lane';
+  const actionLabel = Number(item.assignment_total || 0) > 0 ? 'Open team queue' : 'Open team context';
   return `
-      <article class="command-department-card">
+      <article class="command-department-card tone-${pressureTone}">
         <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
         <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
         <p class="muted">${escapeHtml(contextNote)}</p>
-        <div class="hero-chip-row">${statusBadge(`${String(item.member_total || 0)} members`)}${statusBadge(`${String(item.seat_total || 0)} seats`)}</div>
-        <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">Open team context</button></div>
+        <div class="hero-chip-row">${statusBadge(pressureLabel)}${statusBadge(`${String(item.member_total || 0)} members`)}${statusBadge(`${String(item.seat_total || 0)} seats`)}</div>
+        <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">${escapeHtml(actionLabel)}</button></div>
       </article>
     `;
 }
 
 function renderHomeQuickLink(item) {
+  const label = item.label || VIEW_TITLES[item.view || 'overview'] || 'Open';
   return renderViewJumpButton({
     view: item.view || 'overview',
-    label: item.label || VIEW_TITLES[item.view || 'overview'] || 'Open',
+    label,
     className: 'action-button action-button-muted',
-    title: `${item.label || VIEW_TITLES[item.view || 'overview'] || 'Open'} reopened from Home.`,
+    title: `${label} reopened from Home.`,
     detail: 'Keep the command surface moving from one governed lane to the next without hunting through the dashboard.',
+    actionLabel: label,
   });
 }
 
