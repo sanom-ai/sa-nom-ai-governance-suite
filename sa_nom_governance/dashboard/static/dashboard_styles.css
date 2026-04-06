@@ -4896,3 +4896,130 @@ button:focus-visible {
 .command-inbox-consequence-box strong {
   color: var(--text);
 }
+
+/* v0.7.14 action-first polish */
+.view-description {
+  max-width: 42rem;
+  font-size: 0.98rem;
+  line-height: 1.52;
+}
+
+.command-nav-scroll {
+  scrollbar-gutter: stable both-edges;
+}
+
+.topbar-action-strip {
+  display: grid;
+  margin-top: 2px;
+}
+
+.topbar-action-strip[hidden] {
+  display: none;
+}
+
+.topbar-action-strip-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(185, 146, 79, 0.18);
+  background: linear-gradient(180deg, rgba(255, 252, 247, 0.8), rgba(248, 241, 229, 0.72));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.topbar-action-strip-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.topbar-action-strip-copy strong {
+  color: var(--text);
+  font-size: 0.98rem;
+  line-height: 1.2;
+}
+
+.topbar-action-strip-note {
+  color: var(--muted-strong);
+  font-size: 0.84rem;
+  line-height: 1.42;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.topbar-action-strip-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.topbar-action-strip-buttons .action-button {
+  min-height: 38px;
+  padding: 9px 14px;
+}
+
+.topbar-action-button-primary {
+  box-shadow: 0 8px 16px rgba(35, 29, 22, 0.1);
+}
+
+.view-prelude .card-subtitle,
+.workflow-guide-card .card-subtitle,
+.runtime-alert-card .card-subtitle,
+.view-prelude-card .muted,
+.command-home-section-support .card-subtitle,
+.command-momentum-note,
+.command-inbox-route-note,
+.action-continuity-card > .muted {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+
+.view-prelude .card-subtitle,
+.workflow-guide-card .card-subtitle,
+.runtime-alert-card .card-subtitle,
+.command-home-section-support .card-subtitle {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.view-prelude-card .muted,
+.command-momentum-note,
+.command-inbox-route-note,
+.action-continuity-card > .muted {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+@media (max-width: 1320px) {
+  .topbar-action-strip-card {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-action-strip-buttons {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 860px) {
+  .topbar-action-strip-buttons {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-action-strip-buttons .action-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .topbar-action-strip-copy strong {
+    font-size: 0.92rem;
+  }
+}
