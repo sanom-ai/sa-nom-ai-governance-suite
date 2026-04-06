@@ -15,13 +15,18 @@ By the `v0.7.9` line, SA-NOM clears a concise private-first confidence bar for s
 - `91.08% governance coverage`
 - `Private-first pilot-ready command surface, Control Room, recovery, and governed workflow paths`
 
-## Open Source And Commercial Boundary
+## Open Source And Commercial Path
 
 SA-NOM keeps the public baseline real. The open-source repository includes the private-first governed runtime, command surface, Control Room baseline, Role Private Studio baseline, cases, documents, AI actions, master data, search, assignment, audit, and runtime confidence tooling.
 
-Commercial engagement is for organizations that need rollout help, quote-specific packaging, dedicated support, regulated-environment hardening, or tailored delivery work beyond the self-managed baseline.
+Commercial engagement is for organizations that need a more structured path around the same product baseline: rollout help, founder-led governance direction, PT-OSS-informed judgment, quote-shaped packaging, regulated-environment hardening, recurring strategic review, or partner-supported delivery where required.
 
-See [docs/COMMERCIAL_BOUNDARY.md](docs/COMMERCIAL_BOUNDARY.md) for the boundary model and [docs/COMMERCIAL_OFFER_PACKS.md](docs/COMMERCIAL_OFFER_PACKS.md) for the practical offer shapes.
+Start here:
+- [docs/COMMERCIAL_ONE_PAGER.md](docs/COMMERCIAL_ONE_PAGER.md) for the shortest external-facing summary
+- [docs/COMMERCIAL_BOUNDARY.md](docs/COMMERCIAL_BOUNDARY.md) for the open-source vs commercial boundary
+- [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md) for pricing bands
+- [docs/COMMERCIAL_OFFER_PACKS.md](docs/COMMERCIAL_OFFER_PACKS.md) for engagement shapes
+- [docs/ROI_ONE_PAGER.md](docs/ROI_ONE_PAGER.md) for business-case framing during pilot or budget discussion
 
 ## Quick Start
 
@@ -37,14 +42,7 @@ Choose the path that matches what you want to see first:
 - stay on the quick-start lane above when you want the fastest local bootstrap into a working private runtime
 - use [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) when you want the longer deployment path and infrastructure posture details
 
-## Open Source And Commercial Path
 
-SA-NOM keeps the public baseline real.
-The open-source repository should be enough to evaluate, learn, prototype, and run self-managed private deployments without waiting for a paid unlock.
-
-Commercial engagement is for organizations that need structured rollout help, founder-led governance direction, PT-OSS-informed judgment, regulated delivery support, recurring strategic review, quote-shaped packaging, or broader operating confidence around the same product baseline.
-
-See [docs/COMMERCIAL_BOUNDARY.md](docs/COMMERCIAL_BOUNDARY.md), [docs/COMMERCIAL_LICENSE.md](docs/COMMERCIAL_LICENSE.md), and [docs/COMMERCIAL_OFFER_PACKS.md](docs/COMMERCIAL_OFFER_PACKS.md) for the current commercial model.
 ## Command Surface
 
 By the `v0.7.9` line, SA-NOM exposes a private-first command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
