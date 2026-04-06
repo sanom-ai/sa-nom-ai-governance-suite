@@ -49,6 +49,9 @@ const askAiButton = document.getElementById('ask-ai-button');
 const governanceLauncher = document.getElementById('governance-launcher');
 const governanceSheet = document.getElementById('governance-sheet');
 const governanceSheetClose = document.getElementById('governance-sheet-close');
+const governanceSheetSearch = document.getElementById('governance-sheet-search');
+const governanceSheetSearchCount = document.getElementById('governance-sheet-search-count');
+const governanceSheetEmpty = document.getElementById('governance-sheet-empty');
 const generatedAt = document.getElementById('generated-at');
 const refreshButton = document.getElementById('refresh-button');
 const logoutButton = document.getElementById('logout-button');
@@ -72,12 +75,46 @@ const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
 let governanceSheetReturnFocus = null;
 
+function applyGovernanceSheetFilter(rawQuery = '') {
+  if (!governanceSheet) return;
+  const query = String(rawQuery || '').trim().toLowerCase();
+  let visibleCount = 0;
+  for (const group of governanceSheet.querySelectorAll('.governance-sheet-group')) {
+    const items = Array.from(group.querySelectorAll('.governance-sheet-item'));
+    let groupVisibleCount = 0;
+    for (const item of items) {
+      const haystack = `${item.dataset.view || ''} ${item.dataset.controlRoomTool || ''} ${item.textContent || ''}`.toLowerCase();
+      const visible = !query || haystack.includes(query);
+      item.hidden = !visible;
+      if (visible) {
+        groupVisibleCount += 1;
+        visibleCount += 1;
+      }
+    }
+    group.hidden = groupVisibleCount === 0;
+  }
+  if (governanceSheetSearchCount) {
+    governanceSheetSearchCount.textContent = `${visibleCount} lane${visibleCount === 1 ? '' : 's'}`;
+  }
+  if (governanceSheetEmpty) {
+    governanceSheetEmpty.hidden = visibleCount !== 0;
+  }
+}
+
+function resetGovernanceSheetFilter() {
+  if (governanceSheetSearch) {
+    governanceSheetSearch.value = '';
+  }
+  applyGovernanceSheetFilter('');
+}
+
 function closeGovernanceSheet() {
   if (!governanceSheet) return;
   governanceSheet.hidden = true;
   governanceSheet.setAttribute('aria-hidden', 'true');
   governanceLauncher?.setAttribute('aria-expanded', 'false');
   document.body.classList.remove('governance-sheet-open');
+  resetGovernanceSheetFilter();
   if (governanceSheetReturnFocus && document.contains(governanceSheetReturnFocus)) {
     governanceSheetReturnFocus.focus({ preventScroll: true });
   }
@@ -91,14 +128,20 @@ function openGovernanceSheet() {
   governanceSheet.setAttribute('aria-hidden', 'false');
   governanceLauncher?.setAttribute('aria-expanded', 'true');
   document.body.classList.add('governance-sheet-open');
+  applyGovernanceSheetFilter(governanceSheetSearch?.value || '');
   window.requestAnimationFrame(() => {
+    if (governanceSheetSearch) {
+      governanceSheetSearch.focus({ preventScroll: true });
+      governanceSheetSearch.select();
+      return;
+    }
     const focusTarget = governanceSheet.querySelector('.governance-sheet-item, #governance-sheet-close');
     focusTarget?.focus({ preventScroll: true });
   });
 }
 
 function navigateFromGovernanceTarget(target) {
-  if (!target) return;
+  if (!target || target.hidden) return;
   const nextView = target.dataset.view || 'overview';
   const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
   state.view = nextView;
@@ -525,6 +568,19 @@ governanceSheetClose?.addEventListener('click', () => {
   closeGovernanceSheet();
 });
 
+governanceSheetSearch?.addEventListener('input', () => {
+  applyGovernanceSheetFilter(governanceSheetSearch.value);
+});
+
+governanceSheetSearch?.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  const firstVisible = governanceSheet?.querySelector('.governance-sheet-item:not([hidden])');
+  if (firstVisible instanceof HTMLElement) {
+    event.preventDefault();
+    navigateFromGovernanceTarget(firstVisible);
+  }
+});
+
 governanceSheet?.addEventListener('click', (event) => {
   if (event.target.closest('[data-governance-sheet-close]')) {
     closeGovernanceSheet();
@@ -537,8 +593,15 @@ governanceSheet?.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && governanceSheet && !governanceSheet.hidden) {
+  if (!governanceSheet || governanceSheet.hidden) return;
+  if (event.key === 'Escape') {
     closeGovernanceSheet();
+    return;
+  }
+  if (event.key === '/' && governanceSheetSearch && document.activeElement !== governanceSheetSearch) {
+    event.preventDefault();
+    governanceSheetSearch.focus({ preventScroll: true });
+    governanceSheetSearch.select();
   }
 });
 
@@ -10693,6 +10756,10 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
+
+
+
 
 
 
