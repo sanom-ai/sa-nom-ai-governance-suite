@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SA-NOM AI Governance Suite</title>
-    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.11-ui1" />
+    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.12-ui1" />
   </head>
   <body>
     <div class="page-atmosphere" aria-hidden="true">
@@ -159,6 +159,12 @@
           <button id="governance-sheet-close" class="action-button action-button-muted" type="button">Close</button>
         </div>
         <div class="governance-sheet-body">
+          <section class="governance-sheet-toolbar" aria-label="Find governance lane">
+            <label class="governance-sheet-search-label" for="governance-sheet-search">Find lane</label>
+            <input id="governance-sheet-search" class="governance-sheet-search" type="search" placeholder="Find lane: studio, setup, trust, recovery..." autocomplete="off" />
+            <span id="governance-sheet-search-count" class="muted small">11 lanes</span>
+          </section>
+          <p id="governance-sheet-empty" class="governance-sheet-empty muted" hidden>No matching governance lane. Try another keyword.</p>
           <section class="governance-sheet-group">
             <div class="nav-dropdown-section-label">Mission-first launchpad</div>
             <div class="governance-sheet-grid">
@@ -183,8 +189,9 @@
         </div>
       </section>
     </div>
-      <script type="module" src="dashboard_app.js?v=0.7.11-ui1"></script>
+      <script type="module" src="dashboard_app.js?v=0.7.12-ui1"></script>
 
       </body>
 </html>
+
 
