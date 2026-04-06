@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.8-ui1';
+import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.15-ui1';
 
 const state = {
   view: getInitialDashboardView(),
@@ -33,48 +33,343 @@ const state = {
     sourceMs: 0,
     clientStartedMs: 0,
   },
+  lastRenderedView: '',
+  laneTransition: null,
+  lastTopbarActionSignature: '',
 };
+
+const LANE_TRANSITION_WINDOW_MS = 2200;
 
 const root = document.getElementById('dashboard-root');
 const navList = document.getElementById('nav-list');
 const viewTitle = document.getElementById('view-title');
 const viewDescription = document.getElementById('view-description');
+const topbarActionStrip = document.getElementById('topbar-action-strip');
 const environmentLabel = document.getElementById('environment-label');
 const organizationSelector = document.getElementById('organization-selector');
 const askAiButton = document.getElementById('ask-ai-button');
 const governanceLauncher = document.getElementById('governance-launcher');
 const governanceSheet = document.getElementById('governance-sheet');
 const governanceSheetClose = document.getElementById('governance-sheet-close');
+const governanceSheetSearch = document.getElementById('governance-sheet-search');
+const governanceSheetSearchCount = document.getElementById('governance-sheet-search-count');
+const governanceSheetEmpty = document.getElementById('governance-sheet-empty');
+const governanceModePriority = document.getElementById('governance-mode-priority');
+const governanceModeAll = document.getElementById('governance-mode-all');
+const governanceSheetRecent = document.getElementById('governance-sheet-recent');
+const governanceSheetRecentGrid = document.getElementById('governance-sheet-recent-grid');
 const generatedAt = document.getElementById('generated-at');
 const refreshButton = document.getElementById('refresh-button');
 const logoutButton = document.getElementById('logout-button');
 const sessionLabel = document.getElementById('session-label');
 const sidebarViewTitle = document.getElementById('sidebar-view-title');
 const sidebarViewDescription = document.getElementById('sidebar-view-description');
+const sidebarDirectorCard = document.getElementById('sidebar-director-card');
+const sidebarDirectorMode = document.getElementById('sidebar-director-mode');
+const sidebarDirectorCopy = document.getElementById('sidebar-director-copy');
+const sidebarDirectorBadgePrimary = document.getElementById('sidebar-director-badge-primary');
+const sidebarDirectorBadgeSecondary = document.getElementById('sidebar-director-badge-secondary');
+const sidebarNextMoveTitle = document.getElementById('sidebar-next-move-title');
+const sidebarNextMoveDetail = document.getElementById('sidebar-next-move-detail');
 const sidebarOperatorLabel = document.getElementById('sidebar-operator-label');
 const sidebarRuntimeLabel = document.getElementById('sidebar-runtime-label');
 const sidebarGeneratedLabel = document.getElementById('sidebar-generated-label');
+const sidebarPressureCard = document.getElementById('sidebar-pressure-card');
+const sidebarPressureLabel = document.getElementById('sidebar-pressure-label');
+const sidebarPressureDetail = document.getElementById('sidebar-pressure-detail');
 const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
+let governanceSheetReturnFocus = null;
+const GOVERNANCE_RECENT_KEY = 'sanom_governance_recent_lanes';
+const GOVERNANCE_RECENT_LIMIT = 4;
+const GOVERNANCE_MODE_KEY = 'sanom_governance_launch_mode';
+let governanceLaunchMode = 'priority';
+let governanceRecentLanes = [];
+const governanceSheetFilterState = {
+  rafId: 0,
+  pendingQuery: '',
+  indexDirty: true,
+  query: '',
+  mode: '',
+  recentItems: [],
+  groups: [],
+  allItems: [],
+};
+
+function normalizeGovernanceSheetQuery(rawQuery = '') {
+  return String(rawQuery || '').trim().toLowerCase();
+}
+
+function getGovernanceSheetItemHaystack(item) {
+  if (!item) return '';
+  const cached = String(item.dataset.searchHaystack || '').trim();
+  if (cached) return cached;
+  const haystack = `${item.dataset.view || ''} ${item.dataset.controlRoomTool || ''} ${item.textContent || ''}`.toLowerCase();
+  item.dataset.searchHaystack = haystack;
+  return haystack;
+}
+
+function markGovernanceSheetFilterIndexDirty() {
+  governanceSheetFilterState.indexDirty = true;
+  governanceSheetFilterState.query = '';
+  governanceSheetFilterState.mode = '';
+}
+
+function rebuildGovernanceSheetFilterIndex({ force = false } = {}) {
+  if (!governanceSheet) return;
+  if (!force && !governanceSheetFilterState.indexDirty) return;
+  const recentItems = [];
+  const groups = [];
+  const allItems = [];
+
+  if (governanceSheetRecentGrid) {
+    for (const item of governanceSheetRecentGrid.querySelectorAll('.governance-sheet-recent-item')) {
+      const indexed = { element: item, haystack: getGovernanceSheetItemHaystack(item) };
+      recentItems.push(indexed);
+      allItems.push(item);
+    }
+  }
+
+  for (const group of governanceSheet.querySelectorAll('.governance-sheet-group')) {
+    const indexedGroup = {
+      element: group,
+      mode: String(group.dataset.governanceGroup || 'all').trim() || 'all',
+      items: [],
+    };
+    for (const item of group.querySelectorAll('.governance-sheet-item')) {
+      const indexed = { element: item, haystack: getGovernanceSheetItemHaystack(item) };
+      indexedGroup.items.push(indexed);
+      allItems.push(item);
+    }
+    groups.push(indexedGroup);
+  }
+
+  governanceSheetFilterState.recentItems = recentItems;
+  governanceSheetFilterState.groups = groups;
+  governanceSheetFilterState.allItems = allItems;
+  governanceSheetFilterState.indexDirty = false;
+}
+
+function cancelGovernanceSheetFilterFrame() {
+  if (!governanceSheetFilterState.rafId) return;
+  window.cancelAnimationFrame(governanceSheetFilterState.rafId);
+  governanceSheetFilterState.rafId = 0;
+}
+
+function scheduleGovernanceSheetFilter(rawQuery = '') {
+  governanceSheetFilterState.pendingQuery = String(rawQuery || '');
+  if (governanceSheetFilterState.rafId) return;
+  governanceSheetFilterState.rafId = window.requestAnimationFrame(() => {
+    governanceSheetFilterState.rafId = 0;
+    applyGovernanceSheetFilter(governanceSheetFilterState.pendingQuery);
+  });
+}
+
+
+function governanceLaneIdentity(view, controlRoomTool) {
+  return `${String(view || 'overview')}::${String(controlRoomTool || '-')}`;
+}
+
+function loadGovernanceLaunchMode() {
+  try {
+    const saved = String(window.localStorage.getItem(GOVERNANCE_MODE_KEY) || '').trim();
+    if (saved === 'all' || saved === 'priority') return saved;
+  } catch (error) {
+    console.warn(error);
+  }
+  return 'priority';
+}
+
+function loadGovernanceRecentLanes() {
+  try {
+    const raw = window.localStorage.getItem(GOVERNANCE_RECENT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((lane) => ({
+        view: String(lane?.view || 'overview'),
+        controlRoomTool: String(lane?.controlRoomTool || ''),
+        title: String(lane?.title || ''),
+        caption: String(lane?.caption || ''),
+      }))
+      .filter((lane) => lane.title)
+      .slice(0, GOVERNANCE_RECENT_LIMIT);
+  } catch (error) {
+    console.warn(error);
+    return [];
+  }
+}
+
+function persistGovernanceRecentLanes() {
+  try {
+    window.localStorage.setItem(GOVERNANCE_RECENT_KEY, JSON.stringify(governanceRecentLanes.slice(0, GOVERNANCE_RECENT_LIMIT)));
+  } catch (error) {
+    console.warn(error);
+  }
+}
+
+function setGovernanceLaunchMode(mode, { persist = true } = {}) {
+  const normalized = mode === 'all' ? 'all' : 'priority';
+  governanceLaunchMode = normalized;
+  if (governanceModePriority) {
+    const active = normalized === 'priority';
+    governanceModePriority.classList.toggle('is-active', active);
+    governanceModePriority.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+  if (governanceModeAll) {
+    const active = normalized === 'all';
+    governanceModeAll.classList.toggle('is-active', active);
+    governanceModeAll.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+  if (persist) {
+    try {
+      window.localStorage.setItem(GOVERNANCE_MODE_KEY, normalized);
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+  applyGovernanceSheetFilter(governanceSheetSearch?.value || '', { force: true });
+}
+
+function renderGovernanceRecentLanes() {
+  if (!governanceSheetRecent || !governanceSheetRecentGrid) return;
+  if (!governanceRecentLanes.length) {
+    governanceSheetRecent.hidden = true;
+    governanceSheetRecentGrid.innerHTML = '';
+    markGovernanceSheetFilterIndexDirty();
+    return;
+  }
+  governanceSheetRecentGrid.innerHTML = governanceRecentLanes.map((lane) => {
+    const detail = lane.caption || 'Recent governance lane';
+    return `<button class="nav-item nav-subitem governance-sheet-item governance-sheet-recent-item" type="button" data-view="${escapeHtml(lane.view)}"${lane.controlRoomTool ? ` data-control-room-tool="${escapeHtml(lane.controlRoomTool)}"` : ''}><span class="nav-item-title">${escapeHtml(lane.title)}</span><span class="nav-item-caption">${escapeHtml(detail)}</span></button>`;
+  }).join('');
+  governanceSheetRecent.hidden = false;
+  markGovernanceSheetFilterIndexDirty();
+}
+
+function rememberGovernanceLane(target) {
+  if (!target) return;
+  const view = String(target.dataset.view || 'overview').trim() || 'overview';
+  const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
+  const title = String(target.querySelector('.nav-item-title')?.textContent || '').trim();
+  const caption = String(target.querySelector('.nav-item-caption')?.textContent || '').trim();
+  if (!title) return;
+  const identity = governanceLaneIdentity(view, controlRoomTool);
+  const lane = { view, controlRoomTool, title, caption };
+  governanceRecentLanes = [
+    lane,
+    ...governanceRecentLanes.filter((item) => governanceLaneIdentity(item.view, item.controlRoomTool) !== identity),
+  ].slice(0, GOVERNANCE_RECENT_LIMIT);
+  persistGovernanceRecentLanes();
+  renderGovernanceRecentLanes();
+}
+
+function applyGovernanceSheetFilter(rawQuery = '', { force = false } = {}) {
+  if (!governanceSheet) return;
+  const query = normalizeGovernanceSheetQuery(rawQuery);
+  const searchActive = query.length > 0;
+  rebuildGovernanceSheetFilterIndex({ force });
+  if (!force && governanceSheetFilterState.query === query && governanceSheetFilterState.mode === governanceLaunchMode) {
+    return;
+  }
+  let visibleCount = 0;
+
+  let recentVisibleCount = 0;
+  if (governanceSheetRecent) {
+    for (const recentItem of governanceSheetFilterState.recentItems) {
+      const item = recentItem.element;
+      const haystack = recentItem.haystack;
+      const visible = !query || haystack.includes(query);
+      item.hidden = !visible;
+      if (visible) recentVisibleCount += 1;
+    }
+    governanceSheetRecent.hidden = recentVisibleCount === 0;
+    visibleCount += recentVisibleCount;
+  }
+
+  for (const group of governanceSheetFilterState.groups) {
+    const groupMode = group.mode;
+    const modeAllowed = searchActive ? true : governanceLaunchMode === 'all' || groupMode === 'priority';
+    let groupVisibleCount = 0;
+    for (const itemRef of group.items) {
+      const item = itemRef.element;
+      if (!modeAllowed) {
+        item.hidden = true;
+        continue;
+      }
+      const haystack = itemRef.haystack;
+      const visible = !query || haystack.includes(query);
+      item.hidden = !visible;
+      if (visible) groupVisibleCount += 1;
+    }
+    group.element.hidden = groupVisibleCount === 0;
+    visibleCount += groupVisibleCount;
+  }
+
+  if (governanceSheetSearchCount) {
+    const nextCount = `${visibleCount} lane${visibleCount === 1 ? '' : 's'}`;
+    if (governanceSheetSearchCount.textContent !== nextCount) {
+      governanceSheetSearchCount.textContent = nextCount;
+    }
+  }
+  if (governanceSheetEmpty) {
+    governanceSheetEmpty.hidden = visibleCount !== 0;
+  }
+  governanceSheetFilterState.query = query;
+  governanceSheetFilterState.mode = governanceLaunchMode;
+}
+
+function resetGovernanceSheetFilter() {
+  cancelGovernanceSheetFilterFrame();
+  governanceSheetFilterState.pendingQuery = '';
+  governanceSheetFilterState.query = '';
+  governanceSheetFilterState.mode = '';
+  if (governanceSheetSearch) {
+    governanceSheetSearch.value = '';
+  }
+  applyGovernanceSheetFilter('', { force: true });
+}
+
 
 function closeGovernanceSheet() {
   if (!governanceSheet) return;
   governanceSheet.hidden = true;
   governanceSheet.setAttribute('aria-hidden', 'true');
   governanceLauncher?.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('governance-sheet-open');
+  resetGovernanceSheetFilter();
+  if (governanceSheetReturnFocus && document.contains(governanceSheetReturnFocus)) {
+    governanceSheetReturnFocus.focus({ preventScroll: true });
+  }
+  governanceSheetReturnFocus = null;
 }
 
 function openGovernanceSheet() {
   if (!governanceSheet) return;
+  governanceSheetReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : governanceLauncher;
   governanceSheet.hidden = false;
   governanceSheet.setAttribute('aria-hidden', 'false');
   governanceLauncher?.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('governance-sheet-open');
+  renderGovernanceRecentLanes();
+  applyGovernanceSheetFilter(governanceSheetSearch?.value || '', { force: true });
+  window.requestAnimationFrame(() => {
+    if (governanceSheetSearch) {
+      governanceSheetSearch.focus({ preventScroll: true });
+      governanceSheetSearch.select();
+      return;
+    }
+    const focusTarget = governanceSheet.querySelector('.governance-sheet-item, #governance-sheet-close');
+    focusTarget?.focus({ preventScroll: true });
+  });
 }
 
 function navigateFromGovernanceTarget(target) {
-  if (!target) return;
+  if (!target || target.hidden) return;
   const nextView = target.dataset.view || 'overview';
   const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
+  rememberGovernanceLane(target);
   state.view = nextView;
   if (nextView === 'control_room') {
     state.controlRoomTool = controlRoomTool || getInitialControlRoomTool();
@@ -84,6 +379,11 @@ function navigateFromGovernanceTarget(target) {
   render();
   scrollDashboardToTop();
 }
+
+governanceLaunchMode = loadGovernanceLaunchMode();
+governanceRecentLanes = loadGovernanceRecentLanes();
+renderGovernanceRecentLanes();
+setGovernanceLaunchMode(governanceLaunchMode, { persist: false });
 
 function setLiveTimestampLabel(text) {
   generatedAt.textContent = text;
@@ -265,31 +565,31 @@ const VIEW_TITLES = {
 };
 
 const VIEW_DESCRIPTIONS = {
-  overview: 'Understand posture and the next human move within five seconds.',
-  requests: 'Your governed work inbox across approvals, blocked items, and follow-through.',
-  cases: 'Follow one governed issue across requests, overrides, Human Ask, documents, and audit proof.',
-  directory: 'Browse people, teams, seats, assignments, and linked search results from one governed surface.',
-  documents: 'Work governed documents as live runtime objects, not static files.',
-  actions: 'Launch, review, and follow governed AI execution inside one runtime lane.',
-  setup: 'First-run assistant, doctor, and pilot hardening from one privileged surface.',
-  overrides: 'Work only the decisions that crossed a human boundary.',
-  conflicts: 'Inspect locks, contention, and safe retry posture.',
-  audit: 'Review chain integrity, evidence, and trusted history.',
-  studio: 'Create, review, and publish governed AI roles.',
-  human_ask: 'Start governed report or meeting records from one place.',
-  sessions: 'Monitor short-lived access, expiry, and revocation.',
-  policies: 'Inspect active role packs and policy boundaries.',
-  health: 'Check deployment, storage, integrations, and runtime posture.',
-  control_room: 'Advanced governance tools for admin, IT, and founder sessions only.',
-  backup_restore: 'Recovery bundles, restore guidance, and pilot-hardening artifacts inside Control Room.',
-  admin_settings: 'Organization identity, access policy, providers, and routing posture inside Control Room.',
-  owner_registration: 'Runtime identity, registration code, and deployment ownership posture.',
-  retention: 'Retention, legal hold, and governed records posture inside Control Room.',
-  integrations: 'Outbound routing, delivery posture, and integration readiness inside Control Room.',
-  model_providers: 'AI provider readiness and default workforce execution posture inside Control Room.',
-  evidence_exports: 'Evidence exports, workflow proof posture, and trust continuity inside Control Room.',
-  master_data: 'People, teams, routing, assignments, and searchable directory governance inside Control Room.',
-  structural_risk: 'PT-OSS structural intelligence and advanced governance posture inside Control Room.',
+  overview: 'See posture, choose a lane, and move in seconds.',
+  requests: 'Process governed intake and keep the queue moving.',
+  cases: 'Track one issue across requests, decisions, and proof.',
+  directory: 'Find real owners quickly and route work with confidence.',
+  documents: 'Advance draft, review, and publish flows with governance intact.',
+  actions: 'Run governed AI actions and monitor side effects in one lane.',
+  setup: 'Complete first-run setup and pilot checks quickly.',
+  overrides: 'Resolve human-required decisions without losing continuity.',
+  conflicts: 'Clear contention fast and resume stalled work safely.',
+  audit: 'Verify chain integrity, rationale, and exportable evidence.',
+  studio: 'Create and publish governed AI roles from one place.',
+  human_ask: 'Start governed reports and meeting records fast.',
+  sessions: 'Review issued access, expiry, and revocation posture.',
+  policies: 'Inspect role boundaries and trusted policy packs.',
+  health: 'Check runtime readiness, risks, and operational posture.',
+  control_room: 'Operate advanced governance tools in one protected surface.',
+  backup_restore: 'Manage backup posture and recovery readiness.',
+  admin_settings: 'Set organization defaults, access policy, and routing.',
+  owner_registration: 'Verify owner identity and deployment ownership posture.',
+  retention: 'Govern retention windows and legal-hold controls.',
+  integrations: 'Review outbound routing and integration readiness.',
+  model_providers: 'Check provider readiness and default execution lane.',
+  evidence_exports: 'Export trusted evidence packs and audit proof.',
+  master_data: 'Govern people, teams, assignments, and searchable routing.',
+  structural_risk: 'Review PT-OSS structural risk and alignment posture.',
 };
 
 const DEV_LANES = {
@@ -445,6 +745,84 @@ const VIEW_PERMISSIONS = {
   health: 'health.read',
 };
 
+const TOPBAR_QUICK_ACTIONS = {
+  overview: [
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Process incoming governed work.' },
+    { view: 'cases', label: 'Open Cases', detail: 'Continue the linked operating story.' },
+    { view: 'control_room', controlRoomTool: 'health', label: 'Open Runtime & Recovery', detail: 'Check governance posture quickly.' },
+  ],
+  requests: [
+    { view: 'cases', label: 'Open Cases', detail: 'Trace continuity across lanes.' },
+    { view: 'actions', label: 'Open AI Actions', detail: 'Run governed execution safely.' },
+    { view: 'overrides', label: 'Open Overrides', detail: 'Resolve human boundaries now.' },
+  ],
+  cases: [
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Follow upstream intake context.' },
+    { view: 'documents', label: 'Open Documents', detail: 'Continue document-side follow-through.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Validate reasons and proof.' },
+  ],
+  directory: [
+    { view: 'cases', label: 'Open Cases', detail: 'Route ownership into active issues.' },
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Reconnect intake and assignment.' },
+    { view: 'control_room', controlRoomTool: 'master_data', label: 'Open Master Data & Routing', detail: 'Tune governance routing posture.' },
+  ],
+  documents: [
+    { view: 'actions', label: 'Open AI Actions', detail: 'Continue AI-assisted follow-through.' },
+    { view: 'cases', label: 'Open Cases', detail: 'Return to the canonical case story.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Confirm document evidence chain.' },
+  ],
+  actions: [
+    { view: 'cases', label: 'Open Cases', detail: 'Anchor results to one issue.' },
+    { view: 'documents', label: 'Open Documents', detail: 'Continue governed artifacts.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Verify authority and side effects.' },
+  ],
+  overrides: [
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Reconnect approved work to intake.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Confirm decision proof chain.' },
+    { view: 'overview', label: 'Open Home', detail: 'Recheck overall posture.' },
+  ],
+  conflicts: [
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Inspect stalled request lanes.' },
+    { view: 'health', label: 'Open Runtime Health', detail: 'Review lock/runtime pressure.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Trace contention history.' },
+  ],
+  audit: [
+    { view: 'overview', label: 'Open Home', detail: 'Return to executive posture scan.' },
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Reconnect proof with live work.' },
+    { view: 'health', label: 'Open Runtime Health', detail: 'Check operational integrity context.' },
+  ],
+  studio: [
+    { view: 'control_room', controlRoomTool: 'studio', label: 'Open Role Private Studio', detail: 'Continue role authoring and publish flow.' },
+    { view: 'policies', label: 'Open Roles & Policies', detail: 'Verify trusted role packs.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Confirm publication evidence.' },
+  ],
+  human_ask: [
+    { view: 'overrides', label: 'Open Overrides', detail: 'Resolve waiting human decisions.' },
+    { view: 'documents', label: 'Open Documents', detail: 'Continue governed artifacts.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Review record evidence chain.' },
+  ],
+  sessions: [
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Pair access posture with evidence.' },
+    { view: 'health', label: 'Open Runtime Health', detail: 'Check token/session runtime state.' },
+    { view: 'overview', label: 'Open Home', detail: 'Return to overall command posture.' },
+  ],
+  policies: [
+    { view: 'studio', label: 'Open Role Private Studio', detail: 'Repair or publish role packs.' },
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Exercise trusted roles in live flow.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Verify trust and manifest evidence.' },
+  ],
+  health: [
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Confirm proof behind health posture.' },
+    { view: 'overview', label: 'Open Home', detail: 'Return to mission-level posture.' },
+    { view: 'sessions', label: 'Open Sessions', detail: 'Check access continuity signals.' },
+  ],
+  control_room: [
+    { view: 'control_room', controlRoomTool: 'health', label: 'Open Runtime & Recovery', detail: 'Run diagnostics and recovery checks.' },
+    { view: 'control_room', controlRoomTool: 'setup', label: 'Open Setup & Onboarding', detail: 'Handle first-run and quick-start tasks.' },
+    { view: 'control_room', controlRoomTool: 'evidence_exports', label: 'Open Trust & Evidence', detail: 'Prepare audit and evidence exports.' },
+  ],
+};
+
 const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings', 'owner_registration', 'retention', 'integrations', 'model_providers', 'evidence_exports', 'master_data', 'structural_risk']);
 const GOVERNANCE_EMBEDDED_VIEWS = new Set(['setup', 'studio']);
 
@@ -499,6 +877,29 @@ governanceSheetClose?.addEventListener('click', () => {
   closeGovernanceSheet();
 });
 
+governanceModePriority?.addEventListener('click', () => {
+  setGovernanceLaunchMode('priority');
+});
+
+governanceModeAll?.addEventListener('click', () => {
+  setGovernanceLaunchMode('all');
+});
+
+governanceSheetSearch?.addEventListener('input', () => {
+  scheduleGovernanceSheetFilter(governanceSheetSearch.value);
+});
+
+governanceSheetSearch?.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter') return;
+  applyGovernanceSheetFilter(governanceSheetSearch.value);
+  rebuildGovernanceSheetFilterIndex();
+  const firstVisible = governanceSheetFilterState.allItems.find((item) => !item.hidden);
+  if (firstVisible) {
+    event.preventDefault();
+    navigateFromGovernanceTarget(firstVisible);
+  }
+});
+
 governanceSheet?.addEventListener('click', (event) => {
   if (event.target.closest('[data-governance-sheet-close]')) {
     closeGovernanceSheet();
@@ -511,9 +912,23 @@ governanceSheet?.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && governanceSheet && !governanceSheet.hidden) {
+  if (!governanceSheet || governanceSheet.hidden) return;
+  if (event.key === 'Escape') {
     closeGovernanceSheet();
+    return;
   }
+  if (event.key === '/' && governanceSheetSearch && document.activeElement !== governanceSheetSearch) {
+    event.preventDefault();
+    governanceSheetSearch.focus({ preventScroll: true });
+    governanceSheetSearch.select();
+  }
+});
+
+topbarActionStrip?.addEventListener('click', async (event) => {
+  const viewJumpButton = event.target.closest('[data-view-jump]');
+  if (!viewJumpButton) return;
+  event.preventDefault();
+  await handleViewJumpAction(viewJumpButton);
 });
 
 refreshButton.addEventListener('click', () => withButtonBusy(refreshButton, () => loadDashboard(), 'Refreshing...'));
@@ -807,6 +1222,45 @@ root.addEventListener('change', (event) => {
   render();
 });
 
+async function handleViewJumpAction(viewJumpButton) {
+  if (!viewJumpButton) return false;
+  const targetView = viewJumpButton.dataset.viewJump || state.view;
+  const focusType = viewJumpButton.dataset.viewJumpFocusType || '';
+  const focusId = viewJumpButton.dataset.viewJumpFocusId || '';
+  const caseId = viewJumpButton.dataset.viewJumpCaseId || '';
+  const controlRoomTool = viewJumpButton.dataset.viewJumpControlRoomTool || '';
+  const resolvedTarget = normalizeActionContextTarget({
+    view: targetView,
+    controlRoomTool,
+    title: viewJumpButton.dataset.viewJumpTitle || `Moved to ${VIEW_TITLES[targetView] || titleCase(targetView)}.`,
+    detail: viewJumpButton.dataset.viewJumpDetail || 'The linked governed item stays highlighted in the next lane so you can continue without hunting for it.',
+    actionLabel: viewJumpButton.dataset.viewJumpActionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+  });
+  setActionContext({
+    entityType: focusType,
+    entityId: focusId,
+    caseId,
+    view: resolvedTarget.view,
+    controlRoomTool: resolvedTarget.controlRoomTool,
+    title: resolvedTarget.title,
+    detail: resolvedTarget.detail,
+    actionLabel: resolvedTarget.actionLabel,
+  });
+  state.view = resolvedTarget.view;
+  if (resolvedTarget.controlRoomTool) state.controlRoomTool = resolvedTarget.controlRoomTool;
+  updateNav();
+  if (resolvedTarget.view === 'documents' && documentFiltersActive()) {
+    try {
+      await refreshDocumentSearchResults({ silent: true, skipRender: true });
+    } catch (error) {
+      state.lastError = String(error.message || error);
+    }
+  }
+  render();
+  scrollDashboardToTop();
+  return true;
+}
+
 root.addEventListener('click', async (event) => {
   const actionableButton = event.target.closest(ACTIONABLE_BUTTON_SELECTOR);
   if (actionableButton) event.preventDefault();
@@ -834,40 +1288,7 @@ root.addEventListener('click', async (event) => {
 
   const viewJumpButton = event.target.closest('[data-view-jump]');
   if (viewJumpButton) {
-    const targetView = viewJumpButton.dataset.viewJump || state.view;
-    const focusType = viewJumpButton.dataset.viewJumpFocusType || '';
-    const focusId = viewJumpButton.dataset.viewJumpFocusId || '';
-    const caseId = viewJumpButton.dataset.viewJumpCaseId || '';
-    const controlRoomTool = viewJumpButton.dataset.viewJumpControlRoomTool || '';
-    const resolvedTarget = normalizeActionContextTarget({
-      view: targetView,
-      controlRoomTool,
-      title: viewJumpButton.dataset.viewJumpTitle || `Moved to ${VIEW_TITLES[targetView] || titleCase(targetView)}.`,
-      detail: viewJumpButton.dataset.viewJumpDetail || 'The linked governed item stays highlighted in the next lane so you can continue without hunting for it.',
-      actionLabel: viewJumpButton.dataset.viewJumpActionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
-    });
-    setActionContext({
-      entityType: focusType,
-      entityId: focusId,
-      caseId,
-      view: resolvedTarget.view,
-      controlRoomTool: resolvedTarget.controlRoomTool,
-      title: resolvedTarget.title,
-      detail: resolvedTarget.detail,
-      actionLabel: resolvedTarget.actionLabel,
-    });
-    state.view = resolvedTarget.view;
-    if (resolvedTarget.controlRoomTool) state.controlRoomTool = resolvedTarget.controlRoomTool;
-    updateNav();
-    if (resolvedTarget.view === 'documents' && documentFiltersActive()) {
-      try {
-        await refreshDocumentSearchResults({ silent: true, skipRender: true });
-      } catch (error) {
-        state.lastError = String(error.message || error);
-      }
-    }
-    render();
-    scrollDashboardToTop();
+    await handleViewJumpAction(viewJumpButton);
     return;
   }
 
@@ -1647,6 +2068,75 @@ function buildFocusKey(entityType, entityId) {
   return type && id ? `${type}:${id}` : '';
 }
 
+function getActiveLaneTransition() {
+  const laneTransition = state.laneTransition;
+  if (!laneTransition || laneTransition.to !== state.view) return null;
+  const startedAt = Number(laneTransition.startedAt || 0);
+  if (startedAt && Date.now() - startedAt > LANE_TRANSITION_WINDOW_MS) return null;
+  return laneTransition;
+}
+
+function humanizeCompassText(value, fallback = '-') {
+  const raw = String(value || '').trim();
+  if (!raw) return fallback;
+  return raw.replace(/[_-]+/g, ' ');
+}
+
+function normalizeCompassTone(rawTone = '') {
+  const value = String(rawTone || '').trim().toLowerCase();
+  if (!value) return 'accent';
+  if (value.includes('block') || value.includes('human') || value.includes('attention') || value.includes('warning')) return 'warning';
+  if (value.includes('stable') || value.includes('ready') || value.includes('clear') || value.includes('calm') || value.includes('success')) return 'success';
+  if (value.includes('idle') || value.includes('offline') || value.includes('paused')) return 'idle';
+  return 'accent';
+}
+
+function getSidebarDirectorConsole(snapshot) {
+  const intelligence = VIEW_INTELLIGENCE[state.view] || {};
+  const useHint = VIEW_USE_HINTS[state.view] || {};
+  const mission = snapshot?.command_surface?.mission_control || {};
+  const transition = getActiveLaneTransition();
+  const transitionFromLabel = transition?.from ? (VIEW_TITLES[transition.from] || titleCase(transition.from)) : '';
+  const actionContext = state.actionContext || null;
+  const nextMoveTitle = actionContext?.actionLabel
+    || (state.view === 'overview'
+      ? String(mission.top_move_title || 'Open the next governed lane')
+      : String(useHint.value || `Open ${VIEW_TITLES[state.view] || titleCase(state.view)}`));
+  const nextMoveDetail = actionContext?.detail
+    || (state.view === 'overview'
+      ? String(mission.top_move_detail || 'Open the linked governed lane and continue from the highest-pressure move.')
+      : String(useHint.note || intelligence.narrative || 'Keep the next lane visible before moving deeper into the board.'));
+  const worldPressure = String(mission.pressure_label || mission.world_state_title || 'Balanced world state').trim() || 'Balanced world state';
+  const pressureDetailParts = [];
+  if (mission.world_state_title && mission.world_state_title !== worldPressure) pressureDetailParts.push(String(mission.world_state_title));
+  if (mission.ai_momentum_title) pressureDetailParts.push(String(mission.ai_momentum_title));
+  pressureDetailParts.push(
+    state.view === 'overview'
+      ? String(mission.world_state_note || mission.ai_momentum_detail || 'Home keeps the whole operating picture readable.')
+      : String(mission.ai_momentum_detail || mission.world_state_note || 'The broader world state stays visible while you work the current lane.')
+  );
+  const modeCopy = [
+    transitionFromLabel ? `Entered from ${transitionFromLabel}.` : '',
+    String(intelligence.narrative || useHint.note || 'Stay on the current lane until the next governed move is clear.'),
+  ].filter(Boolean).join(' ');
+  const modePrimaryBadge = humanizeCompassText(mission.world_state_badge || useHint.tone || 'guarded', 'guarded');
+  const modeSecondaryBadge = transitionFromLabel ? `from ${transitionFromLabel}` : humanizeCompassText(intelligence.emphasis || 'director view', 'director view');
+  const modeTone = normalizeCompassTone(actionContext ? 'accent' : String(mission.world_state_badge || useHint.tone || 'accent'));
+  const pressureTone = normalizeCompassTone(worldPressure);
+  return {
+    modeTitle: state.view === 'overview' ? 'Mission control' : String(intelligence.eyebrow || 'Guided lane'),
+    modeCopy,
+    modePrimaryBadge,
+    modeSecondaryBadge,
+    modeTone,
+    nextMoveTitle,
+    nextMoveDetail,
+    pressureLabel: worldPressure,
+    pressureDetail: pressureDetailParts.filter(Boolean).join(' '),
+    pressureTone,
+  };
+}
+
 function setActionContext({ entityType = '', entityId = '', caseId = '', view = '', controlRoomTool = '', title = '', detail = '', actionLabel = '' } = {}) {
   const normalizedEntityType = String(entityType || '').trim();
   const normalizedEntityId = String(entityId || '').trim();
@@ -2081,6 +2571,145 @@ function normalizeActionContextTarget(options = {}) {
   };
 }
 
+function shouldRenderTabletLaneRail() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1180px)').matches;
+}
+
+function shouldRenderFocusedInbox(view = state.view) {
+  return ['requests', 'cases', 'directory', 'documents', 'actions', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask', 'sessions', 'policies', 'health'].includes(view);
+}
+
+function shouldRenderWorkflowGuide(view = state.view) {
+  return ['requests', 'cases', 'directory', 'documents', 'actions', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask', 'sessions', 'policies', 'health'].includes(view);
+}
+
+function shouldRenderWorkLanguageGuide(view = state.view) {
+  return ['overview', 'requests'].includes(view);
+}
+
+function isTopbarQuickActionAllowed(target) {
+  if (!target) return false;
+  if (target.view === 'setup' && !canAccessSetupAssistant()) return false;
+  const permissionView = target.view === 'control_room' ? String(target.controlRoomTool || '').trim() : target.view;
+  const permission = VIEW_PERMISSIONS[permissionView];
+  if (!permission) return true;
+  return can(permission);
+}
+
+function buildTopbarQuickActionCandidates(snapshot) {
+  if (!snapshot || state.authRequired) {
+    return [{
+      view: 'overview',
+      label: 'Open Home',
+      title: 'Reconnect to continue',
+      detail: 'Sign in, refresh live runtime, then continue governed work.',
+      badge: 'reconnect',
+    }];
+  }
+  const candidates = [];
+  if (state.actionContext?.view) {
+    const contextViewLabel = VIEW_TITLES[state.actionContext.view] || titleCase(state.actionContext.view);
+    candidates.push({
+      view: state.actionContext.view,
+      controlRoomTool: state.actionContext.controlRoomTool || '',
+      label: state.actionContext.actionLabel || `Continue in ${contextViewLabel}`,
+      title: state.actionContext.title || `Continue in ${contextViewLabel}`,
+      detail: state.actionContext.detail || `The latest governed item stays highlighted in ${contextViewLabel}.`,
+      badge: 'continue',
+    });
+  }
+  if (state.view === 'control_room') {
+    const currentTool = String(state.controlRoomTool || getInitialControlRoomTool()).trim() || getInitialControlRoomTool();
+    const currentToolLabel = VIEW_TITLES[currentTool] || titleCase(currentTool);
+    candidates.push({
+      view: 'control_room',
+      controlRoomTool: currentTool,
+      label: `Open ${currentToolLabel}`,
+      title: `Continue in ${currentToolLabel}`,
+      detail: 'Stay inside the current governance module and execute the next step quickly.',
+      badge: currentToolLabel,
+    });
+  }
+  candidates.push(...(TOPBAR_QUICK_ACTIONS[state.view] || []));
+  if (!candidates.length) {
+    candidates.push(
+      { view: 'overview', label: 'Open Home', detail: 'Return to the executive posture scan.', badge: 'home' },
+      { view: 'requests', label: 'Open Work Inbox', detail: 'Move directly into governed intake.', badge: 'intake' },
+    );
+  }
+  return candidates;
+}
+
+function resolveTopbarQuickActions(snapshot) {
+  const actions = [];
+  const seen = new Set();
+  for (const candidate of buildTopbarQuickActionCandidates(snapshot)) {
+    const resolved = resolveNavigationTarget({
+      view: candidate.view,
+      controlRoomTool: candidate.controlRoomTool || '',
+      title: candidate.title || '',
+      detail: candidate.detail || '',
+      actionLabel: candidate.label || candidate.actionLabel || '',
+    });
+    if (!resolved) continue;
+    if (!isTopbarQuickActionAllowed(resolved)) continue;
+    const identity = `${resolved.view}::${resolved.controlRoomTool || ''}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    const destinationLabel = resolved.view === 'control_room'
+      ? (VIEW_TITLES[resolved.controlRoomTool || 'control_room'] || VIEW_TITLES.control_room)
+      : (VIEW_TITLES[resolved.view] || titleCase(resolved.view));
+    const label = candidate.label || resolved.actionLabel || `Open ${destinationLabel}`;
+    actions.push({
+      ...resolved,
+      label,
+      title: candidate.title || `Open ${destinationLabel}`,
+      detail: candidate.detail || VIEW_DESCRIPTIONS[resolved.view] || `Open ${destinationLabel} to continue governed flow.`,
+      actionLabel: candidate.actionLabel || label,
+      badge: candidate.badge || destinationLabel,
+    });
+    if (actions.length >= 3) break;
+  }
+  return actions;
+}
+
+function renderTopbarActionStrip(snapshot) {
+  if (!topbarActionStrip) return;
+  const actions = resolveTopbarQuickActions(snapshot);
+  const signature = actions.map((action) => `${action.view || ''}::${action.controlRoomTool || ''}::${action.label || ''}::${action.title || ''}::${action.detail || ''}`).join('|');
+  if (!actions.length) {
+    if (state.lastTopbarActionSignature === 'hidden' && topbarActionStrip.hidden) return;
+    topbarActionStrip.hidden = true;
+    topbarActionStrip.innerHTML = '';
+    state.lastTopbarActionSignature = 'hidden';
+    return;
+  }
+  if (state.lastTopbarActionSignature === signature && !topbarActionStrip.hidden) return;
+  state.lastTopbarActionSignature = signature;
+  const lead = actions[0];
+  topbarActionStrip.hidden = false;
+  topbarActionStrip.innerHTML = `
+    <article class="topbar-action-strip-card">
+      <div class="topbar-action-strip-copy">
+        <span class="topbar-ribbon-label">Next actions</span>
+        <strong>${escapeHtml(lead.title || 'Continue governed flow')}</strong>
+        <span class="topbar-action-strip-note">${escapeHtml(lead.detail || 'Move to the next lane with one tap.')}</span>
+      </div>
+      <div class="topbar-action-strip-buttons">
+        ${actions.map((action, index) => renderViewJumpButton({
+          view: action.view,
+          controlRoomTool: action.controlRoomTool || '',
+          label: action.label,
+          className: index === 0 ? 'action-button topbar-action-button-primary' : 'action-button action-button-muted topbar-action-button-secondary',
+          title: action.title,
+          detail: action.detail,
+          actionLabel: action.actionLabel || action.label,
+        })).join('')}
+      </div>
+    </article>
+  `;
+}
+
 function normalizeWorkflowPrimary(primary) {
   if (!primary) return null;
   const resolved = resolveNavigationTarget(primary);
@@ -2152,25 +2781,59 @@ function render() {
   sidebarViewDescription.textContent = VIEW_DESCRIPTIONS[state.view];
   topbarFocusLabel.textContent = VIEW_TITLES[state.view];
   document.body.dataset.view = state.view;
+  const transitionFrom = state.lastRenderedView && state.lastRenderedView !== state.view ? state.lastRenderedView : '';
+  if (transitionFrom) {
+    state.laneTransition = { from: transitionFrom, to: state.view, startedAt: Date.now() };
+  }
+  const activeLaneTransition = getActiveLaneTransition();
+  if (!activeLaneTransition && state.laneTransition && state.laneTransition.to === state.view) {
+    state.laneTransition = null;
+  }
+  document.body.dataset.viewOrigin = activeLaneTransition ? activeLaneTransition.from : '';
+  document.body.dataset.viewTransition = activeLaneTransition ? 'active' : 'idle';
   if (state.authRequired || !state.snapshot) {
     stopLiveTimestampTicker();
     sessionLabel.textContent = 'disconnected';
     environmentLabel.textContent = 'token required';
     setLiveTimestampLabel(state.lastError ? `Last error: ${state.lastError}` : 'Enter API token to access live runtime data.');
+    sidebarDirectorMode.textContent = 'Awaiting session';
+    sidebarDirectorCopy.textContent = 'Enter an API token to reconnect the Director and restore the governed command board.';
+    sidebarDirectorBadgePrimary.textContent = 'offline';
+    sidebarDirectorBadgeSecondary.textContent = 'token required';
+    sidebarNextMoveTitle.textContent = 'Connect live runtime';
+    sidebarNextMoveDetail.textContent = 'Authenticate first to reveal the next governed move, current lane pressure, and live director cues.';
     sidebarOperatorLabel.textContent = 'Disconnected';
     sidebarRuntimeLabel.textContent = 'Token required';
+    sidebarPressureLabel.textContent = 'World state paused';
+    sidebarPressureDetail.textContent = 'Live posture returns as soon as the private runtime reconnects.';
+    sidebarDirectorCard.dataset.tone = 'idle';
+    sidebarPressureCard.dataset.tone = 'idle';
     topbarRuntimeLabel.textContent = 'Awaiting session';
+    renderTopbarActionStrip(null);
     root.innerHTML = renderAuthCard();
     updateNav();
+    state.lastRenderedView = state.view;
     return;
   }
 
   const snapshot = state.snapshot;
+  renderTopbarActionStrip(snapshot);
+  const sidebarConsole = getSidebarDirectorConsole(snapshot);
   sessionLabel.textContent = state.session ? `${state.session.display_name} | ${state.session.role_name}` : 'connected';
   environmentLabel.textContent = `${snapshot.environment} environment`;
   startLiveTimestampTicker(snapshot.generated_at);
+  sidebarDirectorMode.textContent = sidebarConsole.modeTitle;
+  sidebarDirectorCopy.textContent = sidebarConsole.modeCopy;
+  sidebarDirectorBadgePrimary.textContent = sidebarConsole.modePrimaryBadge;
+  sidebarDirectorBadgeSecondary.textContent = sidebarConsole.modeSecondaryBadge;
+  sidebarNextMoveTitle.textContent = sidebarConsole.nextMoveTitle;
+  sidebarNextMoveDetail.textContent = sidebarConsole.nextMoveDetail;
   sidebarOperatorLabel.textContent = state.session ? state.session.display_name : 'Connected';
   sidebarRuntimeLabel.textContent = `${snapshot.environment} runtime`;
+  sidebarPressureLabel.textContent = sidebarConsole.pressureLabel;
+  sidebarPressureDetail.textContent = sidebarConsole.pressureDetail;
+  sidebarDirectorCard.dataset.tone = sidebarConsole.modeTone;
+  sidebarPressureCard.dataset.tone = sidebarConsole.pressureTone;
   topbarRuntimeLabel.textContent = state.session ? state.session.role_name : `${snapshot.environment} runtime`;
   syncCommandRoute();
   hydrateOrganizationSelector(snapshot);
@@ -2220,15 +2883,16 @@ function render() {
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
   const compactCommandView = ['overview', 'control_room', 'setup'].includes(state.view);
-  const focusedInbox = compactCommandView ? '' : renderFocusedWorkInbox(snapshot, state.view);
+  const focusedInbox = compactCommandView || !shouldRenderFocusedInbox(state.view) ? '' : renderFocusedWorkInbox(snapshot, state.view);
   const caseSpotlight = compactCommandView ? '' : renderCaseSpotlight(snapshot);
-  const workLanguageGuide = compactCommandView ? '' : renderWorkLanguageGuide(snapshot);
+  const workLanguageGuide = compactCommandView || !shouldRenderWorkLanguageGuide(state.view) ? '' : renderWorkLanguageGuide(snapshot);
   const alertRail = compactCommandView ? '' : renderAlertRail(snapshot);
   const viewPrelude = compactCommandView ? '' : renderViewPrelude(snapshot);
-  const tabletLaneRail = compactCommandView ? '' : renderTabletLaneRail(snapshot);
-  const workflowGuide = compactCommandView ? '' : renderWorkflowGuide(snapshot);
+  const tabletLaneRail = compactCommandView || !shouldRenderTabletLaneRail() ? '' : renderTabletLaneRail(snapshot);
+  const workflowGuide = compactCommandView || !shouldRenderWorkflowGuide(state.view) ? '' : renderWorkflowGuide(snapshot);
   root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${alertRail}${viewPrelude}${tabletLaneRail}${workflowGuide}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
+  state.lastRenderedView = state.view;
   focusActionContextTarget();
 }
 
@@ -2368,19 +3032,29 @@ function renderViewPrelude(snapshot) {
     narrative: VIEW_DESCRIPTIONS[state.view],
     emphasis: 'runtime posture',
   };
+  const laneTransition = getActiveLaneTransition();
+  const transitionFromLabel = laneTransition ? (VIEW_TITLES[laneTransition.from] || titleCase(laneTransition.from || 'overview')) : '';
+  const currentViewLabel = VIEW_TITLES[state.view] || titleCase(state.view || 'overview');
+  const continuationLabel = laneTransition
+    ? (state.actionContext?.actionLabel || `Continue in ${currentViewLabel}`)
+    : '';
+  const entryTrace = laneTransition
+    ? `<div class="trace-box view-entry-trace"><strong>Entered from ${escapeHtml(transitionFromLabel)}</strong><p class="muted">This lane now carries the next governed move, so the highlighted work stays easier to continue without re-scanning the whole board.</p><div class="transition-route"><span class="transition-node">${escapeHtml(transitionFromLabel)}</span><span class="transition-arrow">-&gt;</span><span class="transition-node transition-node-active">${escapeHtml(currentViewLabel)}</span></div><div class="transition-chip-row">${statusBadge(continuationLabel)}${statusBadge('continuity preserved')}</div></div>`
+    : '';
   return `
-    <section class="view-prelude card view-prelude-${escapeHtml(state.view)}">
+    <section class="view-prelude card view-prelude-${escapeHtml(state.view)}${laneTransition ? ' view-prelude-entering' : ''}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(profile.eyebrow)}</div>
           <h3 class="card-title">${escapeHtml(profile.title)}</h3>
           <p class="card-subtitle">${escapeHtml(profile.narrative)}</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(profile.emphasis)}${statusBadge(snapshot.environment || 'runtime')}</div>
+        <div class="hero-chip-row">${statusBadge(profile.emphasis)}${laneTransition ? statusBadge(`from ${transitionFromLabel}`) : ''}${statusBadge(snapshot.environment || 'runtime')}</div>
       </div>
+      ${entryTrace}
       <div class="view-prelude-grid">
-        ${visibleCues.map((cue) => `
-          <article class="view-prelude-card${cue.tone ? ` view-prelude-card-${escapeHtml(cue.tone)}` : ''}">
+        ${visibleCues.map((cue, index) => `
+          <article class="view-prelude-card${cue.tone ? ` view-prelude-card-${escapeHtml(cue.tone)}` : ''}${laneTransition ? ' view-prelude-card-entering' : ''}"${laneTransition ? ` style="--lane-entry-index:${index}"` : ''}>
             <span class="view-prelude-label">${escapeHtml(cue.label)}</span>
             <strong>${escapeHtml(String(cue.value))}</strong>
             <p class="muted">${escapeHtml(cue.note)}</p>
@@ -2441,41 +3115,36 @@ function renderWorkflowGuide(snapshot) {
 }
 
 function renderWorkLanguageGuide(snapshot) {
-  if (!['overview', 'requests', 'directory', 'overrides', 'studio', 'human_ask', 'conflicts', 'actions'].includes(state.view)) return '';
+  if (!shouldRenderWorkLanguageGuide(state.view)) return '';
   const summary = snapshot.unified_work_inbox?.summary || {};
   return `
     <section class="card stack">
       <div class="hero-heading">
         <div>
-          <div class="eyebrow muted">Work Language</div>
-          <h3 class="card-title">One set of words for every governed work item</h3>
-          <p class="card-subtitle">Requests, approvals, report records, recovery items, and studio drafts should read like one operating system, not separate tools with separate vocabularies.</p>
+          <div class="eyebrow muted">Work language</div>
+          <h3 class="card-title">Status language for fast decisions</h3>
+          <p class="card-subtitle">Keep one simple vocabulary across queues so the next action is obvious at a glance.</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(summary.primary_title || 'Governed Work')}</div>
+        <div class="hero-chip-row">${statusBadge(summary.primary_title || 'Governed work')}</div>
       </div>
       <div class="view-prelude-grid">
         <article class="view-prelude-card view-prelude-card-success">
           <span class="view-prelude-label">Ready</span>
-          <strong>AI can keep moving</strong>
-          <p class="muted">The governed lane is clear enough for the runtime to continue without a new human interruption.</p>
-        </article>
-        <article class="view-prelude-card view-prelude-card-accent">
-          <span class="view-prelude-label">Monitoring</span>
-          <strong>Visible, not yet stopping flow</strong>
-          <p class="muted">A human should keep an eye on it, but the runtime is still allowed to operate inside policy.</p>
+          <strong>AI can continue</strong>
+          <p class="muted">No extra human step is required right now.</p>
         </article>
         <article class="view-prelude-card view-prelude-card-warning">
           <span class="view-prelude-label">Human required</span>
-          <strong>A real decision is now needed</strong>
-          <p class="muted">The runtime crossed a human boundary and must wait for explicit review, approval, or clearance.</p>
+          <strong>Decision needed</strong>
+          <p class="muted">Runtime paused at a policy boundary and is waiting for review.</p>
         </article>
         <article class="view-prelude-card view-prelude-card-danger">
           <span class="view-prelude-label">Blocked</span>
-          <strong>The runtime cannot continue</strong>
-          <p class="muted">A governed path is fail-closed until someone resolves the issue or deliberately resumes it.</p>
+          <strong>Fix before continue</strong>
+          <p class="muted">A fail-closed condition is active and must be resolved first.</p>
         </article>
       </div>
-      <div class="trace-box"><strong>Work item definition</strong><p class="muted">A governed work item can be a request, AI action, override, Human Ask record, recovery item, or Studio draft. The dashboard should always tell you who owns it, what state it is in, and what happens next.</p></div>
+      <div class="trace-box"><strong>Definition</strong><p class="muted">Every governed item must show owner, state, and next move immediately.</p></div>
     </section>
   `;
 }
@@ -2515,9 +3184,19 @@ function buildViewCues(snapshot) {
   }
   if (state.view === 'requests') {
     return [
-      { label: 'Queue volume', value: summary.requests_total || requests.length, note: 'Visible governed submissions currently flowing through runtime intake.', tone: 'accent' },
-      { label: 'Pending overrides', value: pendingOverrides, note: 'Requests that crossed a human boundary and still need resolution.', tone: pendingOverrides ? 'warning' : 'success' },
-      { label: 'Conflict exposure', value: conflicts, note: 'Requests currently colliding with resource locks or consistency pressure.', tone: conflicts ? 'warning' : 'success' },
+      { label: 'Live demand', value: summary.requests_total || requests.length, note: 'How much governed work is currently entering or remaining visible in the intake lane.', tone: 'accent' },
+      { label: 'Human boundaries', value: pendingOverrides, note: pendingOverrides ? 'These requests already need a real human decision before flow can continue.' : 'No request is currently waiting on a new human boundary.', tone: pendingOverrides ? 'warning' : 'success' },
+      { label: 'Blocked by conflict', value: conflicts, note: conflicts ? 'Resolve contention here before asking the runtime to keep moving.' : 'The request lane is not currently stalled by lock or ordering pressure.', tone: conflicts ? 'danger' : 'success' },
+    ];
+  }
+  if (state.view === 'cases') {
+    const casesSummary = snapshot.cases?.summary || {};
+    const leadCase = Array.isArray(snapshot.cases?.items) ? snapshot.cases.items[0] || null : null;
+    const leadLane = VIEW_TITLES[leadCase?.primary_view || casesSummary.primary_view || 'requests'] || titleCase(leadCase?.primary_view || casesSummary.primary_view || 'requests');
+    return [
+      { label: 'Cases in motion', value: casesSummary.cases_total || 0, note: 'How many governed issues are currently stitched into one readable operating story.', tone: 'accent' },
+      { label: 'Next lane', value: leadLane, note: leadCase ? 'The lead case already points at the lane that owns the next real move.' : 'Once work lands here, Cases will point you to the right governed lane automatically.', tone: leadCase ? 'accent' : 'default' },
+      { label: 'Human boundaries', value: casesSummary.human_required_total || 0, note: 'Cases waiting for a real human decision rather than more clerical follow-through.', tone: (casesSummary.human_required_total || 0) ? 'warning' : 'success' },
     ];
   }
   if (state.view === 'directory') {
@@ -2572,9 +3251,9 @@ function buildViewCues(snapshot) {
   if (state.view === 'actions') {
     const actionsSummary = snapshot.actions?.summary || {};
     return [
-      { label: 'AI actions', value: actionsSummary.actions_total || 0, note: 'Governed AI executions currently visible in the runtime lane.', tone: 'accent' },
-      { label: 'Waiting human', value: actionsSummary.waiting_human_total || 0, note: 'AI actions paused because a real human decision is required before flow can continue.', tone: (actionsSummary.waiting_human_total || 0) ? 'warning' : 'success' },
-      { label: 'Document drafts', value: actionsSummary.document_artifact_total || 0, note: 'Governed documents created as side effects by the AI action runtime.', tone: (actionsSummary.document_artifact_total || 0) ? 'success' : 'default' },
+      { label: 'AI in flight', value: actionsSummary.running_total || 0, note: 'Governed actions actively moving right now inside case boundaries.', tone: (actionsSummary.running_total || 0) ? 'accent' : 'default' },
+      { label: 'Human follow-through', value: actionsSummary.waiting_human_total || 0, note: (actionsSummary.waiting_human_total || 0) ? 'AI already reached the handoff line. A person now owns the next move.' : 'No AI action is currently paused behind a new human boundary.', tone: (actionsSummary.waiting_human_total || 0) ? 'warning' : 'success' },
+      { label: 'Document side effects', value: actionsSummary.document_artifact_total || 0, note: 'Governed document artifacts created by the AI action runtime and kept inside the same story.', tone: (actionsSummary.document_artifact_total || 0) ? 'success' : 'default' },
     ];
   }
   if (state.view === 'health') {
@@ -3194,9 +3873,17 @@ function studioReadinessTone(readiness) {
 function updateNav() {
   const controlRoomAllowed = canAccessControlRoom();
   const activeView = (isControlRoomTool(state.view) || GOVERNANCE_EMBEDDED_VIEWS.has(state.view)) ? 'control_room' : state.view;
+  const guidedRawView = String(state.actionContext?.view || '').trim();
+  const guidedView = (isControlRoomTool(guidedRawView) || GOVERNANCE_EMBEDDED_VIEWS.has(guidedRawView)) ? 'control_room' : guidedRawView;
+  const guidedControlRoomTool = String(state.actionContext?.controlRoomTool || '').trim();
   if (governanceLauncher) {
     governanceLauncher.hidden = !controlRoomAllowed;
-    governanceLauncher.classList.toggle('is-active', activeView === 'control_room');
+    const isGovernanceActive = activeView === 'control_room';
+    const isGovernanceGuided = !isGovernanceActive && controlRoomAllowed && guidedView === 'control_room';
+    governanceLauncher.classList.toggle('is-active', isGovernanceActive);
+    governanceLauncher.classList.toggle('is-guided', isGovernanceGuided);
+    governanceLauncher.dataset.navState = isGovernanceActive ? 'current' : isGovernanceGuided ? 'next' : 'idle';
+    governanceLauncher.dataset.navLabel = isGovernanceActive ? 'current lane' : isGovernanceGuided ? 'next move' : '';
     governanceLauncher.setAttribute('aria-expanded', governanceSheet && !governanceSheet.hidden ? 'true' : 'false');
   }
   if (!controlRoomAllowed) {
@@ -3207,25 +3894,37 @@ function updateNav() {
     const itemView = item.dataset.view || '';
     const itemTool = String(item.dataset.controlRoomTool || '').trim();
     let isActive = itemView === activeView;
+    let isGuided = !isActive && itemView === guidedView;
     if (itemView === 'control_room' && itemTool) {
       isActive = activeView === 'control_room' && itemTool === activeControlRoomTool;
+      isGuided = !isActive && guidedView === 'control_room' && itemTool === (guidedControlRoomTool || getInitialControlRoomTool());
     } else if (itemView === 'control_room' && !itemTool) {
       isActive = activeView === 'control_room' && activeControlRoomTool === getInitialControlRoomTool();
+      isGuided = !isActive && guidedView === 'control_room' && (guidedControlRoomTool || getInitialControlRoomTool()) === getInitialControlRoomTool();
     }
     item.classList.toggle('is-active', isActive);
+    item.classList.toggle('is-guided', isGuided);
+    item.dataset.navState = isActive ? 'current' : isGuided ? 'next' : 'idle';
+    item.dataset.navLabel = isActive ? 'current lane' : isGuided ? 'next move' : '';
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   }
   if (governanceSheet) {
-    for (const item of governanceSheet.querySelectorAll('.governance-sheet-item')) {
+    rebuildGovernanceSheetFilterIndex();
+    for (const item of governanceSheetFilterState.allItems) {
       const itemView = item.dataset.view || '';
       const itemTool = String(item.dataset.controlRoomTool || '').trim();
       let isActive = itemView === activeView;
+      let isGuided = !isActive && itemView === guidedView;
       if (itemView === 'control_room' && itemTool) {
         isActive = activeView === 'control_room' && itemTool === activeControlRoomTool;
+        isGuided = !isActive && guidedView === 'control_room' && itemTool === (guidedControlRoomTool || getInitialControlRoomTool());
       } else if (itemView === 'control_room' && !itemTool) {
         isActive = activeView === 'control_room' && activeControlRoomTool === getInitialControlRoomTool();
+        isGuided = !isActive && guidedView === 'control_room' && (guidedControlRoomTool || getInitialControlRoomTool()) === getInitialControlRoomTool();
       }
       item.classList.toggle('is-active', isActive);
+      item.classList.toggle('is-guided', isGuided);
+      item.dataset.navState = isActive ? 'current' : isGuided ? 'next' : 'idle';
       item.setAttribute('aria-current', isActive ? 'page' : 'false');
     }
   }
@@ -3447,30 +4146,182 @@ function renderUnifiedWorkInbox(snapshot) {
   const summary = inbox.summary || {};
   const items = Array.isArray(inbox.items) ? inbox.items.slice(0, 6) : [];
   if (!items.length) return '';
+  const primaryViewLabel = VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview');
+  const primaryActionLabel = summary.primary_action_label || `Review in ${primaryViewLabel}`;
+  const primaryRouteNote = summary.primary_route_note || summary.primary_next_step || 'Open the lead governed lane and keep the next human boundary attached to the same work item.';
+  const humanBoundaryLane = items.find((item) => item.disposition === 'human_required') || null;
+  const blockedLane = items.find((item) => item.disposition === 'blocked') || null;
+  const readyLane = items.find((item) => item.disposition === 'ready' || item.disposition === 'autonomy_ready') || items.find((item) => item.status === 'ready') || items[0] || null;
   return `
-    <section class="card stack">
-      <div class="hero-heading">
-        <div>
-          <div class="eyebrow muted">Unified Work Inbox</div>
-          <h3 class="card-title">One work surface across approvals, blocked workflows, recovery, and studio promotion.</h3>
-          <p class="card-subtitle">Use this as the executive queue: what needs a human now, what is blocked, and which governed lane is the best next move.</p>
+      <section class="card stack">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Operations Map</div>
+            <h3 class="card-title">See where governed pressure is building before it becomes clerical chaos.</h3>
+            <p class="card-subtitle">Use this as the live board for human boundaries, blocked paths, and recovery pressure across the runtime. Each lane should tell you what the next move is, not just what exists.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(`${summary.open_total || 0} open`)}${statusBadge(`${summary.human_required_total || 0} human`)}</div>
         </div>
-        <div class="hero-chip-row">${statusBadge(`${summary.open_total || 0} open`)}${statusBadge(summary.primary_title || 'Autonomy ready')}</div>
+        ${keyValue([
+          ['Open work', String(summary.open_total || 0)],
+          ['Human required', String(summary.human_required_total || 0)],
+          ['Blocked paths', String(summary.blocked_total || 0)],
+          ['Ready lanes', String(summary.ready_total || 0)],
+          ['Lead lane', primaryViewLabel],
+        ])}
+        <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Open the lead governed lane and keep the next human boundary attached to the same work item.')}</p></div>
+        <div class="trace-box compact-trace command-inbox-consequence-box"><strong>If the lead lane pauses</strong><p class="muted">${escapeHtml(summary.primary_consequence_note || 'Keep the same governed story visible while the next move is still live.')}</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: summary.primary_view || 'overview', label: primaryActionLabel, className: 'action-button', focusType: summary.primary_focus_type || '', focusId: summary.primary_focus_id || '', caseId: summary.primary_case_id || '', title: `${summary.primary_title || primaryViewLabel} reopened from Work Inbox.`, detail: primaryRouteNote, actionLabel: primaryActionLabel })}
+        </div>
+        <div class="command-operation-shell">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Lane priorities</div>
+              <h4 class="card-title">Which queue should move first</h4>
+              <p class="card-subtitle">Keep the next human boundary, recovery path, and autonomy-ready lane visible without scanning every card in the inbox.</p>
+            </div>
+            <div class="hero-chip-row">${statusBadge(summary.human_required_total ? 'human boundary live' : (summary.blocked_total ? 'recovery live' : 'lanes stable'))}</div>
+          </div>
+          <div class="command-operation-grid">
+            ${renderWorkInboxMissionCard(humanBoundaryLane, {
+              eyebrow: 'Human boundary now',
+              fallbackTitle: 'No human boundary is waiting right now',
+              fallbackDetail: 'When a real person must approve, veto, or confirm direction, that lane will surface here first.',
+              fallbackView: summary.primary_view || 'overview',
+              fallbackActionLabel: `Open ${primaryViewLabel}`,
+              toneOverride: humanBoundaryLane ? 'warning' : 'success',
+            })}
+            ${renderWorkInboxMissionCard(blockedLane, {
+              eyebrow: 'Recovery lane',
+              fallbackTitle: 'No blocked lane is visible right now',
+              fallbackDetail: 'If a governed path fails closed or collides with contention, this slot becomes the first recovery move.',
+              fallbackView: 'conflicts',
+              fallbackActionLabel: 'Open Conflicts',
+              toneOverride: blockedLane ? 'danger' : 'success',
+            })}
+            ${renderWorkInboxMissionCard(readyLane, {
+              eyebrow: 'Ready lane',
+              fallbackTitle: 'No ready lane is visible yet',
+              fallbackDetail: 'As soon as a lane can safely keep moving without a new human gate, it will surface here.',
+              fallbackView: summary.primary_view || 'overview',
+              fallbackActionLabel: `Open ${primaryViewLabel}`,
+              toneOverride: readyLane ? (readyLane.disposition === 'human_required' ? 'warning' : readyLane.disposition === 'blocked' ? 'danger' : 'accent') : 'success',
+            })}
+          </div>
+        </div>
+        <div class="view-prelude-grid">
+          ${items.map((item) => renderUnifiedWorkInboxItem(item)).join('')}
+        </div>
+      </section>
+    `;
+}
+
+
+function buildLaneContinuityState(snapshot, currentView, leadItem = {}) {
+  const summary = snapshot.unified_work_inbox?.summary || {};
+  const currentViewLabel = VIEW_TITLES[currentView] || titleCase(currentView || 'overview');
+  const caseId = getActionContextCaseId() || leadItem.case_id || summary.primary_case_id || '';
+  const caseItem = getCaseById(snapshot, caseId) || (Array.isArray(snapshot?.cases?.items) ? snapshot.cases.items[0] || null : null);
+  const continuity = caseItem?.continuity || {};
+  const nextView = continuity.next_view || leadItem.view || summary.primary_view || currentView || 'overview';
+  const nextViewLabel = VIEW_TITLES[nextView] || titleCase(nextView || 'overview');
+  const nextFocus = caseItem
+    ? resolveCasePrimaryFocus(caseItem, nextView)
+    : { entityType: leadItem.focus_type || '', entityId: leadItem.focus_id || '' };
+  const caseTitle = caseItem?.title || (caseId ? `Case ${caseId}` : (leadItem.title || 'No case anchor yet'));
+  const questLabel = continuity.next_label || leadItem.action_label || `Open ${nextViewLabel}`;
+  const questDetail = continuity.next_detail || leadItem.next_step || summary.primary_next_step || `Keep ${currentViewLabel} tied to the next governed move.`;
+  const proofLabel = continuity.evidence_posture || ((caseItem?.workflow_proof_total || 0) > 0 ? 'proof attached' : 'proof starting');
+  const pressureLabel = caseItem
+    ? getCaseMissionBadge(caseItem)
+    : (leadItem.disposition === 'human_required'
+      ? 'human boundary'
+      : leadItem.disposition === 'blocked'
+        ? 'recovery'
+        : leadItem.disposition === 'ready' || leadItem.disposition === 'autonomy_ready'
+          ? 'move in flight'
+          : 'continuity');
+  const consequenceDetail = caseItem
+    ? (String(caseItem.status || '').trim() === 'human_required'
+      ? 'A real person owns the next safe move. Leaving the case here keeps the runtime at the approval boundary.'
+      : String(caseItem.status || '').trim() === 'blocked'
+        ? 'This story cannot safely advance until recovery clears the blocked path and reopens the case route.'
+        : ((Number(caseItem.workflow_proof_total || 0) > 0 || Number(caseItem.evidence_export_total || 0) > 0)
+          ? 'Proof and follow-through are already part of the mission. Carry them forward before opening fresh work.'
+          : 'This lane can keep moving, but it should stay attached to the same governed story so context does not scatter.'))
+    : (summary.primary_consequence_note || 'Keep the same governed story visible while the next move is still live.');
+  return {
+    currentViewLabel,
+    caseId,
+    caseItem,
+    caseTitle,
+    nextView,
+    nextViewLabel,
+    nextFocus,
+    questLabel,
+    questDetail,
+    proofLabel,
+    pressureLabel,
+    consequenceDetail,
+  };
+}
+
+function renderLaneContinuityBoard(continuityState) {
+  if (!continuityState) return '';
+  const hasCaseAnchor = Boolean(continuityState.caseId);
+  return `
+      <div class="lane-continuity-board">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Operation continuity</div>
+            <h4 class="card-title">Keep the same governed story visible while moving through ${escapeHtml(continuityState.currentViewLabel)}</h4>
+            <p class="card-subtitle">${escapeHtml(continuityState.questDetail)}</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(hasCaseAnchor ? `case ${continuityState.caseId}` : 'case anchor pending')}${statusBadge(continuityState.pressureLabel)}</div>
+        </div>
+        <div class="lane-continuity-grid">
+          <article class="mini-card lane-continuity-card">
+            <div class="eyebrow muted">Case anchor</div>
+            <strong>${escapeHtml(continuityState.caseTitle)}</strong>
+            <p class="muted">${escapeHtml(hasCaseAnchor ? `Use ${continuityState.caseId} as the canonical mission anchor while you move across lanes.` : 'Pick or generate a canonical case so the next move, proof, and follow-through stay attached.')}</p>
+            ${renderViewJumpButton({
+              view: 'cases',
+              label: hasCaseAnchor ? 'Open anchor case' : 'Open Cases',
+              className: 'action-button action-button-muted',
+              focusType: hasCaseAnchor ? 'case' : '',
+              focusId: continuityState.caseId || '',
+              caseId: continuityState.caseId || '',
+              title: hasCaseAnchor ? `Case ${continuityState.caseId} reopened in Cases.` : 'Cases reopened.',
+              detail: 'Use Cases when you need the full linked story again before switching lanes.',
+              actionLabel: hasCaseAnchor ? 'Open anchor case' : 'Open Cases',
+            })}
+          </article>
+          <article class="mini-card lane-continuity-card lane-continuity-card-featured">
+            <div class="eyebrow muted">Next governed move</div>
+            <strong>${escapeHtml(continuityState.questLabel)}</strong>
+            <p class="muted">${escapeHtml(continuityState.questDetail)}</p>
+            ${renderViewJumpButton({
+              view: continuityState.nextView,
+              label: `Open ${continuityState.nextViewLabel}`,
+              className: 'action-button',
+              focusType: continuityState.nextFocus.entityType,
+              focusId: continuityState.nextFocus.entityId,
+              caseId: continuityState.caseId || '',
+              title: continuityState.caseId ? `Case ${continuityState.caseId} reopened in ${continuityState.nextViewLabel}.` : `${continuityState.nextViewLabel} reopened.`,
+              detail: continuityState.questDetail,
+              actionLabel: `Open ${continuityState.nextViewLabel}`,
+            })}
+          </article>
+          <article class="mini-card lane-continuity-card">
+            <div class="eyebrow muted">If you pause here</div>
+            <strong>${escapeHtml(continuityState.proofLabel)}</strong>
+            <p class="muted">${escapeHtml(continuityState.consequenceDetail)}</p>
+            <span class="permission-note">${escapeHtml(`Pressure: ${continuityState.pressureLabel} | Next lane: ${continuityState.nextViewLabel}`)}</span>
+          </article>
+        </div>
       </div>
-      ${keyValue([
-        ['Open work', String(summary.open_total || 0)],
-        ['Human required', String(summary.human_required_total || 0)],
-        ['Blocked', String(summary.blocked_total || 0)],
-        ['Monitoring', String(summary.monitoring_total || 0)],
-        ['Ready lanes', String(summary.ready_total || 0)],
-        ['Primary move', titleCase(summary.primary_view || 'overview')],
-      ])}
-      <div class="trace-box"><strong>Primary next move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Continue governed execution.')}</p></div>
-      <div class="view-prelude-grid">
-        ${items.map((item) => renderUnifiedWorkInboxItem(item)).join('')}
-      </div>
-    </section>
-  `;
+    `;
 }
 
 function renderFocusedWorkInbox(snapshot, currentView) {
@@ -3478,21 +4329,30 @@ function renderFocusedWorkInbox(snapshot, currentView) {
   const summary = inbox.summary || {};
   const items = selectFocusedInboxItems(Array.isArray(inbox.items) ? inbox.items : [], currentView);
   if (!items.length) return '';
+  const currentViewLabel = VIEW_TITLES[currentView] || titleCase(currentView || 'overview');
+  const leadItem = items[0] || {};
+  const continuityState = buildLaneContinuityState(snapshot, currentView, leadItem);
   return `
-    <section class="card stack">
-      <div class="hero-heading">
-        <div>
-          <div class="eyebrow muted">Next Governed Work</div>
-          <h3 class="card-title">What matters most from this lane right now</h3>
-          <p class="card-subtitle">Stay inside the current workflow, but keep the next human boundary or blocked path visible without going back to Overview.</p>
+      <section class="card stack">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Next Governed Work</div>
+            <h3 class="card-title">What should happen next from ${escapeHtml(currentViewLabel)}</h3>
+            <p class="card-subtitle">Stay inside this workflow, but keep the next human boundary, blocked path, or case-continuity move visible without going back to Home.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(currentViewLabel)}${statusBadge(`${summary.open_total || 0} open`)}${continuityState.caseId ? statusBadge(`case ${continuityState.caseId}`) : ''}</div>
         </div>
-        <div class="hero-chip-row">${statusBadge(titleCase(currentView || 'overview'))}${statusBadge(`${summary.open_total || 0} open`)}</div>
-      </div>
-      <div class="view-prelude-grid">
-        ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
-      </div>
-    </section>
-  `;
+        <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(leadItem.next_step || summary.primary_next_step || 'Keep the next move visible from the same lane.')}</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: leadItem.view || currentView || 'overview', label: leadItem.action_label || `Review in ${currentViewLabel}`, className: 'action-button', focusType: leadItem.focus_type || '', focusId: leadItem.focus_id || '', caseId: leadItem.case_id || '', title: `${leadItem.title || currentViewLabel} reopened from ${currentViewLabel}.`, detail: leadItem.route_note || leadItem.next_step || 'Continue from this governed lane without losing the case story.', actionLabel: leadItem.action_label || `Review in ${currentViewLabel}` })}
+          ${continuityState.caseId ? renderViewJumpButton({ view: 'cases', label: 'Open anchor case', className: 'action-button action-button-muted', focusType: 'case', focusId: continuityState.caseId, caseId: continuityState.caseId, title: `Case ${continuityState.caseId} reopened in Cases.`, detail: 'Return to the canonical case when you need the full linked story, proof, and follow-through again.', actionLabel: 'Open anchor case' }) : ''}
+        </div>
+        ${renderLaneContinuityBoard(continuityState)}
+        <div class="view-prelude-grid">
+          ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
+        </div>
+      </section>
+    `;
 }
 
 function selectFocusedInboxItems(items, currentView) {
@@ -3510,23 +4370,104 @@ function renderUnifiedWorkInboxItem(item, { compact = false } = {}) {
     ? ' view-prelude-card-danger'
     : item.tone === 'warning'
       ? ' view-prelude-card-warning'
-      : '';
-  const queueSummary = `${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h | ref ${item.oldest_reference || '-'}`;
+      : item.tone === 'success'
+        ? ' view-prelude-card-success'
+        : ' view-prelude-card-accent';
+  const pressureLabel = item.disposition === 'human_required'
+    ? 'human boundary'
+    : item.disposition === 'blocked'
+      ? 'blocked path'
+      : item.disposition === 'ready' || item.disposition === 'autonomy_ready'
+        ? 'autonomy ready'
+        : item.disposition || 'monitoring';
+  const viewLabel = VIEW_TITLES[item.view] || titleCase(item.view || 'overview');
+  const queueSummary = `${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h`;
+  const operatorNote = item.operator_note || item.next_step || 'Review the next governed move.';
+  const caseLabel = item.case_id ? `Case ${item.case_id}` : 'No case anchor';
+  const routeNote = item.route_note || (item.case_id ? `Case ${item.case_id} stays attached to this lane.` : `Use ${viewLabel} to inspect the next governed route.`);
+  const actionLabel = item.action_label || `Review in ${viewLabel}`;
+  const focusType = item.focus_type || '';
+  const focusId = item.focus_id || '';
+  const focusClass = focusType && focusId && isFocusedEntity(focusType, focusId) ? ' focused-record' : '';
+  const focusAttrs = focusType && focusId ? ` data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}"` : '';
   return `
-    <article class="view-prelude-card${toneClass}">
-      <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
-      <strong>${escapeHtml(item.title || 'Governed work lane')}</strong>
-      <p class="muted">${escapeHtml(queueSummary)}</p>
-      <div class="hero-chip-row">${statusBadge(item.disposition || 'monitoring')}${statusBadge(item.status || 'ready')}</div>
-      <p class="muted">${escapeHtml(item.next_step || 'Review the next governed move.')}</p>
-      ${refs.length ? `<div class="hero-chip-row">${refs.map((ref) => `<span class="pill">${escapeHtml(ref)}</span>`).join('')}</div>` : ''}
-      <div class="inline-actions">
-        <button class="action-button${compact ? ' action-button-muted' : ''}" type="button" data-view-jump="${escapeHtml(item.view || 'overview')}">${escapeHtml(item.action_label || `Open ${titleCase(item.view || 'overview')}`)}</button>
+      <article class="view-prelude-card${toneClass}${focusClass}"${focusAttrs}>
+        <span class="view-prelude-label">${escapeHtml(titleCase(item.lane_id || 'lane'))}</span>
+        <strong>${escapeHtml(item.title || 'Governed work lane')}</strong>
+        <div class="hero-chip-row">${statusBadge(pressureLabel)}${statusBadge(item.status || 'ready')}${statusBadge(viewLabel)}</div>
+        <div class="transition-route command-inbox-route">
+          <span class="transition-node transition-node-active">${escapeHtml(caseLabel)}</span>
+          <span class="transition-arrow">&rarr;</span>
+          <span class="transition-node">${escapeHtml(pressureLabel)}</span>
+          <span class="transition-arrow">&rarr;</span>
+          <span class="transition-node">${escapeHtml(viewLabel)}</span>
+        </div>
+        <p class="muted">${escapeHtml(item.next_step || 'Review the next governed move.')}</p>
+        <p class="command-inbox-card-meta">${escapeHtml(queueSummary)}</p>
+        <p class="muted small command-inbox-route-note">${escapeHtml(routeNote)}</p>
+        ${compact ? '' : `<p class="muted small">${escapeHtml(operatorNote)}</p>`}
+        ${refs.length ? `<div class="hero-chip-row">${refs.map((ref) => `<span class="pill">${escapeHtml(ref)}</span>`).join('')}</div>` : ''}
+        <div class="inline-actions">
+          <button class="action-button${compact ? ' action-button-muted' : ''}" type="button" ${buildViewJumpAttributes({
+            view: item.view || 'overview',
+            focusType,
+            focusId,
+            caseId: item.case_id || '',
+            title: `${item.title || 'Governed work lane'} opened in ${viewLabel}.`,
+            detail: item.next_step || operatorNote,
+            actionLabel,
+          })}>${escapeHtml(actionLabel)}</button>
+        </div>
+      </article>
+    `;
+}
+
+
+
+
+function renderWorkInboxMissionCard(item, options = {}) {
+  const fallbackView = options.fallbackView || 'overview';
+  if (!item) {
+    const fallbackViewLabel = VIEW_TITLES[fallbackView] || titleCase(fallbackView || 'overview');
+    return `
+      <article class="command-action-card tone-success command-workforce-card">
+        <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+        <strong>${escapeHtml(options.fallbackTitle || 'No active mission')}</strong>
+        <p class="muted">${escapeHtml(options.fallbackDetail || 'This slot will light up when a queue truly needs direction.')}</p>
+        <div class="trace-box compact-trace"><strong>${escapeHtml(options.fallbackActionLabel || `Open ${fallbackViewLabel}`)}</strong><p class="muted">${escapeHtml(`Use ${fallbackViewLabel} when you want to inspect the broader queue instead of a single mission lane.`)}</p></div>
+        ${renderViewJumpButton({ view: fallbackView, label: options.fallbackActionLabel || `Open ${fallbackViewLabel}`, className: 'action-button action-button-muted', title: `${fallbackViewLabel} reopened from Work Inbox.`, detail: options.fallbackDetail || `Use ${fallbackViewLabel} to inspect the next governed lane.`, actionLabel: options.fallbackActionLabel || `Open ${fallbackViewLabel}` })}
+      </article>
+    `;
+  }
+  const view = item.view || options.fallbackView || 'overview';
+  const viewLabel = VIEW_TITLES[view] || titleCase(view || 'overview');
+  const tone = options.toneOverride || (item.tone === 'danger' ? 'danger' : item.tone === 'warning' ? 'warning' : item.tone === 'success' ? 'success' : 'accent');
+  const refs = Array.isArray(item.sample_references) ? item.sample_references.slice(0, 2).filter(Boolean).join(' | ') : '';
+  const actionLabel = item.action_label || `Review in ${viewLabel}`;
+  const routeNote = item.route_note || (item.case_id ? `Case ${item.case_id} stays attached to this lane.` : `Use ${viewLabel} to inspect the next governed route.`);
+  const focusType = item.focus_type || '';
+  const focusId = item.focus_id || '';
+  const focusClass = focusType && focusId && isFocusedEntity(focusType, focusId) ? ' focused-record' : '';
+  const focusAttrs = focusType && focusId ? ` data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}"` : '';
+  return `
+    <article class="command-action-card tone-${escapeHtml(tone)} command-workforce-card${focusClass}"${focusAttrs}>
+      <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+      <strong>${escapeHtml(item.title || 'Governed lane')}</strong>
+      <div class="transition-route command-inbox-route">
+        <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'Lead lane')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.disposition || 'monitoring')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(viewLabel)}</span>
       </div>
+      <p class="muted">${escapeHtml(item.next_step || item.operator_note || 'Review the next governed move.')}</p>
+      <p class="muted small command-inbox-route-note">${escapeHtml(routeNote)}</p>
+      <div class="trace-box compact-trace command-inbox-consequence-box"><strong>${escapeHtml(item.disposition === 'human_required' ? 'If this waits here' : item.disposition === 'blocked' ? 'If this stays blocked' : 'If this keeps moving')}</strong><p class="muted">${escapeHtml(item.disposition === 'human_required' ? 'A real human still owns the safe next move for this case.' : item.disposition === 'blocked' ? 'Recovery must reopen the path before the wider operation can advance.' : 'Keep the same case visible so the next lane does not lose continuity.')}</p></div>
+      <div class="trace-box compact-trace"><strong>${escapeHtml(actionLabel)}</strong><p class="muted">${escapeHtml(`${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h${refs ? ` | refs ${refs}` : ''}`)}</p></div>
+      ${renderViewJumpButton({ view, label: actionLabel, className: 'action-button', focusType, focusId, caseId: item.case_id || '', title: `${item.title || 'Governed lane'} opened in ${viewLabel}.`, detail: item.next_step || item.operator_note || 'Continue from the lane that owns the next move.', actionLabel })}
     </article>
   `;
 }
-
 
 function renderFirstRunReadinessCard(firstRunReadiness) {
   if (!firstRunReadiness || typeof firstRunReadiness !== 'object') return '';
@@ -4031,14 +4972,29 @@ function renderCases(snapshot) {
   const latestCaseLabel = leadCase
     ? `${leadCase.case_id} | ${shortTime(leadCase.updated_at)}`
     : 'No linked governed issue has been grouped into a case yet.';
+  const leadCaseView = leadCase?.primary_view || summary.primary_view || 'requests';
+  const leadCaseViewLabel = VIEW_TITLES[leadCaseView] || titleCase(leadCaseView || 'requests');
+  const leadCaseFocus = leadCase ? resolveCasePrimaryFocus(leadCase, leadCaseView) : { entityType: '', entityId: '' };
+  const humanBoundaryCase = items.find((item) => String(item.status || '').trim() === 'human_required') || null;
+  const blockedCase = items.find((item) => String(item.status || '').trim() === 'blocked') || null;
+  const attentionCase = items.find((item) => String(item.status || '').trim() === 'attention_required') || null;
+  const proofCase = items.find((item) => Number(item.workflow_proof_total || 0) > 0 || Number(item.evidence_export_total || 0) > 0) || null;
+  const followThroughCase = blockedCase || attentionCase || proofCase || items[1] || leadCase;
+  const missionPressure = summary.human_required_total
+    ? 'Human boundary decisions are shaping the board right now.'
+    : summary.blocked_total
+      ? 'Recovery pressure is shaping the board right now.'
+      : summary.attention_total
+        ? 'Operator follow-through is shaping the board right now.'
+        : 'The board is stable; keep the lead case moving and its proof attached.';
   return `
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
         <div class="hero-heading">
           <div>
             <div class="eyebrow muted">Canonical Case Backbone</div>
-            <h2 class="hero-title">Track one governed issue across requests, approvals, records, and proof.</h2>
-            <p class="hero-subtitle">Cases keep the working lane, human boundary, Human Ask record, and audit history tied to the same operating story so the next move is easier to see.</p>
+            <h2 class="hero-title">Follow one governed issue across every lane without rebuilding the story by hand.</h2>
+            <p class="hero-subtitle">Cases keep the working lane, human boundary, Human Ask record, AI actions, documents, and audit history tied to the same operating story so the next move is easier to see.</p>
           </div>
           <div class="hero-chip-row">
             ${statusBadge(summary.human_required_total ? 'human required' : (summary.blocked_total ? 'blocked paths present' : 'linked cases stable'))}
@@ -4051,38 +5007,203 @@ function renderCases(snapshot) {
             ['Human required', String(summary.human_required_total || 0)],
             ['Blocked', String(summary.blocked_total || 0)],
             ['Attention', String(summary.attention_total || 0)],
-            ['Primary lane', VIEW_TITLES[summary.primary_view] || titleCase(summary.primary_view || 'overview')],
+            ['Primary lane', leadCaseViewLabel],
           ])}
           <div class="hero-note">
             <strong>Operator standard</strong>
-            <p>Stay with the case until the issue is either resolved, handed to the correct human boundary, or fully documented with enough proof for later review.</p>
+            <p>Stay with the case until the issue is either resolved, handed to the correct human boundary, or fully documented with enough proof for later review. The case should feel like the mission, not just another record.</p>
           </div>
         </div>
       </article>
       <article class="card hero-card hero-card-secondary">
         <div>
-          <div class="eyebrow muted">Case reading guide</div>
-          <h3 class="card-title">What this lane answers quickly</h3>
-          <p class="card-subtitle">Use Cases when the same business issue now spans more than one runtime surface and you do not want to reconstruct the story by hand.</p>
+          <div class="eyebrow muted">Lead case in view</div>
+          <h3 class="card-title">${escapeHtml(leadCase ? (leadCase.title || leadCase.case_id || 'Lead governed case') : 'Open Requests to seed the first linked case')}</h3>
+          <p class="card-subtitle">${escapeHtml(leadCase ? (leadCase.continuity?.next_detail || 'This case already points at the lane that owns the next governed move.') : 'Cases becomes powerful once a governed request, Human Ask record, or document flow has enough continuity to stitch into one operating story.')}</p>
         </div>
         ${keyValue([
           ['Latest case', latestCaseLabel],
+          ['Next lane', leadCaseViewLabel],
+          ['Proof stance', leadCase?.continuity?.evidence_posture || 'proof starting'],
+          ['Timeline', String(leadCase?.timeline_total || 0)],
+          ['Documents linked', String((leadCase?.linked_document_ids || []).length)],
+        ])}
+        <div class="inline-actions">
+          ${leadCase ? renderViewJumpButton({ view: leadCaseView, label: `Open ${leadCaseViewLabel}`, className: 'action-button', focusType: leadCaseFocus.entityType, focusId: leadCaseFocus.entityId, caseId: leadCase.case_id, title: `Case ${leadCase.case_id} reopened in ${leadCaseViewLabel}.`, detail: leadCase.continuity?.next_detail || 'Continue the same governed issue from its lead lane.', actionLabel: `Open ${leadCaseViewLabel}` }) : renderViewJumpButton({ view: 'requests', label: 'Open Requests', className: 'action-button', title: 'Requests reopened from Cases.', detail: 'Start the first governed request so Cases has a linked issue to track.', actionLabel: 'Open Requests' })}
+          ${renderViewJumpButton({ view: 'actions', label: 'Open AI Actions', className: 'action-button action-button-muted', caseId: leadCase?.case_id || '', title: leadCase?.case_id ? `Case ${leadCase.case_id} reopened in AI Actions.` : 'AI Actions reopened from Cases.', detail: 'Use AI Actions when the case is ready for governed execution inside the same story.', actionLabel: 'Open AI Actions' })}
+        </div>
+      </article>
+    </section>
+    <section class="case-mission-board">
+      <div class="case-mission-board-head">
+        <div>
+          <div class="eyebrow muted">Mission board</div>
+          <h3 class="card-title">Which governed stories need direction now</h3>
+          <p class="card-subtitle">${escapeHtml(missionPressure)}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(summary.human_required_total ? 'human boundary live' : (summary.blocked_total ? 'recovery in flight' : 'stable board'))}
+        </div>
+      </div>
+      <div class="case-mission-priority-grid">
+        ${renderCaseMissionPriorityCard(leadCase, {
+          eyebrow: 'Lead mission',
+          fallbackTitle: 'No lead case is visible yet',
+          fallbackDetail: 'Open Requests and let the runtime stitch the first governed issue into a canonical case.',
+          fallbackView: 'requests',
+          fallbackActionLabel: 'Open Requests',
+          titleOverride: leadCase ? (leadCase.title || leadCase.case_id || 'Lead governed case') : '',
+          detailOverride: leadCase?.continuity?.next_detail || 'Keep the primary case moving so the rest of the board stays readable.',
+        })}
+        ${renderCaseMissionPriorityCard(humanBoundaryCase, {
+          eyebrow: 'Human boundary now',
+          fallbackTitle: 'No human boundary is waiting right now',
+          fallbackDetail: 'When AI or workflow pressure crosses a real approval line, the case will surface here first.',
+          fallbackView: leadCaseView,
+          fallbackActionLabel: `Open ${leadCaseViewLabel}`,
+          detailOverride: humanBoundaryCase?.continuity?.next_detail || 'A real human decision is now the only safe next move for this case.',
+          badgeOverride: 'human boundary',
+          toneOverride: humanBoundaryCase ? 'warning' : 'success',
+        })}
+        ${renderCaseMissionPriorityCard(followThroughCase, {
+          eyebrow: blockedCase ? 'Recovery mission' : 'Follow-through queue',
+          fallbackTitle: 'No stalled or proof-led mission is visible',
+          fallbackDetail: 'Use this slot to keep recovery, proof follow-through, or operator pressure visible without reopening every case card.',
+          fallbackView: 'audit',
+          fallbackActionLabel: 'Open Audit',
+          detailOverride: followThroughCase?.continuity?.next_detail || (blockedCase ? 'Recover the blocked path and reopen safe governed flow.' : 'Keep proof, audit, and operator follow-through attached to the same case story.'),
+          badgeOverride: blockedCase ? 'recovery' : undefined,
+          toneOverride: blockedCase ? 'danger' : undefined,
+        })}
+      </div>
+    </section>
+    <section class="split-grid">
+      <article class="card stack case-lane-doctrine-card">
+        <div><div class="eyebrow muted">Case mission</div><h3 class="card-title">What this lane should make easy</h3><p class="card-subtitle">Cases should answer what the issue is, what changed last, and which lane owns the next move.</p></div>
+        ${keyValue([
           ['Trace model', 'Request to override to record to audit'],
           ['Primary job', 'Follow the issue, not just the individual event'],
           ['Proof stance', 'Keep the human and AI narrative attached'],
+          ['Escalation discipline', 'Use the case to keep boundary changes visible'],
         ])}
-        <div class="trace-box"><strong>Case note</strong><p class="muted">A case is not a new source of truth. It is the stitched operating view built from the governed records the runtime already captured.</p></div>
       </article>
-    </section>
-    <section class="metrics-grid metrics-grid-luxury">
-      ${metricCard('Cases', summary.cases_total || 0, 'accent', 'Linked governed issues currently visible in the dashboard work surface.')}
-      ${metricCard('Human required', summary.human_required_total || 0, (summary.human_required_total || 0) ? 'warning' : 'success', 'Cases currently waiting on a real human decision or boundary confirmation.')}
-      ${metricCard('Blocked', summary.blocked_total || 0, (summary.blocked_total || 0) ? 'danger' : 'success', 'Cases currently held behind a blocked outcome or vetoed path.')}
-      ${metricCard('Attention', summary.attention_total || 0, (summary.attention_total || 0) ? 'warning' : 'success', 'Cases that still need extra operator follow-through even if they are not hard blocked.')}
+      <article class="card stack case-lane-doctrine-card">
+        <div><div class="eyebrow muted">Use the right follow-through</div><h3 class="card-title">Keep the story moving from one lane to the next</h3><p class="card-subtitle">The case is the safest place to pivot between requests, human decisions, AI work, documents, and proof without losing continuity.</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: leadCaseView, label: `Open ${leadCaseViewLabel}`, className: 'action-button', focusType: leadCaseFocus.entityType, focusId: leadCaseFocus.entityId, caseId: leadCase?.case_id || '', title: leadCase?.case_id ? `Case ${leadCase.case_id} reopened in ${leadCaseViewLabel}.` : `${leadCaseViewLabel} reopened from Cases.`, detail: 'Continue the lead lane that currently owns the issue.', actionLabel: `Open ${leadCaseViewLabel}` })}
+          ${renderViewJumpButton({ view: 'audit', label: 'Open Audit', className: 'action-button action-button-muted', caseId: leadCase?.case_id || '', title: leadCase?.case_id ? `Case ${leadCase.case_id} reopened in Audit.` : 'Audit reopened from Cases.', detail: 'Use Audit when the next question is about proof, rationale, or what happened before.', actionLabel: 'Open Audit' })}
+        </div>
+      </article>
     </section>
     <section class="case-grid">
       ${items.length ? items.map((item) => renderCaseCard(item)).join('') : renderCaseEmptyState()}
     </section>
+  `;
+}
+
+function getCaseMissionTone(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'blocked') return 'danger';
+  if (status === 'human_required' || status === 'attention_required') return 'warning';
+  if (status === 'resolved' || status === 'completed') return 'success';
+  return 'accent';
+}
+
+function getCaseMissionBadge(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'human_required') return 'human boundary';
+  if (status === 'blocked') return 'recovery';
+  if (status === 'attention_required') return 'follow-through';
+  if (status === 'active') return 'in motion';
+  if (status) return status.replace(/_/g, ' ');
+  return 'stable';
+}
+
+function renderCaseMissionPriorityCard(item, options = {}) {
+  const fallbackView = options.fallbackView || 'requests';
+  if (!item) {
+    const fallbackViewLabel = VIEW_TITLES[fallbackView] || titleCase(fallbackView || 'requests');
+    return `
+      <article class="card stack case-mission-priority tone-success">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+            <h3 class="card-title">${escapeHtml(options.fallbackTitle || 'No mission is active here')}</h3>
+            <p class="card-subtitle">${escapeHtml(options.fallbackDetail || 'This slot will surface the next governed case when pressure appears.')}</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge('stable')}</div>
+        </div>
+        <div class="trace-box compact-trace">
+          <strong>${escapeHtml(options.fallbackActionLabel || `Open ${fallbackViewLabel}`)}</strong>
+          <p>${escapeHtml(`Use ${fallbackViewLabel} to seed or review the next governed story.`)}</p>
+        </div>
+        ${renderViewJumpButton({ view: fallbackView, label: options.fallbackActionLabel || `Open ${fallbackViewLabel}`, className: 'action-button action-button-muted', title: `${fallbackViewLabel} reopened from Cases.`, detail: options.fallbackDetail || `Use ${fallbackViewLabel} to surface the next governed issue.`, actionLabel: options.fallbackActionLabel || `Open ${fallbackViewLabel}` })}
+      </article>
+    `;
+  }
+  const continuity = item.continuity || {};
+  const nextView = continuity.next_view || item.primary_view || fallbackView;
+  const nextViewLabel = VIEW_TITLES[nextView] || titleCase(nextView || 'requests');
+  const focus = resolveCasePrimaryFocus(item, nextView);
+  const linkedWorkTotal = [
+    (item.linked_request_ids || []).length,
+    (item.linked_override_ids || []).length,
+    (item.linked_session_ids || []).length,
+    (item.linked_action_ids || []).length,
+    (item.linked_document_ids || []).length,
+    (item.linked_workflow_ids || []).length,
+    (item.linked_studio_request_ids || []).length,
+  ].reduce((total, value) => total + Number(value || 0), 0);
+  const tone = options.toneOverride || getCaseMissionTone(item);
+  const badge = options.badgeOverride || getCaseMissionBadge(item);
+  const questLabel = continuity.next_label || `Open ${nextViewLabel}`;
+  const questPhaseLabel = continuity.quest_phase_label || 'Live motion';
+  const questPhaseDetail = continuity.quest_phase_detail || 'Keep the governed story moving from the owning lane.';
+  return `
+    <article class="card stack case-mission-priority tone-${escapeHtml(tone)}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+          <h3 class="card-title">${escapeHtml(options.titleOverride || item.title || item.case_id || 'Governed case')}</h3>
+          <p class="card-subtitle">${escapeHtml(options.detailOverride || continuity.next_detail || 'Continue the governed issue from its owning lane.')}</p>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(badge)}
+          ${statusBadge(nextViewLabel)}
+        </div>
+      </div>
+      <div class="trace-box compact-trace">
+        <strong>${escapeHtml(questLabel)}</strong>
+        <p>${escapeHtml(`${questPhaseLabel} | ${item.case_id || 'Case'} | ${continuity.evidence_posture || 'proof starting'} | ${linkedWorkTotal} linked signals`)}</p>
+      </div>
+      <p class="muted small command-momentum-note">${escapeHtml(questPhaseDetail)}</p>
+      ${keyValue([
+        ['Updated', shortTime(item.updated_at)],
+        ['Quest phase', questPhaseLabel],
+        ['Timeline', String(item.timeline_total || 0)],
+        ['Work linked', String(linkedWorkTotal)],
+      ])}
+      ${renderViewJumpButton({ view: nextView, label: `Open ${nextViewLabel}`, className: 'action-button', focusType: focus.entityType, focusId: focus.entityId, caseId: item.case_id, title: item.case_id ? `Case ${item.case_id} reopened in ${nextViewLabel}.` : `Opened ${nextViewLabel}.`, detail: continuity.next_detail || 'Continue the governed issue from its next owning lane.', actionLabel: `Open ${nextViewLabel}` })}
+    </article>
+  `;
+}
+
+function renderCaseQuestStep(item) {
+  const continuity = item.continuity || {};
+  const questPhaseLabel = continuity.quest_phase_label || item.quest_phase_label || 'Live motion';
+  const questPhaseDetail = continuity.quest_phase_detail || item.quest_phase_detail || 'Keep the governed story moving from its owning lane.';
+  const proofLabel = continuity.evidence_posture || 'proof starting';
+  return `
+    <div class="trace-box case-quest-step">
+      <div class="case-quest-step-head">
+        <div>
+          <div class="eyebrow muted">Quest step</div>
+          <strong>${escapeHtml(questPhaseLabel)}</strong>
+        </div>
+        <div class="hero-chip-row">${statusBadge(proofLabel)}</div>
+      </div>
+      <p class="muted">${escapeHtml(questPhaseDetail)}</p>
+    </div>
   `;
 }
 
@@ -4135,6 +5256,27 @@ function renderCaseWorkItems(item) {
           </article>
         `;
       }).join('')}
+    </div>
+  `;
+}
+
+function renderCaseProgressRoute(item) {
+  const continuity = item.continuity || {};
+  const primaryView = item.primary_view || 'requests';
+  const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView || 'requests');
+  const nextMoveLabel = continuity.next_label || 'Human boundary';
+  const proofLabel = continuity.evidence_posture || 'Proof posture';
+  return `
+    <div class="case-progress-panel">
+      <div class="eyebrow muted">Case route</div>
+      <div class="transition-route">
+        <span class="transition-node transition-node-active">${escapeHtml(primaryViewLabel)}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(nextMoveLabel)}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(proofLabel)}</span>
+      </div>
+      <p class="muted small command-momentum-note">${escapeHtml(continuity.next_detail || 'This case keeps the live route visible so the next governed move can be made without reopening the whole story.')}</p>
     </div>
   `;
 }
@@ -4203,20 +5345,25 @@ function renderCaseCard(item) {
     ...(item.linked_studio_request_ids || []).slice(0, 2),
   ].filter(Boolean);
   const primaryView = item.primary_view || 'requests';
+  const continuity = item.continuity || {};
   const primaryFocus = resolveCasePrimaryFocus(item, primaryView);
   const primaryViewLabel = VIEW_TITLES[primaryView] || titleCase(primaryView);
   const secondaryView = primaryView !== 'audit' ? 'audit' : 'requests';
   const secondaryViewLabel = VIEW_TITLES[secondaryView] || titleCase(secondaryView);
+  const tone = getCaseMissionTone(item);
+  const pressureBadge = getCaseMissionBadge(item);
+  const questPhaseLabel = continuity.quest_phase_label || item.quest_phase_label || pressureBadge;
   return `
-    <article class="card stack case-card${isFocusedEntity('case', item.case_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id))}">
+    <article class="card stack case-card case-card-tone-${escapeHtml(tone)}${isFocusedEntity('case', item.case_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(item.case_id || 'CASE')}</div>
           <h3 class="card-title">${escapeHtml(item.title || item.case_id || 'Governed case')}</h3>
-          <p class="card-subtitle">${escapeHtml(`Updated ${shortTime(item.updated_at)} | Opened ${shortTime(item.opened_at)}`)}</p>
+          <p class="card-subtitle">${escapeHtml(`Updated ${shortTime(item.updated_at)} | Opened ${shortTime(item.opened_at)} | ${questPhaseLabel} | ${continuity.next_label || `Continue in ${primaryViewLabel}`}`)}</p>
         </div>
         <div class="hero-chip-row">
           ${statusBadge(item.status || 'monitoring')}
+          ${statusBadge(questPhaseLabel)}
           ${statusBadge(primaryViewLabel)}
         </div>
       </div>
@@ -4230,11 +5377,22 @@ function renderCaseCard(item) {
         ['Audit events', String(item.audit_event_total || 0)],
         ['Timeline', String(item.timeline_total || 0)],
       ])}
+      ${renderCaseQuestStep(item)}
+      ${renderCaseProgressRoute(item)}
       ${renderCaseContinuity(item)}
       ${renderCaseWorkItems(item)}
       ${linkedRefs.length ? `<div class="case-reference-list">${linkedRefs.map((value) => `<span class="pill pill-muted">${escapeHtml(value)}</span>`).join('')}</div>` : ''}
-      <div class="case-timeline">
-        ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry, item.case_id)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
+      <div class="case-timeline-shell">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Mission log</div>
+            <h4 class="card-title">What changed across this governed story</h4>
+          </div>
+          <div class="hero-chip-row">${statusBadge(`${timeline.length} events`)}</div>
+        </div>
+        <div class="case-timeline">
+          ${timeline.length ? timeline.map((entry) => renderCaseTimelineEntry(entry, item.case_id)).join('') : `<div class="empty-state">No case events are available yet.</div>`}
+        </div>
       </div>
       <div class="inline-actions">
         <button class="action-button" type="button" ${buildViewJumpAttributes({
@@ -4243,7 +5401,7 @@ function renderCaseCard(item) {
           focusId: primaryFocus.entityId,
           caseId: item.case_id,
           title: item.case_id ? `Case ${item.case_id} opened in ${primaryViewLabel}.` : `Opened ${primaryViewLabel}.`,
-          detail: 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
+          detail: continuity.next_detail || 'The linked work item stays highlighted in its operating lane so you can continue from the same governed issue.',
           actionLabel: `Open ${primaryViewLabel}`,
         })}>${escapeHtml(`Open ${primaryViewLabel}`)}</button>
         <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
@@ -4283,8 +5441,14 @@ function renderCaseTimelineEntry(entry, caseId = '') {
   const view = entry.view || 'overview';
   const viewLabel = VIEW_TITLES[view] || titleCase(view || 'overview');
   const focus = resolveCaseTimelineFocus(entry);
+  const tone = getCaseMissionTone({ status: entry.status });
+  const actionVerb = entry.status === 'human_required'
+    ? 'Review in'
+    : entry.status === 'blocked'
+      ? 'Recover in'
+      : 'Continue in';
   return `
-    <article class="mini-card stack case-timeline-item">
+    <article class="mini-card stack case-timeline-item tone-${escapeHtml(tone)}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(shortTime(entry.timestamp))}</div>
@@ -4295,8 +5459,13 @@ function renderCaseTimelineEntry(entry, caseId = '') {
           ${statusBadge(viewLabel)}
         </div>
       </div>
+      <div class="transition-route case-timeline-route">
+        <span class="transition-node transition-node-active">${escapeHtml(titleCase(String(entry.status || 'recorded').replace(/_/g, ' ')))}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(viewLabel)}</span>
+      </div>
       <p class="muted">${escapeHtml(entry.detail || 'Governed case event recorded.')}</p>
-      <span class="permission-note">Ref ${escapeHtml(entry.reference || '-')}</span>
+      <span class="permission-note">Ref ${escapeHtml(entry.reference || '-')} | Next lane ${escapeHtml(viewLabel)}</span>
       <div class="inline-actions">
         <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
           view,
@@ -4305,8 +5474,8 @@ function renderCaseTimelineEntry(entry, caseId = '') {
           caseId,
           title: caseId ? `Case ${caseId} opened in ${viewLabel}.` : `Opened ${viewLabel}.`,
           detail: `Continue this case from the ${viewLabel} lane using the linked event reference.`,
-          actionLabel: `Open ${viewLabel}`,
-        })}>${escapeHtml(`Open ${viewLabel}`)}</button>
+          actionLabel: `${actionVerb} ${viewLabel}`,
+        })}>${escapeHtml(`${actionVerb} ${viewLabel}`)}</button>
       </div>
     </article>
   `;
@@ -4439,23 +5608,36 @@ function renderActionCard(item) {
   const canExecute = can('actions.execute') && ['planned', 'failed_closed'].includes(String(item.status || ''));
   const artifacts = Array.isArray(item.artifacts) ? item.artifacts : [];
   const executionLog = Array.isArray(item.execution_log) ? item.execution_log.slice(0, 3) : [];
+  const meta = getActionBoardMeta(item);
+  const tone = meta.tone || getActionMissionTone(item);
   return `
-    <article class="card stack${isFocusedEntity('action', item.action_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('action', item.action_id))}">
+    <article class="card stack action-runtime-card action-runtime-card-tone-${escapeHtml(tone)}${isFocusedEntity('action', item.action_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('action', item.action_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(item.action_id || 'action')}</div>
           <h3 class="card-title">${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</h3>
           <p class="card-subtitle">${escapeHtml(item.output_summary || item.next_action || 'Governed AI runtime item.')}</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(item.status || 'planned')}${statusBadge(item.action_type || 'action')}</div>
+        <div class="hero-chip-row">${statusBadge(meta.tempoBadge || item.status || 'planned')}${statusBadge(item.action_type || 'action')}</div>
       </div>
+      <div class="transition-route command-inbox-route">
+        <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'AI runtime')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.status || 'planned')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(primaryViewLabel)}</span>
+      </div>
+      <p class="muted small action-runtime-route-note">${escapeHtml(meta.routePhase)}</p>
       ${keyValue([
         ['Case', String(item.case_id || '-')],
         ['Authority', String(item.authority_boundary || '-')],
         ['Side effects', String(item.side_effect_policy || '-')],
-        ['Next view', primaryViewLabel],
+        ['Next lane', primaryViewLabel],
+        ['Next owner', String(meta.nextOwner || '-')],
         ['Artifacts', String(item.artifacts_total || artifacts.length || 0)],
       ])}
+      <div class="trace-box compact-trace action-runtime-consequence-box"><strong>${escapeHtml(meta.consequenceTitle || meta.eyebrow)}</strong><p class="muted">${escapeHtml(item.waiting_reason || item.latest_error || meta.consequenceDetail || meta.routePhase)}</p></div>
+      <div class="trace-box compact-trace"><strong>Recommended move</strong><p class="muted">${escapeHtml(item.next_action || item.output_summary || `Open ${primaryViewLabel} to continue from the right governed lane.`)}</p></div>
       ${item.waiting_reason ? `<div class="trace-box"><strong>Waiting reason</strong><p class="muted">${escapeHtml(item.waiting_reason)}</p></div>` : ''}
       ${item.latest_error ? `<div class="trace-box trace-box-danger"><strong>Failure detail</strong><p class="muted">${escapeHtml(item.latest_error)}</p></div>` : ''}
       ${artifacts.length ? `<div class="card-grid">${artifacts.map((artifact) => renderActionArtifactCard(artifact, item)).join('')}</div>` : ''}
@@ -4467,7 +5649,7 @@ function renderActionCard(item) {
           focusId: primary.entityId,
           caseId: primary.caseId || item.case_id || '',
           title: `${item.label || item.action_id} opened in ${primaryViewLabel}.`,
-          detail: item.next_action || 'Continue the governed flow from the linked runtime lane.',
+          detail: item.next_action || meta.consequenceDetail || 'Continue the governed flow from the linked runtime lane.',
           actionLabel: `Open ${primaryViewLabel}`,
         })}>${escapeHtml(`Open ${primaryViewLabel}`)}</button>
         <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
@@ -4508,6 +5690,11 @@ function renderActionEmptyState(currentCase) {
 function renderCommandHome(snapshot) {
   const surface = snapshot.command_surface || {};
   const posture = surface.posture_summary || {};
+  const mission = surface.mission_control || {};
+  const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
+  const inboxSummary = inbox.summary || {};
+  const operationsMapItems = Array.isArray(inbox.items) ? inbox.items.slice(0, 4) : [];
+  const activeOperations = Array.isArray(surface.active_operations) ? surface.active_operations.slice(0, 3) : [];
   const nextActions = buildHomeNextActions(snapshot, surface).slice(0, 5);
   const aiFeed = Array.isArray(surface.ai_activity_feed) ? surface.ai_activity_feed.slice(0, 5) : [];
   const departments = Array.isArray(surface.department_quick_access) ? surface.department_quick_access.slice(0, 6) : [];
@@ -4523,100 +5710,133 @@ function renderCommandHome(snapshot) {
   const evidenceDate = posture.evidence_verified_at ? shortTime(posture.evidence_verified_at) : 'No recent verification';
   const evidenceLabel = formatStatusLabel(posture.evidence_status || 'verified');
   const modeNote = posture.operating_status === 'stable' ? 'Stable - green' : 'Guarded - review';
+  const missionTopTitle = mission.top_move_title || nextActions[0]?.title || 'AI is operating without a new human boundary';
+  const missionTopDetail = mission.top_move_detail || nextActions[0]?.detail || 'No human approvals are waiting right now. The AI workforce is still moving inside the governed lanes.';
+  const missionWorldTitle = mission.world_state_title || 'Governed runtime posture';
+  const missionWorldNote = mission.world_state_note || 'Use the posture cards and next actions below to keep the Director oriented.';
+  const aiMomentumTitle = mission.ai_momentum_title || 'AI workforce';
+  const aiMomentumDetail = mission.ai_momentum_detail || `${aiRunning} running | ${aiTotal} total governed actions`;
+  const aiMomentumBadge = mission.ai_momentum_badge || (aiRunning ? 'AI moving' : aiFeed.length ? 'AI recent' : 'AI quiet');
+  const missionPressureLabel = mission.pressure_label || `${attentionTotal} attention`;
+  const inboxLeadLane = VIEW_TITLES[inboxSummary.primary_view] || titleCase(inboxSummary.primary_view || 'overview');
   const controlRoomAction = canAccessControlRoom()
     ? renderViewJumpButton({ view: 'control_room', label: 'Open Control Room', className: 'action-button action-button-muted' })
     : '<span class="pill pill-muted">Governance lead required</span>';
   return `
-    <section class="command-home-stack stack gap-lg">
-      <section class="command-home-hero">
-        <article class="card hero-card hero-card-primary command-home-hero-primary">
+      <section class="command-home-stack stack gap-lg">
+        <section class="command-home-hero">
+          <article class="card hero-card hero-card-primary command-home-hero-primary">
+            <div class="hero-heading">
+              <div>
+                <div class="eyebrow">Director Home</div>
+                <h3 class="hero-title">Your Next Actions</h3>
+                <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
+              </div>
+              <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(missionPressureLabel)}${statusBadge(session.persona || session.role_name || 'operator')}</div>
+            </div>
+            <div class="inline-actions">
+              ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button' })}
+              ${renderViewJumpButton({ view: 'actions', label: 'See AI Activity', className: 'action-button action-button-muted' })}
+              ${controlRoomAction}
+            </div>
+          </article>
+          <article class="card hero-card hero-card-secondary command-home-hero-secondary">
+            <div>
+              <div class="eyebrow muted">Lead governed move</div>
+              <h3 class="card-title">${escapeHtml(missionTopTitle)}</h3>
+              <p class="card-subtitle">${escapeHtml(missionTopDetail)}</p>
+            </div>
+            <div class="trace-box compact-trace"><strong>${escapeHtml(missionWorldTitle)}</strong><p class="muted">${escapeHtml(`${missionWorldNote} ${aiMomentumTitle}: ${aiMomentumDetail}`.trim())}</p></div>
+          </article>
+        </section>
+        <section class="command-guidance-grid">
+          ${renderCommandTabletFocusCard(session, primaryViews)}
+          ${renderCommandSessionContinuityCard(session)}
+        </section>
+        <section class="card stack command-home-section">
           <div class="hero-heading">
             <div>
-              <div class="eyebrow">Simple Home Dashboard</div>
-              <h3 class="hero-title">Your Next Actions</h3>
-              <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
+              <div class="eyebrow muted">System Posture Summary</div>
+              <h3 class="card-title">Five-second posture check</h3>
+              <p class="card-subtitle">Only the signals a normal user needs right now. Technical evidence, signatures, and runtime internals stay behind the Control Room boundary.</p>
             </div>
-            <div class="hero-chip-row">${statusBadge(posture.operating_status || 'guarded')}${statusBadge(session.persona || session.role_name || 'operator')}</div>
           </div>
-          <div class="inline-actions">
-            ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button' })}
-            ${renderViewJumpButton({ view: 'actions', label: 'See AI Activity', className: 'action-button action-button-muted' })}
-            ${controlRoomAction}
+          <div class="command-summary-grid">
+            ${renderHomePostureCard('Operating Mode', 'Governance-first', modeNote, posture.operating_status === 'stable' ? 'success' : 'warning', 'One governed operating model stays active across the Director.')}
+            ${renderHomePostureCard('AI Workforce', `${aiRunning} actions running`, 'One core, many hats', aiRunning ? 'accent' : 'default', 'AI remains the primary workforce across active governed cases.')}
+            ${renderHomePostureCard('Conflicts & Locks', `${attentionTotal} items need attention`, canAccessControlRoom() ? 'Open Control Room' : 'Escalate to governance lead', attentionTotal ? 'warning' : 'success', 'Only show pressure that could change the next human move.', canAccessControlRoom() ? 'control_room' : '')}
+            ${renderHomePostureCard('Evidence Integrity', evidenceLabel, evidenceDate, posture.evidence_status === 'verified' ? 'success' : 'warning', 'Evidence remains verified while identifiers stay hidden by default.')}
           </div>
-        </article>
-        <article class="card hero-card hero-card-secondary command-home-hero-secondary">
-          <div>
-            <div class="eyebrow muted">What should happen next?</div>
-            <h3 class="card-title">${escapeHtml(nextActions[0]?.title || 'AI is operating without a new human boundary')}</h3>
-            <p class="card-subtitle">${escapeHtml(nextActions[0]?.detail || 'No human approvals are waiting right now. The AI workforce is still moving inside the governed lanes.')}</p>
+        </section>
+        <section class="command-board-grid">
+          <section class="card stack command-home-section command-home-section-operations command-home-section-lead">
+            <div class="hero-heading">
+              <div>
+                <div class="eyebrow muted">Operations Map</div>
+                <h3 class="card-title">Where pressure is building across the runtime</h3>
+                <p class="card-subtitle">Read the live lanes like a command board: which queue is gating AI, which lane is blocked, and where the Director should step in next.</p>
+              </div>
+              <div class="hero-chip-row">${statusBadge(`${inboxSummary.human_required_total || 0} human`)}${statusBadge(`${inboxSummary.blocked_total || 0} blocked`)}</div>
+            </div>
+            ${keyValue([
+              ['Open work', String(inboxSummary.open_total || 0)],
+              ['Lead lane', inboxLeadLane],
+              ['Human required', String(inboxSummary.human_required_total || 0)],
+              ['Blocked paths', String(inboxSummary.blocked_total || 0)],
+              ['Ready lanes', String(inboxSummary.ready_total || 0)],
+            ])}
+            <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(inboxSummary.primary_next_step || missionTopDetail)}</p></div>
+            <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
+            ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}${statusBadge(activeOperations[0].cluster_label || 'Lead cluster')}</div></div>${renderActiveOperationCard(activeOperations[0], { featured: true })}${activeOperations.length > 1 ? `<div class="command-operation-cluster-head"><div class="eyebrow muted">${escapeHtml(activeOperations[1].cluster_label || 'Supporting cluster')}</div><p class="muted">Keep nearby operations visible so the lead move stays supported across teams and lanes.</p></div><div class="command-operation-grid">${activeOperations.slice(1).map((item) => renderActiveOperationCard(item)).join('')}</div>` : ''}</div>` : ''}
+          </section>
+          <div class="command-support-stack">
+            <section class="card command-next-actions-card stack command-home-section command-home-section-support command-home-section-actions">
+              <div class="hero-heading">
+                <div>
+                  <div class="eyebrow muted">Director moves</div>
+                  <h3 class="card-title">Your Next Actions</h3>
+                  <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
+                </div>
+                <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
+              </div>
+              <div class="command-next-grid">${nextActions.length ? nextActions.map((item, index) => renderHomeNextActionCard(item, { featured: index === 0 })).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
+            </section>
+            <section class="card stack command-home-section command-home-section-support command-home-section-feed">
+              <div class="hero-heading">
+                <div>
+                  <div class="eyebrow muted">Runtime tempo</div>
+                  <h3 class="card-title">What AI is doing now</h3>
+                  <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
+                </div>
+                <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}${statusBadge(aiMomentumBadge)}</div>
+              </div>
+              <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item, index) => renderAiFeedCard({ ...item, featured: index === 0 || item.featured })).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
+            </section>
           </div>
-          <div class="trace-box compact-trace"><strong>AI workforce</strong><p class="muted">${escapeHtml(`${aiRunning} running | ${aiTotal} total governed actions`)}</p></div>
-        </article>
+        </section>
+        ${setupContinuation}
+        ${touchLaneSection}
+        <section class="card stack command-home-section">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Quick Access by Department / Team</div>
+              <h3 class="card-title">Jump into the team context that owns the work</h3>
+              <p class="card-subtitle">These cards reuse master data and search continuity so you can route into the right business context without opening technical screens.</p>
+            </div>
+          </div>
+          <div class="command-department-grid">${departments.length ? departments.map((item) => renderDepartmentQuickAccessCard(item)).join('') : renderCommandEmptyState('No department baseline is visible yet.', 'Master data will surface functional teams here once the runtime sees more real work.')}</div>
+        </section>
+        <section class="card stack command-home-section command-quick-links-card">
+          <div class="hero-heading">
+            <div>
+              <div class="eyebrow muted">Quick Links</div>
+              <h3 class="card-title">Continue in the right governed lane</h3>
+            </div>
+          </div>
+          <div class="command-quick-links-row">${quickLinks.map((item) => renderHomeQuickLink(item)).join('')}${canAccessControlRoom() ? renderHomeQuickLink({ view: 'control_room', label: 'Control Room' }) : ''}</div>
+        </section>
       </section>
-      <section class="command-guidance-grid">
-        ${renderCommandTabletFocusCard(session, primaryViews)}
-        ${renderCommandSessionContinuityCard(session)}
-      </section>
-      <section class="card stack command-home-section">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">System Posture Summary</div>
-            <h3 class="card-title">Five-second posture check</h3>
-            <p class="card-subtitle">Only the signals a normal user needs right now. Technical evidence, signatures, and runtime internals stay behind the Control Room boundary.</p>
-          </div>
-        </div>
-        <div class="command-summary-grid">
-          ${renderHomePostureCard('Operating Mode', 'Governance-first', modeNote, posture.operating_status === 'stable' ? 'success' : 'warning', 'One governed operating model stays active across the Director.')}
-          ${renderHomePostureCard('AI Workforce', `${aiRunning} actions running`, 'One core, many hats', aiRunning ? 'accent' : 'default', 'AI remains the primary workforce across active governed cases.')}
-          ${renderHomePostureCard('Conflicts & Locks', `${attentionTotal} items need attention`, canAccessControlRoom() ? 'Open Control Room' : 'Escalate to governance lead', attentionTotal ? 'warning' : 'success', 'Only show pressure that could change the next human move.', canAccessControlRoom() ? 'control_room' : '')}
-          ${renderHomePostureCard('Evidence Integrity', evidenceLabel, evidenceDate, posture.evidence_status === 'verified' ? 'success' : 'warning', 'Evidence remains verified while identifiers stay hidden by default.')}
-        </div>
-      </section>
-      ${setupContinuation}
-      <section class="card command-next-actions-card stack command-home-section">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">What's Next For You</div>
-            <h3 class="card-title">Your Next Actions</h3>
-            <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
-          </div>
-          <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
-        </div>
-        <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
-      </section>
-      ${touchLaneSection}
-      <section class="card stack command-home-section">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">AI Activity Feed</div>
-            <h3 class="card-title">What AI is doing now</h3>
-            <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
-          </div>
-          <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}</div>
-        </div>
-        <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item) => renderAiFeedCard(item)).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
-      </section>
-      <section class="card stack command-home-section">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">Quick Access by Department / Team</div>
-            <h3 class="card-title">Jump into the team context that owns the work</h3>
-            <p class="card-subtitle">These cards reuse master data and search continuity so you can route into the right business context without opening technical screens.</p>
-          </div>
-        </div>
-        <div class="command-department-grid">${departments.length ? departments.map((item) => renderDepartmentQuickAccessCard(item)).join('') : renderCommandEmptyState('No department baseline is visible yet.', 'Master data will surface functional teams here once the runtime sees more real work.')}</div>
-      </section>
-      <section class="card stack command-home-section command-quick-links-card">
-        <div class="hero-heading">
-          <div>
-            <div class="eyebrow muted">Quick Links</div>
-            <h3 class="card-title">Continue in the right governed lane</h3>
-          </div>
-        </div>
-        <div class="command-quick-links-row">${quickLinks.map((item) => renderHomeQuickLink(item)).join('')}${canAccessControlRoom() ? renderHomeQuickLink({ view: 'control_room', label: 'Control Room' }) : ''}</div>
-      </section>
-    </section>
-  `;
+    `;
 }
 
 function getTabletPrimaryViews(session = state.session || {}) {
@@ -4782,6 +6002,7 @@ function renderCommandTouchLaneCard(item, compact = false) {
   if (!item) return '';
   const active = state.view === item.view;
   const emphasisClass = item.emphasis ? ` command-touch-card-emphasis-${item.emphasis}` : '';
+  const flowLabel = item.emphasis === 'primary' ? 'Start here' : item.emphasis === 'secondary' ? 'Keep in flow' : 'Keep nearby';
   const buttonLabel = active ? `Stay in ${item.title}` : item.actionLabel || `Open ${item.title}`;
   const button = renderViewJumpButton({
     view: item.view,
@@ -4796,8 +6017,15 @@ function renderCommandTouchLaneCard(item, compact = false) {
       <div class="hero-chip-row"><span class="pill">${escapeHtml(item.emphasisLabel || 'Lane')}</span>${statusBadge(item.badge || 'lane')}</div>
       <strong>${escapeHtml(item.title)}</strong>
       <p class="command-touch-count">${escapeHtml(item.countLabel || '0')}</p>
+      <div class="transition-route command-touch-route">
+        <span class="transition-node${active ? '' : ' transition-node-active'}">${escapeHtml(flowLabel)}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node${active ? ' transition-node-active' : ''}">${escapeHtml(item.title)}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.badge || 'lane')}</span>
+      </div>
       <p class="muted">${escapeHtml(item.note || 'Continue in the governed lane that currently owns the work.')}</p>
-      ${item.emphasisNote ? `<p class="muted small">${escapeHtml(item.emphasisNote)}</p>` : ''}
+      ${item.emphasisNote ? `<p class="muted small command-momentum-note">${escapeHtml(item.emphasisNote)}</p>` : ''}
       <div class="inline-actions">${button}</div>
     </article>
   `;
@@ -4854,11 +6082,12 @@ function renderHomePostureCard(label, value, note, tone = 'default', detail = ''
 
 function buildHomeNextActions(snapshot, surface) {
   const assignments = Array.isArray(snapshot.assignment_queue?.items) ? snapshot.assignment_queue.items : [];
+  const surfaced = Array.isArray(surface.next_actions) ? surface.next_actions : [];
   const session = state.session || {};
   const profileId = String(session.profile_id || '').toLowerCase();
   const displayName = String(session.display_name || '').toLowerCase();
   const roleName = String(session.role_name || '').toLowerCase();
-  const score = (item) => {
+  const ownershipScore = (item) => {
     let base = 0;
     const ownerId = String(item.owner_id || '').toLowerCase();
     const ownerLabel = String(item.owner_label || '').toLowerCase();
@@ -4867,6 +6096,19 @@ function buildHomeNextActions(snapshot, surface) {
     if (displayName && ownerLabel === displayName) base += 8;
     if (roleName && (ownerId === roleName || ownerLabel.includes(roleName))) base += 6;
     if (teamLabel && roleName && teamLabel.includes(roleName)) base += 4;
+    return base;
+  };
+  if (surfaced.length) {
+    return [...surfaced]
+      .sort((left, right) => {
+        const delta = (Number(right.display_score || 0) + ownershipScore(right)) - (Number(left.display_score || 0) + ownershipScore(left));
+        if (delta !== 0) return delta;
+        return Number(right.age_hours || 0) - Number(left.age_hours || 0);
+      })
+      .slice(0, 6);
+  }
+  const fallbackScore = (item) => {
+    let base = ownershipScore(item);
     if (item.status === 'human_required') base += 6;
     if (item.status === 'blocked') base += 5;
     if (item.priority === 'critical') base += 4;
@@ -4874,66 +6116,191 @@ function buildHomeNextActions(snapshot, surface) {
     base += Math.min(Number(item.age_hours || 0), 72) / 24;
     return base;
   };
-  return [...assignments].sort((left, right) => score(right) - score(left)).slice(0, 6);
+  return [...assignments].sort((left, right) => fallbackScore(right) - fallbackScore(left)).slice(0, 6);
 }
 
-function renderHomeNextActionCard(item) {
+function renderActiveOperationCard(item, options = {}) {
+  const featured = Boolean(options.featured || item.featured);
+  const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const featuredClass = featured ? ' command-action-card-featured' : '';
+  const featuredClass = featured ? ' command-operation-card-featured' : '';
+  const clusterLabel = item.cluster_label || (featured ? 'Lead cluster' : 'Supporting cluster');
+  const clusterDetail = item.cluster_detail || (featured
+    ? 'This operation is shaping the board right now.'
+    : 'Keep this operation nearby so the lead move stays readable across lanes.');
+  const nextLaneLabel = item.next_view_label || VIEW_TITLES[item.next_view || 'cases'] || 'Cases';
+  const openCaseButton = renderViewJumpButton({
+    view: 'cases',
+    label: featured ? 'Open lead case' : 'Open case',
+    className: 'action-button',
+    focusType: 'case',
+    focusId: item.case_id || '',
+    caseId: item.case_id || '',
+    title: item.case_id ? `Case ${item.case_id} reopened from Home.` : 'Case reopened from Home.',
+    detail: item.quest_note || 'Continue from the canonical case story.',
+    actionLabel: featured ? 'Open lead case' : 'Open case',
+  });
+  const openLaneButton = renderViewJumpButton({
+    view: item.next_view || 'cases',
+    label: `Open ${nextLaneLabel}`,
+    className: 'action-button action-button-muted',
+    focusType: item.next_focus_type || '',
+    focusId: item.next_focus_id || '',
+    caseId: item.case_id || '',
+    title: `${item.title || item.case_id || 'Operation'} reopened in ${nextLaneLabel}.`,
+    detail: item.lead_move || item.quest_note || 'Continue the next governed move from the lead lane.',
+    actionLabel: `Open ${nextLaneLabel}`,
+  });
+  return `
+      <article class="command-action-card command-operation-card${toneClass}${featuredClass}" data-focus-key="${escapeHtml(buildFocusKey('case', item.case_id || ''))}">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">${escapeHtml(`${clusterLabel} | ${item.board_rank_label || item.case_id || 'Operation'}`)}</div>
+            <strong>${escapeHtml(item.title || item.case_id || 'Governed operation')}</strong>
+          </div>
+          <div class="hero-chip-row">${statusBadge(item.pressure_badge || 'operation')}${statusBadge(`${escapeHtml(String(item.item_total || 0))} items`)}</div>
+        </div>
+        <div class="transition-route command-feed-route command-operation-route"><span class="transition-node">${escapeHtml(item.lead_team || 'Operations')}</span><span class="transition-arrow">&rarr;</span><span class="transition-node transition-node-active">${escapeHtml(nextLaneLabel)}</span></div>
+        <p class="muted">${escapeHtml(item.quest_note || item.operation_label || 'Keep the operation visible across lanes.')}</p>
+        <p class="muted small command-operation-cluster-note">${escapeHtml(clusterDetail)}</p>
+        <div class="trace-box compact-trace"><strong>${escapeHtml(item.operation_label || 'Active operation')}</strong><p class="muted">${escapeHtml(item.lead_move || 'Continue from the lead governed lane.')}</p></div>
+        <p class="muted small command-momentum-note">${escapeHtml(item.route_phase || 'The next governed lane is already visible from this operation.')}</p>
+        <div class="command-action-meta">${escapeHtml(item.lead_team || 'Operations')} | ${escapeHtml(String(item.item_total || 0))} routed items | ${escapeHtml(item.lane_summary || nextLaneLabel)}</div>
+        <div class="inline-actions">${openCaseButton}${openLaneButton}</div>
+      </article>
+    `;
+}
+
+function renderHomeNextActionCard(item, options = {}) {
+  const featured = Boolean(options.featured);
   const focusType = item.focus_type || '';
   const focusId = item.focus_id || '';
   const caseId = item.case_id || '';
+  const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const primaryLabel = item.kind === 'override'
+    ? 'Approve'
+    : item.move_label || (item.status === 'blocked' ? 'Resolve Now' : 'Take Action');
   const primaryButton = item.kind === 'override'
-    ? `<button class="action-button" type="button" data-override-action="approve" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Approve</button>`
-    : `<button class="action-button" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: item.status === 'blocked' ? 'Resolve Now' : 'Take Action' })}>${escapeHtml(item.status === 'blocked' ? 'Resolve Now' : 'Take Action')}</button>`;
+    ? `<button class="action-button" type="button" data-override-action="approve" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">${escapeHtml(primaryLabel)}</button>`
+    : `<button class="action-button" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.detail || item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: primaryLabel })}>${escapeHtml(primaryLabel)}</button>`;
   const secondaryButton = item.kind === 'override'
     ? `<button class="action-button action-button-muted" type="button" data-override-action="veto" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Reject</button>`
-    : `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: 'Details' })}>Details</button>`;
+    : `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.detail || item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: 'Details' })}>Details</button>`;
   return `
-    <article class="command-action-card" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
-      <div class="hero-chip-row">${statusBadge(item.status || 'monitoring')}${statusBadge(item.priority || 'normal')}</div>
-      <strong>${escapeHtml(item.title || 'Governed work')}</strong>
-      <p class="muted">${escapeHtml(item.detail || item.next_action || 'Continue the linked governed work.')}</p>
-      <div class="command-action-meta">${escapeHtml(item.owner_label || 'Unassigned')} | ${escapeHtml(item.team_label || 'Operations')} | ${escapeHtml(item.case_id || 'No case')}</div>
-      <div class="inline-actions">${primaryButton}${secondaryButton}</div>
-    </article>
-  `;
+      <article class="command-action-card${featuredClass}${toneClass}" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
+        <div class="hero-chip-row">${statusBadge(item.status_label || item.status || 'monitoring')}${statusBadge(item.priority_label || item.priority || 'normal')}</div>
+        <strong>${escapeHtml(item.title || 'Governed work')}</strong>
+        <p class="muted">${escapeHtml(item.detail || item.next_action || 'Continue the linked governed work.')}</p>
+        ${item.why_now ? `<p class="muted small command-momentum-note">${escapeHtml(item.why_now)}</p>` : ''}
+        <div class="command-action-meta">${escapeHtml(item.owner_label || 'Unassigned')} | ${escapeHtml(item.team_label || 'Operations')} | ${escapeHtml(item.case_id || 'No case')}</div>
+        <div class="inline-actions">${primaryButton}${secondaryButton}</div>
+      </article>
+    `;
 }
 
 function renderAiFeedCard(item) {
+  const featured = Boolean(item.featured);
+  const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const featuredClass = featured ? ' command-feed-card-featured' : '';
+  const normalizedStatus = String(item.status || 'planned').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const stateClass = normalizedStatus ? ` command-feed-card-state-${escapeHtml(normalizedStatus)}` : '';
+  const actionView = item.status === 'waiting_human' ? 'cases' : item.status === 'failed_closed' ? 'actions' : item.status === 'completed' ? 'documents' : 'actions';
+  const actionViewLabel = VIEW_TITLES[actionView] || titleCase(actionView || 'actions');
+  const actionLabel = item.status === 'waiting_human'
+    ? 'Review handoff'
+    : item.status === 'failed_closed'
+      ? 'Inspect failure'
+      : item.status === 'completed'
+        ? 'Review result'
+        : item.status === 'running'
+          ? 'Watch action'
+          : 'Details';
+  const statusNote = item.status === 'waiting_human'
+    ? 'A person now owns the next safe move.'
+    : item.status === 'failed_closed'
+      ? 'This path stopped behind a fail-closed boundary.'
+      : item.status === 'completed'
+        ? 'Outcome is recorded and ready for follow-through.'
+        : item.status === 'running'
+          ? 'AI is actively pushing this case forward.'
+          : 'Visible for continuity across the governed runtime.';
+  const momentumLabel = item.status === 'running'
+    ? 'Momentum live'
+    : item.status === 'waiting_human'
+      ? 'Human boundary now'
+      : item.status === 'failed_closed'
+        ? 'Recovery needed'
+        : item.status === 'completed'
+          ? 'Follow-through ready'
+          : 'Continuity visible';
+  const ownerLabel = item.owner_label || (item.status === 'running'
+    ? 'AI runtime'
+    : item.status === 'waiting_human'
+      ? 'Human director'
+      : item.status === 'failed_closed'
+        ? 'Recovery review'
+        : item.status === 'completed'
+          ? 'Follow-through lane'
+          : 'Director watch');
+  const consequenceNote = item.consequence_note || item.route_phase || statusNote;
   return `
-    <article class="command-feed-card">
-      <div class="hero-heading">
-        <div>
-          <div class="eyebrow muted">${escapeHtml(titleCase(item.action_type || 'ai action'))}</div>
-          <strong>${escapeHtml(item.label || item.action_type || 'AI action')}</strong>
+      <article class="command-feed-card${toneClass}${stateClass}${featuredClass}">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">${escapeHtml(item.board_rank_label || titleCase(item.action_type || 'ai action'))}</div>
+            <strong>${escapeHtml(item.label || item.action_type || 'AI action')}</strong>
+          </div>
+          <div class="hero-chip-row">${statusBadge(item.status || 'planned')}${statusBadge(item.tempo_badge || momentumLabel)}</div>
         </div>
-        <div class="hero-chip-row">${statusBadge(item.status || 'planned')}</div>
-      </div>
-      <p class="muted">${escapeHtml(item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
-      <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
-      <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: 'actions', focusType: 'action', focusId: item.action_id || '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.next_action || 'Review the governed AI execution lane.', actionLabel: 'Details' })}>Details</button></div>
-    </article>
-  `;
+        <div class="transition-route command-feed-route"><span class="transition-node">AI runtime</span><span class="transition-arrow">&rarr;</span><span class="transition-node transition-node-active">${escapeHtml(actionViewLabel)}</span></div>
+        <p class="muted">${escapeHtml(item.activity_note || item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
+        <p class="muted small command-momentum-note">${escapeHtml(item.route_phase || statusNote)}</p>
+        <div class="trace-box compact-trace command-feed-consequence-box"><strong>${escapeHtml(`If this pauses: ${ownerLabel}`)}</strong><p class="muted">${escapeHtml(consequenceNote)}</p></div>
+        <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(ownerLabel)} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
+        <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: actionView, focusType: actionView === 'actions' ? 'action' : '', focusId: actionView === 'actions' ? (item.action_id || '') : '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.consequence_note || item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel })}>${escapeHtml(actionLabel)}</button></div>
+      </article>
+    `;
 }
 
 function renderDepartmentQuickAccessCard(item) {
   const filterValue = item.label || item.team_id || '';
+  const contextNote = item.context_note || `${String(item.member_total || 0)} members | ${String(item.seat_total || 0)} seats`;
+  const pressureLabel = item.pressure_label || (Number(item.assignment_total || 0) > 0 ? 'active queue' : 'ready lane');
+  const pressureTone = pressureLabel === 'blocked path' ? 'danger' : pressureLabel === 'human boundary' || pressureLabel === 'active review' || Number(item.assignment_total || 0) > 0 ? 'warning' : 'success';
+  const actionLabel = Number(item.assignment_total || 0) > 0 ? 'Open team queue' : 'Open team context';
+  const leadLaneLabel = VIEW_TITLES[item.lead_view || 'requests'] || titleCase(item.lead_view || 'requests');
+  const leadLaneButton = Number(item.assignment_total || 0) > 0 && item.lead_view
+    ? renderViewJumpButton({
+      view: item.lead_view || 'requests',
+      label: 'Open lead lane',
+      className: 'action-button action-button-muted',
+      caseId: item.lead_case_id || '',
+      title: `${item.label || item.team_id || 'Team'} reopened in ${leadLaneLabel}.`,
+      detail: item.lead_move || contextNote,
+      actionLabel: 'Open lead lane',
+    })
+    : '';
   return `
-    <article class="command-department-card">
-      <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
-      <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
-      <p class="muted">${escapeHtml(String(item.member_total || 0))} members ? ${escapeHtml(String(item.seat_total || 0))} seats</p>
-      <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">Open team</button></div>
-    </article>
-  `;
+      <article class="command-department-card tone-${pressureTone}">
+        <span class="command-summary-label">${escapeHtml(item.label || item.team_id || 'Team')}</span>
+        <strong>${escapeHtml(String(item.assignment_total || 0))} active assignments</strong>
+        <p class="muted">${escapeHtml(contextNote)}</p>
+        ${item.lead_move ? `<div class="trace-box compact-trace"><strong>${escapeHtml(item.quest_label || 'Lead operation')}</strong><p class="muted">${escapeHtml(item.lead_move)}</p></div>` : ''}
+        <div class="hero-chip-row">${statusBadge(pressureLabel)}${statusBadge(`${String(item.case_total || 0)} operations`)}${statusBadge(`${String(item.member_total || 0)} members`)}</div>
+        <div class="inline-actions"><button class="action-button action-button-muted" type="button" data-team-quick-access="${escapeHtml(filterValue)}">${escapeHtml(actionLabel)}</button>${leadLaneButton}</div>
+      </article>
+    `;
 }
 
 function renderHomeQuickLink(item) {
+  const label = item.label || VIEW_TITLES[item.view || 'overview'] || 'Open';
   return renderViewJumpButton({
     view: item.view || 'overview',
-    label: item.label || VIEW_TITLES[item.view || 'overview'] || 'Open',
+    label,
     className: 'action-button action-button-muted',
-    title: `${item.label || VIEW_TITLES[item.view || 'overview'] || 'Open'} reopened from Home.`,
+    title: `${label} reopened from Home.`,
     detail: 'Keep the command surface moving from one governed lane to the next without hunting through the dashboard.',
+    actionLabel: label,
   });
 }
 
@@ -5399,6 +6766,120 @@ function renderControlRoomMissionSection(snapshot, groups, currentTool) {
   `;
 }
 
+function buildControlRoomActionDeck(snapshot) {
+  const summary = snapshot.summary || {};
+  const firstRun = snapshot.first_run_readiness || {};
+  const firstRunCenter = snapshot.operations?.first_run_action_center || {};
+  const runtimeHealth = snapshot.runtime_health || {};
+  const studioSummary = snapshot.role_private_studio?.summary || {};
+  const evidenceSummary = snapshot.evidence_exports?.summary || {};
+  const integrationSummary = snapshot.integrations?.summary || {};
+
+  const setupRequired = Number(firstRunCenter.required_total || firstRun.blockers_total || 0);
+  const studioTrustAttention = Number(studioSummary.trust_attention_total || 0);
+  const studioPublishReady = Number(studioSummary.publisher_ready_total || 0);
+  const structuralAttention = Number(summary.studio_pt_oss_blocking_issue_total || 0)
+    + Number(summary.studio_pt_oss_critical_total || 0)
+    + Number(summary.studio_pt_oss_elevated_total || 0);
+  const trustAttention = Number(evidenceSummary.attention_total || 0)
+    + Number(evidenceSummary.trusted_role_mismatch_total || 0);
+  const runtimeWarnings = Number(runtimeHealth.warning_total || runtimeHealth.attention_total || 0);
+  const integrationFailures = Number(integrationSummary.failed_total || 0);
+
+  const items = [
+    {
+      tool: 'setup',
+      label: 'Setup Runway',
+      value: setupRequired > 0 ? `${setupRequired} required` : 'ready',
+      note: 'Setup Assistant, First-Run Action Center, and Quick-Start Doctor stay in one guided lane.',
+      tone: setupRequired > 0 ? 'tone-warning' : 'tone-success',
+      actionLabel: setupRequired > 0 ? 'Continue setup' : 'Review setup',
+      priority: setupRequired > 0 ? 110 : 42,
+    },
+    {
+      tool: 'studio',
+      label: 'Role Private Studio',
+      value: studioTrustAttention > 0 ? `${studioTrustAttention} trust alerts` : `${studioPublishReady} publish ready`,
+      note: 'Create role specs from normal JD input and let the runtime compile governed PTAG in the background.',
+      tone: studioTrustAttention > 0 ? 'tone-warning' : studioPublishReady > 0 ? 'tone-accent' : 'tone-success',
+      actionLabel: studioTrustAttention > 0 ? 'Resolve trust alerts' : 'Open studio',
+      priority: studioTrustAttention > 0 ? 100 : studioPublishReady > 0 ? 78 : 36,
+    },
+    {
+      tool: 'structural_risk',
+      label: 'Structural Risk & Alignment',
+      value: structuralAttention > 0 ? `${structuralAttention} risk signals` : 'stable watch',
+      note: 'PT-OSS posture and Global Harmony alignment are reviewed together before trusted publication.',
+      tone: structuralAttention > 0 ? 'tone-warning' : 'tone-success',
+      actionLabel: structuralAttention > 0 ? 'Review posture now' : 'Review posture',
+      priority: structuralAttention > 0 ? 95 : 44,
+    },
+    {
+      tool: 'evidence_exports',
+      label: 'Trust & Evidence',
+      value: trustAttention > 0 ? `${trustAttention} attention` : 'continuity clear',
+      note: 'Audit chain, evidence packs, and trusted registry posture should stay export-ready.',
+      tone: trustAttention > 0 ? 'tone-warning' : 'tone-accent',
+      actionLabel: trustAttention > 0 ? 'Review trust now' : 'Open trust lane',
+      priority: trustAttention > 0 ? 92 : 40,
+    },
+    {
+      tool: 'health',
+      label: 'Runtime & Recovery',
+      value: runtimeWarnings > 0 ? `${runtimeWarnings} warnings` : formatStatusLabel(runtimeHealth.status || 'ok'),
+      note: 'Diagnostics, backup posture, and recovery readiness should stay green before risky rollout moves.',
+      tone: runtimeWarnings > 0 || String(runtimeHealth.status || '').toLowerCase() !== 'ok' ? 'tone-warning' : 'tone-success',
+      actionLabel: runtimeWarnings > 0 ? 'Check runtime now' : 'Open runtime',
+      priority: runtimeWarnings > 0 ? 90 : 38,
+    },
+    {
+      tool: 'integrations',
+      label: 'Integrations & Providers',
+      value: integrationFailures > 0 ? `${integrationFailures} failed` : `${Number(integrationSummary.active_targets || 0)} active targets`,
+      note: 'Outbound delivery pressure should be handled before delegation expands to external channels.',
+      tone: integrationFailures > 0 ? 'tone-warning' : 'tone-accent',
+      actionLabel: integrationFailures > 0 ? 'Fix delivery pressure' : 'Open integrations',
+      priority: integrationFailures > 0 ? 88 : 34,
+    },
+  ].filter((item) => item.tool !== 'setup' || canAccessSetupAssistant());
+
+  return items.sort((left, right) => right.priority - left.priority).slice(0, 4);
+}
+
+function renderControlRoomActionCard(item, currentTool) {
+  const isCurrent = currentTool === item.tool;
+  return `
+    <article class="command-summary-card control-room-action-card ${escapeHtml(item.tone || 'tone-accent')}${isCurrent ? ' is-active' : ''}">
+      <span class="command-summary-label">${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <p class="muted">${escapeHtml(item.note)}</p>
+      <div class="inline-actions">
+        <button class="action-button${isCurrent ? ' action-button-muted' : ''}" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(isCurrent ? 'Current lane' : item.actionLabel || controlRoomPrimaryActionLabel(item.tool))}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderControlRoomActionSection(snapshot, currentTool) {
+  const cards = buildControlRoomActionDeck(snapshot);
+  if (!cards.length) return '';
+  return `
+    <section class="card stack control-room-action-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Action center</div>
+          <h3 class="card-title">Immediate moves for this governance session</h3>
+          <p class="card-subtitle">Less reading, more action. Open the next high-impact lane directly from this mission board.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${cards.length} live actions`)}</div>
+      </div>
+      <div class="control-room-action-grid">
+        ${cards.map((item) => renderControlRoomActionCard(item, currentTool)).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function renderControlRoomCategorySection(group, currentTool) {
   return `
     <section class="card stack control-room-category">
@@ -5475,6 +6956,7 @@ function renderControlRoom(snapshot) {
           </div>
         </article>
       </section>
+      ${renderControlRoomActionSection(snapshot, currentTool)}
       ${renderControlRoomMissionSection(snapshot, groups, currentTool)}
       <section class="control-room-groups">
         ${groups.map((group) => renderControlRoomCategorySection(group, currentTool)).join('')}
@@ -5517,6 +6999,19 @@ function renderStructuralRiskTool(snapshot) {
   const healthyTotal = Number(summary.studio_pt_oss_healthy_total || studioSummary.pt_oss_healthy_total || 0);
   const publicSectorTotal = Number(summary.studio_pt_oss_public_sector_total || studioSummary.pt_oss_public_sector_mode_total || 0);
   const posture = studioStructural.status || (criticalTotal > 0 ? 'critical' : elevatedTotal > 0 || blockingIssueTotal > 0 ? 'elevated' : guardedTotal > 0 ? 'watch' : 'healthy');
+  const harmony = snapshot.global_harmony || {};
+  const harmonySummary = harmony.summary || {};
+  const harmonySignals = Number(harmonySummary.signal_total || harmony.signal_total || summary.global_harmony_signal_total || 0);
+  const harmonyStatusRaw = String(harmonySummary.status || harmony.status || summary.global_harmony_status || '').trim();
+  const harmonyStatus = harmonyStatusRaw || (harmonySignals > 0 ? 'active' : 'awaiting data');
+  const harmonyReady = harmonyStatus !== 'awaiting data' || harmonySignals > 0;
+  const harmonyNote = String(
+    harmonySummary.note
+    || harmony.note
+    || (harmonyReady
+      ? 'Global Harmony telemetry is active in this same structural lane.'
+      : 'Global Harmony telemetry will appear here once alignment data is connected.')
+  ).trim();
   return `
     <section class="stack gap-lg">
       <section class="overview-hero">
@@ -5554,6 +7049,8 @@ function renderStructuralRiskTool(snapshot) {
             ['Blocked total', String(blockedTotal)],
             ['Critical total', String(criticalTotal)],
             ['Public-sector mode hats', String(publicSectorTotal)],
+            ['Global Harmony status', formatStatusLabel(harmonyStatus)],
+            ['Global Harmony signals', String(harmonySignals)],
             ['Structural note', studioStructural.note || studioStructural.message || 'PT-OSS posture is active on this runtime.'],
           ])}
         </article>
@@ -5572,11 +7069,12 @@ function renderStructuralRiskTool(snapshot) {
         </article>
         <article class="card stack">
           <div>
-            <div class="eyebrow muted">Alignment note</div>
-            <h3 class="card-title">Alignment lives in this same governance lane</h3>
-            <p class="card-subtitle">Global Harmony should surface here when alignment data is active. PT-OSS is the structural signal visible today, and alignment stays under the same advanced governance boundary.</p>
+            <div class="eyebrow muted">Alignment home</div>
+            <h3 class="card-title">Global Harmony has a clear home in this same lane</h3>
+            <p class="card-subtitle">PT-OSS stays visible as the structural baseline. When alignment telemetry is connected, Global Harmony signals appear here without creating a second governance home.</p>
           </div>
-          <div class="hero-chip-row">${statusBadge('pt-oss visible')}${statusBadge('advanced governance')}</div>
+          <div class="hero-chip-row">${statusBadge('pt-oss visible')}${statusBadge(harmonyStatus)}</div>
+          <div class="trace-box compact-trace"><strong>Alignment signal</strong><p class="muted">${escapeHtml(harmonyNote)}</p></div>
         </article>
       </section>
     </section>
@@ -6216,21 +7714,201 @@ function renderAdminSettingsTool(snapshot) {
   `;
 }
 
-function renderActions(snapshot) {
+function getActionMissionTone(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'failed_closed' || status === 'blocked') return 'danger';
+  if (status === 'waiting_human' || status === 'human_required') return 'warning';
+  if (status === 'completed') return 'success';
+  return 'accent';
+}
 
+function getActionBoardMeta(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'running') {
+    return {
+      eyebrow: 'AI moving now',
+      tempoBadge: 'live now',
+      routePhase: 'AI currently owns the move inside this case. Stay nearby, but intervene only if the runtime crosses a new boundary.',
+      consequenceTitle: 'Keep the move in flight',
+      consequenceDetail: 'No new human step is needed yet. Monitor the route and keep the case attached until the runtime surfaces a boundary or a proof-ready result.',
+      nextOwner: 'AI runtime',
+      tone: 'accent',
+    };
+  }
+  if (status === 'waiting_human') {
+    return {
+      eyebrow: 'Human boundary now',
+      tempoBadge: 'human step now',
+      routePhase: 'A real person now owns the next safe move. Keep the case and handoff record attached before sending AI forward again.',
+      consequenceTitle: 'Human decision is now required',
+      consequenceDetail: 'AI cannot safely continue until a person approves, redirects, or closes this path. The case should remain the anchor for that decision.',
+      nextOwner: 'Human director',
+      tone: 'warning',
+    };
+  }
+  if (status === 'failed_closed') {
+    return {
+      eyebrow: 'Recovery lane',
+      tempoBadge: 'recover now',
+      routePhase: 'This path failed closed. Review the blocked boundary, then reopen AI only when the route is safe again.',
+      consequenceTitle: 'Recover before relaunch',
+      consequenceDetail: 'The governed path is closed until the failure is reviewed. Fix the route first, then decide whether AI should retry from the same case.',
+      nextOwner: 'Recovery review',
+      tone: 'danger',
+    };
+  }
+  if (status === 'completed') {
+    return {
+      eyebrow: 'Outcome ready',
+      tempoBadge: 'proof ready',
+      routePhase: 'The governed result is ready for follow-through, document review, or proof confirmation from the next lane.',
+      consequenceTitle: 'Carry proof forward',
+      consequenceDetail: 'The runtime already has a result. Review the linked document, case, or proof lane instead of launching another move blindly.',
+      nextOwner: 'Follow-through lane',
+      tone: 'success',
+    };
+  }
+  return {
+    eyebrow: 'Queued move',
+    tempoBadge: 'queued',
+    routePhase: 'This action is visible on the board so the Director can decide when to launch or revisit it.',
+    consequenceTitle: 'Launch only when the case is ready',
+    consequenceDetail: 'Queued moves stay visible so the Director can launch them deliberately from the right case and side-effect posture.',
+    nextOwner: 'Director launch decision',
+    tone: 'accent',
+  };
+}
+
+function renderActionConsequenceCard(config = {}) {
+  const toneClass = config.tone ? ` tone-${escapeHtml(config.tone)}` : '';
+  const featuredClass = config.featured ? ' action-consequence-card-featured' : '';
+  const chips = [config.badge, config.secondaryBadge].filter(Boolean).map((badge) => statusBadge(badge)).join('');
+  const buttonClassName = config.buttonClassName || (config.featured ? 'action-button' : 'action-button action-button-muted');
+  return `
+    <article class="command-action-card action-consequence-card${featuredClass}${toneClass}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(config.eyebrow || 'Consequence')}</div>
+          <strong>${escapeHtml(config.title || 'Executive consequence')}</strong>
+        </div>
+        ${chips ? `<div class="hero-chip-row">${chips}</div>` : ''}
+      </div>
+      <p class="muted">${escapeHtml(config.detail || 'Review the next governed consequence from the right lane.')}</p>
+      ${config.traceTitle || config.traceDetail ? `<div class="trace-box compact-trace"><strong>${escapeHtml(config.traceTitle || 'Next consequence')}</strong><p class="muted">${escapeHtml(config.traceDetail || config.detail || '')}</p></div>` : ''}
+      ${renderViewJumpButton({
+        view: config.view || 'actions',
+        label: config.actionLabel || 'Open details',
+        className: buttonClassName,
+        focusType: config.focusType || '',
+        focusId: config.focusId || '',
+        caseId: config.caseId || '',
+        title: config.title || 'Executive consequence',
+        detail: config.detail || config.traceDetail || 'Continue from the right governed lane.',
+        actionLabel: config.actionLabel || 'Open details',
+      })}
+    </article>
+  `;
+}
+
+function renderActionMissionCard(item, options = {}) {
+  const fallbackView = options.fallbackView || 'actions';
+  if (!item) {
+    const fallbackViewLabel = VIEW_TITLES[fallbackView] || titleCase(fallbackView || 'actions');
+    return `
+      <article class="command-action-card tone-success command-workforce-card">
+        <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
+        <strong>${escapeHtml(options.fallbackTitle || 'No active action is visible')}</strong>
+        <p class="muted">${escapeHtml(options.fallbackDetail || 'This slot will surface the next governed AI mission when it matters.')}</p>
+        <div class="trace-box compact-trace"><strong>${escapeHtml(options.fallbackActionLabel || `Open ${fallbackViewLabel}`)}</strong><p class="muted">${escapeHtml(`Use ${fallbackViewLabel} to inspect the broader AI runtime or related case continuity.`)}</p></div>
+        ${renderViewJumpButton({ view: fallbackView, label: options.fallbackActionLabel || `Open ${fallbackViewLabel}`, className: 'action-button action-button-muted', title: `${fallbackViewLabel} reopened from AI Actions.`, detail: options.fallbackDetail || `Use ${fallbackViewLabel} to inspect the next AI mission.`, actionLabel: options.fallbackActionLabel || `Open ${fallbackViewLabel}` })}
+      </article>
+    `;
+  }
+  const meta = getActionBoardMeta(item);
+  const primary = resolveActionPrimaryFocus(item);
+  const view = options.viewOverride || primary.view || 'actions';
+  const viewLabel = VIEW_TITLES[view] || titleCase(view || 'actions');
+  const tone = options.toneOverride || meta.tone || getActionMissionTone(item);
+  const summaryLine = item.output_summary || item.next_action || item.waiting_reason || item.latest_error || 'Governed AI runtime item.';
+  const traceLine = item.latest_error || item.waiting_reason || `Case ${item.case_id || '-'} | ${item.action_type || 'action'} | ${item.artifacts_total || 0} artifacts`;
+  const actionLabel = options.actionLabel || `Open ${viewLabel}`;
+  const focusType = primary.entityType || '';
+  const focusId = primary.entityId || '';
+  const focusClass = focusType && focusId && isFocusedEntity(focusType, focusId) ? ' focused-record' : '';
+  const focusAttrs = focusType && focusId ? ` data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}"` : '';
+  return `
+    <article class="command-action-card tone-${escapeHtml(tone)} command-workforce-card${focusClass}"${focusAttrs}>
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(options.eyebrow || meta.eyebrow || 'Mission slot')}</div>
+          <strong>${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</strong>
+        </div>
+        <div class="hero-chip-row">${statusBadge(meta.tempoBadge || item.status || 'visible')}${statusBadge(viewLabel)}</div>
+      </div>
+      <div class="transition-route command-inbox-route">
+        <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'AI runtime')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.status || 'planned')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(viewLabel)}</span>
+      </div>
+      <p class="muted">${escapeHtml(summaryLine)}</p>
+      <p class="muted small action-runtime-route-note">${escapeHtml(meta.routePhase || traceLine)}</p>
+      <div class="trace-box compact-trace"><strong>${escapeHtml(actionLabel)}</strong><p class="muted">${escapeHtml(traceLine)}</p></div>
+      ${renderViewJumpButton({ view, label: actionLabel, className: 'action-button', focusType, focusId, caseId: primary.caseId || item.case_id || '', title: `${item.label || item.action_id || 'AI action'} opened in ${viewLabel}.`, detail: summaryLine, actionLabel })}
+    </article>
+  `;
+}
+
+function renderActions(snapshot) {
   const surface = snapshot.actions || { summary: {}, registry: [], items: [] };
   const summary = surface.summary || {};
   const registry = Array.isArray(surface.registry) ? surface.registry : [];
   const items = Array.isArray(surface.items) ? surface.items : [];
   const currentCase = getScopedActionCase(snapshot);
   const caseLabel = currentCase?.case_id || 'No case selected';
+  const nextMoveView = !currentCase ? 'cases' : (summary.waiting_human_total || 0) ? 'cases' : (summary.document_artifact_total || 0) ? 'documents' : 'actions';
+  const nextMoveLabel = VIEW_TITLES[nextMoveView] || titleCase(nextMoveView);
+  const nextMoveTitle = !currentCase
+    ? 'Open a case before launching more AI work'
+    : (summary.waiting_human_total || 0)
+      ? 'Finish the human handoff for this case'
+      : (summary.document_artifact_total || 0)
+        ? 'Review the document side effects AI already produced'
+        : (summary.running_total || 0)
+          ? 'Watch the running actions and keep the case attached'
+          : items.length
+            ? 'Inspect the latest governed action result'
+            : 'Launch the first governed action for this case';
+  const nextMoveDetail = !currentCase
+    ? 'The AI action runtime is safest when launch, side effects, proof, and follow-up all stay attached to one canonical case.'
+    : (summary.waiting_human_total || 0)
+      ? 'AI already reached a human boundary. The next move belongs to a real person, but the case should remain the anchor for that follow-through.'
+      : (summary.document_artifact_total || 0)
+        ? 'AI already created governed artifacts. Review them in the document lane without breaking case continuity.'
+        : (summary.running_total || 0)
+          ? 'AI is moving right now. Keep the case and action lane close so you can step in only if the runtime hits a new boundary.'
+          : items.length
+            ? 'The runtime already has visible action history. Inspect the result before deciding whether to launch another governed move.'
+            : 'This case is ready for its first governed AI action.';
+  const runningAction = items.find((item) => String(item.status || '') === 'running') || null;
+  const waitingAction = items.find((item) => String(item.status || '') === 'waiting_human') || null;
+  const failedAction = items.find((item) => String(item.status || '') === 'failed_closed') || null;
+  const completedAction = items.find((item) => String(item.status || '') === 'completed') || null;
+  const featuredConsequenceKey = waitingAction
+    ? 'human'
+    : failedAction
+      ? 'recovery'
+      : (completedAction || Number(summary.document_artifact_total || 0))
+        ? 'proof'
+        : 'launch';
   return `
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
         <div class="hero-heading">
           <div>
             <div class="eyebrow muted">AI Action Runtime</div>
-            <h2 class="hero-title">Governed AI work now executes as explicit actions, not hidden side effects.</h2>
+            <h2 class="hero-title">Let AI work inside explicit case, authority, side-effect, and proof boundaries.</h2>
             <p class="hero-subtitle">Each action stays attached to one case, one authority boundary, one side-effect policy, and one proof trail.</p>
           </div>
           <div class="hero-chip-row">${statusBadge(currentCase ? 'case scoped' : 'pick case')}${statusBadge(summary.waiting_human_total ? 'human follow-up active' : 'runtime ready')}</div>
@@ -6239,6 +7917,7 @@ function renderActions(snapshot) {
           ${keyValue([
             ['Selected case', caseLabel],
             ['AI actions', String(summary.actions_total || items.length)],
+            ['Running', String(summary.running_total || 0)],
             ['Waiting human', String(summary.waiting_human_total || 0)],
             ['Completed', String(summary.completed_total || 0)],
             ['Failed closed', String(summary.failed_closed_total || 0)],
@@ -6249,21 +7928,202 @@ function renderActions(snapshot) {
       </article>
       <article class="card hero-card hero-card-secondary">
         <div>
-          <div class="eyebrow muted">Current case</div>
-          <h3 class="card-title">${escapeHtml(caseLabel)}</h3>
-          <p class="card-subtitle">${escapeHtml(currentCase ? (currentCase.continuity?.next_detail || 'This case is ready for governed AI execution.') : 'Open Cases first, then jump back here to let AI act inside the selected governed issue.')}</p>
+          <div class="eyebrow muted">What should happen next?</div>
+          <h3 class="card-title">${escapeHtml(nextMoveTitle)}</h3>
+          <p class="card-subtitle">${escapeHtml(nextMoveDetail)}</p>
         </div>
+        ${keyValue([
+          ['Current case', caseLabel],
+          ['Recommended lane', nextMoveLabel],
+          ['Running now', String(summary.running_total || 0)],
+          ['Waiting human', String(summary.waiting_human_total || 0)],
+          ['Document side effects', String(summary.document_artifact_total || 0)],
+        ])}
         <div class="inline-actions">
-          <button class="action-button" type="button" data-view-jump="cases">Open Cases</button>
-          ${currentCase ? `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: 'cases', focusType: 'case', focusId: currentCase.case_id, caseId: currentCase.case_id, title: `Case ${currentCase.case_id} reopened from AI Actions.`, detail: 'Return to the canonical case to review linked work, proof, and next moves.', actionLabel: 'Open Cases' })}>Open selected case</button>` : ''}
+          ${renderViewJumpButton({ view: nextMoveView, label: `Open ${nextMoveLabel}`, className: 'action-button', caseId: currentCase?.case_id || '', title: `${nextMoveLabel} reopened from AI Actions.`, detail: nextMoveDetail, actionLabel: `Open ${nextMoveLabel}` })}
+          ${renderViewJumpButton({ view: 'cases', label: currentCase ? 'Open selected case' : 'Open Cases', className: 'action-button action-button-muted', focusType: currentCase ? 'case' : '', focusId: currentCase?.case_id || '', caseId: currentCase?.case_id || '', title: currentCase ? `Case ${currentCase.case_id} reopened from AI Actions.` : 'Cases reopened from AI Actions.', detail: 'Return to the canonical case to review linked work, proof, and next moves.', actionLabel: currentCase ? 'Open selected case' : 'Open Cases' })}
         </div>
       </article>
     </section>
-    <section class="card-grid">
-      ${registry.map((entry) => renderActionRegistryCard(entry, currentCase)).join('')}
+    <section class="command-workforce-shell action-runtime-board">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Executive action board</div>
+          <h3 class="card-title">Which AI mission is moving, waiting, or blocked</h3>
+          <p class="card-subtitle">Read this lane like an executive move board: what AI is advancing now, where a real person owns the next move, and which runtime lane needs recovery before AI continues.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge((summary.running_total || 0) ? 'ai moving' : 'monitoring')}${statusBadge((summary.failed_closed_total || 0) ? 'recovery visible' : ((summary.waiting_human_total || 0) ? 'human handoff live' : 'board stable'))}</div>
+      </div>
+      <div class="command-workforce-grid">
+        ${renderActionMissionCard(runningAction, {
+          eyebrow: 'AI moving now',
+          fallbackTitle: 'No action is actively running right now',
+          fallbackDetail: 'The workforce board will highlight live governed execution here as soon as AI starts moving inside a case.',
+          fallbackView: currentCase ? 'cases' : 'actions',
+          fallbackActionLabel: currentCase ? 'Open selected case' : 'Open AI Actions',
+          toneOverride: runningAction ? 'accent' : 'success',
+          actionLabel: runningAction ? 'Monitor in AI Actions' : undefined,
+        })}
+        ${renderActionMissionCard(waitingAction, {
+          eyebrow: 'Human handoff',
+          fallbackTitle: 'No AI action is waiting on a person right now',
+          fallbackDetail: 'When AI reaches a real approval or reserved human-only boundary, this slot becomes the next explicit move.',
+          fallbackView: 'cases',
+          fallbackActionLabel: currentCase ? 'Open selected case' : 'Open Cases',
+          toneOverride: waitingAction ? 'warning' : 'success',
+          viewOverride: 'cases',
+          actionLabel: currentCase ? 'Open selected case' : 'Open Cases',
+        })}
+        ${renderActionMissionCard(failedAction || completedAction, {
+          eyebrow: failedAction ? 'Recovery lane' : 'Latest outcome',
+          fallbackTitle: 'No failed or completed action is shaping the board',
+          fallbackDetail: 'As soon as an action fails closed or finishes with a meaningful side effect, the board will surface it here.',
+          fallbackView: summary.document_artifact_total ? 'documents' : 'actions',
+          fallbackActionLabel: summary.document_artifact_total ? 'Open Documents' : 'Open AI Actions',
+          toneOverride: failedAction ? 'danger' : completedAction ? 'success' : 'success',
+          viewOverride: failedAction ? 'actions' : (summary.document_artifact_total ? 'documents' : undefined),
+          actionLabel: failedAction ? 'Recover in AI Actions' : (summary.document_artifact_total ? 'Open Documents' : 'Open AI Actions'),
+        })}
+      </div>
     </section>
-    <section class="card-grid">
-      ${items.length ? items.map((item) => renderActionCard(item)).join('') : renderActionEmptyState(currentCase)}
+    <section class="action-runtime-section action-consequence-section">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Executive consequences</div>
+          <h3 class="card-title">What these AI moves mean right now</h3>
+          <p class="card-subtitle">Use this row to read launch posture, human ownership, recovery pressure, and proof follow-through without decoding the full mission log first.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(featuredConsequenceKey === 'human' ? 'human step leads' : featuredConsequenceKey === 'recovery' ? 'recovery leads' : featuredConsequenceKey === 'proof' ? 'proof leads' : 'launch leads')}</div>
+      </div>
+      <div class="action-consequence-grid">
+        ${renderActionConsequenceCard({
+          eyebrow: 'Launch window',
+          title: currentCase ? 'Launch only the move this case can justify' : 'Select a case before any launch',
+          detail: currentCase
+            ? (registry.length
+                ? 'Only launch the next governed move that matches the current authority boundary and side-effect posture.'
+                : 'This case is visible, but no launch-ready move is currently registered from this lane.')
+            : 'AI launches stay case-bound so proof, handoff, and recovery never drift into separate stories.',
+          badge: currentCase ? `${registry.length} launchable` : 'pick case',
+          secondaryBadge: currentCase ? caseLabel : 'case required',
+          tone: currentCase ? (registry.length ? 'accent' : 'warning') : 'warning',
+          featured: featuredConsequenceKey === 'launch',
+          view: currentCase ? 'actions' : 'cases',
+          caseId: currentCase?.case_id || '',
+          actionLabel: currentCase ? 'Open Action Launch Board' : 'Open Cases',
+          traceTitle: currentCase ? 'Launch discipline' : 'Case anchor required',
+          traceDetail: currentCase
+            ? 'Launch from this lane only when the selected case can justify the AI move and its side effects.'
+            : 'Pick the canonical case first, then come back here to launch AI safely.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Human step',
+          title: waitingAction ? 'A person now owns the safe next move' : 'No human step is holding AI right now',
+          detail: waitingAction
+            ? (waitingAction.waiting_reason || waitingAction.next_action || getActionBoardMeta(waitingAction).consequenceDetail)
+            : 'The runtime is not currently paused at a human-only boundary.',
+          badge: waitingAction ? getActionBoardMeta(waitingAction).tempoBadge : 'clear',
+          secondaryBadge: waitingAction ? `Case ${waitingAction.case_id || '-'}` : 'ai can continue',
+          tone: waitingAction ? 'warning' : 'success',
+          featured: featuredConsequenceKey === 'human',
+          view: 'cases',
+          focusType: waitingAction ? 'case' : '',
+          focusId: waitingAction?.case_id || '',
+          caseId: waitingAction?.case_id || currentCase?.case_id || '',
+          actionLabel: waitingAction ? (currentCase ? 'Open selected case' : 'Open Cases') : 'Open Cases',
+          traceTitle: 'Decision owner',
+          traceDetail: waitingAction ? (getActionBoardMeta(waitingAction).nextOwner || 'Human director') : 'AI currently owns the live move until a new governed boundary appears.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Recovery path',
+          title: failedAction ? 'Recovery must happen before AI can relaunch' : 'No fail-closed recovery is active',
+          detail: failedAction
+            ? (failedAction.latest_error || failedAction.next_action || getActionBoardMeta(failedAction).consequenceDetail)
+            : 'There is no blocked or fail-closed action demanding recovery right now.',
+          badge: failedAction ? getActionBoardMeta(failedAction).tempoBadge : 'clear',
+          secondaryBadge: failedAction ? `Case ${failedAction.case_id || '-'}` : 'route open',
+          tone: failedAction ? 'danger' : 'success',
+          featured: featuredConsequenceKey === 'recovery',
+          view: 'actions',
+          focusType: failedAction ? 'action' : '',
+          focusId: failedAction?.action_id || '',
+          caseId: failedAction?.case_id || currentCase?.case_id || '',
+          actionLabel: failedAction ? 'Recover in AI Actions' : 'Open AI Actions',
+          traceTitle: 'Recovery rule',
+          traceDetail: failedAction ? 'Review the blocked boundary first, then decide whether the same case should relaunch AI.' : 'Fail-closed paths will surface here the moment recovery becomes a real executive move.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Proof carry-through',
+          title: (completedAction || Number(summary.document_artifact_total || 0)) ? 'A governed result is ready for follow-through' : 'No proof-ready outcome is waiting yet',
+          detail: (completedAction || Number(summary.document_artifact_total || 0))
+            ? (completedAction?.output_summary || completedAction?.next_action || 'Open the document or case lane to confirm the result, review artifacts, and keep the proof chain intact.')
+            : 'Once AI finishes with a meaningful outcome, this slot will point to the proof or document lane that should carry it forward.',
+          badge: (completedAction || Number(summary.document_artifact_total || 0)) ? 'proof ready' : 'pending',
+          secondaryBadge: Number(summary.document_artifact_total || 0) ? `${summary.document_artifact_total || 0} artifacts` : ((completedAction?.case_id) ? `Case ${completedAction.case_id}` : 'no output'),
+          tone: Number(summary.document_artifact_total || 0) ? 'accent' : ((completedAction || Number(summary.document_artifact_total || 0)) ? 'success' : 'default'),
+          featured: featuredConsequenceKey === 'proof',
+          view: Number(summary.document_artifact_total || 0) ? 'documents' : 'actions',
+          caseId: completedAction?.case_id || currentCase?.case_id || '',
+          actionLabel: Number(summary.document_artifact_total || 0) ? 'Open Documents' : 'Open AI Actions',
+          traceTitle: 'Next proof lane',
+          traceDetail: Number(summary.document_artifact_total || 0)
+            ? 'The result already created governed side effects. Review them in Documents without breaking case continuity.'
+            : ((completedAction || Number(summary.document_artifact_total || 0))
+                ? 'Confirm the outcome before launching another move so proof, case, and follow-through stay aligned.'
+                : 'Proof-ready results will surface here as soon as the runtime finishes with a governed outcome.'),
+        })}
+      </div>
+    </section>
+    <section class="metrics-grid metrics-grid-luxury">
+      ${metricCard('Running', summary.running_total || 0, (summary.running_total || 0) ? 'accent' : 'default', 'Governed AI actions actively moving right now.')}
+      ${metricCard('Waiting human', summary.waiting_human_total || 0, (summary.waiting_human_total || 0) ? 'warning' : 'success', 'AI actions paused at a real human boundary.')}
+      ${metricCard('Completed', summary.completed_total || 0, (summary.completed_total || 0) ? 'success' : 'default', 'Governed AI actions that already finished cleanly.')}
+      ${metricCard('Failed closed', summary.failed_closed_total || 0, (summary.failed_closed_total || 0) ? 'danger' : 'success', 'Actions that stopped behind a fail-closed boundary.')}
+      ${metricCard('Document artifacts', summary.document_artifact_total || 0, (summary.document_artifact_total || 0) ? 'accent' : 'default', 'Governed document side effects created by AI actions.')}
+    </section>
+    <section class="split-grid">
+      <article class="card stack">
+        <div><div class="eyebrow muted">AI workload posture</div><h3 class="card-title">What the workforce is doing from this lane</h3><p class="card-subtitle">AI should feel active here, with human intervention reserved for explicit handoff or fail-closed situations.</p></div>
+        ${keyValue([
+          ['Running now', String(summary.running_total || 0)],
+          ['Waiting human', String(summary.waiting_human_total || 0)],
+          ['Completed', String(summary.completed_total || 0)],
+          ['Failed closed', String(summary.failed_closed_total || 0)],
+        ])}
+      </article>
+      <article class="card stack">
+        <div><div class="eyebrow muted">Keep continuity intact</div><h3 class="card-title">Move through the case, not around it</h3><p class="card-subtitle">When AI drafts a document, triggers a handoff, or fails closed, the safest next move is still the one that preserves the same case story.</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: 'cases', label: 'Open Cases', className: 'action-button', focusType: currentCase ? 'case' : '', focusId: currentCase?.case_id || '', caseId: currentCase?.case_id || '', title: currentCase ? `Case ${currentCase.case_id} reopened from AI Actions.` : 'Cases reopened from AI Actions.', detail: 'Keep the action, documents, handoffs, and proof trail attached to one governed issue.', actionLabel: 'Open Cases' })}
+          ${renderViewJumpButton({ view: 'documents', label: 'Open Documents', className: 'action-button action-button-muted', caseId: currentCase?.case_id || '', title: currentCase?.case_id ? `Case ${currentCase.case_id} reopened in Documents.` : 'Documents reopened from AI Actions.', detail: 'Review governed document drafts or publication follow-through created by the AI action runtime.', actionLabel: 'Open Documents' })}
+        </div>
+      </article>
+    </section>
+    <section class="action-runtime-section stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Action launch board</div>
+          <h3 class="card-title">What AI can be told to do from this case</h3>
+          <p class="card-subtitle">Launch only the governed moves that match the current case, authority boundary, and side-effect posture.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${registry.length} actions available`)}</div>
+      </div>
+      <div class="card-grid">
+        ${registry.map((entry) => renderActionRegistryCard(entry, currentCase)).join('')}
+      </div>
+    </section>
+    <section class="action-runtime-section stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Runtime mission log</div>
+          <h3 class="card-title">What the workforce already attempted or produced</h3>
+          <p class="card-subtitle">Each action should read like a governed move with a clear pace, route, and next consequence.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${summary.actions_total || items.length} visible`)}</div>
+      </div>
+      <div class="card-grid">
+        ${items.length ? items.map((item) => renderActionCard(item)).join('') : renderActionEmptyState(currentCase)}
+      </div>
     </section>
   `;
 }
@@ -6746,6 +8606,22 @@ function renderRequests(snapshot) {
   const latestRequestLabel = requests.length
     ? `${requests[0].request_id} | ${shortTime(requests[0].timestamp)}`
     : 'No governed request has been recorded yet.';
+  const nextMoveView = pendingOverrides.length ? 'overrides' : conflicts.length ? 'conflicts' : requests.length ? 'audit' : 'requests';
+  const nextMoveLabel = VIEW_TITLES[nextMoveView] || titleCase(nextMoveView);
+  const nextMoveTitle = pendingOverrides.length
+    ? 'Resolve the human boundary before adding more demand'
+    : conflicts.length
+      ? 'Unblock the conflicted request path'
+      : requests.length
+        ? 'Confirm the latest request finished cleanly'
+        : 'Submit the first governed request';
+  const nextMoveDetail = pendingOverrides.length
+    ? 'The queue already contains requests that need a real human approval or veto before governed execution may continue.'
+    : conflicts.length
+      ? 'The queue is still alive, but conflicted requests should be cleared before the operator adds pressure to the same runtime corridor.'
+      : requests.length
+        ? 'No new human boundary is stopping the queue right now. The best move is to confirm the latest governed request outcome and keep intake disciplined.'
+        : 'Requests becomes useful the moment one real governed action enters the runtime with role, payload, and boundary context.';
   const composer = can('request.create')
     ? renderRequestComposer(snapshot.roles || [])
     : `<article class="card notice-card stack"><strong>Request composer</strong><p class="permission-note">This profile does not have request.create permission.</p></article>`;
@@ -6755,7 +8631,7 @@ function renderRequests(snapshot) {
         <div class="hero-heading">
           <div>
             <div class="eyebrow muted">Runtime Intake Command</div>
-            <h2 class="hero-title">Governed requests enter a disciplined execution corridor.</h2>
+            <h2 class="hero-title">See demand clearly, stop at the right human boundary, and keep governed intake moving.</h2>
             <p class="hero-subtitle">Every submission is checked for role authority, policy coverage, consistency posture, role flow, and audit trace before any privileged work is allowed to continue.</p>
           </div>
           <div class="hero-chip-row">
@@ -6774,24 +8650,27 @@ function renderRequests(snapshot) {
           ])}
           <div class="hero-note">
             <strong>Operator standard</strong>
-            <p>Use runtime intake for actions that belong inside the governed server boundary. Context-aware routing, switch reasoning, and escalation lanes are now visible directly in the request ledger.</p>
+            <p>Use Requests when new governed work is entering the runtime. The goal is not to inspect plumbing. The goal is to see whether demand can keep flowing, must stop for a human, or is colliding with contention.</p>
           </div>
         </div>
       </article>
       <article class="card hero-card hero-card-secondary">
         <div>
-          <div class="eyebrow muted">Submission posture</div>
-          <h3 class="card-title">Queue discipline</h3>
-          <p class="card-subtitle">The request surface is tuned for live operations, approval routing, and post-decision traceability.</p>
+          <div class="eyebrow muted">What changes the queue right now?</div>
+          <h3 class="card-title">${escapeHtml(nextMoveTitle)}</h3>
+          <p class="card-subtitle">${escapeHtml(nextMoveDetail)}</p>
         </div>
         ${keyValue([
           ['Latest request', latestRequestLabel],
-          ['Override queue', pendingOverrides.length ? 'active' : 'clear'],
-          ['Conflict exposure', conflicts.length ? 'present' : 'none'],
+          ['Recommended lane', nextMoveLabel],
+          ['Pending overrides', String(pendingOverrides.length)],
+          ['Conflicts', String(conflicts.length)],
           ['Execution model', 'Governed private runtime'],
-          ['Activation surface', routedRequests ? 'context-aware live' : 'explicit or stable'],
         ])}
-        <div class="trace-box"><strong>Submission note</strong><p class="muted">When metadata includes idempotency keys and event ordering, replay and out-of-order protection remain explicit in the runtime ledger alongside role transitions and escalation evidence.</p></div>
+        <div class="inline-actions">
+          ${renderViewJumpButton({ view: nextMoveView, label: `Open ${nextMoveLabel}`, className: 'action-button', title: `${nextMoveLabel} reopened from Requests.`, detail: nextMoveDetail, actionLabel: `Open ${nextMoveLabel}` })}
+          ${renderViewJumpButton({ view: 'audit', label: 'Open Audit', className: 'action-button action-button-muted', title: 'Audit reopened from Requests.', detail: 'Use Audit to confirm what happened after a governed request crossed the intake lane.', actionLabel: 'Open Audit' })}
+        </div>
       </article>
     </section>
     <section class="metrics-grid metrics-grid-luxury">
@@ -6823,26 +8702,26 @@ function renderRequests(snapshot) {
     </section>
     <section class="split-grid">
       <article class="card stack">
-        <div><div class="eyebrow muted">Submission protocol</div><h3 class="card-title">What strong requests look like</h3><p class="card-subtitle">Use this surface as the premium operator lane for runtime work that must remain reviewable after execution.</p></div>
+        <div><div class="eyebrow muted">Before you submit</div><h3 class="card-title">What strong requests include</h3><p class="card-subtitle">Good intake keeps the runtime readable after execution, not just before it.</p></div>
         ${keyValue([
           ['Payload quality', 'Structured JSON with explicit resource context'],
           ['Consistency discipline', 'Idempotency key plus event ordering metadata'],
           ['Role targeting', 'Choose a trusted role or leave it blank for context-aware routing'],
-          ['Review posture', pendingOverrides.length ? 'Monitor the human override queue after submit' : 'No active review bottleneck detected'],
+          ['Review posture', pendingOverrides.length ? 'Expect a human boundary when the risk is already visible' : 'No active review bottleneck is visible now'],
         ])}
         <div class="trace-box"><strong>Recommended metadata</strong><p class="muted">Pair each governed request with an idempotency key, event stream, and event sequence whenever the action touches mutable records or recurring workflows.</p></div>
       </article>
       <article class="card stack">
-        <div><div class="eyebrow muted">Onboarding checkpoint</div><h3 class="card-title">What to do after your first request</h3><p class="card-subtitle">Use the next view based on what happened to the request instead of guessing where the system stored the decision.</p></div>
+        <div><div class="eyebrow muted">After you submit</div><h3 class="card-title">Move to the right lane instead of guessing</h3><p class="card-subtitle">Requests should tell you where to go next when the runtime changes state.</p></div>
         ${keyValue([
           ['If the request stayed autonomous', 'Open Audit to confirm outcome and policy basis'],
           ['If the request escalated', 'Open Overrides to see who must approve or veto'],
           ['If the request conflicted', 'Open Conflicts to inspect locks before retrying'],
-          ['If the role changed', 'Stay in Runtime Requests to review activation source and switch reason'],
+          ['If the role changed', 'Stay in Requests to review activation source and switch reason'],
         ])}
         <div class="inline-actions">
-          <button class="action-button" type="button" data-view-jump="audit">Open Audit</button>
-          <button class="action-button action-button-muted" type="button" data-view-jump="conflicts">Open Conflicts</button>
+          ${renderViewJumpButton({ view: 'overrides', label: 'Open Overrides', className: 'action-button', title: 'Overrides reopened from Requests.', detail: 'Use Overrides when the queue already crossed a human boundary.', actionLabel: 'Open Overrides' })}
+          ${renderViewJumpButton({ view: 'conflicts', label: 'Open Conflicts', className: 'action-button action-button-muted', title: 'Conflicts reopened from Requests.', detail: 'Use Conflicts when contention, locks, or ordering pressure stopped the path.', actionLabel: 'Open Conflicts' })}
         </div>
       </article>
     </section>
@@ -9107,7 +10986,7 @@ function renderRoleFlowCell(row) {
   const changed = previousRole && previousRole !== newRole;
   const requestChip = requestedRole && requestedRole !== '-' ? `<span class="status-chip">Requested ${escapeHtml(requestedRole)}</span>` : '';
   const flow = changed
-    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(previousRole)}</span><span class="transition-arrow">?</span><span class="transition-node transition-node-active">${escapeHtml(newRole)}</span></div>`
+    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(previousRole)}</span><span class="transition-arrow">-&gt;</span><span class="transition-node transition-node-active">${escapeHtml(newRole)}</span></div>`
     : `<div class="transition-route"><span class="transition-node transition-node-active">${escapeHtml(newRole)}</span></div>`;
   const meta = transition.switch_reason || transition.business_domain || row.reason || '-';
   return `<div class="transition-stack">${flow}<div class="transition-chip-row">${requestChip}${changed ? statusBadge('switched') : statusBadge('steady')}</div><div class="transition-meta">${escapeHtml(meta)}</div></div>`;
@@ -9136,7 +11015,7 @@ function renderRoleHierarchyLane(role) {
     role.safety_owner ? statusBadge(`safety ${role.safety_owner}`) : '',
   ].filter(Boolean).join('');
   const route = role.reports_to
-    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(role.role_id)}</span><span class="transition-arrow">?</span><span class="transition-node">${escapeHtml(role.reports_to)}</span><span class="transition-arrow">?</span><span class="transition-node transition-node-active">${escapeHtml(role.escalation_to || role.reports_to)}</span></div>`
+    ? `<div class="transition-route"><span class="transition-node">${escapeHtml(role.role_id)}</span><span class="transition-arrow">-&gt;</span><span class="transition-node">${escapeHtml(role.reports_to)}</span><span class="transition-arrow">-&gt;</span><span class="transition-node transition-node-active">${escapeHtml(role.escalation_to || role.reports_to)}</span></div>`
     : `<div class="transition-route"><span class="transition-node transition-node-active">${escapeHtml(role.role_id)}</span></div>`;
   return `<section class="transition-panel role-hierarchy-panel"><div class="transition-chip-row">${chips}</div>${route}<div class="transition-meta">Reports to ${escapeHtml(role.reports_to || '-')} | Escalates to ${escapeHtml(role.escalation_to || '-')} | Safety owner ${escapeHtml(role.safety_owner || '-')}</div></section>`;
 }
@@ -9346,19 +11225,3 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

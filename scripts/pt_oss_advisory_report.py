@@ -4,8 +4,6 @@ from _bootstrap import ensure_repo_root_on_path
 
 ensure_repo_root_on_path()
 
-from sa_nom_governance.ptag.pt_oss_engine import PTOSSEngine
-from sa_nom_governance.studio.role_private_studio_models import NormalizedRoleSpec, StructuredJD
 
 
 PTAG_SAMPLE = """
@@ -20,6 +18,12 @@ role SAFETY_ANALYST {
 
 
 def _build_sample_assessment():
+    from sa_nom_governance.ptag.pt_oss_engine import PTOSSEngine
+    from sa_nom_governance.studio.role_private_studio_models import (
+        NormalizedRoleSpec,
+        StructuredJD,
+    )
+
     foundation_path = Path(__file__).resolve().parents[1] / "resources" / "pt_oss" / "pt_oss_foundation.json"
     engine = PTOSSEngine(foundation_path)
     structured_jd = StructuredJD(
@@ -90,3 +94,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

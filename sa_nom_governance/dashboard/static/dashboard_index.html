@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SA-NOM AI Governance Suite</title>
-    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.8-ui10" />
+    <link rel="stylesheet" href="dashboard_styles.css?v=0.7.14-ui1" />
   </head>
   <body>
     <div class="page-atmosphere" aria-hidden="true">
@@ -25,11 +25,32 @@
         </div>
         <section class="sidebar-intel">
           <div class="eyebrow">Command Compass</div>
+          <article id="sidebar-director-card" class="sidebar-director-card" data-tone="accent">
+            <div class="sidebar-director-heading">
+              <span class="sidebar-intel-label">Director Mode</span>
+              <div class="hero-chip-row sidebar-director-chip-row">
+                <span id="sidebar-director-badge-primary" class="pill">guarded</span>
+                <span id="sidebar-director-badge-secondary" class="pill pill-muted">director view</span>
+              </div>
+            </div>
+            <strong id="sidebar-director-mode">Mission control</strong>
+            <span id="sidebar-director-copy" class="sidebar-intel-copy">Stay on Home when you need the fastest read on posture, pressure, and the next governed move.</span>
+          </article>
           <div class="sidebar-intel-grid">
             <article class="sidebar-intel-card">
               <span class="sidebar-intel-label">Current View</span>
               <strong id="sidebar-view-title">Home</strong>
               <span id="sidebar-view-description" class="sidebar-intel-copy">Executive command surface</span>
+            </article>
+            <article class="sidebar-intel-card">
+              <span class="sidebar-intel-label">Next Governed Move</span>
+              <strong id="sidebar-next-move-title">Open Work Inbox</strong>
+              <span id="sidebar-next-move-detail" class="sidebar-intel-copy">The next lane should stay readable before you move deeper into the board.</span>
+            </article>
+            <article id="sidebar-pressure-card" class="sidebar-intel-card" data-tone="accent">
+              <span class="sidebar-intel-label">World Pressure</span>
+              <strong id="sidebar-pressure-label">Guarded</strong>
+              <span id="sidebar-pressure-detail" class="sidebar-intel-copy">Home keeps the broader world state visible while each lane handles the next move.</span>
             </article>
             <article class="sidebar-intel-card">
               <span class="sidebar-intel-label">Operator Session</span>
@@ -53,9 +74,10 @@
           <div class="command-nav-row">
             <div class="command-brand-inline">
               <div class="brand-mark brand-mark-inline"><span>SA</span></div>
-              <div>
+              <div class="command-brand-copy">
                 <div class="eyebrow">Command Surface</div>
                 <strong>SA-NOM</strong>
+                <span class="command-brand-note">Director console for governed AI work</span>
               </div>
             </div>
             <div class="command-nav-scroll">
@@ -87,6 +109,7 @@
               <div class="eyebrow">Operator Surface</div>
               <h2 id="view-title">Home</h2>
               <p id="view-description" class="view-description">What should happen next across the Director right now.</p>
+              <section id="topbar-action-strip" class="topbar-action-strip" aria-label="Quick actions"></section>
               <div class="topbar-ribbon">
                 <span class="topbar-ribbon-item">
                   <span class="topbar-ribbon-label">Operating mode</span>
@@ -131,40 +154,52 @@
         <div class="governance-sheet-head">
           <div>
             <div class="eyebrow">Governance</div>
-            <h2 id="governance-sheet-title">Control Room tools</h2>
-            <p class="view-description">Open advanced governance lanes without hunting through a narrow dropdown.</p>
+            <h2 id="governance-sheet-title">Control Room launchpad</h2>
+            <p class="view-description">Mission-first governance launcher tuned for tablet and desktop sessions.</p>
           </div>
           <button id="governance-sheet-close" class="action-button action-button-muted" type="button">Close</button>
         </div>
         <div class="governance-sheet-body">
-          <section class="governance-sheet-group">
-            <div class="nav-dropdown-section-label">Mission control</div>
+          <section class="governance-sheet-toolbar" aria-label="Find governance lane">
+            <div class="governance-sheet-mode" role="tablist" aria-label="Launch mode">
+              <button id="governance-mode-priority" class="governance-sheet-mode-button is-active" type="button" data-governance-mode="priority" aria-selected="true">Priority</button>
+              <button id="governance-mode-all" class="governance-sheet-mode-button" type="button" data-governance-mode="all" aria-selected="false">All lanes</button>
+            </div>
+            <div class="governance-sheet-search-row">
+              <label class="governance-sheet-search-label" for="governance-sheet-search">Find lane</label>
+              <input id="governance-sheet-search" class="governance-sheet-search" type="search" placeholder="Find lane: studio, setup, trust, recovery..." autocomplete="off" />
+              <span id="governance-sheet-search-count" class="muted small">11 lanes</span>
+            </div>
+          </section>
+          <section id="governance-sheet-recent" class="governance-sheet-recent" hidden>
+            <div class="nav-dropdown-section-label">Recent lanes</div>
+            <div id="governance-sheet-recent-grid" class="governance-sheet-recent-grid"></div>
+          </section>
+          <p id="governance-sheet-empty" class="governance-sheet-empty muted" hidden>No matching governance lane. Try another keyword.</p>
+          <section class="governance-sheet-group" data-governance-group="priority">
+            <div class="nav-dropdown-section-label">Mission-first launchpad</div>
             <div class="governance-sheet-grid">
               <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room"><span class="nav-item-title">Control Room</span><span class="nav-item-caption">Overview for trust, setup, recovery, and advanced governance actions</span></button>
-            </div>
-          </section>
-          <section class="governance-sheet-group">
-            <div class="nav-dropdown-section-label">Workforce, trust, and structure</div>
-            <div class="governance-sheet-grid">
               <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="studio"><span class="nav-item-title">Role Private Studio</span><span class="nav-item-caption">Create AI workforce roles from governed JD-style input</span></button>
-              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="structural_risk"><span class="nav-item-title">Structural Risk &amp; Alignment</span><span class="nav-item-caption">PT-OSS posture, alignment, and publication pressure</span></button>
-              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="evidence_exports"><span class="nav-item-title">Trust &amp; Evidence</span><span class="nav-item-caption">Audit, evidence exports, and trusted registry posture</span></button>
+              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="setup"><span class="nav-item-title">Setup &amp; Onboarding</span><span class="nav-item-caption">First-run assistant, doctor, and owner bootstrap</span></button>
+              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="structural_risk"><span class="nav-item-title">Structural Risk &amp; Alignment</span><span class="nav-item-caption">PT-OSS posture and Global Harmony alignment home</span></button>
+              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="evidence_exports"><span class="nav-item-title">Trust &amp; Evidence</span><span class="nav-item-caption">Audit, exports, and trusted registry posture</span></button>
+              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="health"><span class="nav-item-title">Runtime &amp; Recovery</span><span class="nav-item-caption">Health, diagnostics, backup, restore, and recovery posture</span></button>
             </div>
           </section>
-          <section class="governance-sheet-group">
-            <div class="nav-dropdown-section-label">Setup, routing, and recovery</div>
+          <section class="governance-sheet-group" data-governance-group="all">
+            <div class="nav-dropdown-section-label">Full governance map</div>
             <div class="governance-sheet-grid">
-              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="setup"><span class="nav-item-title">Setup &amp; Onboarding</span><span class="nav-item-caption">First-run assistant, doctor, and owner bootstrap</span></button>
               <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="master_data"><span class="nav-item-title">Master Data &amp; Routing</span><span class="nav-item-caption">People, teams, search, and assignment governance</span></button>
               <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="integrations"><span class="nav-item-title">Integrations &amp; Providers</span><span class="nav-item-caption">Outbound delivery, provider readiness, and external routing posture</span></button>
-              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="health"><span class="nav-item-title">Runtime &amp; Recovery</span><span class="nav-item-caption">Health, diagnostics, backup, restore, and recovery posture</span></button>
+              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="retention"><span class="nav-item-title">Documents &amp; Records</span><span class="nav-item-caption">Retention, legal hold, and governed record posture</span></button>
+              <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="sessions"><span class="nav-item-title">Access &amp; Sessions</span><span class="nav-item-caption">Session discipline and access continuity posture</span></button>
               <button class="nav-item nav-subitem governance-sheet-item" data-view="control_room" data-control-room-tool="admin_settings"><span class="nav-item-title">Admin Settings</span><span class="nav-item-caption">Organization defaults, providers, routing, and runtime policy</span></button>
             </div>
           </section>
         </div>
       </section>
     </div>
-      <script type="module" src="dashboard_app.js?v=0.7.8-ui10"></script>
-
-      </body>
+    <script type="module" src="dashboard_app.js?v=0.7.15-ui1"></script>
+  </body>
 </html>
