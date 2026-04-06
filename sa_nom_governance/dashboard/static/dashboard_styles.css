@@ -3484,10 +3484,41 @@ button:focus-visible {
 
 .governance-sheet-toolbar {
   display: grid;
+  gap: 8px;
+  padding: 6px 2px 2px;
+}
+
+.governance-sheet-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.governance-sheet-mode-button {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(185, 146, 79, 0.2);
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--muted-strong);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.governance-sheet-mode-button.is-active {
+  border-color: rgba(185, 146, 79, 0.36);
+  background: linear-gradient(180deg, rgba(255, 250, 240, 0.98), rgba(246, 236, 218, 0.92));
+  box-shadow: 0 8px 16px rgba(35, 29, 22, 0.08);
+  color: var(--text);
+}
+
+.governance-sheet-search-row {
+  display: grid;
   grid-template-columns: auto minmax(220px, 1fr) auto;
   align-items: center;
   gap: 10px;
-  padding: 6px 2px 2px;
 }
 
 .governance-sheet-search-label {
@@ -3517,6 +3548,27 @@ button:focus-visible {
   outline: none;
   border-color: rgba(185, 146, 79, 0.44);
   box-shadow: 0 0 0 3px rgba(185, 146, 79, 0.14);
+}
+
+.governance-sheet-recent {
+  display: grid;
+  gap: 8px;
+}
+
+.governance-sheet-recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.governance-sheet-recent-item {
+  min-height: 64px;
+  padding: 10px 12px;
+}
+
+.governance-sheet-recent-item .nav-item-caption {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 .governance-sheet-empty {
@@ -3590,12 +3642,29 @@ button:focus-visible {
   }
 
   .governance-sheet-toolbar {
+    gap: 7px;
+  }
+
+  .governance-sheet-mode {
+    width: 100%;
+  }
+
+  .governance-sheet-mode-button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .governance-sheet-search-row {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
   }
 
   .governance-sheet-search-label {
     display: none;
+  }
+
+  .governance-sheet-recent-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .governance-sheet-item {
@@ -4296,6 +4365,19 @@ button:focus-visible {
   }
 
   .governance-sheet-toolbar {
+    gap: 6px;
+  }
+
+  .governance-sheet-mode {
+    width: 100%;
+  }
+
+  .governance-sheet-mode-button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .governance-sheet-search-row {
     grid-template-columns: 1fr;
     gap: 6px;
   }
@@ -4306,6 +4388,10 @@ button:focus-visible {
 
   .governance-sheet-search {
     min-height: 38px;
+  }
+
+  .governance-sheet-recent-grid {
+    grid-template-columns: 1fr;
   }
 
   .governance-sheet-head {
@@ -4810,14 +4896,3 @@ button:focus-visible {
 .command-inbox-consequence-box strong {
   color: var(--text);
 }
-
-
-
-
-
-
-
-
-
-
-
