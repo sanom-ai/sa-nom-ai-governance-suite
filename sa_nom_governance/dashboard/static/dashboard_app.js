@@ -70,19 +70,31 @@ const sidebarPressureLabel = document.getElementById('sidebar-pressure-label');
 const sidebarPressureDetail = document.getElementById('sidebar-pressure-detail');
 const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
+let governanceSheetReturnFocus = null;
 
 function closeGovernanceSheet() {
   if (!governanceSheet) return;
   governanceSheet.hidden = true;
   governanceSheet.setAttribute('aria-hidden', 'true');
   governanceLauncher?.setAttribute('aria-expanded', 'false');
+  document.body.classList.remove('governance-sheet-open');
+  if (governanceSheetReturnFocus && document.contains(governanceSheetReturnFocus)) {
+    governanceSheetReturnFocus.focus({ preventScroll: true });
+  }
+  governanceSheetReturnFocus = null;
 }
 
 function openGovernanceSheet() {
   if (!governanceSheet) return;
+  governanceSheetReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : governanceLauncher;
   governanceSheet.hidden = false;
   governanceSheet.setAttribute('aria-hidden', 'false');
   governanceLauncher?.setAttribute('aria-expanded', 'true');
+  document.body.classList.add('governance-sheet-open');
+  window.requestAnimationFrame(() => {
+    const focusTarget = governanceSheet.querySelector('.governance-sheet-item, #governance-sheet-close');
+    focusTarget?.focus({ preventScroll: true });
+  });
 }
 
 function navigateFromGovernanceTarget(target) {
@@ -6222,6 +6234,120 @@ function renderControlRoomMissionSection(snapshot, groups, currentTool) {
   `;
 }
 
+function buildControlRoomActionDeck(snapshot) {
+  const summary = snapshot.summary || {};
+  const firstRun = snapshot.first_run_readiness || {};
+  const firstRunCenter = snapshot.operations?.first_run_action_center || {};
+  const runtimeHealth = snapshot.runtime_health || {};
+  const studioSummary = snapshot.role_private_studio?.summary || {};
+  const evidenceSummary = snapshot.evidence_exports?.summary || {};
+  const integrationSummary = snapshot.integrations?.summary || {};
+
+  const setupRequired = Number(firstRunCenter.required_total || firstRun.blockers_total || 0);
+  const studioTrustAttention = Number(studioSummary.trust_attention_total || 0);
+  const studioPublishReady = Number(studioSummary.publisher_ready_total || 0);
+  const structuralAttention = Number(summary.studio_pt_oss_blocking_issue_total || 0)
+    + Number(summary.studio_pt_oss_critical_total || 0)
+    + Number(summary.studio_pt_oss_elevated_total || 0);
+  const trustAttention = Number(evidenceSummary.attention_total || 0)
+    + Number(evidenceSummary.trusted_role_mismatch_total || 0);
+  const runtimeWarnings = Number(runtimeHealth.warning_total || runtimeHealth.attention_total || 0);
+  const integrationFailures = Number(integrationSummary.failed_total || 0);
+
+  const items = [
+    {
+      tool: 'setup',
+      label: 'Setup Runway',
+      value: setupRequired > 0 ? `${setupRequired} required` : 'ready',
+      note: 'Setup Assistant, First-Run Action Center, and Quick-Start Doctor stay in one guided lane.',
+      tone: setupRequired > 0 ? 'tone-warning' : 'tone-success',
+      actionLabel: setupRequired > 0 ? 'Continue setup' : 'Review setup',
+      priority: setupRequired > 0 ? 110 : 42,
+    },
+    {
+      tool: 'studio',
+      label: 'Role Private Studio',
+      value: studioTrustAttention > 0 ? `${studioTrustAttention} trust alerts` : `${studioPublishReady} publish ready`,
+      note: 'Create role specs from normal JD input and let the runtime compile governed PTAG in the background.',
+      tone: studioTrustAttention > 0 ? 'tone-warning' : studioPublishReady > 0 ? 'tone-accent' : 'tone-success',
+      actionLabel: studioTrustAttention > 0 ? 'Resolve trust alerts' : 'Open studio',
+      priority: studioTrustAttention > 0 ? 100 : studioPublishReady > 0 ? 78 : 36,
+    },
+    {
+      tool: 'structural_risk',
+      label: 'Structural Risk & Alignment',
+      value: structuralAttention > 0 ? `${structuralAttention} risk signals` : 'stable watch',
+      note: 'PT-OSS posture and Global Harmony alignment are reviewed together before trusted publication.',
+      tone: structuralAttention > 0 ? 'tone-warning' : 'tone-success',
+      actionLabel: structuralAttention > 0 ? 'Review posture now' : 'Review posture',
+      priority: structuralAttention > 0 ? 95 : 44,
+    },
+    {
+      tool: 'evidence_exports',
+      label: 'Trust & Evidence',
+      value: trustAttention > 0 ? `${trustAttention} attention` : 'continuity clear',
+      note: 'Audit chain, evidence packs, and trusted registry posture should stay export-ready.',
+      tone: trustAttention > 0 ? 'tone-warning' : 'tone-accent',
+      actionLabel: trustAttention > 0 ? 'Review trust now' : 'Open trust lane',
+      priority: trustAttention > 0 ? 92 : 40,
+    },
+    {
+      tool: 'health',
+      label: 'Runtime & Recovery',
+      value: runtimeWarnings > 0 ? `${runtimeWarnings} warnings` : formatStatusLabel(runtimeHealth.status || 'ok'),
+      note: 'Diagnostics, backup posture, and recovery readiness should stay green before risky rollout moves.',
+      tone: runtimeWarnings > 0 || String(runtimeHealth.status || '').toLowerCase() !== 'ok' ? 'tone-warning' : 'tone-success',
+      actionLabel: runtimeWarnings > 0 ? 'Check runtime now' : 'Open runtime',
+      priority: runtimeWarnings > 0 ? 90 : 38,
+    },
+    {
+      tool: 'integrations',
+      label: 'Integrations & Providers',
+      value: integrationFailures > 0 ? `${integrationFailures} failed` : `${Number(integrationSummary.active_targets || 0)} active targets`,
+      note: 'Outbound delivery pressure should be handled before delegation expands to external channels.',
+      tone: integrationFailures > 0 ? 'tone-warning' : 'tone-accent',
+      actionLabel: integrationFailures > 0 ? 'Fix delivery pressure' : 'Open integrations',
+      priority: integrationFailures > 0 ? 88 : 34,
+    },
+  ].filter((item) => item.tool !== 'setup' || canAccessSetupAssistant());
+
+  return items.sort((left, right) => right.priority - left.priority).slice(0, 4);
+}
+
+function renderControlRoomActionCard(item, currentTool) {
+  const isCurrent = currentTool === item.tool;
+  return `
+    <article class="command-summary-card control-room-action-card ${escapeHtml(item.tone || 'tone-accent')}${isCurrent ? ' is-active' : ''}">
+      <span class="command-summary-label">${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <p class="muted">${escapeHtml(item.note)}</p>
+      <div class="inline-actions">
+        <button class="action-button${isCurrent ? ' action-button-muted' : ''}" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(isCurrent ? 'Current lane' : item.actionLabel || controlRoomPrimaryActionLabel(item.tool))}</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderControlRoomActionSection(snapshot, currentTool) {
+  const cards = buildControlRoomActionDeck(snapshot);
+  if (!cards.length) return '';
+  return `
+    <section class="card stack control-room-action-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Action center</div>
+          <h3 class="card-title">Immediate moves for this governance session</h3>
+          <p class="card-subtitle">Less reading, more action. Open the next high-impact lane directly from this mission board.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${cards.length} live actions`)}</div>
+      </div>
+      <div class="control-room-action-grid">
+        ${cards.map((item) => renderControlRoomActionCard(item, currentTool)).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function renderControlRoomCategorySection(group, currentTool) {
   return `
     <section class="card stack control-room-category">
@@ -6298,6 +6424,7 @@ function renderControlRoom(snapshot) {
           </div>
         </article>
       </section>
+      ${renderControlRoomActionSection(snapshot, currentTool)}
       ${renderControlRoomMissionSection(snapshot, groups, currentTool)}
       <section class="control-room-groups">
         ${groups.map((group) => renderControlRoomCategorySection(group, currentTool)).join('')}
@@ -6340,6 +6467,19 @@ function renderStructuralRiskTool(snapshot) {
   const healthyTotal = Number(summary.studio_pt_oss_healthy_total || studioSummary.pt_oss_healthy_total || 0);
   const publicSectorTotal = Number(summary.studio_pt_oss_public_sector_total || studioSummary.pt_oss_public_sector_mode_total || 0);
   const posture = studioStructural.status || (criticalTotal > 0 ? 'critical' : elevatedTotal > 0 || blockingIssueTotal > 0 ? 'elevated' : guardedTotal > 0 ? 'watch' : 'healthy');
+  const harmony = snapshot.global_harmony || {};
+  const harmonySummary = harmony.summary || {};
+  const harmonySignals = Number(harmonySummary.signal_total || harmony.signal_total || summary.global_harmony_signal_total || 0);
+  const harmonyStatusRaw = String(harmonySummary.status || harmony.status || summary.global_harmony_status || '').trim();
+  const harmonyStatus = harmonyStatusRaw || (harmonySignals > 0 ? 'active' : 'awaiting data');
+  const harmonyReady = harmonyStatus !== 'awaiting data' || harmonySignals > 0;
+  const harmonyNote = String(
+    harmonySummary.note
+    || harmony.note
+    || (harmonyReady
+      ? 'Global Harmony telemetry is active in this same structural lane.'
+      : 'Global Harmony telemetry will appear here once alignment data is connected.')
+  ).trim();
   return `
     <section class="stack gap-lg">
       <section class="overview-hero">
@@ -6377,6 +6517,8 @@ function renderStructuralRiskTool(snapshot) {
             ['Blocked total', String(blockedTotal)],
             ['Critical total', String(criticalTotal)],
             ['Public-sector mode hats', String(publicSectorTotal)],
+            ['Global Harmony status', formatStatusLabel(harmonyStatus)],
+            ['Global Harmony signals', String(harmonySignals)],
             ['Structural note', studioStructural.note || studioStructural.message || 'PT-OSS posture is active on this runtime.'],
           ])}
         </article>
@@ -6395,11 +6537,12 @@ function renderStructuralRiskTool(snapshot) {
         </article>
         <article class="card stack">
           <div>
-            <div class="eyebrow muted">Alignment note</div>
-            <h3 class="card-title">Alignment lives in this same governance lane</h3>
-            <p class="card-subtitle">Global Harmony should surface here when alignment data is active. PT-OSS is the structural signal visible today, and alignment stays under the same advanced governance boundary.</p>
+            <div class="eyebrow muted">Alignment home</div>
+            <h3 class="card-title">Global Harmony has a clear home in this same lane</h3>
+            <p class="card-subtitle">PT-OSS stays visible as the structural baseline. When alignment telemetry is connected, Global Harmony signals appear here without creating a second governance home.</p>
           </div>
-          <div class="hero-chip-row">${statusBadge('pt-oss visible')}${statusBadge('advanced governance')}</div>
+          <div class="hero-chip-row">${statusBadge('pt-oss visible')}${statusBadge(harmonyStatus)}</div>
+          <div class="trace-box compact-trace"><strong>Alignment signal</strong><p class="muted">${escapeHtml(harmonyNote)}</p></div>
         </article>
       </section>
     </section>
@@ -10550,6 +10693,12 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
+
+
+
+
+
+
 
 
 
