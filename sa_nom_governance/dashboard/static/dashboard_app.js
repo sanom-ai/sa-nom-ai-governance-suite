@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.15-ui1';
+import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.16-ui1';
 
 const state = {
   view: getInitialDashboardView(),
@@ -95,6 +95,10 @@ const governanceSheetFilterState = {
   groups: [],
   allItems: [],
 };
+const governanceSheetViewportState = {
+  rafId: 0,
+  compact: false,
+};
 
 function normalizeGovernanceSheetQuery(rawQuery = '') {
   return String(rawQuery || '').trim().toLowerCase();
@@ -165,6 +169,32 @@ function scheduleGovernanceSheetFilter(rawQuery = '') {
   });
 }
 
+function shouldUseCompactGovernanceSheetLayout() {
+  const viewportHeight = window.innerHeight || document.documentElement?.clientHeight || 0;
+  const viewportWidth = window.innerWidth || document.documentElement?.clientWidth || 0;
+  if (!viewportHeight) return false;
+  return viewportHeight <= 880 || (viewportWidth <= 1180 && viewportHeight <= 940);
+}
+
+function syncGovernanceSheetViewportLayout({ force = false } = {}) {
+  if (!governanceSheet) return;
+  const compact = shouldUseCompactGovernanceSheetLayout();
+  if (!force && governanceSheetViewportState.compact === compact) return;
+  governanceSheetViewportState.compact = compact;
+  governanceSheet.classList.toggle('is-compact', compact);
+  markGovernanceSheetFilterIndexDirty();
+  if (!governanceSheet.hidden) {
+    applyGovernanceSheetFilter(governanceSheetSearch?.value || '', { force: true });
+  }
+}
+
+function scheduleGovernanceSheetViewportLayoutSync() {
+  if (governanceSheetViewportState.rafId) return;
+  governanceSheetViewportState.rafId = window.requestAnimationFrame(() => {
+    governanceSheetViewportState.rafId = 0;
+    syncGovernanceSheetViewportLayout();
+  });
+}
 
 function governanceLaneIdentity(view, controlRoomTool) {
   return `${String(view || 'overview')}::${String(controlRoomTool || '-')}`;
@@ -269,6 +299,7 @@ function applyGovernanceSheetFilter(rawQuery = '', { force = false } = {}) {
   if (!governanceSheet) return;
   const query = normalizeGovernanceSheetQuery(rawQuery);
   const searchActive = query.length > 0;
+  const compactMode = governanceSheet.classList.contains('is-compact');
   rebuildGovernanceSheetFilterIndex({ force });
   if (!force && governanceSheetFilterState.query === query && governanceSheetFilterState.mode === governanceLaunchMode) {
     return;
@@ -277,15 +308,22 @@ function applyGovernanceSheetFilter(rawQuery = '', { force = false } = {}) {
 
   let recentVisibleCount = 0;
   if (governanceSheetRecent) {
-    for (const recentItem of governanceSheetFilterState.recentItems) {
-      const item = recentItem.element;
-      const haystack = recentItem.haystack;
-      const visible = !query || haystack.includes(query);
-      item.hidden = !visible;
-      if (visible) recentVisibleCount += 1;
+    if (compactMode) {
+      for (const recentItem of governanceSheetFilterState.recentItems) {
+        recentItem.element.hidden = true;
+      }
+      governanceSheetRecent.hidden = true;
+    } else {
+      for (const recentItem of governanceSheetFilterState.recentItems) {
+        const item = recentItem.element;
+        const haystack = recentItem.haystack;
+        const visible = !query || haystack.includes(query);
+        item.hidden = !visible;
+        if (visible) recentVisibleCount += 1;
+      }
+      governanceSheetRecent.hidden = recentVisibleCount === 0;
+      visibleCount += recentVisibleCount;
     }
-    governanceSheetRecent.hidden = recentVisibleCount === 0;
-    visibleCount += recentVisibleCount;
   }
 
   for (const group of governanceSheetFilterState.groups) {
@@ -352,6 +390,7 @@ function openGovernanceSheet() {
   governanceSheet.setAttribute('aria-hidden', 'false');
   governanceLauncher?.setAttribute('aria-expanded', 'true');
   document.body.classList.add('governance-sheet-open');
+  syncGovernanceSheetViewportLayout({ force: true });
   renderGovernanceRecentLanes();
   applyGovernanceSheetFilter(governanceSheetSearch?.value || '', { force: true });
   window.requestAnimationFrame(() => {
@@ -923,6 +962,11 @@ document.addEventListener('keydown', (event) => {
     governanceSheetSearch.select();
   }
 });
+
+window.addEventListener('resize', () => {
+  if (!governanceSheet || governanceSheet.hidden) return;
+  scheduleGovernanceSheetViewportLayoutSync();
+}, { passive: true });
 
 topbarActionStrip?.addEventListener('click', async (event) => {
   const viewJumpButton = event.target.closest('[data-view-jump]');
@@ -6880,6 +6924,121 @@ function renderControlRoomActionSection(snapshot, currentTool) {
   `;
 }
 
+function buildControlRoomExecutionActions(snapshot) {
+  const actions = [];
+  const firstRunCenter = snapshot.operations?.first_run_action_center || {};
+  const quickStartDoctor = snapshot.operations?.quick_start_doctor || {};
+  const doctorSummary = quickStartDoctor.summary || {};
+  const retention = snapshot.retention || {};
+  const integrations = snapshot.integrations?.summary || {};
+  const modelProviders = snapshot.model_providers || {};
+  const setupRequired = Number(firstRunCenter.required_total || 0);
+  const doctorRequiredFailed = Number(doctorSummary.required_failed_total || 0);
+  const doctorStatus = String(quickStartDoctor.status || '').trim().toLowerCase();
+  const providerNotReady = modelProviders.default_provider_ready === false || Number(modelProviders.configured_providers || 0) <= 0;
+  const deliveryPressure = Number(integrations.failed_total || 0) > 0;
+
+  if (can('ops.manage')) {
+    actions.push({
+      kind: 'ops',
+      action: 'quick-start-doctor',
+      label: 'Run Quick-Start Doctor',
+      note: doctorRequiredFailed > 0 || doctorStatus === 'failed'
+        ? 'Re-check required diagnostics before rollout.'
+        : 'Refresh diagnostics and readiness proof now.',
+      tone: doctorRequiredFailed > 0 || doctorStatus === 'failed' ? 'warning' : 'accent',
+    });
+    actions.push({
+      kind: 'ops',
+      action: 'first-run-action-center-sync',
+      label: 'Run First-Run Sync',
+      note: setupRequired > 0
+        ? 'Sync setup blockers and regenerate guided tasks.'
+        : 'Rebuild setup confidence artifacts in one run.',
+      tone: setupRequired > 0 ? 'warning' : 'accent',
+    });
+    actions.push({
+      kind: 'ops',
+      action: 'backup',
+      label: 'Create Runtime Backup',
+      note: 'Seal a restore bundle before major changes.',
+      tone: 'success',
+    });
+  }
+
+  if (can('integration.manage')) {
+    actions.push({
+      kind: 'integration',
+      action: 'probe-model-providers',
+      label: 'Probe Model Providers',
+      note: providerNotReady || deliveryPressure
+        ? 'Verify provider lane and delivery dependencies.'
+        : 'Refresh provider readiness signal.',
+      tone: providerNotReady || deliveryPressure ? 'warning' : 'accent',
+    });
+  }
+
+  if (can('retention.manage')) {
+    actions.push({
+      kind: 'retention',
+      action: 'enforce-now',
+      label: 'Run Retention Policy',
+      note: Number(retention.expired_candidate_total || 0) > 0
+        ? 'Process expiring records under policy boundaries.'
+        : 'Re-validate record lifecycle posture.',
+      tone: Number(retention.hold_blocked_total || 0) > 0 ? 'warning' : 'accent',
+    });
+  }
+
+  if (can('audit.manage')) {
+    actions.push({
+      kind: 'audit',
+      action: 'reseal',
+      label: 'Reseal Audit Chain',
+      note: 'Rebuild sealing continuity for legacy audit entries.',
+      tone: 'accent',
+    });
+  }
+
+  return actions.slice(0, 6);
+}
+
+function renderControlRoomExecutionAction(item) {
+  if (!item) return '';
+  const attrs = item.kind === 'ops'
+    ? `data-ops-action="${escapeHtml(item.action || '')}"`
+    : item.kind === 'integration'
+      ? `data-integration-action="${escapeHtml(item.action || '')}"`
+      : item.kind === 'retention'
+        ? `data-retention-action="${escapeHtml(item.action || '')}"`
+        : `data-audit-action="${escapeHtml(item.action || '')}"`;
+  return `
+    <button class="control-room-op-button" data-tone="${escapeHtml(item.tone || 'accent')}" type="button" ${attrs}>
+      <strong>${escapeHtml(item.label || 'Run action')}</strong>
+      <span>${escapeHtml(item.note || 'Execute this governance action now.')}</span>
+    </button>
+  `;
+}
+
+function renderControlRoomExecutionSection(snapshot) {
+  const actions = buildControlRoomExecutionActions(snapshot);
+  if (!actions.length) return '';
+  return `
+    <section class="card stack control-room-execution-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">One-tap operations</div>
+          <h3 class="card-title">Run critical governance actions immediately</h3>
+          <p class="card-subtitle">No hunting through deep panels. Trigger doctor, sync, backup, provider probe, and trust continuity actions directly from Control Room.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${actions.length} quick actions`)}</div>
+      </div>
+      <div class="control-room-execution-grid">
+        ${actions.map((item) => renderControlRoomExecutionAction(item)).join('')}
+      </div>
+    </section>
+  `;
+}
 function renderControlRoomCategorySection(group, currentTool) {
   return `
     <section class="card stack control-room-category">
@@ -6928,8 +7087,8 @@ function renderControlRoom(snapshot) {
           <div class="hero-heading">
             <div>
               <div class="eyebrow">Control Room</div>
-              <h3 class="hero-title">Advanced governance setup, trust, and recovery in one protected mission console</h3>
-              <p class="hero-subtitle">Home stays simple for normal users. Control Room is where advanced operators configure, verify, publish, recover, and govern the private-first runtime.</p>
+              <h3 class="hero-title">Advanced setup, trust, and recovery in one protected mission console</h3>
+              <p class="hero-subtitle">Home stays simple for normal users. Control Room is where advanced operators configure, verify, publish, recover, and keep the private-first runtime stable.</p>
             </div>
             <div class="hero-chip-row">${statusBadge('advanced governance')}${statusBadge(state.session?.role_name || 'admin')}</div>
           </div>
@@ -6956,6 +7115,7 @@ function renderControlRoom(snapshot) {
           </div>
         </article>
       </section>
+      ${renderControlRoomExecutionSection(snapshot)}
       ${renderControlRoomActionSection(snapshot, currentTool)}
       ${renderControlRoomMissionSection(snapshot, groups, currentTool)}
       <section class="control-room-groups">
