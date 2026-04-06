@@ -43,6 +43,7 @@ const root = document.getElementById('dashboard-root');
 const navList = document.getElementById('nav-list');
 const viewTitle = document.getElementById('view-title');
 const viewDescription = document.getElementById('view-description');
+const topbarActionStrip = document.getElementById('topbar-action-strip');
 const environmentLabel = document.getElementById('environment-label');
 const organizationSelector = document.getElementById('organization-selector');
 const askAiButton = document.getElementById('ask-ai-button');
@@ -466,31 +467,31 @@ const VIEW_TITLES = {
 };
 
 const VIEW_DESCRIPTIONS = {
-  overview: 'Understand posture and the next human move within five seconds.',
-  requests: 'Your governed work inbox across approvals, blocked items, and follow-through.',
-  cases: 'Follow one governed issue across requests, overrides, Human Ask, documents, and audit proof.',
-  directory: 'Browse people, teams, seats, assignments, and linked search results from one governed surface.',
-  documents: 'Work governed documents as live runtime objects, not static files.',
-  actions: 'Launch, review, and follow governed AI execution inside one runtime lane.',
-  setup: 'First-run assistant, doctor, and pilot hardening from one privileged surface.',
-  overrides: 'Work only the decisions that crossed a human boundary.',
-  conflicts: 'Inspect locks, contention, and safe retry posture.',
-  audit: 'Review chain integrity, evidence, and trusted history.',
-  studio: 'Create, review, and publish governed AI roles.',
-  human_ask: 'Start governed report or meeting records from one place.',
-  sessions: 'Monitor short-lived access, expiry, and revocation.',
-  policies: 'Inspect active role packs and policy boundaries.',
-  health: 'Check deployment, storage, integrations, and runtime posture.',
-  control_room: 'Advanced governance tools for admin, IT, and founder sessions only.',
-  backup_restore: 'Recovery bundles, restore guidance, and pilot-hardening artifacts inside Control Room.',
-  admin_settings: 'Organization identity, access policy, providers, and routing posture inside Control Room.',
-  owner_registration: 'Runtime identity, registration code, and deployment ownership posture.',
-  retention: 'Retention, legal hold, and governed records posture inside Control Room.',
-  integrations: 'Outbound routing, delivery posture, and integration readiness inside Control Room.',
-  model_providers: 'AI provider readiness and default workforce execution posture inside Control Room.',
-  evidence_exports: 'Evidence exports, workflow proof posture, and trust continuity inside Control Room.',
-  master_data: 'People, teams, routing, assignments, and searchable directory governance inside Control Room.',
-  structural_risk: 'PT-OSS structural intelligence and advanced governance posture inside Control Room.',
+  overview: 'See posture, choose a lane, and move in seconds.',
+  requests: 'Process governed intake and keep the queue moving.',
+  cases: 'Track one issue across requests, decisions, and proof.',
+  directory: 'Find real owners quickly and route work with confidence.',
+  documents: 'Advance draft, review, and publish flows with governance intact.',
+  actions: 'Run governed AI actions and monitor side effects in one lane.',
+  setup: 'Complete first-run setup and pilot checks quickly.',
+  overrides: 'Resolve human-required decisions without losing continuity.',
+  conflicts: 'Clear contention fast and resume stalled work safely.',
+  audit: 'Verify chain integrity, rationale, and exportable evidence.',
+  studio: 'Create and publish governed AI roles from one place.',
+  human_ask: 'Start governed reports and meeting records fast.',
+  sessions: 'Review issued access, expiry, and revocation posture.',
+  policies: 'Inspect role boundaries and trusted policy packs.',
+  health: 'Check runtime readiness, risks, and operational posture.',
+  control_room: 'Operate advanced governance tools in one protected surface.',
+  backup_restore: 'Manage backup posture and recovery readiness.',
+  admin_settings: 'Set organization defaults, access policy, and routing.',
+  owner_registration: 'Verify owner identity and deployment ownership posture.',
+  retention: 'Govern retention windows and legal-hold controls.',
+  integrations: 'Review outbound routing and integration readiness.',
+  model_providers: 'Check provider readiness and default execution lane.',
+  evidence_exports: 'Export trusted evidence packs and audit proof.',
+  master_data: 'Govern people, teams, assignments, and searchable routing.',
+  structural_risk: 'Review PT-OSS structural risk and alignment posture.',
 };
 
 const DEV_LANES = {
@@ -646,6 +647,84 @@ const VIEW_PERMISSIONS = {
   health: 'health.read',
 };
 
+const TOPBAR_QUICK_ACTIONS = {
+  overview: [
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Process incoming governed work.' },
+    { view: 'cases', label: 'Open Cases', detail: 'Continue the linked operating story.' },
+    { view: 'control_room', controlRoomTool: 'health', label: 'Open Runtime & Recovery', detail: 'Check governance posture quickly.' },
+  ],
+  requests: [
+    { view: 'cases', label: 'Open Cases', detail: 'Trace continuity across lanes.' },
+    { view: 'actions', label: 'Open AI Actions', detail: 'Run governed execution safely.' },
+    { view: 'overrides', label: 'Open Overrides', detail: 'Resolve human boundaries now.' },
+  ],
+  cases: [
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Follow upstream intake context.' },
+    { view: 'documents', label: 'Open Documents', detail: 'Continue document-side follow-through.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Validate reasons and proof.' },
+  ],
+  directory: [
+    { view: 'cases', label: 'Open Cases', detail: 'Route ownership into active issues.' },
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Reconnect intake and assignment.' },
+    { view: 'control_room', controlRoomTool: 'master_data', label: 'Open Master Data & Routing', detail: 'Tune governance routing posture.' },
+  ],
+  documents: [
+    { view: 'actions', label: 'Open AI Actions', detail: 'Continue AI-assisted follow-through.' },
+    { view: 'cases', label: 'Open Cases', detail: 'Return to the canonical case story.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Confirm document evidence chain.' },
+  ],
+  actions: [
+    { view: 'cases', label: 'Open Cases', detail: 'Anchor results to one issue.' },
+    { view: 'documents', label: 'Open Documents', detail: 'Continue governed artifacts.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Verify authority and side effects.' },
+  ],
+  overrides: [
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Reconnect approved work to intake.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Confirm decision proof chain.' },
+    { view: 'overview', label: 'Open Home', detail: 'Recheck overall posture.' },
+  ],
+  conflicts: [
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Inspect stalled request lanes.' },
+    { view: 'health', label: 'Open Runtime Health', detail: 'Review lock/runtime pressure.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Trace contention history.' },
+  ],
+  audit: [
+    { view: 'overview', label: 'Open Home', detail: 'Return to executive posture scan.' },
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Reconnect proof with live work.' },
+    { view: 'health', label: 'Open Runtime Health', detail: 'Check operational integrity context.' },
+  ],
+  studio: [
+    { view: 'control_room', controlRoomTool: 'studio', label: 'Open Role Private Studio', detail: 'Continue role authoring and publish flow.' },
+    { view: 'policies', label: 'Open Roles & Policies', detail: 'Verify trusted role packs.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Confirm publication evidence.' },
+  ],
+  human_ask: [
+    { view: 'overrides', label: 'Open Overrides', detail: 'Resolve waiting human decisions.' },
+    { view: 'documents', label: 'Open Documents', detail: 'Continue governed artifacts.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Review record evidence chain.' },
+  ],
+  sessions: [
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Pair access posture with evidence.' },
+    { view: 'health', label: 'Open Runtime Health', detail: 'Check token/session runtime state.' },
+    { view: 'overview', label: 'Open Home', detail: 'Return to overall command posture.' },
+  ],
+  policies: [
+    { view: 'studio', label: 'Open Role Private Studio', detail: 'Repair or publish role packs.' },
+    { view: 'requests', label: 'Open Work Inbox', detail: 'Exercise trusted roles in live flow.' },
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Verify trust and manifest evidence.' },
+  ],
+  health: [
+    { view: 'audit', label: 'Open Audit Trail', detail: 'Confirm proof behind health posture.' },
+    { view: 'overview', label: 'Open Home', detail: 'Return to mission-level posture.' },
+    { view: 'sessions', label: 'Open Sessions', detail: 'Check access continuity signals.' },
+  ],
+  control_room: [
+    { view: 'control_room', controlRoomTool: 'health', label: 'Open Runtime & Recovery', detail: 'Run diagnostics and recovery checks.' },
+    { view: 'control_room', controlRoomTool: 'setup', label: 'Open Setup & Onboarding', detail: 'Handle first-run and quick-start tasks.' },
+    { view: 'control_room', controlRoomTool: 'evidence_exports', label: 'Open Trust & Evidence', detail: 'Prepare audit and evidence exports.' },
+  ],
+};
+
 const CONTROL_ROOM_TOOLS = new Set(['health', 'conflicts', 'audit', 'policies', 'sessions', 'backup_restore', 'admin_settings', 'owner_registration', 'retention', 'integrations', 'model_providers', 'evidence_exports', 'master_data', 'structural_risk']);
 const GOVERNANCE_EMBEDDED_VIEWS = new Set(['setup', 'studio']);
 
@@ -743,6 +822,13 @@ document.addEventListener('keydown', (event) => {
     governanceSheetSearch.focus({ preventScroll: true });
     governanceSheetSearch.select();
   }
+});
+
+topbarActionStrip?.addEventListener('click', async (event) => {
+  const viewJumpButton = event.target.closest('[data-view-jump]');
+  if (!viewJumpButton) return;
+  event.preventDefault();
+  await handleViewJumpAction(viewJumpButton);
 });
 
 refreshButton.addEventListener('click', () => withButtonBusy(refreshButton, () => loadDashboard(), 'Refreshing...'));
@@ -1036,6 +1122,45 @@ root.addEventListener('change', (event) => {
   render();
 });
 
+async function handleViewJumpAction(viewJumpButton) {
+  if (!viewJumpButton) return false;
+  const targetView = viewJumpButton.dataset.viewJump || state.view;
+  const focusType = viewJumpButton.dataset.viewJumpFocusType || '';
+  const focusId = viewJumpButton.dataset.viewJumpFocusId || '';
+  const caseId = viewJumpButton.dataset.viewJumpCaseId || '';
+  const controlRoomTool = viewJumpButton.dataset.viewJumpControlRoomTool || '';
+  const resolvedTarget = normalizeActionContextTarget({
+    view: targetView,
+    controlRoomTool,
+    title: viewJumpButton.dataset.viewJumpTitle || `Moved to ${VIEW_TITLES[targetView] || titleCase(targetView)}.`,
+    detail: viewJumpButton.dataset.viewJumpDetail || 'The linked governed item stays highlighted in the next lane so you can continue without hunting for it.',
+    actionLabel: viewJumpButton.dataset.viewJumpActionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
+  });
+  setActionContext({
+    entityType: focusType,
+    entityId: focusId,
+    caseId,
+    view: resolvedTarget.view,
+    controlRoomTool: resolvedTarget.controlRoomTool,
+    title: resolvedTarget.title,
+    detail: resolvedTarget.detail,
+    actionLabel: resolvedTarget.actionLabel,
+  });
+  state.view = resolvedTarget.view;
+  if (resolvedTarget.controlRoomTool) state.controlRoomTool = resolvedTarget.controlRoomTool;
+  updateNav();
+  if (resolvedTarget.view === 'documents' && documentFiltersActive()) {
+    try {
+      await refreshDocumentSearchResults({ silent: true, skipRender: true });
+    } catch (error) {
+      state.lastError = String(error.message || error);
+    }
+  }
+  render();
+  scrollDashboardToTop();
+  return true;
+}
+
 root.addEventListener('click', async (event) => {
   const actionableButton = event.target.closest(ACTIONABLE_BUTTON_SELECTOR);
   if (actionableButton) event.preventDefault();
@@ -1063,40 +1188,7 @@ root.addEventListener('click', async (event) => {
 
   const viewJumpButton = event.target.closest('[data-view-jump]');
   if (viewJumpButton) {
-    const targetView = viewJumpButton.dataset.viewJump || state.view;
-    const focusType = viewJumpButton.dataset.viewJumpFocusType || '';
-    const focusId = viewJumpButton.dataset.viewJumpFocusId || '';
-    const caseId = viewJumpButton.dataset.viewJumpCaseId || '';
-    const controlRoomTool = viewJumpButton.dataset.viewJumpControlRoomTool || '';
-    const resolvedTarget = normalizeActionContextTarget({
-      view: targetView,
-      controlRoomTool,
-      title: viewJumpButton.dataset.viewJumpTitle || `Moved to ${VIEW_TITLES[targetView] || titleCase(targetView)}.`,
-      detail: viewJumpButton.dataset.viewJumpDetail || 'The linked governed item stays highlighted in the next lane so you can continue without hunting for it.',
-      actionLabel: viewJumpButton.dataset.viewJumpActionLabel || `Open ${VIEW_TITLES[targetView] || titleCase(targetView)}`,
-    });
-    setActionContext({
-      entityType: focusType,
-      entityId: focusId,
-      caseId,
-      view: resolvedTarget.view,
-      controlRoomTool: resolvedTarget.controlRoomTool,
-      title: resolvedTarget.title,
-      detail: resolvedTarget.detail,
-      actionLabel: resolvedTarget.actionLabel,
-    });
-    state.view = resolvedTarget.view;
-    if (resolvedTarget.controlRoomTool) state.controlRoomTool = resolvedTarget.controlRoomTool;
-    updateNav();
-    if (resolvedTarget.view === 'documents' && documentFiltersActive()) {
-      try {
-        await refreshDocumentSearchResults({ silent: true, skipRender: true });
-      } catch (error) {
-        state.lastError = String(error.message || error);
-      }
-    }
-    render();
-    scrollDashboardToTop();
+    await handleViewJumpAction(viewJumpButton);
     return;
   }
 
@@ -2379,6 +2471,140 @@ function normalizeActionContextTarget(options = {}) {
   };
 }
 
+function shouldRenderTabletLaneRail() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1180px)').matches;
+}
+
+function shouldRenderFocusedInbox(view = state.view) {
+  return ['requests', 'cases', 'directory', 'documents', 'actions', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask', 'sessions', 'policies', 'health'].includes(view);
+}
+
+function shouldRenderWorkflowGuide(view = state.view) {
+  return ['requests', 'cases', 'directory', 'documents', 'actions', 'overrides', 'conflicts', 'audit', 'studio', 'human_ask', 'sessions', 'policies', 'health'].includes(view);
+}
+
+function shouldRenderWorkLanguageGuide(view = state.view) {
+  return ['overview', 'requests'].includes(view);
+}
+
+function isTopbarQuickActionAllowed(target) {
+  if (!target) return false;
+  if (target.view === 'setup' && !canAccessSetupAssistant()) return false;
+  const permissionView = target.view === 'control_room' ? String(target.controlRoomTool || '').trim() : target.view;
+  const permission = VIEW_PERMISSIONS[permissionView];
+  if (!permission) return true;
+  return can(permission);
+}
+
+function buildTopbarQuickActionCandidates(snapshot) {
+  if (!snapshot || state.authRequired) {
+    return [{
+      view: 'overview',
+      label: 'Open Home',
+      title: 'Reconnect to continue',
+      detail: 'Sign in, refresh live runtime, then continue governed work.',
+      badge: 'reconnect',
+    }];
+  }
+  const candidates = [];
+  if (state.actionContext?.view) {
+    const contextViewLabel = VIEW_TITLES[state.actionContext.view] || titleCase(state.actionContext.view);
+    candidates.push({
+      view: state.actionContext.view,
+      controlRoomTool: state.actionContext.controlRoomTool || '',
+      label: state.actionContext.actionLabel || `Continue in ${contextViewLabel}`,
+      title: state.actionContext.title || `Continue in ${contextViewLabel}`,
+      detail: state.actionContext.detail || `The latest governed item stays highlighted in ${contextViewLabel}.`,
+      badge: 'continue',
+    });
+  }
+  if (state.view === 'control_room') {
+    const currentTool = String(state.controlRoomTool || getInitialControlRoomTool()).trim() || getInitialControlRoomTool();
+    const currentToolLabel = VIEW_TITLES[currentTool] || titleCase(currentTool);
+    candidates.push({
+      view: 'control_room',
+      controlRoomTool: currentTool,
+      label: `Open ${currentToolLabel}`,
+      title: `Continue in ${currentToolLabel}`,
+      detail: 'Stay inside the current governance module and execute the next step quickly.',
+      badge: currentToolLabel,
+    });
+  }
+  candidates.push(...(TOPBAR_QUICK_ACTIONS[state.view] || []));
+  if (!candidates.length) {
+    candidates.push(
+      { view: 'overview', label: 'Open Home', detail: 'Return to the executive posture scan.', badge: 'home' },
+      { view: 'requests', label: 'Open Work Inbox', detail: 'Move directly into governed intake.', badge: 'intake' },
+    );
+  }
+  return candidates;
+}
+
+function resolveTopbarQuickActions(snapshot) {
+  const actions = [];
+  const seen = new Set();
+  for (const candidate of buildTopbarQuickActionCandidates(snapshot)) {
+    const resolved = resolveNavigationTarget({
+      view: candidate.view,
+      controlRoomTool: candidate.controlRoomTool || '',
+      title: candidate.title || '',
+      detail: candidate.detail || '',
+      actionLabel: candidate.label || candidate.actionLabel || '',
+    });
+    if (!resolved) continue;
+    if (!isTopbarQuickActionAllowed(resolved)) continue;
+    const identity = `${resolved.view}::${resolved.controlRoomTool || ''}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    const destinationLabel = resolved.view === 'control_room'
+      ? (VIEW_TITLES[resolved.controlRoomTool || 'control_room'] || VIEW_TITLES.control_room)
+      : (VIEW_TITLES[resolved.view] || titleCase(resolved.view));
+    const label = candidate.label || resolved.actionLabel || `Open ${destinationLabel}`;
+    actions.push({
+      ...resolved,
+      label,
+      title: candidate.title || `Open ${destinationLabel}`,
+      detail: candidate.detail || VIEW_DESCRIPTIONS[resolved.view] || `Open ${destinationLabel} to continue governed flow.`,
+      actionLabel: candidate.actionLabel || label,
+      badge: candidate.badge || destinationLabel,
+    });
+    if (actions.length >= 3) break;
+  }
+  return actions;
+}
+
+function renderTopbarActionStrip(snapshot) {
+  if (!topbarActionStrip) return;
+  const actions = resolveTopbarQuickActions(snapshot);
+  if (!actions.length) {
+    topbarActionStrip.hidden = true;
+    topbarActionStrip.innerHTML = '';
+    return;
+  }
+  const lead = actions[0];
+  topbarActionStrip.hidden = false;
+  topbarActionStrip.innerHTML = `
+    <article class="topbar-action-strip-card">
+      <div class="topbar-action-strip-copy">
+        <span class="topbar-ribbon-label">Next actions</span>
+        <strong>${escapeHtml(lead.title || 'Continue governed flow')}</strong>
+        <span class="topbar-action-strip-note">${escapeHtml(lead.detail || 'Move to the next lane with one tap.')}</span>
+      </div>
+      <div class="topbar-action-strip-buttons">
+        ${actions.map((action, index) => renderViewJumpButton({
+          view: action.view,
+          controlRoomTool: action.controlRoomTool || '',
+          label: action.label,
+          className: index === 0 ? 'action-button topbar-action-button-primary' : 'action-button action-button-muted topbar-action-button-secondary',
+          title: action.title,
+          detail: action.detail,
+          actionLabel: action.actionLabel || action.label,
+        })).join('')}
+      </div>
+    </article>
+  `;
+}
+
 function normalizeWorkflowPrimary(primary) {
   if (!primary) return null;
   const resolved = resolveNavigationTarget(primary);
@@ -2478,6 +2704,7 @@ function render() {
     sidebarDirectorCard.dataset.tone = 'idle';
     sidebarPressureCard.dataset.tone = 'idle';
     topbarRuntimeLabel.textContent = 'Awaiting session';
+    renderTopbarActionStrip(null);
     root.innerHTML = renderAuthCard();
     updateNav();
     state.lastRenderedView = state.view;
@@ -2485,6 +2712,7 @@ function render() {
   }
 
   const snapshot = state.snapshot;
+  renderTopbarActionStrip(snapshot);
   const sidebarConsole = getSidebarDirectorConsole(snapshot);
   sessionLabel.textContent = state.session ? `${state.session.display_name} | ${state.session.role_name}` : 'connected';
   environmentLabel.textContent = `${snapshot.environment} environment`;
@@ -2550,13 +2778,13 @@ function render() {
   if (state.view === 'policies') viewContent = renderPolicies(snapshot.roles || []);
   if (state.view === 'health') viewContent = renderHealth(snapshot.runtime_health, snapshot.available_profiles || [], snapshot.retention || null, snapshot.operations || null, snapshot.integrations || null, snapshot.operator_notification_center || null, snapshot.operator_notification_delivery_readiness || null);
   const compactCommandView = ['overview', 'control_room', 'setup'].includes(state.view);
-  const focusedInbox = compactCommandView ? '' : renderFocusedWorkInbox(snapshot, state.view);
+  const focusedInbox = compactCommandView || !shouldRenderFocusedInbox(state.view) ? '' : renderFocusedWorkInbox(snapshot, state.view);
   const caseSpotlight = compactCommandView ? '' : renderCaseSpotlight(snapshot);
-  const workLanguageGuide = compactCommandView ? '' : renderWorkLanguageGuide(snapshot);
+  const workLanguageGuide = compactCommandView || !shouldRenderWorkLanguageGuide(state.view) ? '' : renderWorkLanguageGuide(snapshot);
   const alertRail = compactCommandView ? '' : renderAlertRail(snapshot);
   const viewPrelude = compactCommandView ? '' : renderViewPrelude(snapshot);
-  const tabletLaneRail = compactCommandView ? '' : renderTabletLaneRail(snapshot);
-  const workflowGuide = compactCommandView ? '' : renderWorkflowGuide(snapshot);
+  const tabletLaneRail = compactCommandView || !shouldRenderTabletLaneRail() ? '' : renderTabletLaneRail(snapshot);
+  const workflowGuide = compactCommandView || !shouldRenderWorkflowGuide(state.view) ? '' : renderWorkflowGuide(snapshot);
   root.innerHTML = `${renderActionFeedback()}${renderActionContinuity()}${alertRail}${viewPrelude}${tabletLaneRail}${workflowGuide}${caseSpotlight}${workLanguageGuide}${focusedInbox}${viewContent}`;
   updateNav();
   state.lastRenderedView = state.view;
@@ -2782,41 +3010,36 @@ function renderWorkflowGuide(snapshot) {
 }
 
 function renderWorkLanguageGuide(snapshot) {
-  if (!['overview', 'requests', 'directory', 'overrides', 'studio', 'human_ask', 'conflicts', 'actions'].includes(state.view)) return '';
+  if (!shouldRenderWorkLanguageGuide(state.view)) return '';
   const summary = snapshot.unified_work_inbox?.summary || {};
   return `
     <section class="card stack">
       <div class="hero-heading">
         <div>
-          <div class="eyebrow muted">Work Language</div>
-          <h3 class="card-title">One set of words for every governed work item</h3>
-          <p class="card-subtitle">Requests, approvals, report records, recovery items, and studio drafts should read like one operating system, not separate tools with separate vocabularies.</p>
+          <div class="eyebrow muted">Work language</div>
+          <h3 class="card-title">Status language for fast decisions</h3>
+          <p class="card-subtitle">Keep one simple vocabulary across queues so the next action is obvious at a glance.</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(summary.primary_title || 'Governed Work')}</div>
+        <div class="hero-chip-row">${statusBadge(summary.primary_title || 'Governed work')}</div>
       </div>
       <div class="view-prelude-grid">
         <article class="view-prelude-card view-prelude-card-success">
           <span class="view-prelude-label">Ready</span>
-          <strong>AI can keep moving</strong>
-          <p class="muted">The governed lane is clear enough for the runtime to continue without a new human interruption.</p>
-        </article>
-        <article class="view-prelude-card view-prelude-card-accent">
-          <span class="view-prelude-label">Monitoring</span>
-          <strong>Visible, not yet stopping flow</strong>
-          <p class="muted">A human should keep an eye on it, but the runtime is still allowed to operate inside policy.</p>
+          <strong>AI can continue</strong>
+          <p class="muted">No extra human step is required right now.</p>
         </article>
         <article class="view-prelude-card view-prelude-card-warning">
           <span class="view-prelude-label">Human required</span>
-          <strong>A real decision is now needed</strong>
-          <p class="muted">The runtime crossed a human boundary and must wait for explicit review, approval, or clearance.</p>
+          <strong>Decision needed</strong>
+          <p class="muted">Runtime paused at a policy boundary and is waiting for review.</p>
         </article>
         <article class="view-prelude-card view-prelude-card-danger">
           <span class="view-prelude-label">Blocked</span>
-          <strong>The runtime cannot continue</strong>
-          <p class="muted">A governed path is fail-closed until someone resolves the issue or deliberately resumes it.</p>
+          <strong>Fix before continue</strong>
+          <p class="muted">A fail-closed condition is active and must be resolved first.</p>
         </article>
       </div>
-      <div class="trace-box"><strong>Work item definition</strong><p class="muted">A governed work item can be a request, AI action, override, Human Ask record, recovery item, or Studio draft. The dashboard should always tell you who owns it, what state it is in, and what happens next.</p></div>
+      <div class="trace-box"><strong>Definition</strong><p class="muted">Every governed item must show owner, state, and next move immediately.</p></div>
     </section>
   `;
 }
