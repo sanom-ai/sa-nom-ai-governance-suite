@@ -1,4 +1,4 @@
-import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.8-ui1';
+import { buildHumanAskPayload, buildHumanAskOutcomeMessage, handleHumanAskAction, renderHumanAsk } from './dashboard_human_ask.js?v=0.7.15-ui1';
 
 const state = {
   view: getInitialDashboardView(),
@@ -35,6 +35,7 @@ const state = {
   },
   lastRenderedView: '',
   laneTransition: null,
+  lastTopbarActionSignature: '',
 };
 
 const LANE_TRANSITION_WINDOW_MS = 2200;
@@ -84,6 +85,86 @@ const GOVERNANCE_RECENT_LIMIT = 4;
 const GOVERNANCE_MODE_KEY = 'sanom_governance_launch_mode';
 let governanceLaunchMode = 'priority';
 let governanceRecentLanes = [];
+const governanceSheetFilterState = {
+  rafId: 0,
+  pendingQuery: '',
+  indexDirty: true,
+  query: '',
+  mode: '',
+  recentItems: [],
+  groups: [],
+  allItems: [],
+};
+
+function normalizeGovernanceSheetQuery(rawQuery = '') {
+  return String(rawQuery || '').trim().toLowerCase();
+}
+
+function getGovernanceSheetItemHaystack(item) {
+  if (!item) return '';
+  const cached = String(item.dataset.searchHaystack || '').trim();
+  if (cached) return cached;
+  const haystack = `${item.dataset.view || ''} ${item.dataset.controlRoomTool || ''} ${item.textContent || ''}`.toLowerCase();
+  item.dataset.searchHaystack = haystack;
+  return haystack;
+}
+
+function markGovernanceSheetFilterIndexDirty() {
+  governanceSheetFilterState.indexDirty = true;
+  governanceSheetFilterState.query = '';
+  governanceSheetFilterState.mode = '';
+}
+
+function rebuildGovernanceSheetFilterIndex({ force = false } = {}) {
+  if (!governanceSheet) return;
+  if (!force && !governanceSheetFilterState.indexDirty) return;
+  const recentItems = [];
+  const groups = [];
+  const allItems = [];
+
+  if (governanceSheetRecentGrid) {
+    for (const item of governanceSheetRecentGrid.querySelectorAll('.governance-sheet-recent-item')) {
+      const indexed = { element: item, haystack: getGovernanceSheetItemHaystack(item) };
+      recentItems.push(indexed);
+      allItems.push(item);
+    }
+  }
+
+  for (const group of governanceSheet.querySelectorAll('.governance-sheet-group')) {
+    const indexedGroup = {
+      element: group,
+      mode: String(group.dataset.governanceGroup || 'all').trim() || 'all',
+      items: [],
+    };
+    for (const item of group.querySelectorAll('.governance-sheet-item')) {
+      const indexed = { element: item, haystack: getGovernanceSheetItemHaystack(item) };
+      indexedGroup.items.push(indexed);
+      allItems.push(item);
+    }
+    groups.push(indexedGroup);
+  }
+
+  governanceSheetFilterState.recentItems = recentItems;
+  governanceSheetFilterState.groups = groups;
+  governanceSheetFilterState.allItems = allItems;
+  governanceSheetFilterState.indexDirty = false;
+}
+
+function cancelGovernanceSheetFilterFrame() {
+  if (!governanceSheetFilterState.rafId) return;
+  window.cancelAnimationFrame(governanceSheetFilterState.rafId);
+  governanceSheetFilterState.rafId = 0;
+}
+
+function scheduleGovernanceSheetFilter(rawQuery = '') {
+  governanceSheetFilterState.pendingQuery = String(rawQuery || '');
+  if (governanceSheetFilterState.rafId) return;
+  governanceSheetFilterState.rafId = window.requestAnimationFrame(() => {
+    governanceSheetFilterState.rafId = 0;
+    applyGovernanceSheetFilter(governanceSheetFilterState.pendingQuery);
+  });
+}
+
 
 function governanceLaneIdentity(view, controlRoomTool) {
   return `${String(view || 'overview')}::${String(controlRoomTool || '-')}`;
@@ -148,7 +229,7 @@ function setGovernanceLaunchMode(mode, { persist = true } = {}) {
       console.warn(error);
     }
   }
-  applyGovernanceSheetFilter(governanceSheetSearch?.value || '');
+  applyGovernanceSheetFilter(governanceSheetSearch?.value || '', { force: true });
 }
 
 function renderGovernanceRecentLanes() {
@@ -156,6 +237,7 @@ function renderGovernanceRecentLanes() {
   if (!governanceRecentLanes.length) {
     governanceSheetRecent.hidden = true;
     governanceSheetRecentGrid.innerHTML = '';
+    markGovernanceSheetFilterIndexDirty();
     return;
   }
   governanceSheetRecentGrid.innerHTML = governanceRecentLanes.map((lane) => {
@@ -163,6 +245,7 @@ function renderGovernanceRecentLanes() {
     return `<button class="nav-item nav-subitem governance-sheet-item governance-sheet-recent-item" type="button" data-view="${escapeHtml(lane.view)}"${lane.controlRoomTool ? ` data-control-room-tool="${escapeHtml(lane.controlRoomTool)}"` : ''}><span class="nav-item-title">${escapeHtml(lane.title)}</span><span class="nav-item-caption">${escapeHtml(detail)}</span></button>`;
   }).join('');
   governanceSheetRecent.hidden = false;
+  markGovernanceSheetFilterIndexDirty();
 }
 
 function rememberGovernanceLane(target) {
@@ -182,57 +265,72 @@ function rememberGovernanceLane(target) {
   renderGovernanceRecentLanes();
 }
 
-function applyGovernanceSheetFilter(rawQuery = '') {
+function applyGovernanceSheetFilter(rawQuery = '', { force = false } = {}) {
   if (!governanceSheet) return;
-  const query = String(rawQuery || '').trim().toLowerCase();
+  const query = normalizeGovernanceSheetQuery(rawQuery);
   const searchActive = query.length > 0;
+  rebuildGovernanceSheetFilterIndex({ force });
+  if (!force && governanceSheetFilterState.query === query && governanceSheetFilterState.mode === governanceLaunchMode) {
+    return;
+  }
   let visibleCount = 0;
 
   let recentVisibleCount = 0;
-  if (governanceSheetRecent && governanceSheetRecentGrid) {
-    for (const recentItem of governanceSheetRecentGrid.querySelectorAll('.governance-sheet-recent-item')) {
-      const haystack = `${recentItem.dataset.view || ''} ${recentItem.dataset.controlRoomTool || ''} ${recentItem.textContent || ''}`.toLowerCase();
+  if (governanceSheetRecent) {
+    for (const recentItem of governanceSheetFilterState.recentItems) {
+      const item = recentItem.element;
+      const haystack = recentItem.haystack;
       const visible = !query || haystack.includes(query);
-      recentItem.hidden = !visible;
+      item.hidden = !visible;
       if (visible) recentVisibleCount += 1;
     }
     governanceSheetRecent.hidden = recentVisibleCount === 0;
     visibleCount += recentVisibleCount;
   }
 
-  for (const group of governanceSheet.querySelectorAll('.governance-sheet-group')) {
-    const groupMode = String(group.dataset.governanceGroup || 'all').trim();
+  for (const group of governanceSheetFilterState.groups) {
+    const groupMode = group.mode;
     const modeAllowed = searchActive ? true : governanceLaunchMode === 'all' || groupMode === 'priority';
-    const items = Array.from(group.querySelectorAll('.governance-sheet-item'));
     let groupVisibleCount = 0;
-    for (const item of items) {
+    for (const itemRef of group.items) {
+      const item = itemRef.element;
       if (!modeAllowed) {
         item.hidden = true;
         continue;
       }
-      const haystack = `${item.dataset.view || ''} ${item.dataset.controlRoomTool || ''} ${item.textContent || ''}`.toLowerCase();
+      const haystack = itemRef.haystack;
       const visible = !query || haystack.includes(query);
       item.hidden = !visible;
       if (visible) groupVisibleCount += 1;
     }
-    group.hidden = groupVisibleCount === 0;
+    group.element.hidden = groupVisibleCount === 0;
     visibleCount += groupVisibleCount;
   }
 
   if (governanceSheetSearchCount) {
-    governanceSheetSearchCount.textContent = `${visibleCount} lane${visibleCount === 1 ? '' : 's'}`;
+    const nextCount = `${visibleCount} lane${visibleCount === 1 ? '' : 's'}`;
+    if (governanceSheetSearchCount.textContent !== nextCount) {
+      governanceSheetSearchCount.textContent = nextCount;
+    }
   }
   if (governanceSheetEmpty) {
     governanceSheetEmpty.hidden = visibleCount !== 0;
   }
+  governanceSheetFilterState.query = query;
+  governanceSheetFilterState.mode = governanceLaunchMode;
 }
 
 function resetGovernanceSheetFilter() {
+  cancelGovernanceSheetFilterFrame();
+  governanceSheetFilterState.pendingQuery = '';
+  governanceSheetFilterState.query = '';
+  governanceSheetFilterState.mode = '';
   if (governanceSheetSearch) {
     governanceSheetSearch.value = '';
   }
-  applyGovernanceSheetFilter('');
+  applyGovernanceSheetFilter('', { force: true });
 }
+
 
 function closeGovernanceSheet() {
   if (!governanceSheet) return;
@@ -255,7 +353,7 @@ function openGovernanceSheet() {
   governanceLauncher?.setAttribute('aria-expanded', 'true');
   document.body.classList.add('governance-sheet-open');
   renderGovernanceRecentLanes();
-  applyGovernanceSheetFilter(governanceSheetSearch?.value || '');
+  applyGovernanceSheetFilter(governanceSheetSearch?.value || '', { force: true });
   window.requestAnimationFrame(() => {
     if (governanceSheetSearch) {
       governanceSheetSearch.focus({ preventScroll: true });
@@ -788,13 +886,15 @@ governanceModeAll?.addEventListener('click', () => {
 });
 
 governanceSheetSearch?.addEventListener('input', () => {
-  applyGovernanceSheetFilter(governanceSheetSearch.value);
+  scheduleGovernanceSheetFilter(governanceSheetSearch.value);
 });
 
 governanceSheetSearch?.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter') return;
-  const firstVisible = governanceSheet?.querySelector('.governance-sheet-item:not([hidden])');
-  if (firstVisible instanceof HTMLElement) {
+  applyGovernanceSheetFilter(governanceSheetSearch.value);
+  rebuildGovernanceSheetFilterIndex();
+  const firstVisible = governanceSheetFilterState.allItems.find((item) => !item.hidden);
+  if (firstVisible) {
     event.preventDefault();
     navigateFromGovernanceTarget(firstVisible);
   }
@@ -2576,11 +2676,16 @@ function resolveTopbarQuickActions(snapshot) {
 function renderTopbarActionStrip(snapshot) {
   if (!topbarActionStrip) return;
   const actions = resolveTopbarQuickActions(snapshot);
+  const signature = actions.map((action) => `${action.view || ''}::${action.controlRoomTool || ''}::${action.label || ''}::${action.title || ''}::${action.detail || ''}`).join('|');
   if (!actions.length) {
+    if (state.lastTopbarActionSignature === 'hidden' && topbarActionStrip.hidden) return;
     topbarActionStrip.hidden = true;
     topbarActionStrip.innerHTML = '';
+    state.lastTopbarActionSignature = 'hidden';
     return;
   }
+  if (state.lastTopbarActionSignature === signature && !topbarActionStrip.hidden) return;
+  state.lastTopbarActionSignature = signature;
   const lead = actions[0];
   topbarActionStrip.hidden = false;
   topbarActionStrip.innerHTML = `
@@ -3804,7 +3909,8 @@ function updateNav() {
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   }
   if (governanceSheet) {
-    for (const item of governanceSheet.querySelectorAll('.governance-sheet-item')) {
+    rebuildGovernanceSheetFilterIndex();
+    for (const item of governanceSheetFilterState.allItems) {
       const itemView = item.dataset.view || '';
       const itemTool = String(item.dataset.controlRoomTool || '').trim();
       let isActive = itemView === activeView;

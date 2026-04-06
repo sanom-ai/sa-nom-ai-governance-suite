@@ -3455,7 +3455,8 @@ button:focus-visible {
   position: absolute;
   inset: 0;
   background: rgba(8, 10, 16, 0.5);
-  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .governance-sheet-panel {
@@ -3473,6 +3474,7 @@ button:focus-visible {
     radial-gradient(circle at top right, rgba(222, 192, 135, 0.14), transparent 32%),
     linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(247, 241, 230, 0.96));
   box-shadow: 0 30px 70px rgba(18, 16, 12, 0.24);
+  contain: layout paint;
 }
 
 .governance-sheet-head {
@@ -3585,6 +3587,9 @@ button:focus-visible {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable both-edges;
   padding-right: 4px;
   scrollbar-width: thin;
   scrollbar-color: rgba(185, 146, 79, 0.42) transparent;
@@ -4353,6 +4358,11 @@ button:focus-visible {
     padding: 10px;
   }
 
+  .governance-sheet-backdrop {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+
   .governance-sheet-panel {
     width: min(100vw - 12px, 980px);
     max-height: calc(100dvh - 10px);
@@ -5021,5 +5031,12 @@ button:focus-visible {
 
   .topbar-action-strip-copy strong {
     font-size: 0.92rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .governance-sheet-body,
+  .command-nav-scroll {
+    scroll-behavior: auto;
   }
 }
