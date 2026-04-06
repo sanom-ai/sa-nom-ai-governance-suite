@@ -1366,6 +1366,8 @@ def test_command_surface_mission_control_prioritizes_human_boundaries_before_blo
         assert ai_feed[0].get('activity_note') == 'AI is actively moving this governed action forward inside its case boundary.'
         assert ai_feed[0].get('tempo_badge') == 'live now'
         assert ai_feed[0].get('board_rank_label') == 'Lead AI move'
+        assert isinstance(ai_feed[0].get('consequence_note'), str)
+        assert ai_feed[0].get('owner_label') in {'AI runtime', 'Human director', 'Recovery review', 'Follow-through lane', 'Director watch'}
         assert 'actively moving' in str(mission.get('ai_momentum_title', ''))
 
 
@@ -1473,6 +1475,8 @@ def test_unified_work_inbox_exposes_case_continuity_and_move_labels() -> None:
         assert summary.get('primary_pressure_label') == 'human boundary'
         assert summary.get('primary_focus_type') == 'override'
         assert summary.get('primary_focus_id') == 'OVR-1'
+        assert summary.get('primary_consequence_note') == 'A real human owns the safe next move for this lane right now.'
+
 
 
 def test_command_surface_mission_control_handles_quiet_completed_runtime_states() -> None:

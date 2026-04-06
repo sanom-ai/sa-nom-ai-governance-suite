@@ -3340,6 +3340,7 @@ function updateNav() {
     governanceLauncher.classList.toggle('is-active', isGovernanceActive);
     governanceLauncher.classList.toggle('is-guided', isGovernanceGuided);
     governanceLauncher.dataset.navState = isGovernanceActive ? 'current' : isGovernanceGuided ? 'next' : 'idle';
+    governanceLauncher.dataset.navLabel = isGovernanceActive ? 'current lane' : isGovernanceGuided ? 'next move' : '';
     governanceLauncher.setAttribute('aria-expanded', governanceSheet && !governanceSheet.hidden ? 'true' : 'false');
   }
   if (!controlRoomAllowed) {
@@ -3361,6 +3362,7 @@ function updateNav() {
     item.classList.toggle('is-active', isActive);
     item.classList.toggle('is-guided', isGuided);
     item.dataset.navState = isActive ? 'current' : isGuided ? 'next' : 'idle';
+    item.dataset.navLabel = isActive ? 'current lane' : isGuided ? 'next move' : '';
     item.setAttribute('aria-current', isActive ? 'page' : 'false');
   }
   if (governanceSheet) {
@@ -3624,6 +3626,7 @@ function renderUnifiedWorkInbox(snapshot) {
           ['Lead lane', primaryViewLabel],
         ])}
         <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(summary.primary_next_step || 'Open the lead governed lane and keep the next human boundary attached to the same work item.')}</p></div>
+        <div class="trace-box compact-trace command-inbox-consequence-box"><strong>If the lead lane pauses</strong><p class="muted">${escapeHtml(summary.primary_consequence_note || 'Keep the same governed story visible while the next move is still live.')}</p></div>
         <div class="inline-actions">
           ${renderViewJumpButton({ view: summary.primary_view || 'overview', label: primaryActionLabel, className: 'action-button', focusType: summary.primary_focus_type || '', focusId: summary.primary_focus_id || '', caseId: summary.primary_case_id || '', title: `${summary.primary_title || primaryViewLabel} reopened from Work Inbox.`, detail: primaryRouteNote, actionLabel: primaryActionLabel })}
         </div>
@@ -3670,6 +3673,113 @@ function renderUnifiedWorkInbox(snapshot) {
     `;
 }
 
+
+function buildLaneContinuityState(snapshot, currentView, leadItem = {}) {
+  const summary = snapshot.unified_work_inbox?.summary || {};
+  const currentViewLabel = VIEW_TITLES[currentView] || titleCase(currentView || 'overview');
+  const caseId = getActionContextCaseId() || leadItem.case_id || summary.primary_case_id || '';
+  const caseItem = getCaseById(snapshot, caseId) || (Array.isArray(snapshot?.cases?.items) ? snapshot.cases.items[0] || null : null);
+  const continuity = caseItem?.continuity || {};
+  const nextView = continuity.next_view || leadItem.view || summary.primary_view || currentView || 'overview';
+  const nextViewLabel = VIEW_TITLES[nextView] || titleCase(nextView || 'overview');
+  const nextFocus = caseItem
+    ? resolveCasePrimaryFocus(caseItem, nextView)
+    : { entityType: leadItem.focus_type || '', entityId: leadItem.focus_id || '' };
+  const caseTitle = caseItem?.title || (caseId ? `Case ${caseId}` : (leadItem.title || 'No case anchor yet'));
+  const questLabel = continuity.next_label || leadItem.action_label || `Open ${nextViewLabel}`;
+  const questDetail = continuity.next_detail || leadItem.next_step || summary.primary_next_step || `Keep ${currentViewLabel} tied to the next governed move.`;
+  const proofLabel = continuity.evidence_posture || ((caseItem?.workflow_proof_total || 0) > 0 ? 'proof attached' : 'proof starting');
+  const pressureLabel = caseItem
+    ? getCaseMissionBadge(caseItem)
+    : (leadItem.disposition === 'human_required'
+      ? 'human boundary'
+      : leadItem.disposition === 'blocked'
+        ? 'recovery'
+        : leadItem.disposition === 'ready' || leadItem.disposition === 'autonomy_ready'
+          ? 'move in flight'
+          : 'continuity');
+  const consequenceDetail = caseItem
+    ? (String(caseItem.status || '').trim() === 'human_required'
+      ? 'A real person owns the next safe move. Leaving the case here keeps the runtime at the approval boundary.'
+      : String(caseItem.status || '').trim() === 'blocked'
+        ? 'This story cannot safely advance until recovery clears the blocked path and reopens the case route.'
+        : ((Number(caseItem.workflow_proof_total || 0) > 0 || Number(caseItem.evidence_export_total || 0) > 0)
+          ? 'Proof and follow-through are already part of the mission. Carry them forward before opening fresh work.'
+          : 'This lane can keep moving, but it should stay attached to the same governed story so context does not scatter.'))
+    : (summary.primary_consequence_note || 'Keep the same governed story visible while the next move is still live.');
+  return {
+    currentViewLabel,
+    caseId,
+    caseItem,
+    caseTitle,
+    nextView,
+    nextViewLabel,
+    nextFocus,
+    questLabel,
+    questDetail,
+    proofLabel,
+    pressureLabel,
+    consequenceDetail,
+  };
+}
+
+function renderLaneContinuityBoard(continuityState) {
+  if (!continuityState) return '';
+  const hasCaseAnchor = Boolean(continuityState.caseId);
+  return `
+      <div class="lane-continuity-board">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Operation continuity</div>
+            <h4 class="card-title">Keep the same governed story visible while moving through ${escapeHtml(continuityState.currentViewLabel)}</h4>
+            <p class="card-subtitle">${escapeHtml(continuityState.questDetail)}</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(hasCaseAnchor ? `case ${continuityState.caseId}` : 'case anchor pending')}${statusBadge(continuityState.pressureLabel)}</div>
+        </div>
+        <div class="lane-continuity-grid">
+          <article class="mini-card lane-continuity-card">
+            <div class="eyebrow muted">Case anchor</div>
+            <strong>${escapeHtml(continuityState.caseTitle)}</strong>
+            <p class="muted">${escapeHtml(hasCaseAnchor ? `Use ${continuityState.caseId} as the canonical mission anchor while you move across lanes.` : 'Pick or generate a canonical case so the next move, proof, and follow-through stay attached.')}</p>
+            ${renderViewJumpButton({
+              view: 'cases',
+              label: hasCaseAnchor ? 'Open anchor case' : 'Open Cases',
+              className: 'action-button action-button-muted',
+              focusType: hasCaseAnchor ? 'case' : '',
+              focusId: continuityState.caseId || '',
+              caseId: continuityState.caseId || '',
+              title: hasCaseAnchor ? `Case ${continuityState.caseId} reopened in Cases.` : 'Cases reopened.',
+              detail: 'Use Cases when you need the full linked story again before switching lanes.',
+              actionLabel: hasCaseAnchor ? 'Open anchor case' : 'Open Cases',
+            })}
+          </article>
+          <article class="mini-card lane-continuity-card lane-continuity-card-featured">
+            <div class="eyebrow muted">Next governed move</div>
+            <strong>${escapeHtml(continuityState.questLabel)}</strong>
+            <p class="muted">${escapeHtml(continuityState.questDetail)}</p>
+            ${renderViewJumpButton({
+              view: continuityState.nextView,
+              label: `Open ${continuityState.nextViewLabel}`,
+              className: 'action-button',
+              focusType: continuityState.nextFocus.entityType,
+              focusId: continuityState.nextFocus.entityId,
+              caseId: continuityState.caseId || '',
+              title: continuityState.caseId ? `Case ${continuityState.caseId} reopened in ${continuityState.nextViewLabel}.` : `${continuityState.nextViewLabel} reopened.`,
+              detail: continuityState.questDetail,
+              actionLabel: `Open ${continuityState.nextViewLabel}`,
+            })}
+          </article>
+          <article class="mini-card lane-continuity-card">
+            <div class="eyebrow muted">If you pause here</div>
+            <strong>${escapeHtml(continuityState.proofLabel)}</strong>
+            <p class="muted">${escapeHtml(continuityState.consequenceDetail)}</p>
+            <span class="permission-note">${escapeHtml(`Pressure: ${continuityState.pressureLabel} | Next lane: ${continuityState.nextViewLabel}`)}</span>
+          </article>
+        </div>
+      </div>
+    `;
+}
+
 function renderFocusedWorkInbox(snapshot, currentView) {
   const inbox = snapshot.unified_work_inbox || { summary: {}, items: [] };
   const summary = inbox.summary || {};
@@ -3677,6 +3787,7 @@ function renderFocusedWorkInbox(snapshot, currentView) {
   if (!items.length) return '';
   const currentViewLabel = VIEW_TITLES[currentView] || titleCase(currentView || 'overview');
   const leadItem = items[0] || {};
+  const continuityState = buildLaneContinuityState(snapshot, currentView, leadItem);
   return `
       <section class="card stack">
         <div class="hero-heading">
@@ -3685,12 +3796,14 @@ function renderFocusedWorkInbox(snapshot, currentView) {
             <h3 class="card-title">What should happen next from ${escapeHtml(currentViewLabel)}</h3>
             <p class="card-subtitle">Stay inside this workflow, but keep the next human boundary, blocked path, or case-continuity move visible without going back to Home.</p>
           </div>
-          <div class="hero-chip-row">${statusBadge(currentViewLabel)}${statusBadge(`${summary.open_total || 0} open`)}</div>
+          <div class="hero-chip-row">${statusBadge(currentViewLabel)}${statusBadge(`${summary.open_total || 0} open`)}${continuityState.caseId ? statusBadge(`case ${continuityState.caseId}`) : ''}</div>
         </div>
         <div class="trace-box"><strong>Lead move</strong><p class="muted">${escapeHtml(leadItem.next_step || summary.primary_next_step || 'Keep the next move visible from the same lane.')}</p></div>
         <div class="inline-actions">
           ${renderViewJumpButton({ view: leadItem.view || currentView || 'overview', label: leadItem.action_label || `Review in ${currentViewLabel}`, className: 'action-button', focusType: leadItem.focus_type || '', focusId: leadItem.focus_id || '', caseId: leadItem.case_id || '', title: `${leadItem.title || currentViewLabel} reopened from ${currentViewLabel}.`, detail: leadItem.route_note || leadItem.next_step || 'Continue from this governed lane without losing the case story.', actionLabel: leadItem.action_label || `Review in ${currentViewLabel}` })}
+          ${continuityState.caseId ? renderViewJumpButton({ view: 'cases', label: 'Open anchor case', className: 'action-button action-button-muted', focusType: 'case', focusId: continuityState.caseId, caseId: continuityState.caseId, title: `Case ${continuityState.caseId} reopened in Cases.`, detail: 'Return to the canonical case when you need the full linked story, proof, and follow-through again.', actionLabel: 'Open anchor case' }) : ''}
         </div>
+        ${renderLaneContinuityBoard(continuityState)}
         <div class="view-prelude-grid">
           ${items.map((item) => renderUnifiedWorkInboxItem(item, { compact: true, currentView })).join('')}
         </div>
@@ -3805,6 +3918,7 @@ function renderWorkInboxMissionCard(item, options = {}) {
       </div>
       <p class="muted">${escapeHtml(item.next_step || item.operator_note || 'Review the next governed move.')}</p>
       <p class="muted small command-inbox-route-note">${escapeHtml(routeNote)}</p>
+      <div class="trace-box compact-trace command-inbox-consequence-box"><strong>${escapeHtml(item.disposition === 'human_required' ? 'If this waits here' : item.disposition === 'blocked' ? 'If this stays blocked' : 'If this keeps moving')}</strong><p class="muted">${escapeHtml(item.disposition === 'human_required' ? 'A real human still owns the safe next move for this case.' : item.disposition === 'blocked' ? 'Recovery must reopen the path before the wider operation can advance.' : 'Keep the same case visible so the next lane does not lose continuity.')}</p></div>
       <div class="trace-box compact-trace"><strong>${escapeHtml(actionLabel)}</strong><p class="muted">${escapeHtml(`${item.total || 0} open | oldest about ${item.oldest_age_hours || 0}h${refs ? ` | refs ${refs}` : ''}`)}</p></div>
       ${renderViewJumpButton({ view, label: actionLabel, className: 'action-button', focusType, focusId, caseId: item.case_id || '', title: `${item.title || 'Governed lane'} opened in ${viewLabel}.`, detail: item.next_step || item.operator_note || 'Continue from the lane that owns the next move.', actionLabel })}
     </article>
@@ -4950,23 +5064,36 @@ function renderActionCard(item) {
   const canExecute = can('actions.execute') && ['planned', 'failed_closed'].includes(String(item.status || ''));
   const artifacts = Array.isArray(item.artifacts) ? item.artifacts : [];
   const executionLog = Array.isArray(item.execution_log) ? item.execution_log.slice(0, 3) : [];
+  const meta = getActionBoardMeta(item);
+  const tone = meta.tone || getActionMissionTone(item);
   return `
-    <article class="card stack${isFocusedEntity('action', item.action_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('action', item.action_id))}">
+    <article class="card stack action-runtime-card action-runtime-card-tone-${escapeHtml(tone)}${isFocusedEntity('action', item.action_id) ? ' focused-record' : ''}" data-focus-key="${escapeHtml(buildFocusKey('action', item.action_id))}">
       <div class="hero-heading">
         <div>
           <div class="eyebrow muted">${escapeHtml(item.action_id || 'action')}</div>
           <h3 class="card-title">${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</h3>
           <p class="card-subtitle">${escapeHtml(item.output_summary || item.next_action || 'Governed AI runtime item.')}</p>
         </div>
-        <div class="hero-chip-row">${statusBadge(item.status || 'planned')}${statusBadge(item.action_type || 'action')}</div>
+        <div class="hero-chip-row">${statusBadge(meta.tempoBadge || item.status || 'planned')}${statusBadge(item.action_type || 'action')}</div>
       </div>
+      <div class="transition-route command-inbox-route">
+        <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'AI runtime')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(item.status || 'planned')}</span>
+        <span class="transition-arrow">&rarr;</span>
+        <span class="transition-node">${escapeHtml(primaryViewLabel)}</span>
+      </div>
+      <p class="muted small action-runtime-route-note">${escapeHtml(meta.routePhase)}</p>
       ${keyValue([
         ['Case', String(item.case_id || '-')],
         ['Authority', String(item.authority_boundary || '-')],
         ['Side effects', String(item.side_effect_policy || '-')],
-        ['Next view', primaryViewLabel],
+        ['Next lane', primaryViewLabel],
+        ['Next owner', String(meta.nextOwner || '-')],
         ['Artifacts', String(item.artifacts_total || artifacts.length || 0)],
       ])}
+      <div class="trace-box compact-trace action-runtime-consequence-box"><strong>${escapeHtml(meta.consequenceTitle || meta.eyebrow)}</strong><p class="muted">${escapeHtml(item.waiting_reason || item.latest_error || meta.consequenceDetail || meta.routePhase)}</p></div>
+      <div class="trace-box compact-trace"><strong>Recommended move</strong><p class="muted">${escapeHtml(item.next_action || item.output_summary || `Open ${primaryViewLabel} to continue from the right governed lane.`)}</p></div>
       ${item.waiting_reason ? `<div class="trace-box"><strong>Waiting reason</strong><p class="muted">${escapeHtml(item.waiting_reason)}</p></div>` : ''}
       ${item.latest_error ? `<div class="trace-box trace-box-danger"><strong>Failure detail</strong><p class="muted">${escapeHtml(item.latest_error)}</p></div>` : ''}
       ${artifacts.length ? `<div class="card-grid">${artifacts.map((artifact) => renderActionArtifactCard(artifact, item)).join('')}</div>` : ''}
@@ -4978,7 +5105,7 @@ function renderActionCard(item) {
           focusId: primary.entityId,
           caseId: primary.caseId || item.case_id || '',
           title: `${item.label || item.action_id} opened in ${primaryViewLabel}.`,
-          detail: item.next_action || 'Continue the governed flow from the linked runtime lane.',
+          detail: item.next_action || meta.consequenceDetail || 'Continue the governed flow from the linked runtime lane.',
           actionLabel: `Open ${primaryViewLabel}`,
         })}>${escapeHtml(`Open ${primaryViewLabel}`)}</button>
         <button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({
@@ -5057,7 +5184,7 @@ function renderCommandHome(snapshot) {
           <article class="card hero-card hero-card-primary command-home-hero-primary">
             <div class="hero-heading">
               <div>
-                <div class="eyebrow">Simple Home Dashboard</div>
+                <div class="eyebrow">Director Home</div>
                 <h3 class="hero-title">Your Next Actions</h3>
                 <p class="hero-subtitle">Start here first. This command surface answers posture and next move within five seconds, while deeper governance mechanics stay in Control Room.</p>
               </div>
@@ -5071,7 +5198,7 @@ function renderCommandHome(snapshot) {
           </article>
           <article class="card hero-card hero-card-secondary command-home-hero-secondary">
             <div>
-              <div class="eyebrow muted">What should happen next?</div>
+              <div class="eyebrow muted">Lead governed move</div>
               <h3 class="card-title">${escapeHtml(missionTopTitle)}</h3>
               <p class="card-subtitle">${escapeHtml(missionTopDetail)}</p>
             </div>
@@ -5098,7 +5225,7 @@ function renderCommandHome(snapshot) {
           </div>
         </section>
         <section class="command-board-grid">
-          <section class="card stack command-home-section command-home-section-operations">
+          <section class="card stack command-home-section command-home-section-operations command-home-section-lead">
             <div class="hero-heading">
               <div>
                 <div class="eyebrow muted">Operations Map</div>
@@ -5118,28 +5245,30 @@ function renderCommandHome(snapshot) {
             <div class="view-prelude-grid">${operationsMapItems.length ? operationsMapItems.map((item) => renderUnifiedWorkInboxItem(item, { compact: true })).join('') : renderCommandEmptyState('No operations map is visible yet.', 'As governed work starts moving, this board will show which lane owns the next real move.')}</div>
             ${activeOperations.length ? `<div class="command-operation-shell"><div class="hero-heading"><div><div class="eyebrow muted">Active operations</div><h3 class="card-title">Which governed stories are shaping the board</h3><p class="card-subtitle">Keep the most important cross-lane operations visible, not just the queues that generated them.</p></div><div class="hero-chip-row">${statusBadge(`${activeOperations.length} live`)}${statusBadge(activeOperations[0].cluster_label || 'Lead cluster')}</div></div>${renderActiveOperationCard(activeOperations[0], { featured: true })}${activeOperations.length > 1 ? `<div class="command-operation-cluster-head"><div class="eyebrow muted">${escapeHtml(activeOperations[1].cluster_label || 'Supporting cluster')}</div><p class="muted">Keep nearby operations visible so the lead move stays supported across teams and lanes.</p></div><div class="command-operation-grid">${activeOperations.slice(1).map((item) => renderActiveOperationCard(item)).join('')}</div>` : ''}</div>` : ''}
           </section>
-          <section class="card command-next-actions-card stack command-home-section command-home-section-actions">
-            <div class="hero-heading">
-              <div>
-                <div class="eyebrow muted">What's Next For You</div>
-                <h3 class="card-title">Your Next Actions</h3>
-                <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
+          <div class="command-support-stack">
+            <section class="card command-next-actions-card stack command-home-section command-home-section-support command-home-section-actions">
+              <div class="hero-heading">
+                <div>
+                  <div class="eyebrow muted">Director moves</div>
+                  <h3 class="card-title">Your Next Actions</h3>
+                  <p class="card-subtitle">Only the approvals, blocked items, escalations, and follow-through that genuinely need a human director now.</p>
+                </div>
+                <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
               </div>
-              <div class="hero-chip-row">${statusBadge(`${nextActions.length} visible`)}</div>
-            </div>
-            <div class="command-next-grid">${nextActions.length ? nextActions.map((item) => renderHomeNextActionCard(item)).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
-          </section>
-          <section class="card stack command-home-section command-home-section-feed">
-            <div class="hero-heading">
-              <div>
-                <div class="eyebrow muted">AI Activity Feed</div>
-                <h3 class="card-title">What AI is doing now</h3>
-                <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
+              <div class="command-next-grid">${nextActions.length ? nextActions.map((item, index) => renderHomeNextActionCard(item, { featured: index === 0 })).join('') : renderCommandEmptyState('No human actions are waiting right now.', 'AI is carrying the active workload. Open AI Actions if you want to inspect current execution.')}</div>
+            </section>
+            <section class="card stack command-home-section command-home-section-support command-home-section-feed">
+              <div class="hero-heading">
+                <div>
+                  <div class="eyebrow muted">Runtime tempo</div>
+                  <h3 class="card-title">What AI is doing now</h3>
+                  <p class="card-subtitle">Recent governed AI execution across running, completed, and waiting-human actions.</p>
+                </div>
+                <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}${statusBadge(aiMomentumBadge)}</div>
               </div>
-              <div class="hero-chip-row">${statusBadge(`${aiFeed.length} recent`)}${statusBadge(aiMomentumBadge)}</div>
-            </div>
-            <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item) => renderAiFeedCard(item)).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
-          </section>
+              <div class="command-feed-list">${aiFeed.length ? aiFeed.map((item, index) => renderAiFeedCard({ ...item, featured: index === 0 || item.featured })).join('') : renderCommandEmptyState('No AI activity is visible yet.', 'Once actions start, this feed becomes the quickest way to see what AI finished and where it needs human input.')}</div>
+            </section>
+          </div>
         </section>
         ${setupContinuation}
         ${touchLaneSection}
@@ -5449,6 +5578,7 @@ function buildHomeNextActions(snapshot, surface) {
 function renderActiveOperationCard(item, options = {}) {
   const featured = Boolean(options.featured || item.featured);
   const toneClass = item.tone ? ` tone-${escapeHtml(item.tone)}` : '';
+  const featuredClass = featured ? ' command-action-card-featured' : '';
   const featuredClass = featured ? ' command-operation-card-featured' : '';
   const clusterLabel = item.cluster_label || (featured ? 'Lead cluster' : 'Supporting cluster');
   const clusterDetail = item.cluster_detail || (featured
@@ -5497,7 +5627,8 @@ function renderActiveOperationCard(item, options = {}) {
     `;
 }
 
-function renderHomeNextActionCard(item) {
+function renderHomeNextActionCard(item, options = {}) {
+  const featured = Boolean(options.featured);
   const focusType = item.focus_type || '';
   const focusId = item.focus_id || '';
   const caseId = item.case_id || '';
@@ -5512,7 +5643,7 @@ function renderHomeNextActionCard(item) {
     ? `<button class="action-button action-button-muted" type="button" data-override-action="veto" data-request-id="${escapeHtml(focusId || item.reference_id || '')}">Reject</button>`
     : `<button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: item.view || 'requests', focusType, focusId, caseId, title: `${item.title || 'Work item'} reopened from Home.`, detail: item.detail || item.next_action || 'Continue from the governed lane that owns this work.', actionLabel: 'Details' })}>Details</button>`;
   return `
-      <article class="command-action-card${toneClass}" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
+      <article class="command-action-card${featuredClass}${toneClass}" data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}">
         <div class="hero-chip-row">${statusBadge(item.status_label || item.status || 'monitoring')}${statusBadge(item.priority_label || item.priority || 'normal')}</div>
         <strong>${escapeHtml(item.title || 'Governed work')}</strong>
         <p class="muted">${escapeHtml(item.detail || item.next_action || 'Continue the linked governed work.')}</p>
@@ -5529,7 +5660,7 @@ function renderAiFeedCard(item) {
   const featuredClass = featured ? ' command-feed-card-featured' : '';
   const normalizedStatus = String(item.status || 'planned').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const stateClass = normalizedStatus ? ` command-feed-card-state-${escapeHtml(normalizedStatus)}` : '';
-  const actionView = item.status === 'waiting_human' ? 'cases' : item.status === 'failed_closed' ? 'cases' : 'actions';
+  const actionView = item.status === 'waiting_human' ? 'cases' : item.status === 'failed_closed' ? 'actions' : item.status === 'completed' ? 'documents' : 'actions';
   const actionViewLabel = VIEW_TITLES[actionView] || titleCase(actionView || 'actions');
   const actionLabel = item.status === 'waiting_human'
     ? 'Review handoff'
@@ -5558,6 +5689,16 @@ function renderAiFeedCard(item) {
         : item.status === 'completed'
           ? 'Follow-through ready'
           : 'Continuity visible';
+  const ownerLabel = item.owner_label || (item.status === 'running'
+    ? 'AI runtime'
+    : item.status === 'waiting_human'
+      ? 'Human director'
+      : item.status === 'failed_closed'
+        ? 'Recovery review'
+        : item.status === 'completed'
+          ? 'Follow-through lane'
+          : 'Director watch');
+  const consequenceNote = item.consequence_note || item.route_phase || statusNote;
   return `
       <article class="command-feed-card${toneClass}${stateClass}${featuredClass}">
         <div class="hero-heading">
@@ -5570,8 +5711,9 @@ function renderAiFeedCard(item) {
         <div class="transition-route command-feed-route"><span class="transition-node">AI runtime</span><span class="transition-arrow">&rarr;</span><span class="transition-node transition-node-active">${escapeHtml(actionViewLabel)}</span></div>
         <p class="muted">${escapeHtml(item.activity_note || item.output_summary || item.next_action || 'Governed AI action is progressing inside the runtime.')}</p>
         <p class="muted small command-momentum-note">${escapeHtml(item.route_phase || statusNote)}</p>
-        <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
-        <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: actionView, focusType: actionView === 'actions' ? 'action' : '', focusId: actionView === 'actions' ? (item.action_id || '') : '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel })}>${escapeHtml(actionLabel)}</button></div>
+        <div class="trace-box compact-trace command-feed-consequence-box"><strong>${escapeHtml(`If this pauses: ${ownerLabel}`)}</strong><p class="muted">${escapeHtml(consequenceNote)}</p></div>
+        <div class="command-action-meta">${escapeHtml(item.case_id || 'No case')} | ${escapeHtml(ownerLabel)} | ${escapeHtml(shortTime(item.updated_at || item.created_at))}</div>
+        <div class="inline-actions"><button class="action-button action-button-muted" type="button" ${buildViewJumpAttributes({ view: actionView, focusType: actionView === 'actions' ? 'action' : '', focusId: actionView === 'actions' ? (item.action_id || '') : '', caseId: item.case_id || '', title: `${item.label || 'AI action'} reopened from Home.`, detail: item.consequence_note || item.activity_note || item.next_action || 'Review the governed AI execution lane.', actionLabel })}>${escapeHtml(actionLabel)}</button></div>
       </article>
     `;
 }
@@ -6905,6 +7047,94 @@ function getActionMissionTone(item = {}) {
   return 'accent';
 }
 
+function getActionBoardMeta(item = {}) {
+  const status = String(item?.status || '').trim();
+  if (status === 'running') {
+    return {
+      eyebrow: 'AI moving now',
+      tempoBadge: 'live now',
+      routePhase: 'AI currently owns the move inside this case. Stay nearby, but intervene only if the runtime crosses a new boundary.',
+      consequenceTitle: 'Keep the move in flight',
+      consequenceDetail: 'No new human step is needed yet. Monitor the route and keep the case attached until the runtime surfaces a boundary or a proof-ready result.',
+      nextOwner: 'AI runtime',
+      tone: 'accent',
+    };
+  }
+  if (status === 'waiting_human') {
+    return {
+      eyebrow: 'Human boundary now',
+      tempoBadge: 'human step now',
+      routePhase: 'A real person now owns the next safe move. Keep the case and handoff record attached before sending AI forward again.',
+      consequenceTitle: 'Human decision is now required',
+      consequenceDetail: 'AI cannot safely continue until a person approves, redirects, or closes this path. The case should remain the anchor for that decision.',
+      nextOwner: 'Human director',
+      tone: 'warning',
+    };
+  }
+  if (status === 'failed_closed') {
+    return {
+      eyebrow: 'Recovery lane',
+      tempoBadge: 'recover now',
+      routePhase: 'This path failed closed. Review the blocked boundary, then reopen AI only when the route is safe again.',
+      consequenceTitle: 'Recover before relaunch',
+      consequenceDetail: 'The governed path is closed until the failure is reviewed. Fix the route first, then decide whether AI should retry from the same case.',
+      nextOwner: 'Recovery review',
+      tone: 'danger',
+    };
+  }
+  if (status === 'completed') {
+    return {
+      eyebrow: 'Outcome ready',
+      tempoBadge: 'proof ready',
+      routePhase: 'The governed result is ready for follow-through, document review, or proof confirmation from the next lane.',
+      consequenceTitle: 'Carry proof forward',
+      consequenceDetail: 'The runtime already has a result. Review the linked document, case, or proof lane instead of launching another move blindly.',
+      nextOwner: 'Follow-through lane',
+      tone: 'success',
+    };
+  }
+  return {
+    eyebrow: 'Queued move',
+    tempoBadge: 'queued',
+    routePhase: 'This action is visible on the board so the Director can decide when to launch or revisit it.',
+    consequenceTitle: 'Launch only when the case is ready',
+    consequenceDetail: 'Queued moves stay visible so the Director can launch them deliberately from the right case and side-effect posture.',
+    nextOwner: 'Director launch decision',
+    tone: 'accent',
+  };
+}
+
+function renderActionConsequenceCard(config = {}) {
+  const toneClass = config.tone ? ` tone-${escapeHtml(config.tone)}` : '';
+  const featuredClass = config.featured ? ' action-consequence-card-featured' : '';
+  const chips = [config.badge, config.secondaryBadge].filter(Boolean).map((badge) => statusBadge(badge)).join('');
+  const buttonClassName = config.buttonClassName || (config.featured ? 'action-button' : 'action-button action-button-muted');
+  return `
+    <article class="command-action-card action-consequence-card${featuredClass}${toneClass}">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(config.eyebrow || 'Consequence')}</div>
+          <strong>${escapeHtml(config.title || 'Executive consequence')}</strong>
+        </div>
+        ${chips ? `<div class="hero-chip-row">${chips}</div>` : ''}
+      </div>
+      <p class="muted">${escapeHtml(config.detail || 'Review the next governed consequence from the right lane.')}</p>
+      ${config.traceTitle || config.traceDetail ? `<div class="trace-box compact-trace"><strong>${escapeHtml(config.traceTitle || 'Next consequence')}</strong><p class="muted">${escapeHtml(config.traceDetail || config.detail || '')}</p></div>` : ''}
+      ${renderViewJumpButton({
+        view: config.view || 'actions',
+        label: config.actionLabel || 'Open details',
+        className: buttonClassName,
+        focusType: config.focusType || '',
+        focusId: config.focusId || '',
+        caseId: config.caseId || '',
+        title: config.title || 'Executive consequence',
+        detail: config.detail || config.traceDetail || 'Continue from the right governed lane.',
+        actionLabel: config.actionLabel || 'Open details',
+      })}
+    </article>
+  `;
+}
+
 function renderActionMissionCard(item, options = {}) {
   const fallbackView = options.fallbackView || 'actions';
   if (!item) {
@@ -6919,10 +7149,11 @@ function renderActionMissionCard(item, options = {}) {
       </article>
     `;
   }
+  const meta = getActionBoardMeta(item);
   const primary = resolveActionPrimaryFocus(item);
   const view = options.viewOverride || primary.view || 'actions';
   const viewLabel = VIEW_TITLES[view] || titleCase(view || 'actions');
-  const tone = options.toneOverride || getActionMissionTone(item);
+  const tone = options.toneOverride || meta.tone || getActionMissionTone(item);
   const summaryLine = item.output_summary || item.next_action || item.waiting_reason || item.latest_error || 'Governed AI runtime item.';
   const traceLine = item.latest_error || item.waiting_reason || `Case ${item.case_id || '-'} | ${item.action_type || 'action'} | ${item.artifacts_total || 0} artifacts`;
   const actionLabel = options.actionLabel || `Open ${viewLabel}`;
@@ -6932,8 +7163,13 @@ function renderActionMissionCard(item, options = {}) {
   const focusAttrs = focusType && focusId ? ` data-focus-key="${escapeHtml(buildFocusKey(focusType, focusId))}"` : '';
   return `
     <article class="command-action-card tone-${escapeHtml(tone)} command-workforce-card${focusClass}"${focusAttrs}>
-      <div class="eyebrow muted">${escapeHtml(options.eyebrow || 'Mission slot')}</div>
-      <strong>${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</strong>
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">${escapeHtml(options.eyebrow || meta.eyebrow || 'Mission slot')}</div>
+          <strong>${escapeHtml(item.label || titleCase(item.action_type || 'AI action'))}</strong>
+        </div>
+        <div class="hero-chip-row">${statusBadge(meta.tempoBadge || item.status || 'visible')}${statusBadge(viewLabel)}</div>
+      </div>
       <div class="transition-route command-inbox-route">
         <span class="transition-node transition-node-active">${escapeHtml(item.case_id ? `Case ${item.case_id}` : 'AI runtime')}</span>
         <span class="transition-arrow">&rarr;</span>
@@ -6942,6 +7178,7 @@ function renderActionMissionCard(item, options = {}) {
         <span class="transition-node">${escapeHtml(viewLabel)}</span>
       </div>
       <p class="muted">${escapeHtml(summaryLine)}</p>
+      <p class="muted small action-runtime-route-note">${escapeHtml(meta.routePhase || traceLine)}</p>
       <div class="trace-box compact-trace"><strong>${escapeHtml(actionLabel)}</strong><p class="muted">${escapeHtml(traceLine)}</p></div>
       ${renderViewJumpButton({ view, label: actionLabel, className: 'action-button', focusType, focusId, caseId: primary.caseId || item.case_id || '', title: `${item.label || item.action_id || 'AI action'} opened in ${viewLabel}.`, detail: summaryLine, actionLabel })}
     </article>
@@ -6983,6 +7220,13 @@ function renderActions(snapshot) {
   const waitingAction = items.find((item) => String(item.status || '') === 'waiting_human') || null;
   const failedAction = items.find((item) => String(item.status || '') === 'failed_closed') || null;
   const completedAction = items.find((item) => String(item.status || '') === 'completed') || null;
+  const featuredConsequenceKey = waitingAction
+    ? 'human'
+    : failedAction
+      ? 'recovery'
+      : (completedAction || Number(summary.document_artifact_total || 0))
+        ? 'proof'
+        : 'launch';
   return `
     <section class="overview-hero">
       <article class="card hero-card hero-card-primary">
@@ -7026,14 +7270,14 @@ function renderActions(snapshot) {
         </div>
       </article>
     </section>
-    <section class="command-workforce-shell">
+    <section class="command-workforce-shell action-runtime-board">
       <div class="hero-heading">
         <div>
-          <div class="eyebrow muted">AI workforce board</div>
+          <div class="eyebrow muted">Executive action board</div>
           <h3 class="card-title">Which AI mission is moving, waiting, or blocked</h3>
-          <p class="card-subtitle">Read this lane like a workforce board: what AI is advancing now, where a human must step in, and which fail-closed path needs recovery.</p>
+          <p class="card-subtitle">Read this lane like an executive move board: what AI is advancing now, where a real person owns the next move, and which runtime lane needs recovery before AI continues.</p>
         </div>
-        <div class="hero-chip-row">${statusBadge((summary.running_total || 0) ? 'ai moving' : 'monitoring')}${statusBadge((summary.waiting_human_total || 0) ? 'human handoff live' : 'no active handoff')}</div>
+        <div class="hero-chip-row">${statusBadge((summary.running_total || 0) ? 'ai moving' : 'monitoring')}${statusBadge((summary.failed_closed_total || 0) ? 'recovery visible' : ((summary.waiting_human_total || 0) ? 'human handoff live' : 'board stable'))}</div>
       </div>
       <div class="command-workforce-grid">
         ${renderActionMissionCard(runningAction, {
@@ -7067,6 +7311,94 @@ function renderActions(snapshot) {
         })}
       </div>
     </section>
+    <section class="action-runtime-section action-consequence-section">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Executive consequences</div>
+          <h3 class="card-title">What these AI moves mean right now</h3>
+          <p class="card-subtitle">Use this row to read launch posture, human ownership, recovery pressure, and proof follow-through without decoding the full mission log first.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(featuredConsequenceKey === 'human' ? 'human step leads' : featuredConsequenceKey === 'recovery' ? 'recovery leads' : featuredConsequenceKey === 'proof' ? 'proof leads' : 'launch leads')}</div>
+      </div>
+      <div class="action-consequence-grid">
+        ${renderActionConsequenceCard({
+          eyebrow: 'Launch window',
+          title: currentCase ? 'Launch only the move this case can justify' : 'Select a case before any launch',
+          detail: currentCase
+            ? (registry.length
+                ? 'Only launch the next governed move that matches the current authority boundary and side-effect posture.'
+                : 'This case is visible, but no launch-ready move is currently registered from this lane.')
+            : 'AI launches stay case-bound so proof, handoff, and recovery never drift into separate stories.',
+          badge: currentCase ? `${registry.length} launchable` : 'pick case',
+          secondaryBadge: currentCase ? caseLabel : 'case required',
+          tone: currentCase ? (registry.length ? 'accent' : 'warning') : 'warning',
+          featured: featuredConsequenceKey === 'launch',
+          view: currentCase ? 'actions' : 'cases',
+          caseId: currentCase?.case_id || '',
+          actionLabel: currentCase ? 'Open Action Launch Board' : 'Open Cases',
+          traceTitle: currentCase ? 'Launch discipline' : 'Case anchor required',
+          traceDetail: currentCase
+            ? 'Launch from this lane only when the selected case can justify the AI move and its side effects.'
+            : 'Pick the canonical case first, then come back here to launch AI safely.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Human step',
+          title: waitingAction ? 'A person now owns the safe next move' : 'No human step is holding AI right now',
+          detail: waitingAction
+            ? (waitingAction.waiting_reason || waitingAction.next_action || getActionBoardMeta(waitingAction).consequenceDetail)
+            : 'The runtime is not currently paused at a human-only boundary.',
+          badge: waitingAction ? getActionBoardMeta(waitingAction).tempoBadge : 'clear',
+          secondaryBadge: waitingAction ? `Case ${waitingAction.case_id || '-'}` : 'ai can continue',
+          tone: waitingAction ? 'warning' : 'success',
+          featured: featuredConsequenceKey === 'human',
+          view: 'cases',
+          focusType: waitingAction ? 'case' : '',
+          focusId: waitingAction?.case_id || '',
+          caseId: waitingAction?.case_id || currentCase?.case_id || '',
+          actionLabel: waitingAction ? (currentCase ? 'Open selected case' : 'Open Cases') : 'Open Cases',
+          traceTitle: 'Decision owner',
+          traceDetail: waitingAction ? (getActionBoardMeta(waitingAction).nextOwner || 'Human director') : 'AI currently owns the live move until a new governed boundary appears.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Recovery path',
+          title: failedAction ? 'Recovery must happen before AI can relaunch' : 'No fail-closed recovery is active',
+          detail: failedAction
+            ? (failedAction.latest_error || failedAction.next_action || getActionBoardMeta(failedAction).consequenceDetail)
+            : 'There is no blocked or fail-closed action demanding recovery right now.',
+          badge: failedAction ? getActionBoardMeta(failedAction).tempoBadge : 'clear',
+          secondaryBadge: failedAction ? `Case ${failedAction.case_id || '-'}` : 'route open',
+          tone: failedAction ? 'danger' : 'success',
+          featured: featuredConsequenceKey === 'recovery',
+          view: 'actions',
+          focusType: failedAction ? 'action' : '',
+          focusId: failedAction?.action_id || '',
+          caseId: failedAction?.case_id || currentCase?.case_id || '',
+          actionLabel: failedAction ? 'Recover in AI Actions' : 'Open AI Actions',
+          traceTitle: 'Recovery rule',
+          traceDetail: failedAction ? 'Review the blocked boundary first, then decide whether the same case should relaunch AI.' : 'Fail-closed paths will surface here the moment recovery becomes a real executive move.',
+        })}
+        ${renderActionConsequenceCard({
+          eyebrow: 'Proof carry-through',
+          title: (completedAction || Number(summary.document_artifact_total || 0)) ? 'A governed result is ready for follow-through' : 'No proof-ready outcome is waiting yet',
+          detail: (completedAction || Number(summary.document_artifact_total || 0))
+            ? (completedAction?.output_summary || completedAction?.next_action || 'Open the document or case lane to confirm the result, review artifacts, and keep the proof chain intact.')
+            : 'Once AI finishes with a meaningful outcome, this slot will point to the proof or document lane that should carry it forward.',
+          badge: (completedAction || Number(summary.document_artifact_total || 0)) ? 'proof ready' : 'pending',
+          secondaryBadge: Number(summary.document_artifact_total || 0) ? `${summary.document_artifact_total || 0} artifacts` : ((completedAction?.case_id) ? `Case ${completedAction.case_id}` : 'no output'),
+          tone: Number(summary.document_artifact_total || 0) ? 'accent' : ((completedAction || Number(summary.document_artifact_total || 0)) ? 'success' : 'default'),
+          featured: featuredConsequenceKey === 'proof',
+          view: Number(summary.document_artifact_total || 0) ? 'documents' : 'actions',
+          caseId: completedAction?.case_id || currentCase?.case_id || '',
+          actionLabel: Number(summary.document_artifact_total || 0) ? 'Open Documents' : 'Open AI Actions',
+          traceTitle: 'Next proof lane',
+          traceDetail: Number(summary.document_artifact_total || 0)
+            ? 'The result already created governed side effects. Review them in Documents without breaking case continuity.'
+            : ((completedAction || Number(summary.document_artifact_total || 0))
+                ? 'Confirm the outcome before launching another move so proof, case, and follow-through stay aligned.'
+                : 'Proof-ready results will surface here as soon as the runtime finishes with a governed outcome.'),
+        })}
+      </div>
+    </section>
     <section class="metrics-grid metrics-grid-luxury">
       ${metricCard('Running', summary.running_total || 0, (summary.running_total || 0) ? 'accent' : 'default', 'Governed AI actions actively moving right now.')}
       ${metricCard('Waiting human', summary.waiting_human_total || 0, (summary.waiting_human_total || 0) ? 'warning' : 'success', 'AI actions paused at a real human boundary.')}
@@ -7092,11 +7424,31 @@ function renderActions(snapshot) {
         </div>
       </article>
     </section>
-    <section class="card-grid">
-      ${registry.map((entry) => renderActionRegistryCard(entry, currentCase)).join('')}
+    <section class="action-runtime-section stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Action launch board</div>
+          <h3 class="card-title">What AI can be told to do from this case</h3>
+          <p class="card-subtitle">Launch only the governed moves that match the current case, authority boundary, and side-effect posture.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${registry.length} actions available`)}</div>
+      </div>
+      <div class="card-grid">
+        ${registry.map((entry) => renderActionRegistryCard(entry, currentCase)).join('')}
+      </div>
     </section>
-    <section class="card-grid">
-      ${items.length ? items.map((item) => renderActionCard(item)).join('') : renderActionEmptyState(currentCase)}
+    <section class="action-runtime-section stack">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Runtime mission log</div>
+          <h3 class="card-title">What the workforce already attempted or produced</h3>
+          <p class="card-subtitle">Each action should read like a governed move with a clear pace, route, and next consequence.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${summary.actions_total || items.length} visible`)}</div>
+      </div>
+      <div class="card-grid">
+        ${items.length ? items.map((item) => renderActionCard(item)).join('') : renderActionEmptyState(currentCase)}
+      </div>
     </section>
   `;
 }
