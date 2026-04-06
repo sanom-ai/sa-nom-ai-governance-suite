@@ -52,6 +52,10 @@ const governanceSheetClose = document.getElementById('governance-sheet-close');
 const governanceSheetSearch = document.getElementById('governance-sheet-search');
 const governanceSheetSearchCount = document.getElementById('governance-sheet-search-count');
 const governanceSheetEmpty = document.getElementById('governance-sheet-empty');
+const governanceModePriority = document.getElementById('governance-mode-priority');
+const governanceModeAll = document.getElementById('governance-mode-all');
+const governanceSheetRecent = document.getElementById('governance-sheet-recent');
+const governanceSheetRecentGrid = document.getElementById('governance-sheet-recent-grid');
 const generatedAt = document.getElementById('generated-at');
 const refreshButton = document.getElementById('refresh-button');
 const logoutButton = document.getElementById('logout-button');
@@ -74,25 +78,146 @@ const sidebarPressureDetail = document.getElementById('sidebar-pressure-detail')
 const topbarFocusLabel = document.getElementById('topbar-focus-label');
 const topbarRuntimeLabel = document.getElementById('topbar-runtime-label');
 let governanceSheetReturnFocus = null;
+const GOVERNANCE_RECENT_KEY = 'sanom_governance_recent_lanes';
+const GOVERNANCE_RECENT_LIMIT = 4;
+const GOVERNANCE_MODE_KEY = 'sanom_governance_launch_mode';
+let governanceLaunchMode = 'priority';
+let governanceRecentLanes = [];
+
+function governanceLaneIdentity(view, controlRoomTool) {
+  return `${String(view || 'overview')}::${String(controlRoomTool || '-')}`;
+}
+
+function loadGovernanceLaunchMode() {
+  try {
+    const saved = String(window.localStorage.getItem(GOVERNANCE_MODE_KEY) || '').trim();
+    if (saved === 'all' || saved === 'priority') return saved;
+  } catch (error) {
+    console.warn(error);
+  }
+  return 'priority';
+}
+
+function loadGovernanceRecentLanes() {
+  try {
+    const raw = window.localStorage.getItem(GOVERNANCE_RECENT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((lane) => ({
+        view: String(lane?.view || 'overview'),
+        controlRoomTool: String(lane?.controlRoomTool || ''),
+        title: String(lane?.title || ''),
+        caption: String(lane?.caption || ''),
+      }))
+      .filter((lane) => lane.title)
+      .slice(0, GOVERNANCE_RECENT_LIMIT);
+  } catch (error) {
+    console.warn(error);
+    return [];
+  }
+}
+
+function persistGovernanceRecentLanes() {
+  try {
+    window.localStorage.setItem(GOVERNANCE_RECENT_KEY, JSON.stringify(governanceRecentLanes.slice(0, GOVERNANCE_RECENT_LIMIT)));
+  } catch (error) {
+    console.warn(error);
+  }
+}
+
+function setGovernanceLaunchMode(mode, { persist = true } = {}) {
+  const normalized = mode === 'all' ? 'all' : 'priority';
+  governanceLaunchMode = normalized;
+  if (governanceModePriority) {
+    const active = normalized === 'priority';
+    governanceModePriority.classList.toggle('is-active', active);
+    governanceModePriority.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+  if (governanceModeAll) {
+    const active = normalized === 'all';
+    governanceModeAll.classList.toggle('is-active', active);
+    governanceModeAll.setAttribute('aria-selected', active ? 'true' : 'false');
+  }
+  if (persist) {
+    try {
+      window.localStorage.setItem(GOVERNANCE_MODE_KEY, normalized);
+    } catch (error) {
+      console.warn(error);
+    }
+  }
+  applyGovernanceSheetFilter(governanceSheetSearch?.value || '');
+}
+
+function renderGovernanceRecentLanes() {
+  if (!governanceSheetRecent || !governanceSheetRecentGrid) return;
+  if (!governanceRecentLanes.length) {
+    governanceSheetRecent.hidden = true;
+    governanceSheetRecentGrid.innerHTML = '';
+    return;
+  }
+  governanceSheetRecentGrid.innerHTML = governanceRecentLanes.map((lane) => {
+    const detail = lane.caption || 'Recent governance lane';
+    return `<button class="nav-item nav-subitem governance-sheet-item governance-sheet-recent-item" type="button" data-view="${escapeHtml(lane.view)}"${lane.controlRoomTool ? ` data-control-room-tool="${escapeHtml(lane.controlRoomTool)}"` : ''}><span class="nav-item-title">${escapeHtml(lane.title)}</span><span class="nav-item-caption">${escapeHtml(detail)}</span></button>`;
+  }).join('');
+  governanceSheetRecent.hidden = false;
+}
+
+function rememberGovernanceLane(target) {
+  if (!target) return;
+  const view = String(target.dataset.view || 'overview').trim() || 'overview';
+  const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
+  const title = String(target.querySelector('.nav-item-title')?.textContent || '').trim();
+  const caption = String(target.querySelector('.nav-item-caption')?.textContent || '').trim();
+  if (!title) return;
+  const identity = governanceLaneIdentity(view, controlRoomTool);
+  const lane = { view, controlRoomTool, title, caption };
+  governanceRecentLanes = [
+    lane,
+    ...governanceRecentLanes.filter((item) => governanceLaneIdentity(item.view, item.controlRoomTool) !== identity),
+  ].slice(0, GOVERNANCE_RECENT_LIMIT);
+  persistGovernanceRecentLanes();
+  renderGovernanceRecentLanes();
+}
 
 function applyGovernanceSheetFilter(rawQuery = '') {
   if (!governanceSheet) return;
   const query = String(rawQuery || '').trim().toLowerCase();
+  const searchActive = query.length > 0;
   let visibleCount = 0;
+
+  let recentVisibleCount = 0;
+  if (governanceSheetRecent && governanceSheetRecentGrid) {
+    for (const recentItem of governanceSheetRecentGrid.querySelectorAll('.governance-sheet-recent-item')) {
+      const haystack = `${recentItem.dataset.view || ''} ${recentItem.dataset.controlRoomTool || ''} ${recentItem.textContent || ''}`.toLowerCase();
+      const visible = !query || haystack.includes(query);
+      recentItem.hidden = !visible;
+      if (visible) recentVisibleCount += 1;
+    }
+    governanceSheetRecent.hidden = recentVisibleCount === 0;
+    visibleCount += recentVisibleCount;
+  }
+
   for (const group of governanceSheet.querySelectorAll('.governance-sheet-group')) {
+    const groupMode = String(group.dataset.governanceGroup || 'all').trim();
+    const modeAllowed = searchActive ? true : governanceLaunchMode === 'all' || groupMode === 'priority';
     const items = Array.from(group.querySelectorAll('.governance-sheet-item'));
     let groupVisibleCount = 0;
     for (const item of items) {
+      if (!modeAllowed) {
+        item.hidden = true;
+        continue;
+      }
       const haystack = `${item.dataset.view || ''} ${item.dataset.controlRoomTool || ''} ${item.textContent || ''}`.toLowerCase();
       const visible = !query || haystack.includes(query);
       item.hidden = !visible;
-      if (visible) {
-        groupVisibleCount += 1;
-        visibleCount += 1;
-      }
+      if (visible) groupVisibleCount += 1;
     }
     group.hidden = groupVisibleCount === 0;
+    visibleCount += groupVisibleCount;
   }
+
   if (governanceSheetSearchCount) {
     governanceSheetSearchCount.textContent = `${visibleCount} lane${visibleCount === 1 ? '' : 's'}`;
   }
@@ -128,6 +253,7 @@ function openGovernanceSheet() {
   governanceSheet.setAttribute('aria-hidden', 'false');
   governanceLauncher?.setAttribute('aria-expanded', 'true');
   document.body.classList.add('governance-sheet-open');
+  renderGovernanceRecentLanes();
   applyGovernanceSheetFilter(governanceSheetSearch?.value || '');
   window.requestAnimationFrame(() => {
     if (governanceSheetSearch) {
@@ -144,6 +270,7 @@ function navigateFromGovernanceTarget(target) {
   if (!target || target.hidden) return;
   const nextView = target.dataset.view || 'overview';
   const controlRoomTool = String(target.dataset.controlRoomTool || '').trim();
+  rememberGovernanceLane(target);
   state.view = nextView;
   if (nextView === 'control_room') {
     state.controlRoomTool = controlRoomTool || getInitialControlRoomTool();
@@ -153,6 +280,11 @@ function navigateFromGovernanceTarget(target) {
   render();
   scrollDashboardToTop();
 }
+
+governanceLaunchMode = loadGovernanceLaunchMode();
+governanceRecentLanes = loadGovernanceRecentLanes();
+renderGovernanceRecentLanes();
+setGovernanceLaunchMode(governanceLaunchMode, { persist: false });
 
 function setLiveTimestampLabel(text) {
   generatedAt.textContent = text;
@@ -566,6 +698,14 @@ governanceLauncher?.addEventListener('click', () => {
 
 governanceSheetClose?.addEventListener('click', () => {
   closeGovernanceSheet();
+});
+
+governanceModePriority?.addEventListener('click', () => {
+  setGovernanceLaunchMode('priority');
+});
+
+governanceModeAll?.addEventListener('click', () => {
+  setGovernanceLaunchMode('all');
 });
 
 governanceSheetSearch?.addEventListener('input', () => {
@@ -10756,29 +10896,3 @@ function formatHumanAskModeLabel(value) {
 function escapeHtml(value) {
   return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
