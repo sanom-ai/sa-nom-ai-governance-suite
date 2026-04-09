@@ -1,0 +1,10 @@
+{
+  "request_id": "req-gemini-example-001",
+  "provider_lane": "gemini",
+  "prompt": "Prepare a concise policy compliance summary.",
+  "max_output_tokens": 256,
+  "metadata": {
+    "tenant_id": "demo-tenant",
+    "workflow_id": "wf-policy-summary-001"
+  }
+}
