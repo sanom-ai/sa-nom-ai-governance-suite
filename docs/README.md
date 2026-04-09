@@ -65,6 +65,7 @@ Pick the path that matches what you need first:
 - [Commercial Boundary](COMMERCIAL_BOUNDARY.md)
 - [Commercial License And Pricing](COMMERCIAL_LICENSE.md)
 - [Commercial Offer Packs](COMMERCIAL_OFFER_PACKS.md)
+- [Self-Serve Governance API Work Order](SELF_SERVE_GOVERNANCE_API_WORK_ORDER.md)
 - [ROI One-Pager](ROI_ONE_PAGER.md)
 - [Open Baseline And Founder IP Policy](OPEN_BASELINE_AND_FOUNDER_IP_POLICY.md)
 - [Discovery Call Script](DISCOVERY_CALL_SCRIPT.md)
