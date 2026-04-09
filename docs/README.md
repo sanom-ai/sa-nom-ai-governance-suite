@@ -27,6 +27,7 @@ Pick the path that matches what you need first:
 - [SA-NOM Command Surface Doctrine](SA_NOM_COMMAND_SURFACE_DOCTRINE.md)
 - [Control Room Information Architecture](CONTROL_ROOM_INFORMATION_ARCHITECTURE.md)
 - [Product Scope](PRODUCT_SCOPE.md)
+- [Dispatch v1 Contract](DISPATCH_V1_CONTRACT.md)
 - [SA-NOM Global Harmony Protocol](SA_NOM_GLOBAL_HARMONY_PROTOCOL.md)
 - [Global Harmony Constitution Templates](GLOBAL_HARMONY_CONSTITUTION_TEMPLATES.md)
 - [Global Harmony Evaluation Baseline](GLOBAL_HARMONY_EVALUATION_BASELINE.md)
@@ -92,3 +93,4 @@ Pick the path that matches what you need first:
 - [Release Notes](releases)
 
 For older release lines, see the full history under [`docs/releases/`](releases) and the versioned handoff/roadmap files in this directory.
+

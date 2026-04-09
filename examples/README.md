@@ -10,6 +10,9 @@ Use them as templates and replace every placeholder before a real deployment.
 - `.env.openai.example`: Hosted OpenAI provider settings using the Responses API.
 - `.env.claude.example`: Hosted Anthropic Claude provider settings using the Messages API.
 - `.env.ollama.example`: Local Ollama provider settings for private inference.
+- `dispatch_v1_openai.example.json`: dispatch.v1 request example for the OpenAI lane.
+- `dispatch_v1_claude.example.json`: dispatch.v1 request example for the Claude lane.
+- `dispatch_v1_gemini.example.json`: dispatch.v1 request example for the Gemini lane.
 - `helm-values.production.example.yaml`: Example Helm values for a production-style private deployment.
 
 ## Core Onboarding Examples

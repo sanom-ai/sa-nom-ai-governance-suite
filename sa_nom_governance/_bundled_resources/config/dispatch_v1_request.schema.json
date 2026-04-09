@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sanom.ai/schemas/dispatch_v1_request.schema.json",
+  "title": "DispatchV1Request",
+  "type": "object",
+  "required": ["provider_lane", "prompt"],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provider_lane": {
+      "type": "string",
+      "enum": ["openai", "claude", "gemini", "ollama"]
+    },
+    "prompt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000
+    },
+    "max_output_tokens": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4096,
+      "default": 128
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

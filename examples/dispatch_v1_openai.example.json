@@ -1,0 +1,10 @@
+{
+  "request_id": "req-openai-example-001",
+  "provider_lane": "openai",
+  "prompt": "Summarize governance posture for the control room briefing.",
+  "max_output_tokens": 256,
+  "metadata": {
+    "tenant_id": "demo-tenant",
+    "workflow_id": "wf-control-room-001"
+  }
+}

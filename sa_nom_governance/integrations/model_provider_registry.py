@@ -6,6 +6,14 @@ from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Callable
 
+from sa_nom_governance.integrations.provider_dispatch_contract import (
+    DispatchContractError,
+    DispatchRequestV1,
+    build_dispatch_error,
+    build_dispatch_success,
+    contract_profile,
+    provider_lane_to_runtime_id,
+)
 from sa_nom_governance.utils.config import AppConfig
 
 
@@ -310,6 +318,91 @@ class ModelProviderRegistry:
             actions.append('Review the partially configured provider entries and finish the missing environment variables before demoing the runtime.')
         return actions
 
+    def dispatch_contract_profile(self) -> dict[str, object]:
+        return contract_profile()
+
+    def dispatch_v1(self, payload: dict[str, object]) -> dict[str, object]:
+        request_id = payload.get('request_id') if isinstance(payload, dict) else None
+        provider_lane = payload.get('provider_lane') if isinstance(payload, dict) else None
+
+        try:
+            request = DispatchRequestV1.from_payload(payload)
+        except DispatchContractError as error:
+            return build_dispatch_error(
+                code=error.code,
+                message=error.message,
+                request_id=request_id if isinstance(request_id, str) else None,
+                provider_lane=provider_lane.strip().lower() if isinstance(provider_lane, str) else None,
+                details=error.details,
+            )
+
+        try:
+            runtime_provider_id = provider_lane_to_runtime_id(request.provider_lane)
+        except DispatchContractError as error:
+            return build_dispatch_error(
+                code=error.code,
+                message=error.message,
+                request_id=request.request_id,
+                provider_lane=request.provider_lane,
+                details=error.details,
+            )
+
+        provider = self.providers.get(runtime_provider_id)
+        if provider is None:
+            return build_dispatch_error(
+                code='provider_unavailable',
+                message=f"Provider lane '{request.provider_lane}' is not available in this runtime.",
+                request_id=request.request_id,
+                provider_lane=request.provider_lane,
+                details={'runtime_provider_id': runtime_provider_id},
+            )
+
+        if not provider.configured:
+            return build_dispatch_error(
+                code='provider_unavailable',
+                message=provider.reason,
+                request_id=request.request_id,
+                provider_lane=request.provider_lane,
+                details={'runtime_provider_id': runtime_provider_id},
+            )
+
+        result = self._probe_provider(
+            provider,
+            prompt=request.prompt,
+            max_output_tokens=request.max_output_tokens,
+        )
+        if result.status != 'ok':
+            return build_dispatch_error(
+                code='dispatch_failed',
+                message=result.reason,
+                request_id=request.request_id,
+                provider_lane=request.provider_lane,
+                details={
+                    'runtime_provider_id': runtime_provider_id,
+                    'endpoint_url': provider.endpoint_url,
+                },
+            )
+
+        output_text = str(result.output_text or '').strip()
+        if not output_text:
+            return build_dispatch_error(
+                code='dispatch_failed',
+                message='Provider response did not contain output text.',
+                request_id=request.request_id,
+                provider_lane=request.provider_lane,
+                details={'runtime_provider_id': runtime_provider_id},
+            )
+
+        return build_dispatch_success(
+            request_id=request.request_id,
+            provider_lane=request.provider_lane,
+            provider_id=runtime_provider_id,
+            model=result.model,
+            output_text=output_text,
+            duration_ms=result.duration_ms,
+            metadata=request.metadata,
+        )
+
     def configured_providers(self) -> list[ProviderConfig]:
         return [provider for provider in self.providers.values() if provider.configured]
 
@@ -551,3 +644,5 @@ class ModelProviderRegistry:
         if len(text) <= limit:
             return text
         return f"{text[:limit - 3]}..."
+
+
