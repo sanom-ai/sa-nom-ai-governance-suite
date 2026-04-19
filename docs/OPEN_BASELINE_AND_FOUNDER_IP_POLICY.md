@@ -19,7 +19,7 @@ That means:
 
 ## What The Public Baseline Already Means
 
-Through the `v0.7.9` line, the public repository already includes a real governed runtime baseline such as:
+In the current public baseline, the public repository already includes a real governed runtime baseline such as:
 - PTAG governance language
 - Role Private Studio
 - Human Ask

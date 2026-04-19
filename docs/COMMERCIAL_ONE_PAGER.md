@@ -6,7 +6,7 @@ Commercial engagement exists for organizations that want a tighter path to live 
 
 ## What The Open-Source Baseline Already Includes
 
-Through the `v0.7.9` line, the public baseline already includes:
+In the current public baseline, the repository already includes:
 - PTAG governance language
 - Role Private Studio
 - Human Ask

@@ -10,9 +10,10 @@ Instead of treating AI as a loose chatbot or an unsafe automation layer, SA-NOM 
 
 ## Confidence
 
-By the `v0.7.9` line, SA-NOM clears a concise private-first confidence bar for serious pilot use:
-- `515 passing tests`
-- `91.08% governance coverage`
+Current verification snapshot (`2026-04-20`, local run with the same commands used by CI):
+- `526 passing tests` from `python -m pytest _support/tests`
+- `91.25% runtime governance coverage` from `python scripts/check_runtime_governance_coverage.py coverage.xml 85`
+- `91.05% total repository coverage` from the generated `coverage.xml`
 - `Private-first pilot-ready command surface, Control Room, recovery, and governed workflow paths`
 
 ## Open Source And Commercial Path
@@ -45,9 +46,11 @@ Choose the path that matches what you want to see first:
 
 ## Command Surface
 
-By the `v0.7.9` line, SA-NOM exposes a private-first command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
+SA-NOM exposes a private-first command surface for normal users and keeps deeper governance mechanics behind a protected Control Room.
 
-![SA-NOM Command Surface](docs/assets/command-surface-home-v0.7.7.png)
+![SA-NOM Command Surface (Representative Capture)](docs/assets/command-surface-home-v0.7.7.png)
+
+Representative command surface capture from the current `v0.7.x` product line.
 
 The command surface is designed around one founder doctrine: one human should be able to govern the organization while AI performs most operational work inside explicit authority, evidence, and escalation boundaries.
 
@@ -85,7 +88,7 @@ It is the way eight operator-facing capabilities work together inside one govern
 - `Integration Outbound`
 - `Human Alert + Escalation Notification`
 
-By the `v0.7.1` line, these surfaces are easier to defend from code, tests, and operator summaries because publication posture, reporting freshness, structural readiness, guardrail recovery, evidence integrity, registry trust, outbound routing, and alert readiness are all more explicit than before.
+Across the current product line, these surfaces are easier to defend from code, tests, and operator summaries because publication posture, reporting freshness, structural readiness, guardrail recovery, evidence integrity, registry trust, outbound routing, and alert readiness are all more explicit than before.
 
 See [docs/FEATURE_MATRIX.md](docs/FEATURE_MATRIX.md) for the current capability boundary and [docs/PRODUCT_TOUR.md](docs/PRODUCT_TOUR.md) for the guided walkthrough.
 
@@ -175,16 +178,3 @@ SA-NOM is designed for private, self-managed, and air-gapped deployment scenario
 That means the public repository should be read as a governance and operational baseline, not as a place where real credentials, emergency access material, or deployment secrets belong.
 
 See [docs/SECRETS_AND_CREDENTIALS_HANDLING.md](docs/SECRETS_AND_CREDENTIALS_HANDLING.md) for the first public handling guide and [docs/SECURITY_AND_DEPENDENCY_HYGIENE.md](docs/SECURITY_AND_DEPENDENCY_HYGIENE.md) for the dependency-light security posture.
-
-
-
-
-
-
-
-
-
-
-
-
-
