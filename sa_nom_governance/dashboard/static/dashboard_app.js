@@ -7039,6 +7039,427 @@ function renderControlRoomExecutionSection(snapshot) {
     </section>
   `;
 }
+
+function buildControlRoomStatusSnapshot(snapshot) {
+  const summary = snapshot.summary || {};
+  const runtimeHealth = snapshot.runtime_health || {};
+  const operations = snapshot.operations || {};
+  const firstRun = snapshot.first_run_readiness || {};
+  const firstRunCenter = operations.first_run_action_center || {};
+  const doctor = operations.quick_start_doctor || {};
+  const evidenceSummary = snapshot.evidence_exports?.summary || {};
+  const integrationSummary = snapshot.integrations?.summary || {};
+  const modelProviders = snapshot.model_providers || {};
+  const studioSummary = snapshot.role_private_studio?.summary || {};
+  const retention = snapshot.retention || {};
+
+  const blockers = [];
+  const pushBlocker = (entry) => {
+    if (!entry) return;
+    const normalized = {
+      id: String(entry.id || `${entry.tool || 'control'}-${blockers.length + 1}`),
+      severity: String(entry.severity || 'attention').trim().toLowerCase() === 'blocked' ? 'blocked' : 'attention',
+      label: String(entry.label || 'Governance attention'),
+      note: String(entry.note || 'Review this item in Control Room.'),
+      tool: String(entry.tool || 'health'),
+      actionLabel: String(entry.actionLabel || 'Open lane'),
+      badge: String(entry.badge || entry.severity || 'attention'),
+    };
+    if (blockers.some((item) => item.id === normalized.id)) return;
+    blockers.push(normalized);
+  };
+
+  const setupRequired = Number(firstRunCenter.required_total || firstRun.blockers_total || 0);
+  if (canAccessSetupAssistant() && setupRequired > 0) {
+    pushBlocker({
+      id: 'setup-required',
+      severity: 'blocked',
+      label: `Setup blockers (${setupRequired})`,
+      note: 'Owner registration, first-run tasks, or doctor requirements still block a clean rollout.',
+      tool: 'setup',
+      actionLabel: 'Fix setup blockers',
+      badge: `${setupRequired} required`,
+    });
+  }
+
+  const doctorFailed = Number(doctor.summary?.required_failed_total || doctor.required_failed_total || 0);
+  if (doctorFailed > 0) {
+    pushBlocker({
+      id: 'doctor-failed',
+      severity: 'blocked',
+      label: `Quick-Start Doctor failed checks (${doctorFailed})`,
+      note: 'Critical diagnostics did not pass and should be fixed before expanding runtime delegation.',
+      tool: 'setup',
+      actionLabel: 'Run doctor and repair',
+      badge: `${doctorFailed} failed`,
+    });
+  }
+
+  const structuralBlocking = Number(summary.studio_pt_oss_blocking_issue_total || studioSummary.pt_oss_blocking_issue_total || 0);
+  const structuralCritical = Number(summary.studio_pt_oss_critical_total || studioSummary.pt_oss_critical_total || 0);
+  const structuralElevated = Number(summary.studio_pt_oss_elevated_total || studioSummary.pt_oss_elevated_total || 0);
+  if (structuralBlocking > 0 || structuralCritical > 0) {
+    const total = structuralBlocking + structuralCritical;
+    pushBlocker({
+      id: 'structural-critical',
+      severity: 'blocked',
+      label: `Structural risk requires review (${total})`,
+      note: 'PT-OSS reported blocking or critical posture before trusted publication.',
+      tool: 'structural_risk',
+      actionLabel: 'Resolve structural risk',
+      badge: `${total} critical`,
+    });
+  } else if (structuralElevated > 0) {
+    pushBlocker({
+      id: 'structural-elevated',
+      severity: 'attention',
+      label: `Structural risk elevated (${structuralElevated})`,
+      note: 'Elevated PT-OSS posture should be reviewed before larger rollout moves.',
+      tool: 'structural_risk',
+      actionLabel: 'Review structural posture',
+      badge: `${structuralElevated} elevated`,
+    });
+  }
+
+  const runtimeStatus = String(runtimeHealth.status || '').trim().toLowerCase();
+  const runtimeWarnings = Number(runtimeHealth.warning_total || runtimeHealth.attention_total || 0);
+  if (runtimeStatus && runtimeStatus !== 'ok') {
+    pushBlocker({
+      id: 'runtime-degraded',
+      severity: runtimeStatus === 'blocked' ? 'blocked' : 'attention',
+      label: `Runtime health is ${formatStatusLabel(runtimeStatus)}`,
+      note: 'Runtime, recovery, or persistence posture is not fully healthy.',
+      tool: 'health',
+      actionLabel: 'Check runtime now',
+      badge: runtimeStatus,
+    });
+  } else if (runtimeWarnings > 0) {
+    pushBlocker({
+      id: 'runtime-warning',
+      severity: 'attention',
+      label: `Runtime warnings (${runtimeWarnings})`,
+      note: 'Warnings are present and should be resolved before critical governance operations.',
+      tool: 'health',
+      actionLabel: 'Review runtime warnings',
+      badge: `${runtimeWarnings} warnings`,
+    });
+  }
+
+  const activeLocks = Number(summary.active_locks || 0);
+  if (activeLocks > 0) {
+    pushBlocker({
+      id: 'active-locks',
+      severity: 'attention',
+      label: `Active authority locks (${activeLocks})`,
+      note: 'Governed resources are currently locked and may block work transitions.',
+      tool: 'conflicts',
+      actionLabel: 'Resolve lock pressure',
+      badge: `${activeLocks} locks`,
+    });
+  }
+
+  const trustAttention = Number(evidenceSummary.attention_total || 0) + Number(evidenceSummary.trusted_role_mismatch_total || 0);
+  if (trustAttention > 0) {
+    pushBlocker({
+      id: 'trust-attention',
+      severity: 'attention',
+      label: `Trust & evidence attention (${trustAttention})`,
+      note: 'Evidence exports or trusted role mismatches need review before auditor-ready claims.',
+      tool: 'evidence_exports',
+      actionLabel: 'Fix trust continuity',
+      badge: `${trustAttention} attention`,
+    });
+  }
+
+  const providerConfigured = Number(modelProviders.configured_providers || 0);
+  const providerNotReady = modelProviders.default_provider_ready === false || providerConfigured <= 0;
+  if (providerNotReady) {
+    pushBlocker({
+      id: 'provider-readiness',
+      severity: 'blocked',
+      label: 'Model provider lane is not ready',
+      note: 'No stable default provider lane is ready for governed runtime execution.',
+      tool: 'model_providers',
+      actionLabel: 'Set provider lane',
+      badge: providerConfigured > 0 ? 'default not ready' : 'not configured',
+    });
+  }
+
+  const integrationFailures = Number(integrationSummary.failed_total || 0);
+  if (integrationFailures > 0) {
+    pushBlocker({
+      id: 'integration-failures',
+      severity: 'attention',
+      label: `Outbound delivery failures (${integrationFailures})`,
+      note: 'Integration delivery pressure can break escalation and external continuity.',
+      tool: 'integrations',
+      actionLabel: 'Repair outbound delivery',
+      badge: `${integrationFailures} failed`,
+    });
+  }
+
+  const retentionBlocks = Number(retention.hold_blocked_total || 0);
+  if (retentionBlocks > 0) {
+    pushBlocker({
+      id: 'retention-hold',
+      severity: 'attention',
+      label: `Retention hold pressure (${retentionBlocks})`,
+      note: 'Records under legal hold or blocked policy paths still require governance review.',
+      tool: 'retention',
+      actionLabel: 'Review retention pressure',
+      badge: `${retentionBlocks} hold`,
+    });
+  }
+
+  const blockedTotal = blockers.filter((item) => item.severity === 'blocked').length;
+  const attentionTotal = blockers.length - blockedTotal;
+  const status = blockedTotal > 0 ? 'blocked' : attentionTotal > 0 ? 'attention' : 'ready';
+  const statusLabel = status === 'ready' ? 'Ready' : status === 'blocked' ? 'Blocked' : 'Attention';
+  const summaryLine = status === 'ready'
+    ? 'Runtime is clear for governed operations.'
+    : status === 'blocked'
+      ? `${blockedTotal} blocking item${blockedTotal === 1 ? '' : 's'} need immediate action.`
+      : `${attentionTotal} attention item${attentionTotal === 1 ? '' : 's'} should be reviewed.`;
+  const nextAction = blockers[0]?.actionLabel || 'Continue governed operations';
+
+  return {
+    status,
+    statusLabel,
+    summaryLine,
+    blockedTotal,
+    attentionTotal,
+    blockers,
+    nextAction,
+  };
+}
+
+function renderControlRoomStatusStrip(statusSnapshot) {
+  return `
+    <section class="card control-room-status-strip control-room-status-${escapeHtml(statusSnapshot.status)}">
+      <div class="control-room-status-line">
+        <span class="control-room-status-kicker">Status</span>
+        <strong>${escapeHtml(statusSnapshot.statusLabel)}</strong>
+        <span class="muted">${escapeHtml(statusSnapshot.summaryLine)}</span>
+      </div>
+      <div class="hero-chip-row">
+        ${statusBadge(statusSnapshot.statusLabel)}
+        ${statusBadge(`${statusSnapshot.blockedTotal} blocked`)}
+        ${statusBadge(`${statusSnapshot.attentionTotal} attention`)}
+        ${statusBadge(`Next: ${statusSnapshot.nextAction}`)}
+      </div>
+    </section>
+  `;
+}
+
+function buildControlRoomPrimaryActions(snapshot, statusSnapshot) {
+  const actions = [];
+  const pushAction = (item) => {
+    if (!item) return;
+    const normalized = {
+      type: String(item.type || 'tool'),
+      tool: String(item.tool || ''),
+      kind: String(item.kind || ''),
+      action: String(item.action || ''),
+      label: String(item.label || 'Open lane'),
+      note: String(item.note || 'Run this primary governance action now.'),
+      tone: String(item.tone || 'accent'),
+      key: String(item.key || `${item.type || 'tool'}:${item.tool || item.kind || ''}:${item.action || ''}:${item.label || ''}`),
+    };
+    if (actions.some((entry) => entry.key === normalized.key)) return;
+    actions.push(normalized);
+  };
+
+  const firstBlocker = statusSnapshot.blockers[0] || null;
+  if (firstBlocker) {
+    pushAction({
+      type: 'tool',
+      tool: firstBlocker.tool,
+      label: firstBlocker.actionLabel || 'Open blocker lane',
+      note: firstBlocker.note,
+      tone: firstBlocker.severity === 'blocked' ? 'warning' : 'accent',
+      key: `blocker:${firstBlocker.id}`,
+    });
+  }
+
+  const executionActions = buildControlRoomExecutionActions(snapshot);
+  const doctorAction = executionActions.find((item) => item.kind === 'ops' && item.action === 'quick-start-doctor');
+  if (doctorAction) {
+    pushAction({
+      ...doctorAction,
+      type: 'operation',
+      key: 'op:quick-start-doctor',
+    });
+  }
+
+  pushAction({
+    type: 'tool',
+    tool: 'studio',
+    label: 'Publish Role',
+    note: 'Review Role Private Studio readiness and publish trusted role packs.',
+    tone: 'success',
+    key: 'tool:studio',
+  });
+
+  pushAction({
+    type: 'tool',
+    tool: 'health',
+    label: 'Resume Recovery',
+    note: 'Inspect runtime recovery posture, dead letters, and backup continuity.',
+    tone: 'warning',
+    key: 'tool:health',
+  });
+
+  pushAction({
+    type: 'tool',
+    tool: 'evidence_exports',
+    label: 'Open Evidence',
+    note: 'Verify evidence exports and audit continuity before governance sign-off.',
+    tone: 'accent',
+    key: 'tool:evidence',
+  });
+
+  return actions.slice(0, 3);
+}
+
+function controlRoomPrimaryActionAttributes(item) {
+  if (item.type === 'tool' && item.tool) return `data-control-room-tool="${escapeHtml(item.tool)}"`;
+  if (item.kind === 'ops' && item.action) return `data-ops-action="${escapeHtml(item.action)}"`;
+  if (item.kind === 'integration' && item.action) return `data-integration-action="${escapeHtml(item.action)}"`;
+  if (item.kind === 'retention' && item.action) return `data-retention-action="${escapeHtml(item.action)}"`;
+  if (item.kind === 'audit' && item.action) return `data-audit-action="${escapeHtml(item.action)}"`;
+  return 'data-control-room-tool="health"';
+}
+
+function renderControlRoomPrimaryActionButton(item, currentTool) {
+  const isCurrentTool = item.type === 'tool' && item.tool && currentTool === item.tool;
+  const attrs = controlRoomPrimaryActionAttributes(item);
+  return `
+    <button class="control-room-primary-button${isCurrentTool ? ' is-active' : ''}" data-tone="${escapeHtml(item.tone || 'accent')}" type="button" ${attrs}>
+      <strong>${escapeHtml(isCurrentTool ? `${item.label} (Current)` : item.label)}</strong>
+      <span>${escapeHtml(item.note)}</span>
+    </button>
+  `;
+}
+
+function renderControlRoomPrimaryActionsSection(snapshot, statusSnapshot, currentTool) {
+  const actions = buildControlRoomPrimaryActions(snapshot, statusSnapshot);
+  if (!actions.length) return '';
+  return `
+    <section class="card stack control-room-primary-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Primary actions</div>
+          <h3 class="card-title">Execute the next move now</h3>
+          <p class="card-subtitle">These are the three highest-impact actions for this session. Run them before opening deep governance panels.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${actions.length} actions`)}</div>
+      </div>
+      <div class="control-room-primary-grid">
+        ${actions.map((item) => renderControlRoomPrimaryActionButton(item, currentTool)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderControlRoomBlockersSection(statusSnapshot) {
+  const blockers = Array.isArray(statusSnapshot.blockers) ? statusSnapshot.blockers : [];
+  if (!blockers.length) {
+    return `
+      <section class="card stack control-room-blockers-shell">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Blockers</div>
+            <h3 class="card-title">No active blockers</h3>
+            <p class="card-subtitle">Nothing is currently blocking governance operations. Continue through the primary actions above.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge('ready')}</div>
+        </div>
+      </section>
+    `;
+  }
+  return `
+    <section class="card stack control-room-blockers-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Blockers</div>
+          <h3 class="card-title">Only what blocks execution is shown here</h3>
+          <p class="card-subtitle">Resolve these items first. Each row includes a direct fix action so operators do not need to hunt across lanes.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${blockers.length} blocker${blockers.length === 1 ? '' : 's'}`)}</div>
+      </div>
+      <div class="control-room-blocker-list">
+        ${blockers.map((item) => `
+          <article class="control-room-blocker-row" data-severity="${escapeHtml(item.severity)}">
+            <div class="control-room-blocker-copy">
+              <strong>${escapeHtml(item.label)}</strong>
+              <p class="muted">${escapeHtml(item.note)}</p>
+            </div>
+            <div class="control-room-blocker-meta">
+              ${statusBadge(item.badge || item.severity)}
+              <button class="action-button" type="button" data-control-room-tool="${escapeHtml(item.tool)}">${escapeHtml(item.actionLabel || 'Open lane')}</button>
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderControlRoomDetailsSection(snapshot, groups, currentTool, embedded) {
+  return `
+    <section class="card stack control-room-details-shell">
+      <details class="control-room-details-collapsible">
+        <summary>
+          <span>Details, graphs, and deep panels</span>
+          <span class="muted">Expand when you need full diagnostics, longer context, and all governance lanes.</span>
+        </summary>
+        <div class="control-room-details-content">
+          ${renderControlRoomExecutionSection(snapshot)}
+          ${renderControlRoomActionSection(snapshot, currentTool)}
+          ${renderControlRoomMissionSection(snapshot, groups, currentTool)}
+          <section class="control-room-groups">
+            ${groups.map((group) => renderControlRoomCategorySection(group, currentTool)).join('')}
+          </section>
+          <section class="stack gap-md control-room-detail-shell">${embedded}</section>
+        </div>
+      </details>
+    </section>
+  `;
+}
+
+function renderControlRoomEvidenceSupportSection(snapshot) {
+  const evidenceSummary = snapshot.evidence_exports?.summary || {};
+  const auditIntegrity = snapshot.runtime_health?.audit_integrity || {};
+  const trustedRegistry = snapshot.runtime_health?.trusted_registry || {};
+  const auditRows = Array.isArray(snapshot.audit) ? snapshot.audit : [];
+  const latestExport = evidenceSummary.latest_export || {};
+  const latestProof = evidenceSummary.latest_workflow_proof || {};
+  return `
+    <section class="card stack control-room-support-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Evidence & Logs</div>
+          <h3 class="card-title">Supporting proof stays here at the bottom</h3>
+          <p class="card-subtitle">Use this zone for audit continuity and evidence checks after primary actions and blockers are handled.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(auditIntegrity.status || 'unknown')}${statusBadge(evidenceSummary.posture || 'monitoring')}</div>
+      </div>
+      <div class="control-room-support-grid">
+        ${renderCommandEmptyState('Audit events', String(auditRows.length))}
+        ${renderCommandEmptyState('Evidence exports', String(evidenceSummary.exports_total || 0))}
+        ${renderCommandEmptyState('Workflow proofs', String(evidenceSummary.workflow_proof_total || 0))}
+        ${renderCommandEmptyState('Trusted registry', formatStatusLabel(trustedRegistry.signature_status || trustedRegistry.status || 'unknown'))}
+        ${renderCommandEmptyState('Latest export', latestExport.evidence_pack_id || latestExport.export_id || latestExport.bundle_id || '-')}
+        ${renderCommandEmptyState('Latest proof', latestProof.workflow_id || latestProof.bundle_id || '-')}
+      </div>
+      <div class="inline-actions">
+        <button class="action-button action-button-muted" type="button" data-control-room-tool="evidence_exports">Open Evidence Exports</button>
+        <button class="action-button action-button-muted" type="button" data-control-room-tool="audit">Open Audit Trail</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderControlRoomCategorySection(group, currentTool) {
   return `
     <section class="card stack control-room-category">
@@ -7076,6 +7497,7 @@ function renderControlRoomToolCard(item, currentTool) {
 function renderControlRoom(snapshot) {
   const currentTool = state.controlRoomTool || getInitialControlRoomTool();
   const groups = buildControlRoomCategoryGroups(snapshot);
+  const statusSnapshot = buildControlRoomStatusSnapshot(snapshot);
   const currentToolLabel = controlRoomToolLabel(currentTool);
   const currentGroup = groups.find((group) => group.items.some((item) => item.tool === currentTool));
   const currentItem = findControlRoomToolItem(groups, currentTool);
@@ -7115,13 +7537,11 @@ function renderControlRoom(snapshot) {
           </div>
         </article>
       </section>
-      ${renderControlRoomExecutionSection(snapshot)}
-      ${renderControlRoomActionSection(snapshot, currentTool)}
-      ${renderControlRoomMissionSection(snapshot, groups, currentTool)}
-      <section class="control-room-groups">
-        ${groups.map((group) => renderControlRoomCategorySection(group, currentTool)).join('')}
-      </section>
-      <section class="stack gap-md control-room-detail-shell">${embedded}</section>
+      ${renderControlRoomStatusStrip(statusSnapshot)}
+      ${renderControlRoomPrimaryActionsSection(snapshot, statusSnapshot, currentTool)}
+      ${renderControlRoomBlockersSection(statusSnapshot)}
+      ${renderControlRoomDetailsSection(snapshot, groups, currentTool, embedded)}
+      ${renderControlRoomEvidenceSupportSection(snapshot)}
     </section>
   `;
 }
