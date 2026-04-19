@@ -18,7 +18,7 @@ That means:
 
 ## What Stays In The Open-Source Baseline
 
-Through the `v0.7.9` line, the community baseline already includes the real governed runtime story:
+In the current public baseline, the community layer already includes the real governed runtime story:
 - PTAG governance language
 - Role Private Studio
 - Human Ask

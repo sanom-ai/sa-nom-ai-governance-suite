@@ -80,17 +80,17 @@ Pick the path that matches what you need first:
 
 ## Planning And Releases
 
-- [Roadmap v0.7.9](ROADMAP_v0.7.9.md)
-- [Issue Drafts v0.7.9](ISSUE_DRAFTS_v0.7.9.md)
-- [Release Notes v0.7.9](releases/RELEASE_NOTES_v0.7.9.md)
-- [PR Description v0.7.9](releases/PR_DESCRIPTION_v0.7.9.md)
-- [v0.7.9 Handoff](V0_7_9_HANDOFF.md)
-- [Roadmap v0.7.8](ROADMAP_v0.7.8.md)
-- [Issue Drafts v0.7.8](ISSUE_DRAFTS_v0.7.8.md)
-- [Release Notes v0.7.8](releases/RELEASE_NOTES_v0.7.8.md)
-- [PR Description v0.7.8](releases/PR_DESCRIPTION_v0.7.8.md)
-- [v0.7.8 Handoff](V0_7_8_HANDOFF.md)
-- [Release Notes](releases)
+- [GitHub Releases (current public tags)](https://github.com/sanom-ai/sa-nom-ai-governance-suite/releases)
+- [Release Notes Archive](releases)
+- [Roadmap v0.7.9 (Historical)](ROADMAP_v0.7.9.md)
+- [Issue Drafts v0.7.9 (Historical)](ISSUE_DRAFTS_v0.7.9.md)
+- [Release Notes v0.7.9 (Historical)](releases/RELEASE_NOTES_v0.7.9.md)
+- [PR Description v0.7.9 (Historical)](releases/PR_DESCRIPTION_v0.7.9.md)
+- [v0.7.9 Handoff (Historical)](V0_7_9_HANDOFF.md)
+- [Roadmap v0.7.8 (Historical)](ROADMAP_v0.7.8.md)
+- [Issue Drafts v0.7.8 (Historical)](ISSUE_DRAFTS_v0.7.8.md)
+- [Release Notes v0.7.8 (Historical)](releases/RELEASE_NOTES_v0.7.8.md)
+- [PR Description v0.7.8 (Historical)](releases/PR_DESCRIPTION_v0.7.8.md)
+- [v0.7.8 Handoff (Historical)](V0_7_8_HANDOFF.md)
 
-For older release lines, see the full history under [`docs/releases/`](releases) and the versioned handoff/roadmap files in this directory.
-
+Use GitHub Releases for the live current line. The versioned roadmap/handoff files in this directory are retained as historical release packets.
