@@ -15,6 +15,7 @@ Pick the path that matches what you need first:
 ## Product And Governance
 
 - [Feature Matrix](FEATURE_MATRIX.md)
+- [Full Capability Report (TH)](SA_NOM_FULL_CAPABILITY_REPORT_TH.md)
 - [PTAG Framework](PTAG_FRAMEWORK.md)
 - [PTAG Quick Start](PTAG_QUICK_START.md)
 - [PTAG Examples](PTAG_EXAMPLES.md)
