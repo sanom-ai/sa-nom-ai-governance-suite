@@ -7322,6 +7322,7 @@ function buildControlRoomPrimaryActions(snapshot, statusSnapshot) {
 }
 
 function controlRoomPrimaryActionAttributes(item) {
+  if (item.attributes) return item.attributes;
   if (item.type === 'tool' && item.tool) return `data-control-room-tool="${escapeHtml(item.tool)}"`;
   if (item.kind === 'ops' && item.action) return `data-ops-action="${escapeHtml(item.action)}"`;
   if (item.kind === 'integration' && item.action) return `data-integration-action="${escapeHtml(item.action)}"`;
@@ -9850,6 +9851,196 @@ function renderStudioGovernanceItem(item, lane) {
   `;
 }
 
+function studioActionAttributes(action, requestId) {
+  const safeRequestId = escapeHtml(requestId || '');
+  if (action === 'report') return `data-human-ask-action="studio-record" data-request-id="${safeRequestId}"`;
+  return `data-studio-panel-action="${escapeHtml(action)}" data-request-id="${safeRequestId}"`;
+}
+
+function buildStudioGovernanceStatusSnapshot(item, readiness, simulation, validation, workflow) {
+  const blockerCount = Array.isArray(readiness.blockers) ? readiness.blockers.length : 0;
+  const structuralState = readiness.structural_state || 'blocked';
+  const simulationState = simulation.status || 'not_run';
+  const validationState = validation.blocked_publish ? 'blocked' : 'ready';
+  const reviewState = workflow.latest_review_decision || 'pending';
+  let tone = 'attention';
+  if (item.status === 'published' || readiness.status === 'published') tone = 'ready';
+  else if (blockerCount || readiness.status === 'blocked' || structuralState === 'blocked') tone = 'blocked';
+  else if (readiness.status === 'ready' && simulationState === 'passed' && validationState === 'ready') tone = 'ready';
+  const statusText = tone === 'ready'
+    ? 'Role posture is ready for governed publication movement.'
+    : tone === 'blocked'
+      ? `${blockerCount || 'Active'} blocker${blockerCount === 1 ? '' : 's'} still require action before publish.`
+      : 'Governance movement is active, but review attention is still required.';
+  return {
+    tone,
+    statusText,
+    blockerCount,
+    structuralState,
+    simulationState,
+    validationState,
+    reviewState,
+    publicationState: item.status || 'in_review',
+  };
+}
+
+function buildStudioGovernancePrimaryActions(item, options = {}) {
+  const actions = [];
+  const seen = new Set();
+  const push = (key, label, note, tone, action) => {
+    if (seen.has(key) || actions.length >= 3) return;
+    seen.add(key);
+    actions.push({
+      label,
+      note,
+      tone,
+      kind: 'studio',
+      attributes: studioActionAttributes(action, item.request_id),
+    });
+  };
+  if (options.canPublish) push('publish', 'Publish Role', 'Promote this approved role into the trusted registry now.', 'accent', 'publish');
+  else if (options.canApprove) push('approve', 'Approve Role', 'Mark this revision approved so publication can proceed.', 'accent', 'approve');
+  if (options.canRequestChanges) push('request_changes', 'Request Changes', 'Send the draft back with explicit governance notes.', 'warning', 'request_changes');
+  if (options.canRefresh) push('refresh', 'Refresh Draft', 'Re-run validation and simulation posture with latest inputs.', 'neutral', 'refresh');
+  if (options.canLoad) push('load', 'Load Into Editor', 'Jump directly to PTAG editor and correct the draft.', 'neutral', 'load');
+  if (options.canRestore) push('restore', 'Restore Revision', 'Roll back to the prior review revision quickly.', 'neutral', 'restore_revision');
+  if (options.canReport) push('report', 'Start Report', 'Open a governed Human Ask report anchored to this role.', 'neutral', 'report');
+  return actions;
+}
+
+function studioBlockerFixAction(category, options = {}) {
+  const normalized = String(category || '').toLowerCase();
+  if (normalized.includes('review')) {
+    if (options.canApprove) return { label: 'Approve', attributes: studioActionAttributes('approve', options.requestId) };
+    if (options.canRequestChanges) return { label: 'Request Changes', attributes: studioActionAttributes('request_changes', options.requestId) };
+  }
+  if (normalized.includes('simulation') && options.canRefresh) return { label: 'Refresh Draft', attributes: studioActionAttributes('refresh', options.requestId) };
+  if ((normalized.includes('validation') || normalized.includes('policy') || normalized.includes('structural') || normalized.includes('pt_oss')) && options.canLoad) {
+    return { label: 'Open Editor', attributes: studioActionAttributes('load', options.requestId) };
+  }
+  if (options.canLoad) return { label: 'Open Editor', attributes: studioActionAttributes('load', options.requestId) };
+  if (options.canRefresh) return { label: 'Refresh Draft', attributes: studioActionAttributes('refresh', options.requestId) };
+  return null;
+}
+
+function buildStudioGovernanceBlockers(readiness, options = {}) {
+  const grouped = readiness.blocker_groups || {};
+  const entries = [];
+  Object.entries(grouped).forEach(([category, groupEntries]) => {
+    const details = Array.isArray(groupEntries) ? groupEntries : [];
+    details.forEach((entry) => {
+      const fix = studioBlockerFixAction(category, options);
+      const severity = String(entry?.severity || 'warning').toLowerCase();
+      entries.push({
+        label: titleCase(String(category).replace(/_/g, ' ')),
+        note: entry?.message || 'Governance blocker requires action.',
+        severity: severity === 'critical' ? 'blocked' : 'attention',
+        badge: severity,
+        actionLabel: fix?.label || 'Inspect',
+        actionAttributes: fix?.attributes || '',
+      });
+    });
+  });
+  if (!entries.length) {
+    const blockers = Array.isArray(readiness.blockers) ? readiness.blockers : [];
+    blockers.forEach((message) => {
+      const fix = studioBlockerFixAction('review', options);
+      entries.push({
+        label: 'Review blocker',
+        note: String(message || 'Governance blocker requires action.'),
+        severity: 'attention',
+        badge: 'warning',
+        actionLabel: fix?.label || 'Inspect',
+        actionAttributes: fix?.attributes || '',
+      });
+    });
+  }
+  return entries.slice(0, 6);
+}
+
+function renderStudioGovernanceStatusStrip(statusSnapshot) {
+  return `
+    <section class="card stack control-room-status-strip control-room-status-${escapeHtml(statusSnapshot.tone)}">
+      <div class="control-room-status-line">
+        <span class="control-room-status-kicker">Status</span>
+        <strong>${escapeHtml(statusSnapshot.statusText)}</strong>
+      </div>
+      <div class="hero-chip-row">
+        ${statusBadge(`Publish ${statusSnapshot.publicationState}`)}
+        ${statusBadge(`Readiness ${statusSnapshot.tone}`)}
+        ${statusBadge(`Validation ${statusSnapshot.validationState}`)}
+        ${statusBadge(`Simulation ${statusSnapshot.simulationState}`)}
+        ${statusBadge(`Structural ${statusSnapshot.structuralState}`)}
+        ${statusBadge(`Review ${statusSnapshot.reviewState}`)}
+      </div>
+    </section>
+  `;
+}
+
+function renderStudioGovernancePrimaryActionsSection(actions) {
+  if (!actions.length) return '';
+  return `
+    <section class="card stack control-room-primary-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Primary actions</div>
+          <h3 class="card-title">Take the next governance move now</h3>
+          <p class="card-subtitle">The highest-impact actions are surfaced first so reviewers can execute without scanning long text blocks.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${actions.length} actions`)}</div>
+      </div>
+      <div class="control-room-primary-grid">
+        ${actions.map((item) => renderControlRoomPrimaryActionButton(item)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderStudioGovernanceBlockersSection(blockers) {
+  if (!blockers.length) {
+    return `
+      <section class="card stack control-room-blockers-shell">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Blockers</div>
+            <h3 class="card-title">No active blockers</h3>
+            <p class="card-subtitle">Nothing is currently blocking publication for this draft.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge('ready')}</div>
+        </div>
+      </section>
+    `;
+  }
+  return `
+    <section class="card stack control-room-blockers-shell">
+      <div class="hero-heading">
+        <div>
+          <div class="eyebrow muted">Blockers</div>
+          <h3 class="card-title">Resolve blockers directly from this panel</h3>
+          <p class="card-subtitle">Only blocking items are shown. Every row includes an immediate action button.</p>
+        </div>
+        <div class="hero-chip-row">${statusBadge(`${blockers.length} blocker${blockers.length === 1 ? '' : 's'}`)}</div>
+      </div>
+      <div class="control-room-blocker-list">
+        ${blockers.map((item) => `
+          <article class="control-room-blocker-row" data-severity="${escapeHtml(item.severity)}">
+            <div class="control-room-blocker-copy">
+              <strong>${escapeHtml(item.label)}</strong>
+              <p class="muted">${escapeHtml(item.note)}</p>
+            </div>
+            <div class="control-room-blocker-meta">
+              ${statusBadge(item.badge || item.severity)}
+              ${item.actionAttributes
+    ? `<button class="action-button" type="button" ${item.actionAttributes}>${escapeHtml(item.actionLabel || 'Open')}</button>`
+    : `<button class="action-button action-button-muted" type="button" disabled>${escapeHtml(item.actionLabel || 'Inspect')}</button>`}
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
 function renderStudioGovernancePanel(item) {
   if (!item) {
     return '<article class="card stack"><div><div class="eyebrow muted">Governance panel</div><h3 class="card-title">No draft selected</h3><p class="card-subtitle">Select a Role Private Studio draft from the governance lanes to review or publish it here.</p></div></article>';
@@ -9875,8 +10066,31 @@ function renderStudioGovernancePanel(item) {
   const canLoad = can('studio.create') && item.status !== 'published';
   const canEditPtag = can('studio.create') && item.status !== 'published';
   const canRestore = can('studio.create') && item.status !== 'published' && (selectedRevision.current_revision_number || 0) > 0;
+  const canReport = can('human_ask.create');
+  const statusSnapshot = buildStudioGovernanceStatusSnapshot(item, readiness, simulation, validation, workflow);
+  const primaryActions = buildStudioGovernancePrimaryActions(item, {
+    canPublish,
+    canApprove,
+    canRequestChanges,
+    canRefresh,
+    canLoad,
+    canRestore,
+    canReport,
+  });
+  const blockers = buildStudioGovernanceBlockers(readiness, {
+    requestId: item.request_id,
+    canApprove,
+    canRequestChanges,
+    canRefresh,
+    canLoad,
+  });
   const diagnostics = buildStudioPtagDiagnostics(item, ptagDraft);
   return `
+    <section class="stack">
+      ${renderStudioGovernanceStatusStrip(statusSnapshot)}
+      ${renderStudioGovernancePrimaryActionsSection(primaryActions)}
+      ${renderStudioGovernanceBlockersSection(blockers)}
+    </section>
     <section class="split-grid${isFocusedEntity('studio_request', item.request_id) ? ' focused-record' : ''}" id="studio-governance-panel-anchor" data-focus-key="${escapeHtml(buildFocusKey('studio_request', item.request_id))}">
       <article class="card hero-card hero-card-secondary studio-governance-panel">
         <div class="hero-heading">
@@ -9909,20 +10123,22 @@ function renderStudioGovernancePanel(item) {
         ${readiness.structural_gate_reason ? `<div class="trace-box compact-trace"><strong>Structural gate note</strong><p class="muted">${escapeHtml(readiness.structural_gate_reason)}</p></div>` : ''}
         ${renderPublicationWorkflow(workflow)}
       </article>
-      <article class="card stack studio-governance-panel">
-        <div><div class="eyebrow muted">Governance note</div><h3 class="card-title">Reviewer and publisher actions</h3><p class="card-subtitle">Record the note that should travel with the decision, then take the action from here.</p></div>
-        <textarea id="studio-governance-note" class="studio-governance-note" placeholder="Approved for publish because validation passed, simulation passed, and authority boundaries are appropriate.">${escapeHtml(noteValue)}</textarea>
-        ${renderGateSummary(readiness.gates || {})}
-        <div class="inline-actions">
-          ${can('human_ask.create') ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Start Report</button>` : ''}
-          ${canLoad ? `<button class="action-button action-button-muted" data-studio-panel-action="load" data-request-id="${escapeHtml(item.request_id)}">Load into Editor</button>` : ''}
-          ${canRefresh ? `<button class="action-button action-button-muted" data-studio-panel-action="refresh" data-request-id="${escapeHtml(item.request_id)}">Refresh Draft</button>` : ''}
-          ${canRestore ? `<button class="action-button action-button-muted" data-studio-panel-action="restore_revision" data-request-id="${escapeHtml(item.request_id)}">Restore Review Revision</button>` : ''}
-          ${canApprove ? `<button class="action-button" data-studio-panel-action="approve" data-request-id="${escapeHtml(item.request_id)}">Approve</button>` : ''}
-          ${canRequestChanges ? `<button class="action-button action-button-muted" data-studio-panel-action="request_changes" data-request-id="${escapeHtml(item.request_id)}">Request Changes</button>` : ''}
-          ${canPublish ? `<button class="action-button" data-studio-panel-action="publish" data-request-id="${escapeHtml(item.request_id)}">Publish Now</button>` : ''}
-        </div>
-        ${renderReadinessSummary(readiness, coverage)}
+      <article class="card stack studio-governance-panel control-room-details-shell">
+        <details class="control-room-details-collapsible" open>
+          <summary>
+            <span>Reviewer notes and readiness details</span>
+            <span class="muted">Expand for full gate + score context</span>
+          </summary>
+          <div class="control-room-details-content">
+            <div><div class="eyebrow muted">Governance note</div><h3 class="card-title">Decision context</h3><p class="card-subtitle">Capture the note that should travel with the approval path.</p></div>
+            <textarea id="studio-governance-note" class="studio-governance-note" placeholder="Approved for publish because validation passed, simulation passed, and authority boundaries are appropriate.">${escapeHtml(noteValue)}</textarea>
+            ${renderGateSummary(readiness.gates || {})}
+            ${renderReadinessSummary(readiness, coverage)}
+            <div class="inline-actions">
+              ${canReport ? `<button class="action-button action-button-muted" data-human-ask-action="studio-record" data-request-id="${escapeHtml(item.request_id)}" data-entry-label="${escapeHtml(item.structured_jd?.role_name || item.request_id)}">Start Report</button>` : ''}
+            </div>
+          </div>
+        </details>
       </article>
     </section>
     <section class="studio-governance-grid">
