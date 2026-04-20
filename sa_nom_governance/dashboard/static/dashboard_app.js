@@ -7772,15 +7772,165 @@ function renderMasterDataGovernanceTool(snapshot) {
   const searchSummary = search.summary || {};
   const searchItems = Array.isArray(search.items) ? search.items.slice(0, 4) : [];
   const teams = Array.isArray(masterData.teams) ? masterData.teams.slice(0, 4) : [];
+  const peopleTotal = Number(masterSummary.people_total || 0);
+  const seatTotal = Number(masterSummary.seats_total || 0);
+  const teamTotal = Number(masterSummary.teams_total || 0);
+  const humanRequiredTotal = Number(assignmentSummary.human_required_total || 0);
+  const criticalTotal = Number(assignmentSummary.critical_total || 0);
+  const searchReady = Boolean(searchSummary.search_ready);
+  const blockedBySeed = peopleTotal === 0 || seatTotal === 0 || teamTotal === 0;
+  const blockedByRouting = criticalTotal > 0;
+  const blockers = [];
+  const openDirectoryAttrs = buildViewJumpAttributes({
+    view: 'directory',
+    title: 'Moved to Directory & Search.',
+    detail: 'Use the directory lane to seed master data and validate searchable ownership continuity.',
+    actionLabel: 'Open Directory & Search',
+  });
+  const openInboxAttrs = buildViewJumpAttributes({
+    view: 'requests',
+    title: 'Moved to Work Inbox.',
+    detail: 'Resolve governed routing pressure directly from the canonical inbox lane.',
+    actionLabel: 'Open Work Inbox',
+  });
+  const openHealthAttrs = buildViewJumpAttributes({
+    view: 'control_room',
+    controlRoomTool: 'health',
+    title: 'Moved to Runtime & Recovery.',
+    detail: 'Use health diagnostics to verify runtime posture and recover from blocked routing states.',
+    actionLabel: 'Open Runtime & Recovery',
+  });
+  if (blockedBySeed) {
+    blockers.push({
+      label: 'Master data seed is incomplete',
+      note: 'People, seats, and teams must all exist before governed routing can stay reliable.',
+      severity: 'blocked',
+      badge: 'critical',
+      actionLabel: 'Open Directory',
+      actionAttributes: openDirectoryAttrs,
+    });
+  }
+  if (!searchReady) {
+    blockers.push({
+      label: 'Search index is still warming',
+      note: 'Global search is not fully ready, so routing discoverability can remain partial.',
+      severity: 'attention',
+      badge: 'warning',
+      actionLabel: 'Open Directory',
+      actionAttributes: openDirectoryAttrs,
+    });
+  }
+  if (blockedByRouting) {
+    blockers.push({
+      label: 'Critical assignment pressure detected',
+      note: `${criticalTotal} critical assignment item${criticalTotal === 1 ? '' : 's'} still needs governed ownership movement.`,
+      severity: 'blocked',
+      badge: 'critical',
+      actionLabel: 'Open Work Inbox',
+      actionAttributes: openInboxAttrs,
+    });
+  } else if (humanRequiredTotal > 0) {
+    blockers.push({
+      label: 'Human routing backlog is active',
+      note: `${humanRequiredTotal} assignment item${humanRequiredTotal === 1 ? '' : 's'} still requires explicit human boundary handling.`,
+      severity: 'attention',
+      badge: 'warning',
+      actionLabel: 'Open Work Inbox',
+      actionAttributes: openInboxAttrs,
+    });
+  }
+  const statusTone = blockers.some((item) => item.severity === 'blocked')
+    ? 'blocked'
+    : blockers.length
+      ? 'attention'
+      : 'ready';
+  const statusText = statusTone === 'ready'
+    ? 'Master data, routing, and search posture are aligned for governed operations.'
+    : statusTone === 'blocked'
+      ? 'Master data routing has blockers that should be resolved before scaling governance workload.'
+      : 'Master data routing is active, but operator attention is still required.';
+  const primaryActions = [
+    {
+      label: 'Open Directory & Search',
+      note: 'Seed people, seats, teams, and verify index posture in one lane.',
+      tone: 'accent',
+      attributes: openDirectoryAttrs,
+    },
+    {
+      label: 'Open Work Inbox',
+      note: 'Resolve routed workload pressure and human-required assignments.',
+      tone: humanRequiredTotal > 0 ? 'warning' : 'neutral',
+      attributes: openInboxAttrs,
+    },
+    {
+      label: 'Open Runtime & Recovery',
+      note: 'Run operational diagnostics when routing confidence drops.',
+      tone: 'neutral',
+      attributes: openHealthAttrs,
+    },
+  ];
   return `
     <section class="stack gap-lg">
+      <section class="card stack control-room-status-strip control-room-status-${escapeHtml(statusTone)}">
+        <div class="control-room-status-line">
+          <span class="control-room-status-kicker">Status</span>
+          <strong>${escapeHtml(statusText)}</strong>
+        </div>
+        <div class="hero-chip-row">
+          ${statusBadge(statusTone)}
+          ${statusBadge(searchReady ? 'search ready' : 'index warming')}
+          ${statusBadge(humanRequiredTotal > 0 ? `${humanRequiredTotal} human required` : 'routing clear')}
+          ${statusBadge(criticalTotal > 0 ? `${criticalTotal} critical` : 'critical clear')}
+        </div>
+      </section>
+      <section class="card stack control-room-primary-shell">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Primary actions</div>
+            <h3 class="card-title">Take the next routing move now</h3>
+            <p class="card-subtitle">These actions keep master data governance actionable instead of buried in long diagnostics text.</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(`${primaryActions.length} actions`)}</div>
+        </div>
+        <div class="control-room-primary-grid">
+          ${primaryActions.map((item) => renderControlRoomPrimaryActionButton(item)).join('')}
+        </div>
+      </section>
+      <section class="card stack control-room-blockers-shell">
+        <div class="hero-heading">
+          <div>
+            <div class="eyebrow muted">Blockers</div>
+            <h3 class="card-title">${blockers.length ? 'Resolve blockers directly from here' : 'No active blockers'}</h3>
+            <p class="card-subtitle">${blockers.length
+    ? 'Only items that can block real routing confidence are shown below.'
+    : 'Master data and routing posture are currently clear for governed execution.'}</p>
+          </div>
+          <div class="hero-chip-row">${statusBadge(blockers.length ? `${blockers.length} blockers` : 'ready')}</div>
+        </div>
+        ${blockers.length ? `
+          <div class="control-room-blocker-list">
+            ${blockers.map((item) => `
+              <article class="control-room-blocker-row" data-severity="${escapeHtml(item.severity)}">
+                <div class="control-room-blocker-copy">
+                  <strong>${escapeHtml(item.label)}</strong>
+                  <p class="muted">${escapeHtml(item.note)}</p>
+                </div>
+                <div class="control-room-blocker-meta">
+                  ${statusBadge(item.badge || item.severity)}
+                  <button class="action-button" type="button" ${item.actionAttributes}>${escapeHtml(item.actionLabel || 'Open')}</button>
+                </div>
+              </article>
+            `).join('')}
+          </div>
+        ` : ''}
+      </section>
       <section class="overview-hero">
         <article class="card hero-card hero-card-primary">
           <div class="hero-heading">
             <div>
               <div class="eyebrow muted">Master Data &amp; Routing</div>
-              <h2 class="hero-title">Keep people, teams, routing, and searchable ownership readable as governance infrastructure.</h2>
-              <p class="hero-subtitle">This is the advanced lane for governing organization structure, assignment ownership, fallback routing, and searchable continuity across cases, documents, and AI work. Normal users should not need to inspect this just to do daily work.</p>
+              <h2 class="hero-title">Govern people, teams, routing, and searchable ownership as one infrastructure lane.</h2>
+              <p class="hero-subtitle">Use this lane to keep assignment ownership explicit, searchable, and resilient across cases, documents, and AI actions.</p>
             </div>
             <div class="hero-chip-row">${statusBadge(searchSummary.search_ready ? 'search ready' : 'index warming')}${statusBadge(Number(assignmentSummary.human_required_total || 0) > 0 ? 'human routing active' : 'routing clear')}</div>
           </div>
@@ -7792,25 +7942,30 @@ function renderMasterDataGovernanceTool(snapshot) {
             ${metricCard('Human required', assignmentSummary.human_required_total || 0, Number(assignmentSummary.human_required_total || 0) > 0 ? 'warning' : 'success', 'Assignments that still need an explicit human boundary move.')}
             ${metricCard('Indexed records', searchSummary.indexed_total || 0, Number(searchSummary.indexed_total || 0) > 0 ? 'success' : 'default', 'Searchable objects currently visible through the global directory and retrieval layer.')}
           </div>
-          <div class="inline-actions">
-            ${renderViewJumpButton({ view: 'directory', label: 'Open Directory & Search', className: 'action-button' })}
-            ${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button action-button-muted' })}
-          </div>
+          <div class="inline-actions">${renderViewJumpButton({ view: 'directory', label: 'Open Directory & Search', className: 'action-button' })}${renderViewJumpButton({ view: 'requests', label: 'Open Work Inbox', className: 'action-button action-button-muted' })}</div>
         </article>
-        <article class="card hero-card hero-card-secondary">
-          <div>
-            <div class="eyebrow muted">Routing governance</div>
-            <h3 class="card-title">Search, assignment, and fallback ownership belong together</h3>
-            <p class="card-subtitle">Master data becomes governance infrastructure when the runtime can route work to a real owner, explain why, and still let advanced operators trace search continuity back through the command surface.</p>
-          </div>
-          ${keyValue([
-            ['Organization', masterSummary.organization_name || '-'],
-            ['Primary view', assignmentSummary.primary_view || searchSummary.primary_view || 'directory'],
-            ['Critical assignments', String(assignmentSummary.critical_total || 0)],
-            ['High priority', String(assignmentSummary.high_priority_total || 0)],
-            ['Search ready', searchSummary.search_ready ? 'yes' : 'no'],
-            ['Indexed types', String(searchSummary.indexed_types_total || 0)],
-          ])}
+        <article class="card hero-card hero-card-secondary control-room-details-shell">
+          <details class="control-room-details-collapsible" open>
+            <summary>
+              <span>Routing and search context</span>
+              <span class="muted">Expand for deeper posture details</span>
+            </summary>
+            <div class="control-room-details-content">
+              <div>
+                <div class="eyebrow muted">Routing governance</div>
+                <h3 class="card-title">Search, assignment, and fallback ownership belong together</h3>
+                <p class="card-subtitle">Master data becomes governance infrastructure when the runtime can route work to a real owner and explain why.</p>
+              </div>
+              ${keyValue([
+    ['Organization', masterSummary.organization_name || '-'],
+    ['Primary view', assignmentSummary.primary_view || searchSummary.primary_view || 'directory'],
+    ['Critical assignments', String(assignmentSummary.critical_total || 0)],
+    ['High priority', String(assignmentSummary.high_priority_total || 0)],
+    ['Search ready', searchSummary.search_ready ? 'yes' : 'no'],
+    ['Indexed types', String(searchSummary.indexed_types_total || 0)],
+  ])}
+            </div>
+          </details>
         </article>
       </section>
       <section class="card-grid">
