@@ -3385,6 +3385,12 @@ button:focus-visible {
   top: calc(100% + 12px);
   width: min(420px, calc(100vw - 48px));
   min-width: 340px;
+  max-height: min(70vh, 620px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(185, 146, 79, 0.38) transparent;
   display: grid;
   gap: 12px;
   padding: 16px;
@@ -3393,7 +3399,29 @@ button:focus-visible {
   border: 1px solid rgba(185, 146, 79, 0.22);
   box-shadow: 0 28px 52px rgba(24, 20, 15, 0.18);
   backdrop-filter: blur(14px);
+  animation: nav-dropdown-fade-up 170ms ease-out;
+  transform-origin: top right;
   z-index: 20;
+}
+
+.nav-dropdown-menu::-webkit-scrollbar {
+  width: 7px;
+}
+
+.nav-dropdown-menu::-webkit-scrollbar-thumb {
+  background: rgba(185, 146, 79, 0.32);
+  border-radius: 999px;
+}
+
+@keyframes nav-dropdown-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .nav-dropdown-section-label {
@@ -3422,6 +3450,13 @@ button:focus-visible {
   padding: 14px 16px;
   min-height: 0;
   border-radius: 18px;
+}
+
+.nav-subitem:hover,
+.nav-subitem:focus-visible {
+  border-color: rgba(185, 146, 79, 0.28);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.94), rgba(245, 238, 226, 0.9));
+  box-shadow: 0 10px 18px rgba(35, 29, 22, 0.08);
 }
 
 .nav-subitem .nav-item-title {
@@ -4659,7 +4694,15 @@ button:focus-visible {
 }
 
   .nav-dropdown-menu {
-    position: static;
+    position: absolute;
+    right: 0;
+    left: auto;
+    top: calc(100% + 10px);
+    width: min(92vw, 420px);
+    min-width: min(320px, 92vw);
+    max-height: min(68vh, 560px);
+    padding: 14px;
+    border-radius: 20px;
   }
 
   .governance-sheet {
